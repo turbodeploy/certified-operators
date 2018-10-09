@@ -11,7 +11,7 @@ cd ${WORKSPACE}/data
 rm -rf images >/dev/null 2>&1
 mkdir -p ${WORKSPACE}/data/images
 cd ${WORKSPACE}/data/images
-
+storage_dir="/opt/storage/xl/${VER_SHORT}/images"
 
 # The following assumes that we have the script in the top-level directory and we have checked out the build project in the XL.
 DOCKER_COMPOSE_YML_FILE_TGT=docker-compose.yml
