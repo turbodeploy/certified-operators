@@ -439,6 +439,14 @@ public class ScenarioMapper {
         final List<UtilizationApiDTO> utilizationApiDTOS = utilizationLevels
                 .map(ScenarioMapper::createUtilizationApiDto).collect(Collectors.toList());
         loadChanges.setUtilizationList(utilizationApiDTOS);
+
+        // Set historical baseline date from scenario
+        changes.stream()
+            .filter(change -> change.hasPlanChanges() &&
+                change.getPlanChanges().hasHistoricalBaseline())
+            .findFirst()
+            .ifPresent(c -> loadChanges.setBaselineDate(DateTimeUtil.toString(c.getPlanChanges()
+                .getHistoricalBaseline().getBaselineDate())));
         return loadChanges;
     }
 

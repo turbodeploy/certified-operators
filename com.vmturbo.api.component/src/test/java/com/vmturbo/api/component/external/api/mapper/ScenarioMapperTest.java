@@ -57,6 +57,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -69,6 +70,8 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeT
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
@@ -484,6 +487,21 @@ public class ScenarioMapperTest {
         RemoveObjectApiDTO changeDto = dto.getTopologyChanges().getRemoveList().get(0);
         assertEquals("1234", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
+    }
+
+    @Test
+    public void testToApBaselineDateChange() {
+        long currTimeinMillis = System.currentTimeMillis();
+        String expectedDateTime = DateTimeUtil.toString(System.currentTimeMillis());
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+            .setPlanChanges(PlanChanges.newBuilder()
+                .setHistoricalBaseline(HistoricalBaseline.newBuilder()
+                    .setBaselineDate(currTimeinMillis)))
+            .build());
+
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+
+        assertEquals(expectedDateTime, dto.getLoadChanges().getBaselineDate());
     }
 
     @Test
