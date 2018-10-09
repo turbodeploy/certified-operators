@@ -50,15 +50,6 @@ message TypeSpecificInfo {
         // Market uses this to decide whether or not to combine IOThroughput and NetThroughput that
         // vm is buying and add them together as consumption, then check with compute tier.
         optional common_dto.EntityDTO.ComputeTierData.DedicatedStorageNetworkState dedicated_storage_network_state = 2;
-
-        // A quantitative way to compare different tiers in a family. Each tier provides a certain
-        // number of coupons, with the smallest tier in a family providing 1. Coupon is a our
-        // internal way compare different tiers in a family. AWS defines Normalization
-        // Factor (NFU) for different tier size:
-        // https://aws.amazon.com/blogs/aws/new-instance-size-flexibility-for-ec2-reserved-instances/
-        // In our internal mode, we defined the coupon to be NFU * 4. For example, "nano" has a NFU
-        // of 0.25, so its coupon size is 0.25 * 4 = 1.
-        optional int32 num_coupons = 3;
     }
 
     message DatabaseInfo {
@@ -68,6 +59,7 @@ message TypeSpecificInfo {
         // Engine
         optional .common_dto.DatabaseEngine engine = 2;
     }
+
 }
 
 message TopologyEntityDTO {
