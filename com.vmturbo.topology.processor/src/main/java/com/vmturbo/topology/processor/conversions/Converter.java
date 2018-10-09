@@ -227,6 +227,7 @@ public class Converter {
                 retBuilder.setComputeTier(ComputeTierInfo.newBuilder()
                         .setFamily(ctData.getFamily())
                         .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
+                        .setNumCoupons(ctData.getNumCoupons())
                         .build());
             case APPLICATION_DATA:
                 final ApplicationData appData = sdkEntity.getApplicationData();
