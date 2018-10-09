@@ -68,7 +68,7 @@ spec:
         - containerPort: 9092
         resources:
           limits:
-            memory: 20971520
+            memory: 20971520e3
         securityContext:
           capabilities:
             drop:
