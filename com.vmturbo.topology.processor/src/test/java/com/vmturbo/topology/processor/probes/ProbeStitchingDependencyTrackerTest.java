@@ -71,13 +71,13 @@ public class ProbeStitchingDependencyTrackerTest {
                 .requireThat(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
                 .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
                 .build();
-        assertEquals(Sets.newHashSet(ProbeCategory.HYPERVISOR, ProbeCategory.HYPERCONVERGED,
+        assertEquals(Sets.newHashSet(ProbeCategory.HYPERCONVERGED,
                 ProbeCategory.PAAS, ProbeCategory.DATABASE_SERVER),
                 tracker.getProbeCategoriesThatStitchBefore(ProbeCategory.HYPERVISOR));
-        assertEquals(Sets.newHashSet(ProbeCategory.HYPERCONVERGED, ProbeCategory.PAAS,
+        assertEquals(Sets.newHashSet(ProbeCategory.PAAS,
                 ProbeCategory.DATABASE_SERVER),
                 tracker.getProbeCategoriesThatStitchBefore(ProbeCategory.HYPERCONVERGED));
-        assertEquals(Sets.newHashSet(ProbeCategory.PAAS, ProbeCategory.DATABASE_SERVER),
+        assertEquals(Sets.newHashSet(ProbeCategory.DATABASE_SERVER),
                 tracker.getProbeCategoriesThatStitchBefore(ProbeCategory.PAAS));
         assertTrue(tracker.getProbeCategoriesThatStitchBefore(
                 ProbeCategory.DATABASE_SERVER).isEmpty());
@@ -95,17 +95,37 @@ public class ProbeStitchingDependencyTrackerTest {
                         .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
                         .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.STORAGE)
                         .build();
-        assertEquals(Sets.newHashSet(ProbeCategory.HYPERVISOR, ProbeCategory.DATABASE_SERVER,
+        assertEquals(Sets.newHashSet(ProbeCategory.DATABASE_SERVER,
                 ProbeCategory.STORAGE, ProbeCategory.STORAGE_BROWSING, ProbeCategory.HYPERCONVERGED,
                 ProbeCategory.PAAS), tracker.getProbeCategoriesThatStitchBefore(ProbeCategory.HYPERVISOR));
-        assertEquals(Sets.newHashSet(ProbeCategory.HYPERCONVERGED, ProbeCategory.PAAS,
+        assertEquals(Sets.newHashSet(ProbeCategory.PAAS,
                 ProbeCategory.DATABASE_SERVER, ProbeCategory.STORAGE,
                 ProbeCategory.STORAGE_BROWSING),
                 tracker.getProbeCategoriesThatStitchBefore(ProbeCategory.HYPERCONVERGED));
-        assertEquals(Sets.newHashSet(ProbeCategory.PAAS, ProbeCategory.DATABASE_SERVER,
+        assertEquals(Sets.newHashSet(ProbeCategory.DATABASE_SERVER,
                 ProbeCategory.STORAGE, ProbeCategory.STORAGE_BROWSING),
                 tracker.getProbeCategoriesThatStitchBefore(ProbeCategory.PAAS));
         assertTrue(tracker.getProbeCategoriesThatStitchBefore(
                 ProbeCategory.DATABASE_SERVER).isEmpty());
+    }
+
+    @Test
+    public void testDefaultScopeForStorageProbes() {
+        assertEquals(
+                Sets.newHashSet(ProbeCategory.HYPERVISOR),
+                ProbeStitchingDependencyTracker
+                        .getDefaultStitchingDependencyTracker()
+                        .getProbeCategoriesThatStitchBefore(ProbeCategory.STORAGE)
+        );
+    }
+
+    @Test
+    public void testDefaultScopeForCloudManagementProbes() {
+        assertEquals(
+                Sets.newHashSet(),
+                ProbeStitchingDependencyTracker
+                        .getDefaultStitchingDependencyTracker()
+                        .getProbeCategoriesThatStitchBefore(ProbeCategory.CLOUD_MANAGEMENT)
+        );
     }
 }

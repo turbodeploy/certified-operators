@@ -434,9 +434,12 @@ public class StitchingManager {
 
         // Compute a map of all internal entities to their matching external entities using
         // the index provided by the operation.
+        // Exclude entities that come from the same target as the one being stitched.
         final Stream<StitchingEntity> externalEntities =
                 operation.getScope(scopeFactory)
-                        .map(StitchingScope::entities)
+                        .map(f -> f.entities()
+                                        .map(StitchingEntity.class::cast)
+                                        .filter(e -> e.getTargetId() != targetId))
                         .orElseGet(() -> scopeFactory.getStitchingContext()
                                 .externalEntities(externalEntityType, targetId)
                                 .map(StitchingEntity.class::cast));

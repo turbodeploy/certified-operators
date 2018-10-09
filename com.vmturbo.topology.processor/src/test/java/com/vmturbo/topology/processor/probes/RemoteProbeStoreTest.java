@@ -273,7 +273,7 @@ public class RemoteProbeStoreTest {
         assertEquals(0, store.getProbeOrdering().compare(storageOp, fabricOp));
         Set<ProbeCategory> storageStitchWith =
                 store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbeId);
-        assertEquals(2, storageStitchWith.size());
+        assertEquals(1, storageStitchWith.size());
         assertTrue(storageStitchWith.contains(ProbeCategory.HYPERVISOR));
     }
 

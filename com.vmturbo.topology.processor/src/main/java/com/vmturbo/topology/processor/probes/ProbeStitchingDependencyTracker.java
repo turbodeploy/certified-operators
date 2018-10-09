@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.probes;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -75,14 +76,7 @@ public class ProbeStitchingDependencyTracker {
      * @return Set of probeCategories that must stitch before this one.
      */
     public Set<ProbeCategory> getProbeCategoriesThatStitchBefore(ProbeCategory probeCategory) {
-        if (!stitchBeforeMap.keySet().contains(probeCategory)) {
-            return Sets.newHashSet();
-        }
-
-        // also include itself (used by cloud shared entities, like AZs, Regions)
-        Set<ProbeCategory> probeCategories = Sets.newHashSet(probeCategory);
-        probeCategories.addAll(stitchBeforeMap.get(probeCategory));
-        return probeCategories;
+        return stitchBeforeMap.getOrDefault(probeCategory, Collections.emptySet());
     }
 
     /**
