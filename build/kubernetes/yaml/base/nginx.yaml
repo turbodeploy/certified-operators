@@ -158,4 +158,4 @@ spec:
     io.kompose.service: nginx
   type: LoadBalancer
   externalIPs:
-  - localhost
+  - 10.0.2.15
