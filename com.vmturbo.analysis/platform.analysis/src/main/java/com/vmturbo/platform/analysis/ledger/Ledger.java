@@ -486,16 +486,27 @@ public class Ledger {
                             if (commBoughtExists && buyer.getBasketSold()
                                 .get(commSoldIndex).getBaseType() != typeOfCommBought) {
                                 Basket basketSold = buyer.getBasketSold();
-                                CommoditySold relatedCommSoldByBuyer =
-                                    commSoldList.get(basketSold.indexOfBaseType(typeOfCommBought.intValue()));
-                                double relatedCommSoldUtil = relatedCommSoldByBuyer.getQuantity()
-                                    / relatedCommSoldByBuyer.getEffectiveCapacity();
-                                double[] incomeStatementExpenses = calculateIncomeStatementExpenses(relatedCommSoldByBuyer,
-                                                shoppingList, supplier, economy, relatedCommSoldUtil, maxDesUtil, minDesUtil);
+                                final int index = basketSold.indexOfBaseType(typeOfCommBought.intValue());
+                                if (index >= 0) {
+                                    // There are entities such as containers that can be hosted by
+                                    // different entities.  In this case, the raw materials
+                                    // commodities list will contain commodities that are neither
+                                    // bought nor sold by the entity.  In the container's case, it
+                                    // will buy VMem, and the raw materials list will contain Mem
+                                    // and VMem, depending on whether it is hosted by a VM or PM.
+                                    // If the container is hosted by a VM, the check above will fail
+                                    // for the Mem raw material.  In this case, we just skip
+                                    // updating the expenses for that commodity.
+                                    CommoditySold relatedCommSoldByBuyer = commSoldList.get(index);
+                                    double relatedCommSoldUtil = relatedCommSoldByBuyer.getQuantity()
+                                            / relatedCommSoldByBuyer.getEffectiveCapacity();
+                                    double[] incomeStatementExpenses = calculateIncomeStatementExpenses(relatedCommSoldByBuyer,
+                                            shoppingList, supplier, economy, relatedCommSoldUtil, maxDesUtil, minDesUtil);
 
-                                commSoldIS.setExpenses(commSoldIS.getExpenses() + incomeStatementExpenses[0]);
-                                commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
-                                commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
+                                    commSoldIS.setExpenses(commSoldIS.getExpenses() + incomeStatementExpenses[0]);
+                                    commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
+                                    commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
+                                }
                             } else if (!commBoughtExists) {
                                 // Only set expenses to 1, if all the commodities in typeOfCommsBought
                                 // are not found in the shopping list in order to not overwrite existing
