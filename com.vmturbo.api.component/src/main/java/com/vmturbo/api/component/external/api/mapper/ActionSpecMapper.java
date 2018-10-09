@@ -23,14 +23,14 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -504,16 +505,29 @@ public class ActionSpecMapper {
                              @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
 
-        // Assume that if this is an initial placement then all explanations will be InitialPlacement
-        final boolean initialPlacement = moveExplanation.getChangeProviderExplanationCount() > 0
-                        && moveExplanation.getChangeProviderExplanation(0).hasInitialPlacement();
+        // If any part of the compound move is an initial placement, the whole move is an initial
+        // placement.
+        //
+        // Under normal circumstances, all sub-moves of an initial placement would be initial
+        // placements (e.g. a new VM needs to start on a storage + host). However,
+        // in a hardware refresh plan where we remove (or replace) entities we may get an initial
+        // placement mixed with a regular move. For example, suppose we have a topology with 1 host,
+        // 2 storages, and 1 VM. We replace the host with a different host. The original host
+        // no longer exists in the topology. From the market's perspective the VM is not placed,
+        // and it will generate an initial placement for the host. However, suppose it also generates
+        // a storage move. Since the original storage was not removed from the topology, the storage
+        // move would be a regular move.
+        final boolean initialPlacement =
+            moveExplanation.getChangeProviderExplanationList().stream()
+                .anyMatch(ChangeProviderExplanation::hasInitialPlacement);
 
         wrapperDto.setActionType(initialPlacement ? ActionType.START : actionType(move, context));
         // Set entity DTO fields for target, source (if needed) and destination entities
         setEntityDtoFields(wrapperDto.getTarget(), move.getTarget().getId(), context);
 
         ChangeProvider primaryChange = primaryChange(move, context);
-        if (!initialPlacement) {
+        final boolean hasPrimarySource = !initialPlacement && primaryChange.getSource().hasId();
+        if (hasPrimarySource) {
             long primarySourceId = primaryChange.getSource().getId();
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
             setEntityDtoFields(wrapperDto.getCurrentEntity(), primarySourceId, context);
@@ -524,10 +538,10 @@ public class ActionSpecMapper {
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : move.getChangesList()) {
-            actions.add(singleMove(wrapperDto, move.getTarget().getId(), change, initialPlacement, context));
+            actions.add(singleMove(wrapperDto, move.getTarget().getId(), change, context));
         }
         wrapperDto.addCompoundActions(actions);
-        wrapperDto.setDetails(actionDetails(initialPlacement, wrapperDto));
+        wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto));
     }
 
     /**
@@ -555,7 +569,6 @@ public class ActionSpecMapper {
     private ActionApiDTO singleMove(ActionApiDTO compoundDto,
                     final long targetId,
                     @Nonnull final ChangeProvider change,
-                    final boolean initialPlacement,
                     @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
 
@@ -568,20 +581,17 @@ public class ActionSpecMapper {
         actionApiDTO.setActionState(compoundDto.getActionState());
         actionApiDTO.setDisplayName(compoundDto.getActionMode().name());
 
-        long sourceId = change.getSource().getId();
-        long destinationId = change.getDestination().getId();
+        final long destinationId = change.getDestination().getId();
 
-        if (!initialPlacement) {
-            actionApiDTO.setCurrentValue(Long.toString(sourceId));
-        }
-        ServiceEntityApiDTO destinationEntity = context.getOptionalEntity(destinationId).get();
-        boolean isStorage = destinationEntity != null
-                        && destinationEntity.getClassName().equals(STORAGE_VALUE);
+        ServiceEntityApiDTO destinationEntity = context.getEntity(destinationId);
+        boolean isStorage = destinationEntity.getClassName().equals(STORAGE_VALUE);
         actionApiDTO.setActionType(isStorage ? ActionType.START : ActionType.CHANGE);
         // Set entity DTO fields for target, source (if needed) and destination entities
         setEntityDtoFields(actionApiDTO.getTarget(), targetId, context);
 
-        if (!initialPlacement) {
+        final boolean hasSource = change.getSource().hasId();
+        if (hasSource) {
+            final long sourceId = change.getSource().getId();
             actionApiDTO.setCurrentValue(Long.toString(sourceId));
             setEntityDtoFields(actionApiDTO.getCurrentEntity(), sourceId, context);
         }
@@ -589,19 +599,19 @@ public class ActionSpecMapper {
         setEntityDtoFields(actionApiDTO.getNewEntity(), destinationId, context);
 
         // Set action details
-        actionApiDTO.setDetails(actionDetails(initialPlacement, actionApiDTO));
+        actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO));
         return actionApiDTO;
     }
 
-    private String actionDetails(boolean initialPlacement, ActionApiDTO actionApiDTO) {
-        return initialPlacement
-                ? MessageFormat.format("Start {0} on {1}",
-                    readableEntityTypeAndName(actionApiDTO.getTarget()),
-                    readableEntityTypeAndName(actionApiDTO.getNewEntity()))
-                : MessageFormat.format("Move {0} from {1} to {2}",
-                    readableEntityTypeAndName(actionApiDTO.getTarget()),
-                    readableEntityTypeAndName(actionApiDTO.getCurrentEntity()),
-                    readableEntityTypeAndName(actionApiDTO.getNewEntity()));
+    private String actionDetails(boolean hasSource, ActionApiDTO actionApiDTO) {
+        return hasSource ?
+            MessageFormat.format("Move {0} from {1} to {2}",
+                readableEntityTypeAndName(actionApiDTO.getTarget()),
+                readableEntityTypeAndName(actionApiDTO.getCurrentEntity()),
+                readableEntityTypeAndName(actionApiDTO.getNewEntity()))
+            : MessageFormat.format("Start {0} on {1}",
+                readableEntityTypeAndName(actionApiDTO.getTarget()),
+                readableEntityTypeAndName(actionApiDTO.getNewEntity()));
     }
 
     /**
@@ -1066,7 +1076,7 @@ public class ActionSpecMapper {
         @Nonnull
         private ServiceEntityApiDTO getEntity(final long oid)
                         throws UnknownObjectException, ExecutionException, InterruptedException {
-            return Objects.requireNonNull(entities.get(oid))
+            return entities.getOrDefault(oid, Optional.empty())
                           .orElseThrow(() -> new UnknownObjectException("Entity: " + oid
                                   + " not found."));
         }
