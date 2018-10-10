@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.plan;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,22 +18,25 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Sets;
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.EntityProfileToDeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.SetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.SetTargetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.topology.processor.deployment.profile.DeploymentProfileMapper;
 import com.vmturbo.topology.processor.entity.EntityStore;
-
-import io.grpc.StatusRuntimeException;
 
 /**
  * Object is used to send newly available templates and deployment profile data to be stored in plan orchestrator.
@@ -77,8 +81,8 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
      * @param templatesDeploymentProfileService rpc service to use for upload template and deployment profile
      */
     public DiscoveredTemplateDeploymentProfileUploader(
-        @Nonnull EntityStore entityStore,
-        DiscoveredTemplateDeploymentProfileServiceBlockingStub templatesDeploymentProfileService) {
+            @Nonnull EntityStore entityStore,
+            DiscoveredTemplateDeploymentProfileServiceBlockingStub templatesDeploymentProfileService) {
         Objects.requireNonNull(entityStore);
         this.entityStore = entityStore;
         this.templateDeploymentProfileService = Objects.requireNonNull(templatesDeploymentProfileService);
@@ -93,14 +97,23 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
      * @param deploymentProfileDTOs A list of discovered deployment profiles.
      */
     @Override
-    public void setTargetsTemplateDeploymentProfile(long targetId,
+    public void recordTemplateDeploymentInfo(long targetId,
                                 @Nonnull Collection<EntityProfileDTO> entityProfileDTOs,
-                                @Nonnull Collection<DeploymentProfileDTO> deploymentProfileDTOs) {
+                                @Nonnull Collection<DeploymentProfileDTO> deploymentProfileDTOs,
+                                @Nonnull List<EntityDTO> discoveredEntities) {
         Objects.requireNonNull(entityProfileDTOs);
         Objects.requireNonNull(deploymentProfileDTOs);
 
+        // we may have some missing fields in the entity profiles, such as VCPU speed. Classic has
+        // special logic to provide a fallback value for these fields when an entity is created from
+        // a profile, but rather than do it during entity creation, we will fill them in during
+        // discovery in XL, since we have access to all the discovered entities for the target in
+        // memory anyways.
+        Collection<EntityProfileDTO> entityProfiles = fillInVMProfileCpuSpeedValues(entityProfileDTOs,
+                discoveredEntities);
+
         final EntityProfileToDeploymentProfileMap templateToDeploymentProfileMap =
-            getTemplateToDeploymentProfileMapping(targetId, entityProfileDTOs, deploymentProfileDTOs);
+            getTemplateToDeploymentProfileMapping(targetId, entityProfiles, deploymentProfileDTOs);
         final Set<DeploymentProfileInfo> deploymentProfileNoTemplates =
             getDeploymentProfileWithoutTemplate(targetId, deploymentProfileDTOs);
         // We synchronized put operation on two Maps to make sure thread safe.
@@ -108,7 +121,68 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             DiscoveredTemplateToDeploymentProfile.put(targetId, templateToDeploymentProfileMap);
             orphanedDeploymentProfile.put(targetId, deploymentProfileNoTemplates);
         }
+    }
 
+    /**
+     * If any VM {@link EntityProfileDTO}s in the collection passed in happens to be missing
+     * a vcpu speed setting, this method will choose a vcpu speed setting for it to use, based on
+     * the cpu speeds found on the physical machines discovered on the same target.
+     *
+     * @param sourceProfiles the set of {@link EntityProfileDTO}s to fill in VM Profile cpu speeds for
+     * @return A collection of the same EntityProfileDTO objects, with cpu speeds set on any VM
+     * profiles that didn't previous have them.
+     */
+    private Collection<EntityProfileDTO> fillInVMProfileCpuSpeedValues(Collection<EntityProfileDTO> sourceProfiles,
+                                                                       List<EntityDTO> entities) {
+        Collection<EntityProfileDTO> adjustedEntityProfiles = new ArrayList<>();
+        // if there are any VM profiles missing CPU speeds, we will fill them in.
+        float defaultCpuSpeed = -1; // we'll fetch this lazily
+        for (EntityProfileDTO entityProfileDTO : sourceProfiles) {
+            if (!entityProfileDTO.getVmProfileDTO().hasVCPUSpeed()) {
+                // this VM Profile needs to have a vcpu speed set for it.
+                // lazily get the default cpu speed if we haven't already
+                if (defaultCpuSpeed == -1) {
+                    defaultCpuSpeed = getHighestCpuSpeedFromEntities(entities);
+                    logger.debug("Highest cpu speed for this target was determined to be {}",
+                            defaultCpuSpeed);
+                }
+                // rebuild this profile w/the speed setting and add it to the collection
+                EntityProfileDTO.Builder entityProfileBuilder = entityProfileDTO.toBuilder();
+                entityProfileBuilder.getVmProfileDTOBuilder().setVCPUSpeed(defaultCpuSpeed);
+                adjustedEntityProfiles.add(entityProfileBuilder.build());
+                logger.trace("Defaulting VMProfile {} cpu speed to {}",
+                        entityProfileDTO.getDisplayName(), defaultCpuSpeed);
+                continue;
+            }
+            // no adjustment was needed, so add the original profile to the return set
+            adjustedEntityProfiles.add(entityProfileDTO);
+        }
+        return adjustedEntityProfiles;
+    }
+
+    /**
+     * Given a list of entities, find the highest individual CPU speed for any Physical Machines in
+     * the entity list. This function is used to find a default cpu speed to use for any VM
+     * templates discovered by the target that also found this list of entities.
+     *
+     * @param entities the collection of entities to inspect for a highest cpu speed
+     * @return the highest cpu speed (in mhz) found across all physical machines in the set of
+     * entities
+     */
+    private float getHighestCpuSpeedFromEntities(List<EntityDTO> entities) {
+        // TODO: It'd be nice to start off with the vcpu increment size instead of 0. This would
+        // match what classic is doing in the VirtualMachineProfileImpl.getSpeeds() function we are
+        // modeling this on. The vcpu increment value would come from the VM Default Settings, which
+        // we have on hand during discovery processing, when this code runs. We'll have to figure
+        // out how to identify which VM Settings we should use in order to pull the increment into
+        // this method.
+        int highestCpuSpeed = entities.stream()
+                .filter(entity -> (entity.getEntityType() == EntityType.PHYSICAL_MACHINE)
+                        && entity.getPhysicalMachineData().hasCpuCoreMhz())
+                .mapToInt(entity -> entity.getPhysicalMachineData().getCpuCoreMhz())
+                .max()
+                .orElse(0);
+        return highestCpuSpeed;
     }
 
     /**
