@@ -112,6 +112,7 @@ public class Converter {
         final TopologyDTO.EntityState entityState = entityState(dto);
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
+        final boolean isControllable = dto.getConsumerPolicy().getControllable();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = entity.getTopologyCommoditiesSold().stream()
@@ -195,6 +196,7 @@ public class Converter {
             entityTags,
             availableAsProvider,
             isShopTogether,
+            isControllable,
             calculateSuspendabilityWithStitchingEntity(entity)
         );
 
@@ -311,6 +313,7 @@ public class Converter {
         final TopologyDTO.EntityState entityState = entityState(dto);
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
+        final boolean isControllable = dto.getConsumerPolicy().getControllable();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = Lists.newArrayList();
@@ -400,6 +403,7 @@ public class Converter {
                 entityTags,
                 availableAsProvider,
                 isShopTogether,
+                isControllable,
                 calculateSuspendability(dto)
         );
 
@@ -420,6 +424,7 @@ public class Converter {
             Map<String, TagValuesDTO> entityTags,
             boolean availableAsProvider,
             boolean isShopTogether,
+            boolean isControllable,
             Optional<Boolean> suspendable
         ) {
         final List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> commodityBoughtGroups = new ArrayList<>();
@@ -435,6 +440,7 @@ public class Converter {
         AnalysisSettings.Builder analysisSettingsBuilder =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
                 .setShopTogether(isShopTogether)
+                .setControllable(isControllable)
                 .setIsAvailableAsProvider(availableAsProvider);
         suspendable.ifPresent(analysisSettingsBuilder::setSuspendable);
 
