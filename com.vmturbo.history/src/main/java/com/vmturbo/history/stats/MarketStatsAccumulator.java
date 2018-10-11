@@ -264,6 +264,13 @@ public class MarketStatsAccumulator {
                                 @Nonnull List<TopologyDTO.CommoditySoldDTO> commoditySoldList)
             throws VmtDbException {
         for (TopologyDTO.CommoditySoldDTO commoditySoldDTO : commoditySoldList) {
+            // do not persist commodity if it is not active
+            if (!commoditySoldDTO.getActive()) {
+                logger.debug("Skipping inactive sold commodity type {}",
+                        () -> commoditySoldDTO.getCommodityType().getType());
+                continue;
+            }
+
             final int intCommodityType = commoditySoldDTO.getCommodityType().getType();
 
             Double capacity = adjustCapacity(commoditySoldDTO.getCapacity());
@@ -469,6 +476,13 @@ public class MarketStatsAccumulator {
                                            Map<Long, Map<Integer, Double>> capacities)
             throws VmtDbException {
         for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtList) {
+            // do not persist commodity if it is not active
+            if (!commodityBoughtDTO.getActive()) {
+                logger.debug("Skipping inactive bought commodity type {}",
+                        () -> commodityBoughtDTO.getCommodityType().getType());
+                continue;
+            }
+
             final int commType = commodityBoughtDTO.getCommodityType().getType();
             String mixedCaseCommodityName = HistoryStatsUtils.formatCommodityName(commType);
             if (mixedCaseCommodityName == null) {

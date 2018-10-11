@@ -173,13 +173,13 @@ public class LiveStatsDBTest {
         checkTableCount(AppStatsLatest.APP_STATS_LATEST, 92);
         checkTableCount(ChStatsLatest.CH_STATS_LATEST, 0);
         checkTableCount(CntStatsLatest.CNT_STATS_LATEST, 0);
-        // (StorageAccess + StorageLatency + Extent + Produces) x 10
-        checkTableCount(DaStatsLatest.DA_STATS_LATEST, 40);
+        // (StorageAccess + StorageLatency + Extent + Produces) x 10 - inactive counts (10)
+        checkTableCount(DaStatsLatest.DA_STATS_LATEST, 20);
         checkTableCount(DpodStatsLatest.DPOD_STATS_LATEST, 0);
         // StorageAccess, StorageLatency, Extent bought
         // StorageCluster, StorageAccess, StorageLatency, StorageProvisioned, StorageAmount sold
-        // Produces. Total of 9 per ST.
-        checkTableCount(DsStatsLatest.DS_STATS_LATEST, 90);
+        // Produces. Total of 9 per ST. So total is 90, of which 20 are inactive and excluded.
+        checkTableCount(DsStatsLatest.DS_STATS_LATEST, 70);
         // Cooling, Power, Space bought x 9 (1 bought by DC, 8 bought by PM)
         // Produces x 9
         // 3x PM connected to 3 ST, 1x PM connected to 4 DS, 4x PM connected to 5 DS
@@ -188,8 +188,8 @@ public class LiveStatsDBTest {
         // MemAllocation, StorageCluster, Mem, Swapping, Ballooning, CPUProvisioned,
         // CPU, CPUAllocation, MemProvisioned, NetThrloughput, IOThroughput x 8
         // numSockets, numCpus x 8
-        // Total
-        checkTableCount(PmStatsLatest.PM_STATS_LATEST, 225);
+        // Total is 225, of which 82 are inactive.
+        checkTableCount(PmStatsLatest.PM_STATS_LATEST, 143);
         checkTableCount(ScStatsLatest.SC_STATS_LATEST, 0);
         checkTableCount(SwStatsLatest.SW_STATS_LATEST, 0);
         // 1 VDC buys MemAllocation and CPUAllocation from 6 PMs
@@ -199,12 +199,12 @@ public class LiveStatsDBTest {
         // Each VDC has a Produces metric.
         // Total = 6 x 2 + 2 x 2 + 4 x 2 + 6 x 2 + 6 = 42
         checkTableCount(VdcStatsLatest.VDC_STATS_LATEST, 42);
-        // Most VMs buys/sell/Produce 18 metrics
-        checkTableCount(VmStatsLatest.VM_STATS_LATEST, 531);
+        // Most VMs buys/sell/Produce 18 metrics, total is 531, of which 118 are inactive
+        checkTableCount(VmStatsLatest.VM_STATS_LATEST, 413);
         checkTableCount(VpodStatsLatest.VPOD_STATS_LATEST, 0);
 
         // stats counts: application (4), DC (4), DA (3), PM (24), ST (8), VDC (2), VM (29) = 74
-        checkTableCount(MarketStatsLatest.MARKET_STATS_LATEST, 61);
+        checkTableCount(MarketStatsLatest.MARKET_STATS_LATEST, 51);
         checkPropertyValue(NUM_HOSTS, 8);
         checkPropertyValue(NUM_VMS, 29);
         checkPropertyValue(NUM_STORAGES, 10);
