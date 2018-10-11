@@ -176,8 +176,8 @@ public class ReportsService implements IReportsService {
      *         other users
      */
     @Override
-    public ReportInstanceApiDTO generateReportTemplateInstance(final String templateApiId,
-            final ReportInstanceApiInputDTO reportApiRequest) {
+    public ReportInstanceApiDTO generateReportTemplateInstance(final String jSessionId,
+            final String templateApiId, final ReportInstanceApiInputDTO reportApiRequest) {
         logger.debug("Report generation requested for template {} and format {} with attributes {}",
                 templateApiId::toString, reportApiRequest::getFormat,
                 reportApiRequest::getAttributes);
