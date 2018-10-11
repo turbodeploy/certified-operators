@@ -10,11 +10,13 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.map.UnmodifiableMap;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -30,16 +32,11 @@ public class StorageTierConverter implements TierConverter {
     CommodityConverter commodityConverter;
     CostDTOCreator costDTOCreator;
 
-    StorageTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter) {
+    public StorageTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
+                         @Nonnull CostDTOCreator costDTOCreator) {
         this.topologyInfo = topologyInfo;
         this.commodityConverter = commodityConverter;
-    }
-
-    StorageTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
-                         CostLibrary costLibrary) {
-        this.topologyInfo = topologyInfo;
-        this.commodityConverter = commodityConverter;
-        this.costDTOCreator = new CostDTOCreator(commodityConverter, costLibrary);
+        this.costDTOCreator = costDTOCreator;
     }
     /**
      * Create TraderTOs for the storageTier passed in. One traderTO is created for every

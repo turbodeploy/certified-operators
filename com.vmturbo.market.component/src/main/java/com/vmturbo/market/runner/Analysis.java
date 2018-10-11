@@ -190,7 +190,7 @@ public class Analysis {
         this.groupServiceClient = groupServiceClient;
         this.clock = Objects.requireNonNull(clock);
         this.converter = new TopologyConverter(topologyInfo,
-                analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor());
+                analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(), marketPriceTable);
         this.config = analysisConfig;
 
         this.cloudTopologyFactory = cloudTopologyFactory;

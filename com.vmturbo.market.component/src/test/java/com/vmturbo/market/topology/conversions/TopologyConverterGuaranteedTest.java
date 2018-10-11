@@ -3,6 +3,8 @@ package com.vmturbo.market.topology.conversions;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -48,6 +51,7 @@ public class TopologyConverterGuaranteedTest {
             .setType(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
             .build();
     private static Map<Long, TopologyEntityDTO> entities;
+    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
@@ -106,7 +110,7 @@ public class TopologyConverterGuaranteedTest {
     public void testExcludeVDCs() throws InvalidTopologyException {
         // includeVDC is false
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are skipped
         assertEquals(1, traders.size());
@@ -127,7 +131,7 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testIncludeVDCs() throws InvalidTopologyException {
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()
