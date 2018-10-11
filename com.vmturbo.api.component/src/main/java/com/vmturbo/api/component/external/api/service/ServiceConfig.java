@@ -30,6 +30,8 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
@@ -221,6 +223,7 @@ public class ServiceConfig {
                 policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
+                scenarioServiceClient(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
                 mapperConfig.statsMapper(),
@@ -296,8 +299,15 @@ public class ServiceConfig {
     }
 
     @Bean
+    public ScenarioServiceBlockingStub scenarioServiceClient() {
+        return ScenarioServiceGrpc.newBlockingStub(
+                communicationConfig.planOrchestratorChannel());
+    }
+
+    @Bean
     public ScenariosService scenariosService() {
-        return new ScenariosService(communicationConfig.planOrchestratorChannel(),
+        return new ScenariosService(
+                scenarioServiceClient(),
                 mapperConfig.scenarioMapper());
     }
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
-import io.grpc.Channel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -28,7 +27,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
-import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 
 /**
@@ -41,9 +39,9 @@ public class ScenariosService implements IScenariosService {
 
     private final ScenarioMapper scenarioMapper;
 
-    public ScenariosService(@Nonnull final Channel planOrchestrator,
+    public ScenariosService(@Nonnull final ScenarioServiceBlockingStub scenarioServiceClient,
                             @Nonnull final ScenarioMapper scenarioMapper) {
-        this.scenarioService = ScenarioServiceGrpc.newBlockingStub(planOrchestrator);
+        this.scenarioService = scenarioServiceClient;
         this.scenarioMapper = Objects.requireNonNull(scenarioMapper);
     }
 

@@ -62,7 +62,6 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
@@ -95,6 +94,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
@@ -281,8 +282,8 @@ public class MarketsServiceTest {
         @Bean
         public MarketsService marketsService() {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
-                    policiesService(), policyCpcService(), planRpcService(), policyMapper(),
-                    marketMapper(), statsMapper(), paginationMapper(),
+                    policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
+                    policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), uiNotificationChannel());
         }
 
@@ -380,6 +381,11 @@ public class MarketsServiceTest {
         @Bean
         public PlanServiceBlockingStub planRpcService() {
             return PlanServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public ScenarioServiceBlockingStub scenarioServiceClient() {
+            return ScenarioServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean

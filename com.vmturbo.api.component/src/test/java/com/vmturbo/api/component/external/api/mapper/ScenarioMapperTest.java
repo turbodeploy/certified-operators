@@ -608,7 +608,7 @@ public class ScenarioMapperTest {
      * by scenarioApiDto
      */
     @Test
-    public void testToScenarioInfoWithIgnoreConstraintSetting() {
+    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         List<RemoveConstraintApiDTO> removeConstraints = ImmutableList.of(
@@ -625,11 +625,11 @@ public class ScenarioMapperTest {
         final IgnoreConstraint ignoreDataCenterCommodity =
                 scenarioChange.getPlanChanges().getIgnoreConstraints(1);
         Assert.assertEquals(ConstraintType.ClusterCommodity.name(),
-                ignoreClusterCommodity.getCommodityType());
+                ignoreClusterCommodity.getIgnoreGroup().getCommodityType());
         Assert.assertEquals(ConstraintType.DataCenterCommodity.name(),
-                ignoreDataCenterCommodity.getCommodityType());
-        Assert.assertEquals(1l, ignoreClusterCommodity.getGroupUuid());
-        Assert.assertEquals(2l, ignoreDataCenterCommodity.getGroupUuid());
+                ignoreDataCenterCommodity.getIgnoreGroup().getCommodityType());
+        Assert.assertEquals(1l, ignoreClusterCommodity.getIgnoreGroup().getGroupUuid());
+        Assert.assertEquals(2l, ignoreDataCenterCommodity.getIgnoreGroup().getGroupUuid());
     }
 
     @Test
@@ -724,7 +724,7 @@ public class ScenarioMapperTest {
             ConstraintType.DataCenterCommodity.name())
                 .equals(ignoreConstraintsChange.getPlanChanges()
                     .getIgnoreConstraintsList().stream()
-                        .map(constraint -> constraint.getCommodityType())
+                        .map(constraint -> constraint.getIgnoreGroup().getCommodityType())
                         .collect(Collectors.toList()));
 
         // Contains Disabled Actions.

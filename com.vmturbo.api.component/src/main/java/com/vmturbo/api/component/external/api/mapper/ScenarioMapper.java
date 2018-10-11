@@ -71,6 +71,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
@@ -233,9 +234,12 @@ public class ScenarioMapper {
            .distinct()
            .flatMap(clusterId -> ALLEVIATE_PRESSURE_IGNORE_CONSTRAINTS.stream()
                // Create an IgnoreConstraint message for each commodity to ignore for the cluster.
-               .map(constraintType -> IgnoreConstraint.newBuilder()
-                   .setCommodityType(constraintType.name())
-                   .setGroupUuid(clusterId)))
+                       .map(constraintType -> IgnoreConstraint.newBuilder()
+                               .setIgnoreGroup(ConstraintGroup.newBuilder()
+                                       .setCommodityType(constraintType.name())
+                                       .setGroupUuid(clusterId)
+                                       .build())
+                               .build()))
            .forEach(planChangesBuilder::addIgnoreConstraints);
 
 
@@ -540,8 +544,11 @@ public class ScenarioMapper {
     @Nonnull
     private IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) {
         return IgnoreConstraint.newBuilder()
-                .setCommodityType(constraint.getConstraintType().name())
-                .setGroupUuid(Long.parseLong(constraint.getTarget().getUuid())).build();
+                .setIgnoreGroup(ConstraintGroup.newBuilder()
+                        .setCommodityType(constraint.getConstraintType().name())
+                        .setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()))
+                        .build())
+                .build();
     }
 
     @Nonnull
@@ -792,11 +799,17 @@ public class ScenarioMapper {
     @Nonnull
     private RemoveConstraintApiDTO toRemoveConstraintApiDTO(@Nonnull IgnoreConstraint constraint) {
         final RemoveConstraintApiDTO constraintApiDTO = new RemoveConstraintApiDTO();
-        constraintApiDTO.setConstraintType(
-                ConstraintType.valueOf(constraint.getCommodityType()));
-        final BaseApiDTO targetGroup = new BaseApiDTO();
-        targetGroup.setUuid(Long.toString(constraint.getGroupUuid()));
-        constraintApiDTO.setTarget(targetGroup);
+        // Currently as IgnoreConstraint for all entities is passed as a API parameter(OM-18012),
+        // the UI has no way to displayIgnoreConstraint setting for all entities. So we are only
+        // converting the IgnoreConstraint if it is set for groups.
+        if (constraint.hasIgnoreGroup()) {
+            ConstraintGroup constraintGroup = constraint.getIgnoreGroup();
+            constraintApiDTO.setConstraintType(
+                    ConstraintType.valueOf(constraintGroup.getCommodityType()));
+            final BaseApiDTO targetGroup = new BaseApiDTO();
+            targetGroup.setUuid(Long.toString(constraintGroup.getGroupUuid()));
+            constraintApiDTO.setTarget(targetGroup);
+        }
         return constraintApiDTO;
     }
 

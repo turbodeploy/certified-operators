@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.ScenarioServiceMole;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -61,7 +62,9 @@ public class ScenariosServiceTest {
 
     @Before
     public void setup() throws IOException {
-        scenariosService = new ScenariosService(grpcServer.getChannel(), scenarioMapper);
+        scenariosService = new ScenariosService(
+                ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                    scenarioMapper);
     }
 
     @Test

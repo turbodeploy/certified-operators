@@ -3,8 +3,9 @@ package plan;
 
 option java_package = "com.vmturbo.common.protobuf.plan";
 
-import "setting/Setting.proto";
+import "CommonDTO.proto";
 import "group/PolicyDTO.proto";
+import "setting/Setting.proto";
 
 // A scenario specifies the changes to the topology, and changes to configuration
 // to be used when running a plan.
@@ -240,8 +241,25 @@ message ScenarioChange {
         optional HistoricalBaseline historical_baseline = 5;
 
         message IgnoreConstraint {
-            required string commodity_type = 1;
-            required int64 group_uuid = 2;
+            // Constraints can be set per group/cluster, for all entities of a specific type
+            // or for all entities in the topology.
+            oneof ignore {
+                ConstraintGroup ignore_group = 1;
+
+                IgnoreEntityTypes ignore_entity_types = 2;
+
+                bool ignore_all_entities = 3;
+            }
+        }
+
+        // ignore constraint for the specific group and commodity type.
+        message ConstraintGroup {
+            optional string commodity_type = 1;
+            optional int64 group_uuid = 2;
+        }
+
+        message IgnoreEntityTypes {
+           repeated  common_dto.EntityDTO.EntityType entityTypes = 1;
         }
 
         // A change to a placement policy or a new policy altogether.
@@ -433,7 +451,7 @@ message CreatePlanRequest {
     //  ID of the plan input topology
     optional int64 topology_id = 2;
 
-    // The id of scenation to be applied over existing topology befor run a plan
+    // The id of scenario to be applied over existing topology before running a plan
     optional int64 scenario_id = 3;
 }
 

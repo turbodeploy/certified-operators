@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,9 +23,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -55,6 +56,8 @@ public class ConstraintsEditor {
             CommodityType.NETWORK.getValue(), CommodityType.STORAGE_CLUSTER.getValue(),
             CommodityType.DATACENTER.getValue());
 
+    private static final String ALL_COMMODITIES = "ALL_COMMODITIES";
+
     public ConstraintsEditor(@Nonnull GroupResolver groupResolver,
             @Nonnull GroupServiceBlockingStub groupService) {
         this.groupResolver = groupResolver;
@@ -76,8 +79,13 @@ public class ConstraintsEditor {
                 final List<IgnoreConstraint> ignoreConstraints = change
                         .getPlanChanges().getIgnoreConstraintsList();
                 if (!CollectionUtils.isEmpty(ignoreConstraints)) {
-                    entitiesToIgnoredCommodities.putAll(
-                        getEntitiesOidsForIgnoredCommodities(ignoreConstraints, graph, isPressurePlan));
+                    getEntitiesOidsForIgnoredCommodities(ignoreConstraints, graph, isPressurePlan)
+                            .forEach((entityId, ignoredCommodity) -> {
+                                Collection<String> commodities = entitiesToIgnoredCommodities.get(entityId);
+                                if (!commodities.contains(ALL_COMMODITIES)) {
+                                    entitiesToIgnoredCommodities.put(entityId, ignoredCommodity);
+                                }
+                            });
                 }
             } else {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
@@ -91,37 +99,67 @@ public class ConstraintsEditor {
     private Multimap<Long, String> getEntitiesOidsForIgnoredCommodities(
                     @Nonnull List<IgnoreConstraint> ignoredCommodities,
                     @Nonnull TopologyGraph graph, boolean isPressurePlan) {
-        Set<Long> groups = ignoredCommodities.stream()
-                .map(IgnoreConstraint::getGroupUuid)
-                .collect(Collectors.toSet());
+
         final Multimap<Long, String> entitesToIgnoredCommodities = HashMultimap.create();
+        boolean hasIgnoreAllEntities = ignoredCommodities.stream()
+                .anyMatch(IgnoreConstraint::hasIgnoreAllEntities);
+
+        // First check if all entities have to be ignored.
+        if (hasIgnoreAllEntities) {
+            graph.entities()
+                    .map(TopologyEntity::getOid)
+                    .forEach(entityId ->
+                            entitesToIgnoredCommodities.put(entityId, ALL_COMMODITIES));
+            return entitesToIgnoredCommodities;
+        }
+
+        // Check if all entities of specific types have to be ignored.
+        ignoredCommodities.stream()
+                .filter(IgnoreConstraint::hasIgnoreEntityTypes)
+                .map(IgnoreConstraint::getIgnoreEntityTypes)
+                .flatMap(entityTypes -> entityTypes.getEntityTypesList().stream())
+                .map(entityType -> graph.entitiesOfType(entityType))
+                .flatMap(Function.identity())
+                .forEach(entity ->
+                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES));
+
+        Set<Long> groups = ignoredCommodities.stream()
+                .filter(IgnoreConstraint::hasIgnoreGroup)
+                .map(IgnoreConstraint::getIgnoreGroup)
+                .map(ConstraintGroup::getGroupUuid)
+                .collect(Collectors.toSet());
         groupService.getGroups(GetGroupsRequest.newBuilder()
                 .addAllId(groups)
                 .setResolveClusterSearchFilters(true)
                 .build())
                 .forEachRemaining(group -> {
-            try {
-                final Set<Long> groupMembersOids = groupResolver.resolve(group, graph);
-                if (isPressurePlan) {
-                   // VMs on hosts in a cluster will have other constraints (e.g. Datacenter, Network)
-                   // that may stop them from being moved. In an alleviate pressure plan,
-                   // we need to ignore these constraints on VM consumers of the hot cluster members
-                   // so that the market can simulate moves of these VMs to the cold cluster(s).
-                   // Also, update commodities sold for PMs of hot cluster s.t there are no moves to
-                   // hot cluster from cold cluster.
-                    groupMembersOids.addAll(
-                        updateCommoditiesSoldForHostAndGetVMCustomers(groupMembersOids, graph));
-                }
-                final Set<String> commoditiesOfGroup = ignoredCommodities.stream()
-                        .filter(commodity -> commodity.getGroupUuid() == group.getId())
-                        .map(IgnoreConstraint::getCommodityType)
-                        .collect(Collectors.toSet());
-                groupMembersOids.forEach(entityId ->
-                    entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
-            } catch (GroupResolutionException e) {
-                logger.warn("Cannot resolve member for group {}", group);
-            }
-        });
+                    try {
+                        Set<Long> groupMembersOids = groupResolver.resolve(group, graph);
+                        // Remove entityIds for which we have already determined that all commodity
+                        // constraints have to be ignored.
+                        groupMembersOids.removeAll(entitesToIgnoredCommodities.keySet());
+                        if (isPressurePlan) {
+                           // VMs on hosts in a cluster will have other constraints (e.g. Datacenter, Network)
+                           // that may stop them from being moved. In an alleviate pressure plan,
+                           // we need to ignore these constraints on VM consumers of the hot cluster members
+                           // so that the market can simulate moves of these VMs to the cold cluster(s).
+                           // Also, update commodities sold for PMs of hot cluster s.t there are no moves to
+                           // hot cluster from cold cluster.
+                            groupMembersOids.addAll(
+                                updateCommoditiesSoldForHostAndGetVMCustomers(groupMembersOids, graph));
+                        }
+                        final Set<String> commoditiesOfGroup = ignoredCommodities.stream()
+                                .filter(IgnoreConstraint::hasIgnoreGroup)
+                                .map(IgnoreConstraint::getIgnoreGroup)
+                                .filter(commodity -> commodity.getGroupUuid() == group.getId())
+                                .map(ConstraintGroup::getCommodityType)
+                                .collect(Collectors.toSet());
+                        groupMembersOids.forEach(entityId ->
+                            entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
+                    } catch (GroupResolutionException e) {
+                        logger.warn("Cannot resolve member for group {}", group);
+                    }
+                });
 
         return entitesToIgnoredCommodities;
     }
@@ -202,11 +240,15 @@ public class ConstraintsEditor {
             @Nonnull CommoditiesBoughtFromProvider commodities,
             @Nonnull Collection<String> commoditiesToDeactivate) {
         final ImmutableList.Builder<CommodityBoughtDTO> deactivatedCommodities = ImmutableList.builder();
+        boolean ignoreAll =
+                commoditiesToDeactivate.stream()
+                        .anyMatch(commodity -> commodity.equals(ALL_COMMODITIES));
         final Set<Integer> ignoredTypes = commoditiesToDeactivate.stream()
                 .map(COMMODITY_NAME_TO_COMMODITY_TYPE::get)
                 .collect(Collectors.toSet());
         for (CommodityBoughtDTO commodity : commodities.getCommodityBoughtList()) {
-            if (ignoredTypes.contains(commodity.getCommodityType().getType())) {
+            if ((ignoreAll && commodity.getCommodityType().hasKey()) ||
+                    ignoredTypes.contains(commodity.getCommodityType().getType())) {
                 deactivatedCommodities.add(CommodityBoughtDTO.newBuilder(commodity)
                         .setActive(false).build());
             } else {

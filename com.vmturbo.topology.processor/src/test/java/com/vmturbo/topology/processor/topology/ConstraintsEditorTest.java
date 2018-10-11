@@ -27,7 +27,9 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreEntityTypes;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -78,6 +80,27 @@ public class ConstraintsEditorTest {
             ));
     }
 
+    @Nonnull
+    private TopologyEntity.Builder buildTopologyEntity(long oid, EntityType entityType, int commodityType, String commodityKey) {
+        CommodityType.Builder commodityTypeBuilder =
+                CommodityType.newBuilder()
+                        .setType(commodityType);
+        if (commodityKey != null) {
+            commodityTypeBuilder.setKey(commodityKey);
+        }
+        return TopologyEntityUtils.topologyEntityBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(oid)
+                        .setEntityType(entityType.getNumber())
+                        .addCommoditiesBoughtFromProviders(
+                                CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder().setCommodityType(
+                                        commodityTypeBuilder.build())
+                                                .setActive(true)
+                                ).build()
+                ));
+    }
+
     private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int commType, int entityType, long provider) {
         return TopologyEntityUtils.topologyEntityBuilder(
                     TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
@@ -118,9 +141,12 @@ public class ConstraintsEditorTest {
         topology.put(3l, buildTopologyEntity(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
-                        IgnoreConstraint.newBuilder().setCommodityType("ClusterCommodity")
-                                .setGroupUuid(1l).build()
-                )).build());
+                        IgnoreConstraint.newBuilder().setIgnoreGroup(
+                                ConstraintGroup.newBuilder()
+                                    .setCommodityType("ClusterCommodity")
+                                    .setGroupUuid(1l).build())
+                                .build()))
+                .build());
         final TopologyGraph graph = TopologyGraph.newGraph(topology);
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
@@ -153,6 +179,70 @@ public class ConstraintsEditorTest {
     }
 
     @Test
+    public void testIgnoreConstraintAllEntities() throws IOException {
+        final List<Group> groups = ImmutableList.of(buildGroup(1l, ImmutableList.of(1l, 2l)));
+        final GroupTestService testService = new GroupTestService(groups);
+        GrpcTestServer testServer = GrpcTestServer.newServer(testService);
+        testServer.start();
+        groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
+        constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(1l, buildTopologyEntity(1l, EntityType.PHYSICAL_MACHINE,
+                CommodityDTO.CommodityType.CLUSTER.getNumber(), null));
+        topology.put(2l, buildTopologyEntity(2l, EntityType.VIRTUAL_MACHINE,
+                CommodityDTO.CommodityType.CPU.getNumber(), "cpu"));
+        topology.put(3l, buildTopologyEntity(3l, EntityType.VIRTUAL_MACHINE,
+                CommodityDTO.CommodityType.STORAGE.getNumber(), "storage"));
+        List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
+                        IgnoreConstraint.newBuilder()
+                                .setIgnoreAllEntities(true)
+                                .build()))
+                .build());
+        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        Assert.assertEquals(3, getActiveCommodities(graph).count());
+        constraintsEditor.editConstraints(graph, changes, false);
+        // As 2 out of the 3 commodities has a key, we should have only 2 commodities whose
+        // active flag is set to false and 1 is set to true
+        Assert.assertEquals(1, getActiveCommodities(graph).count());
+    }
+    @Test
+    public void testIgnoreConstraintAllVMEntities() throws IOException {
+        final List<Group> groups = ImmutableList.of(buildGroup(1l, ImmutableList.of(1l, 2l)));
+        final GroupTestService testService = new GroupTestService(groups);
+        GrpcTestServer testServer = GrpcTestServer.newServer(testService);
+        testServer.start();
+        groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
+        constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(1l, buildTopologyEntity(1l, EntityType.PHYSICAL_MACHINE,
+                CommodityDTO.CommodityType.CLUSTER.getNumber(), null));
+        topology.put(2l, buildTopologyEntity(2l, EntityType.VIRTUAL_MACHINE,
+                CommodityDTO.CommodityType.CPU.getNumber(), "cpu"));
+        topology.put(3l, buildTopologyEntity(3l, EntityType.VIRTUAL_MACHINE,
+                CommodityDTO.CommodityType.DATASTORE.getNumber(), "datastore"));
+        topology.put(4l, buildTopologyEntity(4l, EntityType.VIRTUAL_MACHINE,
+                CommodityDTO.CommodityType.STORAGE.getNumber(), null));
+        topology.put(5l, buildTopologyEntity(5l, EntityType.APPLICATION,
+                CommodityDTO.CommodityType.VCPU.getNumber(), "vcpu"));
+        List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
+                        IgnoreConstraint.newBuilder()
+                                .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
+                                        .addEntityTypes(EntityType.VIRTUAL_MACHINE)
+                                        .build())
+                                .build()))
+                .build());
+        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        Assert.assertEquals(5, getActiveCommodities(graph).count());
+        constraintsEditor.editConstraints(graph, changes, false);
+        // As only 2 out of 3 VMs has a commodityKey, there should be only 2
+        // commodities in the entire graph which have active set to false. The
+        // remaining 3 entitues should have commoditbought as active.
+        Assert.assertEquals(3, getActiveCommodities(graph).count());
+    }
+
+    @Test
     public void testEditConstraintsForAlleviatePressurePlan() throws IOException {
         final List<Group> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 3L, 4L, 5L, 6L)));
         final GroupTestService testService = new GroupTestService(groups);
@@ -181,9 +271,12 @@ public class ConstraintsEditorTest {
         // Set scenario change
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
-                        IgnoreConstraint.newBuilder().setCommodityType("ClusterCommodity")
-                                .setGroupUuid(1L).build()
-                )).build());
+                        IgnoreConstraint.newBuilder().setIgnoreGroup(
+                                ConstraintGroup.newBuilder()
+                                        .setCommodityType("ClusterCommodity")
+                                        .setGroupUuid(1l).build())
+                                .build()))
+                .build());
         final TopologyGraph graph = TopologyGraph.newGraph(topology);
 
         // Pressure plan : disabled
@@ -205,9 +298,14 @@ public class ConstraintsEditorTest {
     private ScenarioChange buildScenarioChange(@Nonnull String commodityType, long uuid) {
         return ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
-                        IgnoreConstraint.newBuilder().setCommodityType(commodityType)
-                                .setGroupUuid(uuid).build()
-                )).build();
+                        IgnoreConstraint.newBuilder().setIgnoreGroup(
+                                ConstraintGroup.newBuilder()
+                                        .setCommodityType(commodityType)
+                                        .setGroupUuid(uuid)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
     }
 
     private Stream<CommodityBoughtDTO> getActiveCommodities(TopologyGraph editedGraph) {

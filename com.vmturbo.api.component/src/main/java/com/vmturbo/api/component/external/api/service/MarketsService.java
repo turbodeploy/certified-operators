@@ -56,8 +56,6 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.MergePolicyType;
-import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -92,7 +90,17 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreEntityTypes;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioId;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -124,6 +132,8 @@ public class MarketsService implements IMarketsService {
 
     private final PolicyServiceBlockingStub policyRpcService;
 
+    private final ScenarioServiceBlockingStub scenarioServiceClient;
+
     private final GroupServiceBlockingStub groupRpcService;
 
     private final RepositoryServiceBlockingStub repositoryRpcService;
@@ -144,6 +154,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PoliciesService policiesService,
                           @Nonnull final PolicyServiceBlockingStub policyRpcService,
                           @Nonnull final PlanServiceBlockingStub planRpcService,
+                          @Nonnull final ScenarioServiceBlockingStub scenariosService,
                           @Nonnull final PolicyMapper policyMapper,
                           @Nonnull final MarketMapper marketMapper,
                           @Nonnull final StatsMapper statsMapper,
@@ -157,6 +168,7 @@ public class MarketsService implements IMarketsService {
         this.policiesService = Objects.requireNonNull(policiesService);
         this.policyRpcService = Objects.requireNonNull(policyRpcService);
         this.planRpcService = Objects.requireNonNull(planRpcService);
+        this.scenarioServiceClient = Objects.requireNonNull(scenariosService);
         this.policyMapper = Objects.requireNonNull(policyMapper);
         this.marketMapper = Objects.requireNonNull(marketMapper);
         this.uiNotificationChannel = Objects.requireNonNull(uiNotificationChannel);
@@ -423,9 +435,46 @@ public class MarketsService implements IMarketsService {
                         "Ignore Constraints: {}, Plan Market Name: {}",
                 marketUuid, scenarioId, ignoreConstraints, planMarketName);
 
+        // todo: The 'ignoreConstraints' parameter will move into the Scenario in OM-18012
+        // Until OM-18012 is fixed, we will have to do a get and set of scenario to add the
+        // ignoreConstraint changes to the existing scenario.
+        if (ignoreConstraints) {
+            Scenario existingScenario = scenarioServiceClient.getScenario(
+                    ScenarioId.newBuilder()
+                            .setScenarioId(scenarioId)
+                            .build());
+            ScenarioInfo.Builder updatedScenarioInfo = existingScenario.getScenarioInfo().toBuilder();
+            if (updatedScenarioInfo.getChangesCount() == 0) {
+                updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
+                        .setPlanChanges(PlanChanges.newBuilder().build())
+                        .build());
+            }
+            for (ScenarioChange.Builder change : updatedScenarioInfo.getChangesBuilderList()) {
+                if (change.hasPlanChanges()) {
+                    PlanChanges.Builder planChange = change.getPlanChanges().toBuilder();
+                    // if a previous ignore constraint is set, we skip.
+                    if (planChange.getIgnoreConstraintsCount() != 0) {
+                        break;
+                    }
+                    // NOTE: Currently we only remove constraints for VM entities.
+                    planChange.addIgnoreConstraints(IgnoreConstraint.newBuilder()
+                            .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
+                                    .addEntityTypes(EntityType.VIRTUAL_MACHINE)
+                                    .build())
+                            .build());
+                    change.setPlanChanges(planChange);
+                }
+            }
+            UpdateScenarioResponse updateScenarioResponse =
+                    scenarioServiceClient.updateScenario(UpdateScenarioRequest.newBuilder()
+                            .setScenarioId(scenarioId)
+                            .setNewInfo(updatedScenarioInfo.build())
+                            .build());
+            logger.debug("Updated scenario: {}", updateScenarioResponse.getScenario());
+        }
+
         // note that, for XL, the "marketUuid" in the request is interpreted as the Plan Instance ID
         final ApiId planInstanceId;
-        // todo: The 'ignoreConstraints' parameter will move into the Scenario in OM-18012
         try {
             planInstanceId = uuidMapper.fromUuid(marketUuid);
         } catch (NumberFormatException e) {
