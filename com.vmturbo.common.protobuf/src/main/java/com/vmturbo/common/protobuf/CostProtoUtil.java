@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
  * Utility methods for protobuf messages in Cost.proto.
@@ -24,7 +25,15 @@ public class CostProtoUtil {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final int DAYS_IN_YEAR = 365;
+    public static final int DAYS_IN_YEAR = 365;
+
+    public static final int HOURS_IN_DAY = 24;
+
+    public static final int MONTHS_IN_YEAR = 12;
+
+    public static final int HOURS_IN_YEAR = HOURS_IN_DAY * DAYS_IN_YEAR;
+
+    public static final int HOURS_IN_MONTH = HOURS_IN_YEAR / MONTHS_IN_YEAR;
 
     /**
      * Get the term of a reserved instance in some kind of time unit.
@@ -92,6 +101,52 @@ public class CostProtoUtil {
                     Stream.concat(nonDefaultCurrencies.stream(), Stream.of(defaultCurrency))
                         .map(currInt -> Integer.toString(currInt))
                         .collect(Collectors.joining(",")));
+        }
+    }
+
+    /**
+     * Get the hourly amount of a particular {@link Price}, making the appropriate adjustments
+     * based on the unit of the price.
+     *
+     * @param price The {@link Price}.
+     * @return The hourly amount for the given {@link Price}.
+     * @throws IllegalArgumentException If the unit is invalid, or has no hourly equivalent.
+     */
+    public static double getHourlyPriceAmount(@Nonnull final Price price) {
+        switch (price.getUnit()) {
+            case HOURS:
+                return price.getPriceAmount().getAmount();
+            case DAYS:
+                return price.getPriceAmount().getAmount() / HOURS_IN_DAY;
+            case MONTH: case MILLION_IOPS: case GB_MONTH:
+                return price.getPriceAmount().getAmount() / HOURS_IN_MONTH;
+            case TOTAL:
+                throw new IllegalArgumentException("Cannot get hourly amount of TOTAL price.");
+            default:
+                throw new IllegalArgumentException("Unhandled unit: " + price.getUnit());
+        }
+    }
+
+    /**
+     * Get the unit price amount for a particular {@link Price.Unit} given the hourly price.
+     * This is (roughly) the inverse of {@link CostProtoUtil#getHourlyPriceAmount(Price)}.
+     *
+     * @param unit The unit.
+     * @param hourlyPrice The hourly price.
+     * @return The unit price.
+     */
+    public static double getUnitPriceAmount(@Nonnull final Price.Unit unit, final double hourlyPrice) {
+        switch (unit) {
+            case HOURS:
+                return hourlyPrice;
+            case DAYS:
+                return hourlyPrice * HOURS_IN_DAY;
+            case MONTH: case MILLION_IOPS: case GB_MONTH:
+                return hourlyPrice * HOURS_IN_MONTH;
+            case TOTAL:
+                return hourlyPrice;
+            default:
+                throw new IllegalArgumentException("Unhandled unit: " + unit);
         }
     }
 }

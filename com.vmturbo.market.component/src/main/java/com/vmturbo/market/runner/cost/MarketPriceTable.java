@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
@@ -21,10 +22,14 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
+import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 
 /**
  * The {@link MarketPriceTable} is a wrapper around a {@link com.vmturbo.common.protobuf.cost.Pricing.PriceTable}
@@ -65,7 +70,8 @@ public class MarketPriceTable {
      * @param regionId The ID of the region.
      * @return A {@link ComputePriceBundle} of the different configurations available for this tier
      *         and region in the topology the {@link MarketPriceTable} was constructed with. If
-     *         the tier or region are not found in the price table
+     *         the tier or region are not found in the price table, returns an empty price
+     *         bundle.
      */
     @Nonnull
     public ComputePriceBundle getComputePriceBundle(final long tierId, final long regionId) {
@@ -119,6 +125,134 @@ public class MarketPriceTable {
                     });
         });
         return priceBuilder.build();
+    }
+
+    /**
+     * Get the {@link StoragePriceBundle} listing the possible configuration and account-dependent
+     * prices for a storage tier in a specific region.
+     *
+     * @param tierId The ID of the storage tier.
+     * @param regionId The ID of the region.
+     * @return A {@link StoragePriceBundle} of the different configurations available for this tier
+     *         and region in the topology the {@link MarketPriceTable} was constructed with. If
+     *         the tier or region are not found in the price table, returns an empty price bundle.
+     */
+    @Nonnull
+    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId) {
+        final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
+        if (!cloudTopology.getEntity(tierId).isPresent()) {
+            logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
+            return priceBuilder.build();
+        } else if (!cloudTopology.getEntity(regionId).isPresent()) {
+            logger.error("Region {} not found in topology. Returning empty price bundle.", regionId);
+            return priceBuilder.build();
+        }
+
+        final OnDemandPriceTable regionPriceTable =
+                cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+        if (regionPriceTable == null) {
+            logger.warn("On-Demand price table not found for region {}." +
+                    " Cost data might not have been uploaded yet.", regionId);
+            return priceBuilder.build();
+        }
+
+        final StorageTierPriceList tierPriceList =
+                regionPriceTable.getCloudStoragePricesByTierIdMap().get(tierId);
+        if (tierPriceList == null) {
+            logger.warn("Price list not found for tier {} in region {}'s price table." +
+                            " Cost data might not have been uploaded, or the tier is not available in the region.",
+                    tierId, regionId);
+            return priceBuilder.build();
+        }
+
+        discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
+            tierPriceList.getCloudStoragePriceList().forEach(storagePrice -> {
+                // Each price in the price list is considered "accumulative" if the price list
+                // contains different costs for different ranges. It's called "accumulative"
+                // because to get the total price we need to "accumulate" the prices for the
+                // individual ranges.
+                final boolean isAccumulativePrice = storagePrice.getPricesList().stream()
+                    .anyMatch(price -> price.getEndRangeInUnits() > 0 &&
+                        price.getEndRangeInUnits() < Long.MAX_VALUE);
+                storagePrice.getPricesList().forEach(price -> {
+                    // A price is considered a "unit" price if the amount of units consumed
+                    // affects the price.
+                    final boolean isUnitPrice =
+                        price.getUnit() == Unit.GB_MONTH ||
+                        price.getUnit() == Unit.MILLION_IOPS;
+
+                    final double discountPercentage = discountApplicator.getDiscountPercentage(tierId);
+
+                    // Note: We probably don't need to normalize to hours in month because currently
+                    // storage prices are monthly. But it's technically possible to get hourly
+                    // storage price, so we do this to be safe.
+                    final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
+
+                    final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(accountId)
+                        .setPrice(hourlyPriceAmount * (1 - discountPercentage))
+                        .setIsUnitPrice(isUnitPrice)
+                        .setIsAccumulativeCost(isAccumulativePrice);
+
+                    // Even in an accumulative price, the last price will have no valid end range.
+                    if (price.getEndRangeInUnits() > 0 && price.getEndRangeInUnits() < Long.MAX_VALUE) {
+                        priceDataBuilder.setUpperBound(price.getEndRangeInUnits());
+                    } else {
+                        priceDataBuilder.setUpperBound(Double.POSITIVE_INFINITY);
+                    }
+                    priceBuilder.addPrice(priceDataBuilder.build());
+                });
+            });
+        });
+
+        return priceBuilder.build();
+    }
+
+    /**
+     * A bundle of of possible prices for a (storage tier, region) combination. The possible
+     * prices are affected by the business account of the VM consuming from the tier, as well
+     * as the amount of storage or IOPS being consumed.
+     */
+    public static class StoragePriceBundle {
+
+        private final List<StorageTierPriceData> prices;
+
+        private StoragePriceBundle(@Nonnull final List<StorageTierPriceData> prices) {
+            this.prices = Objects.requireNonNull(prices);
+        }
+
+        /**
+         * Get the {@link StorageTierPriceData} contained in the bundle.
+         *
+         * @return The list of {@link StorageTierPriceData}.
+         */
+        @Nonnull
+        public List<StorageTierPriceData> getPrices() {
+            return prices;
+        }
+
+        @Nonnull
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private final ImmutableList.Builder<StorageTierPriceData> priceBuilder =
+                    ImmutableList.builder();
+
+            private Builder() {}
+
+            @Nonnull
+            public Builder addPrice(final StorageTierPriceData price) {
+                this.priceBuilder.add(price);
+                return this;
+            }
+
+            @Nonnull
+            public StoragePriceBundle build() {
+                return new StoragePriceBundle(priceBuilder.build());
+            }
+        }
     }
 
     /**

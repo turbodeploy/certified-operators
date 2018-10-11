@@ -2,6 +2,7 @@ package com.vmturbo.market.runner.cost;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -13,6 +14,7 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -23,16 +25,26 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
+import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
+import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
 
+/**
+ * Unit tests for {@link MarketPriceTable}.
+ */
 public class MarketPriceTableTest {
 
-    private static final long TIER_ID = 7;
+    private static final long COMPUTE_TIER_ID = 7;
+
+    private static final long STORAGE_TIER_ID = 77;
 
     private static final long REGION_ID = 8;
 
@@ -40,9 +52,9 @@ public class MarketPriceTableTest {
 
     private static final double SUSE_PRICE_ADJUSTMENT = 5;
 
-    private static final PriceTable PRICE_TABLE = PriceTable.newBuilder()
+    private static final PriceTable COMPUTE_PRICE_TABLE = PriceTable.newBuilder()
         .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
-            .putComputePricesByTierId(TIER_ID, ComputeTierPriceList.newBuilder()
+            .putComputePricesByTierId(COMPUTE_TIER_ID, ComputeTierPriceList.newBuilder()
                 .setBasePrice(ComputeTierConfigPrice.newBuilder()
                     .setGuestOsType(OSType.LINUX)
                     .addPrices(Price.newBuilder()
@@ -55,10 +67,15 @@ public class MarketPriceTableTest {
             .build())
         .build();
 
-    private static final TopologyEntityDTO TIER = TopologyEntityDTO.newBuilder()
+    private static final TopologyEntityDTO COMPUTE_TIER = TopologyEntityDTO.newBuilder()
         .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-        .setOid(TIER_ID)
+        .setOid(COMPUTE_TIER_ID)
         .build();
+
+    private static final TopologyEntityDTO STORAGE_TIER = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(STORAGE_TIER_ID)
+            .build();
 
     private static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
         .setEntityType(EntityType.REGION_VALUE)
@@ -76,9 +93,10 @@ public class MarketPriceTableTest {
 
     @Before
     public void setup() {
-        when(cloudCostData.getPriceTable()).thenReturn(PRICE_TABLE);
+        when(cloudCostData.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
         when(topology.getEntity(REGION_ID)).thenReturn(Optional.of(REGION));
-        when(topology.getEntity(TIER_ID)).thenReturn(Optional.of(TIER));
+        when(topology.getEntity(COMPUTE_TIER_ID)).thenReturn(Optional.of(COMPUTE_TIER));
+        when(topology.getEntity(STORAGE_TIER_ID)).thenReturn(Optional.of(STORAGE_TIER));
     }
 
     @Test
@@ -88,7 +106,7 @@ public class MarketPriceTableTest {
             .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
                 infoExtractor, discountApplicatorFactory);
-        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(TIER_ID, REGION_ID);
+        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(COMPUTE_TIER_ID, REGION_ID);
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
                 new ComputePrice(baId, OSType.LINUX, LINUX_PRICE),
                 new ComputePrice(baId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT)));
@@ -101,7 +119,7 @@ public class MarketPriceTableTest {
 
         final long discountBaId = 17L;
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
-        when(discount.getDiscountPercentage(TIER_ID)).thenReturn(0.2);
+        when(discount.getDiscountPercentage(COMPUTE_TIER_ID)).thenReturn(0.2);
 
         doReturn(ImmutableMap.of(
                 noDiscountBaId, makeBusinessAccount(noDiscountBaId, noDiscount),
@@ -110,13 +128,264 @@ public class MarketPriceTableTest {
 
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
                 infoExtractor, discountApplicatorFactory);
-        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(TIER_ID, REGION_ID);
+        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(COMPUTE_TIER_ID, REGION_ID);
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
                 new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE),
                 new ComputePrice(noDiscountBaId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT),
                 new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8),
                 new ComputePrice(discountBaId, OSType.SUSE, (LINUX_PRICE + SUSE_PRICE_ADJUSTMENT) * 0.8)
         ));
+    }
+
+    @Test
+    public void testStoragePriceBundleGBMonth() {
+        // $10 for the first 7 GB-month, $5 for the next 3, $4 afterwards.
+        final PriceTable priceTable = PriceTable.newBuilder()
+            .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
+                .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 10)))
+                            .setUnit(Unit.GB_MONTH)
+                            .setEndRangeInUnits(7))
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 5)))
+                            .setUnit(Unit.GB_MONTH)
+                            .setEndRangeInUnits(10))
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 4)))
+                            .setUnit(Unit.GB_MONTH)))
+                    .build())
+                .build())
+            .build();
+        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
+
+        final long baId = 7L;
+        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
+                .when(topology).getEntities();
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
+                infoExtractor, discountApplicatorFactory);
+        final StoragePriceBundle storagePriceBundle =
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+        assertThat(storagePriceBundle.getPrices(), contains(
+                StorageTierPriceData.newBuilder()
+                    .setBusinessAccountId(baId)
+                    // Unit price true because it's priced per GB-month
+                    .setIsUnitPrice(true)
+                    // Accumulative price true because we have ranges
+                    .setIsAccumulativeCost(true)
+                    .setUpperBound(7)
+                    .setPrice(10)
+                    .build(),
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Unit price true because it's priced per GB-month
+                        .setIsUnitPrice(true)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(10)
+                        .setPrice(5)
+                        .build(),
+                StorageTierPriceData.newBuilder()
+                    .setBusinessAccountId(baId)
+                    // Unit price true because it's priced per GB-month
+                    .setIsUnitPrice(true)
+                    // Accumulative price true because we have ranges
+                    .setIsAccumulativeCost(true)
+                    .setUpperBound(Double.POSITIVE_INFINITY)
+                    .setPrice(4)
+                    .build()));
+    }
+
+    @Test
+    public void testStoragePriceBundleIOPSMonth() {
+        // $10 for the first 7 million-iops, $5 afterwards.
+        final PriceTable priceTable = PriceTable.newBuilder()
+            .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
+                .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MILLION_IOPS, 10)))
+                            .setUnit(Unit.MILLION_IOPS)
+                            .setEndRangeInUnits(7))
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MILLION_IOPS, 5)))
+                            .setUnit(Unit.MILLION_IOPS)))
+                    .build())
+                .build())
+            .build();
+        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
+
+        final long baId = 7L;
+        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
+                .when(topology).getEntities();
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
+                infoExtractor, discountApplicatorFactory);
+        final StoragePriceBundle storagePriceBundle =
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+        assertThat(storagePriceBundle.getPrices(), contains(
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Unit price true because it's priced per million-iops.
+                        .setIsUnitPrice(true)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(7)
+                        .setPrice(10)
+                        .build(),
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Unit price true because it's priced per million-iops.
+                        .setIsUnitPrice(true)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(Double.POSITIVE_INFINITY)
+                        .setPrice(5)
+                        .build()));
+    }
+
+    @Test
+    public void testStoragePriceBundleFlatCost() {
+        // $10/month straight-up.
+        final PriceTable priceTable = PriceTable.newBuilder()
+            .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
+                .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MONTH, 10)))
+                            .setUnit(Unit.MONTH)))
+                    .build())
+                .build())
+            .build();
+        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
+
+        final long baId = 7L;
+        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
+                .when(topology).getEntities();
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
+                infoExtractor, discountApplicatorFactory);
+        final StoragePriceBundle storagePriceBundle =
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+        assertThat(storagePriceBundle.getPrices(), contains(
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Not unit price, because it's a flat cost.
+                        .setIsUnitPrice(false)
+                        // Not accumulative because we don't have ranges.
+                        .setIsAccumulativeCost(false)
+                        .setUpperBound(Double.POSITIVE_INFINITY)
+                        .setPrice(10)
+                        .build()));
+    }
+
+    @Test
+    public void testStoragePriceBundleFlatCostRanges() {
+        // $10/month for the first 7 GB, $5/month afterwards.
+        final PriceTable priceTable = PriceTable.newBuilder()
+            .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
+                .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MONTH, 10)))
+                            .setUnit(Unit.MONTH)
+                            .setEndRangeInUnits(7))
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MONTH, 5)))
+                            .setUnit(Unit.MONTH)))
+                    .build())
+                .build())
+            .build();
+        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
+
+        final long baId = 7L;
+        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
+                .when(topology).getEntities();
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
+                infoExtractor, discountApplicatorFactory);
+        final StoragePriceBundle storagePriceBundle =
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+        assertThat(storagePriceBundle.getPrices(), contains(
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Not unit price, because it's a flat cost for each range.
+                        .setIsUnitPrice(false)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(7)
+                        .setPrice(10)
+                        .build(),
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Not unit price, because it's a flat cost for each range.
+                        .setIsUnitPrice(false)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(Double.POSITIVE_INFINITY)
+                        .setPrice(5)
+                        .build()));
+    }
+
+    @Test
+    public void testStoragePriceBundleGBMonthWithDiscount() {
+        // $10 for the first 7 GB-month, $5 afterwards.
+        final PriceTable priceTable = PriceTable.newBuilder()
+            .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
+                .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 10)))
+                            .setUnit(Unit.GB_MONTH)
+                            .setEndRangeInUnits(7))
+                        .addPrices(Price.newBuilder()
+                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 5)))
+                            .setUnit(Unit.GB_MONTH)))
+                    .build())
+                .build())
+            .build();
+        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
+
+        final long baId = 7L;
+        // Add a 20% discount for the storage tier.
+        final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
+        when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(0.2);
+        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, discount)))
+                .when(topology).getEntities();
+
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
+                infoExtractor, discountApplicatorFactory);
+        final StoragePriceBundle storagePriceBundle =
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+        assertThat(storagePriceBundle.getPrices(), contains(
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Unit price true because it's priced per GB-month
+                        .setIsUnitPrice(true)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(7)
+                        // 20% off $10
+                        .setPrice(8)
+                        .build(),
+                StorageTierPriceData.newBuilder()
+                        .setBusinessAccountId(baId)
+                        // Unit price true because it's priced per GB-month
+                        .setIsUnitPrice(true)
+                        // Accumulative price true because we have ranges
+                        .setIsAccumulativeCost(true)
+                        .setUpperBound(Double.POSITIVE_INFINITY)
+                        // 20% off $5
+                        .setPrice(4)
+                        .build()));
     }
 
     private TopologyEntityDTO makeBusinessAccount(final long id,
