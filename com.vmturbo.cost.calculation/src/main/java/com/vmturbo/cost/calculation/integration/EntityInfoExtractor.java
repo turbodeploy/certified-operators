@@ -12,6 +12,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
@@ -129,10 +131,15 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     class DatabaseConfig {
         private final DatabaseEdition edition;
         private final DatabaseEngine engine;
+        private final LicenseModel licenseModel;
+        private final DeploymentType deploymentType;
 
-        public DatabaseConfig(final DatabaseEdition edition, final DatabaseEngine engine) {
+        public DatabaseConfig(final DatabaseEdition edition, final DatabaseEngine engine,
+                LicenseModel licenseModel, DeploymentType deploymentType) {
             this.engine = engine;
             this.edition = edition;
+            this.licenseModel = licenseModel;
+            this.deploymentType = deploymentType;
         }
 
         @Nonnull
@@ -145,9 +152,21 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
             return engine;
         }
 
+        @Nonnull
+        public LicenseModel getLicenseModel() {
+            return licenseModel;
+        }
+
+        @Nonnull
+        public DeploymentType getDeploymentType() {
+            return deploymentType;
+        }
+
         public boolean matchesPriceTableConfig(@Nonnull final DatabaseTierConfigPrice databaseTierConfigPrice) {
             return databaseTierConfigPrice.getDbEdition() == edition &&
-                    databaseTierConfigPrice.getDbEngine() == engine;
+                    databaseTierConfigPrice.getDbEngine() == engine &&
+                    databaseTierConfigPrice.getDbLicenseModel() == licenseModel &&
+                    databaseTierConfigPrice.getDbDeploymentType() == deploymentType;
         }
     }
 

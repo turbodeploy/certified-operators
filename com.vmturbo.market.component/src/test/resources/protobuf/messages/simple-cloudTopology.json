@@ -863,6 +863,11 @@
         "connectedEntityId": "72623594843359",
         "connectedEntityType": 10,
         "connectionType": "OWNS_CONNECTION"
+      },
+      {
+        "connectedEntityId": "72623594843399",
+        "connectedEntityType": 46,
+        "connectionType": "OWNS_CONNECTION"
       }
     ],
     "tags": {}
@@ -943,38 +948,14 @@
     "tags": {}
   },
   {
-    "entityType": 56,
+    "entityType": 58,
     "typeSpecificInfo": {},
-    "oid": "72593321343486",
-    "displayName": "m1.small",
+    "oid": "72593321343497",
+    "displayName": "db.m3.large",
     "commoditySoldList": [
       {
         "commodityType": {
-          "type": 40
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 100.0,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 28
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 4000.0,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 21
+          "type": 53
         },
         "used": 0.0,
         "peak": 0.0,
@@ -986,11 +967,23 @@
       },
       {
         "commodityType": {
-          "type": 45
+          "type": 26
         },
         "used": 0.0,
         "peak": 0.0,
-        "capacity": 7864320.0,
+        "capacity": 5000.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 65
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 32768.0,
         "reservedCapacity": 0.0,
         "isResizeable": false,
         "isThin": true,
@@ -1002,6 +995,18 @@
         },
         "used": 0.0,
         "peak": 0.0,
+        "capacity": 560000.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 56
+        },
+        "used": 0.0,
+        "peak": 0.0,
         "capacity": 1.0E9,
         "reservedCapacity": 0.0,
         "isResizeable": false,
@@ -1010,127 +1015,12 @@
       },
       {
         "commodityType": {
-          "type": 47
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 64000.0,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 86
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
           "type": 84,
-          "key": "Windows_SQL_Standard"
+          "key": "POSTGRESQL:null:null:null"
         },
         "used": 0.0,
         "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "SUSE"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "LINUX"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "Windows_SQL_Web"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "Windows_Bring_your_own_license"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "Windows"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "RHEL"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
-        "reservedCapacity": 0.0,
-        "isResizeable": false,
-        "isThin": true,
-        "active": true
-      },
-      {
-        "commodityType": {
-          "type": 84,
-          "key": "UNKNOWN"
-        },
-        "used": 0.0,
-        "peak": 0.0,
-        "capacity": 1.010133701017E11,
+        "capacity": 1.0E9,
         "reservedCapacity": 0.0,
         "isResizeable": false,
         "isThin": true,
@@ -1159,10 +1049,263 @@
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
         "connectionType": "NORMAL_CONNECTION"
+      }
+    ],
+    "tags": {}
+  },
+  {
+    "entityType": 58,
+    "typeSpecificInfo": {},
+    "oid": "72593321343498",
+    "displayName": "db.m3.medium",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 53
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 3932160.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
       },
       {
-        "connectedEntityId": "72618271320786",
-        "connectedEntityType": 57,
+        "commodityType": {
+          "type": 26
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 2500.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 65
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 4096.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 39
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 560000.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 56
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 1.0E9,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 84,
+          "key": "POSTGRESQL:null:null:null"
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 1.0E9,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {},
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false,
+      "isEligibleForResizeDown": true
+    },
+    "origin": {
+      "discoveryOrigin": {
+        "discoveringTargetIds": [
+          "72623593901728",
+          "72623594446896"
+        ],
+        "lastUpdatedTime": "1536948751735"
+      }
+    },
+    "connectedEntityList": [
+      {
+        "connectedEntityId": "72556027335398",
+        "connectedEntityType": 54,
+        "connectionType": "NORMAL_CONNECTION"
+      }
+    ],
+    "tags": {}
+  },
+  {
+    "entityType": 46,
+    "typeSpecificInfo": {
+      "database": {
+        "edition": "SQL_SERVER_ENTERPRISE"
+      }
+    },
+    "oid": "72623594843399",
+    "displayName": "TestAwsDb",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 53
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 3932160.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 26
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 2700.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 65
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 4096.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 39
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 560000.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 56
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 1.0E9,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72593321343497",
+        "providerEntityType": 58,
+        "movable": true,
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 53
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 26
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 65
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 39
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 56
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 84,
+              "key": "POSTGRESQL:null:null:null"
+            },
+            "used": 1.0,
+            "peak": 0.0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "shopTogether": false,
+      "isAvailableAsProvider": false,
+      "suspendable": false
+    },
+    "origin": {
+      "discoveryOrigin": {
+        "discoveringTargetIds": [
+          "72623594446896"
+        ],
+        "lastUpdatedTime": "1536948751735"
+      }
+    },
+    "connectedEntityList": [
+      {
+        "connectedEntityId": "72556027335467",
+        "connectedEntityType": 55,
         "connectionType": "NORMAL_CONNECTION"
       }
     ],

@@ -12,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,9 +33,15 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
@@ -84,19 +91,9 @@ public class MarketPriceTable {
     @Nonnull
     public ComputePriceBundle getComputePriceBundle(final long tierId, final long regionId) {
         final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
-        if (!cloudTopology.getEntity(tierId).isPresent()) {
-            logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
-            return priceBuilder.build();
-        } else if (!cloudTopology.getEntity(regionId).isPresent()) {
-            logger.error("Region {} not found in topology. Returning empty price bundle.", regionId);
-            return priceBuilder.build();
-        }
 
-        final OnDemandPriceTable regionPriceTable =
-                cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId);
         if (regionPriceTable == null) {
-            logger.warn("On-Demand price table not found for region {}." +
-                    " Cost data might not have been uploaded yet.", regionId);
             return priceBuilder.build();
         }
 
@@ -133,6 +130,82 @@ public class MarketPriceTable {
                     });
         });
         return priceBuilder.build();
+    }
+
+    /**
+     * Get the {@link DatabasePriceBundle} listing the possible configuration and account-dependent
+     * prices for a database tier in a specific region.
+     *
+     * @param tierId The ID of the compute tier.
+     * @param regionId The ID of the region.
+     * @return A {@link DatabasePriceBundle} of the different configurations available for this tier
+     *         and region in the topology the {@link MarketPriceTable} was constructed with. If
+     *         the tier or region are not found in the price table, returns an empty price
+     *         bundle.
+     */
+    @Nonnull
+    public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId) {
+        final DatabasePriceBundle.Builder priceBuilder = DatabasePriceBundle.newBuilder();
+
+        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId);
+        if (regionPriceTable == null) {
+            return priceBuilder.build();
+        }
+
+        DatabaseTierPriceList dbTierPrices = regionPriceTable.getDbPricesByInstanceIdMap().get(tierId);
+        if (dbTierPrices == null) {
+            logger.warn("Price list not found for tier {} in region {}'s price table." +
+                " Cost data might not have been uploaded, or the tier is not available in the region.",
+                tierId, regionId);
+            return priceBuilder.build();
+        }
+
+        final DatabaseEdition dbEdition = dbTierPrices.getBasePrice().getDbEdition();
+        final DatabaseEngine dbEngine = dbTierPrices.getBasePrice().getDbEngine();
+        final DeploymentType deploymentType = dbTierPrices.getBasePrice().getDbDeploymentType();
+        final LicenseModel licenseModel = dbTierPrices.getBasePrice().getDbLicenseModel();
+        final double baseHourlyPrice =
+                dbTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
+
+        discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
+            // Add the base configuration price.
+            priceBuilder.addPrice(accountId, dbEngine,
+                    dbEdition,
+                    deploymentType,
+                    licenseModel,
+                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
+
+            for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
+                priceBuilder.addPrice(accountId,
+                    dbTierConfigPrice.getDbEngine(),
+                    dbTierConfigPrice.getDbEdition(),
+                    dbTierConfigPrice.getDbDeploymentType(),
+                    dbTierConfigPrice.getDbLicenseModel(),
+                    (baseHourlyPrice + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
+                                    * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
+            }
+        });
+        return priceBuilder.build();
+    }
+
+    @Nullable
+    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId) {
+        if (!cloudTopology.getEntity(tierId).isPresent()) {
+            logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
+            return null;
+        } else if (!cloudTopology.getEntity(regionId).isPresent()) {
+            logger.error("Region {} not found in topology. Returning empty price bundle.", regionId);
+            return null;
+        }
+
+        final OnDemandPriceTable regionPriceTable =
+                cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+        if (regionPriceTable == null) {
+            logger.warn("On-Demand price table not found for region {}." +
+                    " Cost data might not have been uploaded yet.", regionId);
+            return null;
+        }
+        return regionPriceTable;
     }
 
     /**
@@ -401,4 +474,124 @@ public class MarketPriceTable {
             }
         }
     }
+
+    /**
+     * A bundle of of possible prices for a (database tier, region) combination. The possible
+     * prices are affected by the {@link DatabaseEngine} and owning business account of the VM consuming
+     * from the tier.
+     */
+    public static class DatabasePriceBundle {
+
+        private final List<DatabasePrice> prices;
+
+        private DatabasePriceBundle(@Nonnull final List<DatabasePrice> prices) {
+            this.prices = Objects.requireNonNull(prices);
+        }
+
+        @Nonnull
+        public List<DatabasePrice> getPrices() {
+            return prices;
+        }
+
+        @Nonnull
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private final ImmutableList.Builder<DatabasePrice> priceBuilder = ImmutableList.builder();
+
+            private Builder() {}
+
+            @Nonnull
+            public Builder addPrice(final long accountId, final DatabaseEngine dbEngine,
+                    final DatabaseEdition dbEdition,
+                    final DeploymentType depType,
+                    final LicenseModel licenseModel,
+                    final double hourlyPrice) {
+                // TODO (roman, September 25) - Replace with CostTuple
+                priceBuilder.add(new DatabasePrice(accountId, dbEngine, dbEdition,
+                        depType, licenseModel, hourlyPrice));
+                return this;
+            }
+
+            @Nonnull
+            public DatabasePriceBundle build() {
+                return new DatabasePriceBundle(priceBuilder.build());
+            }
+        }
+
+        /**
+         * Temporary object for integration with CostTuples.
+         *
+         * In the future it may be good to have the {@link MarketPriceTable} return cost tuples
+         * directly.
+         */
+        public static class DatabasePrice {
+            private final long accountId;
+            private final DatabaseEngine dbEngine;
+            private final DatabaseEdition dbEdition;
+            private final DeploymentType depType;
+            private final LicenseModel licenseModel;
+            private final double hourlyPrice;
+
+            public DatabasePrice(final long accountId,
+                                final DatabaseEngine dbEngine,
+                                final DatabaseEdition dbEdition,
+                                final DeploymentType depType,
+                                final LicenseModel licenseModel,
+                                final double hourlyPrice) {
+                this.accountId = accountId;
+                this.dbEngine = dbEngine;
+                this.dbEdition = dbEdition;
+                this.depType = depType;
+                this.licenseModel = licenseModel;
+                this.hourlyPrice = hourlyPrice;
+            }
+
+            public long getAccountId() {
+                return accountId;
+            }
+
+            public DatabaseEngine getDbEngine() {
+                return dbEngine;
+            }
+
+            public DatabaseEdition getDbEdition() {
+                return dbEdition;
+            }
+
+            public DeploymentType getDeploymentType() {
+                return depType;
+            }
+
+            public LicenseModel getLicenseModel() {
+                return licenseModel;
+            }
+
+            public double getHourlyPrice() {
+                return hourlyPrice;
+            }
+
+            @Override
+            public boolean equals(Object other) {
+                if (other == this) return true;
+                if (other instanceof DatabasePrice) {
+                    DatabasePrice otherPrice = (DatabasePrice)other;
+                    return accountId == otherPrice.accountId &&
+                            dbEngine == otherPrice.dbEngine &&
+                            hourlyPrice == otherPrice.hourlyPrice;
+                } else {
+                    return false;
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(accountId, dbEngine, dbEdition,
+                        depType, licenseModel, hourlyPrice);
+            }
+        }
+    }
+
 }
