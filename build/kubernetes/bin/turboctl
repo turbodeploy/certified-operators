@@ -94,7 +94,7 @@ case "$args" in
        services)
             ${kubeCommand} create -f ${xlYamlDir}/services/
             ;;
-       pods)
+       probes)
             ${kubeCommand} create -f ${xlYamlDir}/probes/
             ;;
        non-prod)
