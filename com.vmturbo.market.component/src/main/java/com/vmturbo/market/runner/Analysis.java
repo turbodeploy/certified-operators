@@ -44,8 +44,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -123,6 +128,8 @@ public class Analysis {
 
     private Collection<ProjectedTopologyEntity> projectedEntities = null;
 
+    private Map<Long, CostJournal<TopologyEntityDTO>> projectedEntityCosts = null;
+
     private final long projectedTopologyId;
 
     private ActionPlan actionPlan = null;
@@ -144,6 +151,12 @@ public class Analysis {
 
     private final AnalysisConfig config;
 
+    private final CloudTopology<TopologyEntityDTO> originalCloudTopology;
+
+    private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
+
+    private final TopologyCostCalculator topologyCostCalculator;
+
     private final MarketPriceTable marketPriceTable;
 
     /**
@@ -160,10 +173,12 @@ public class Analysis {
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                    @Nonnull final MarketPriceTable marketPriceTable,
                     @Nonnull final GroupServiceBlockingStub groupServiceClient,
                     @Nonnull final Clock clock,
-                    @Nonnull final AnalysisConfig analysisConfig) {
+                    @Nonnull final AnalysisConfig analysisConfig,
+                    @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+                    @Nonnull final TopologyCostCalculator cloudCostCalculator,
+                    @Nonnull final MarketPriceTableFactory priceTableFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -177,7 +192,11 @@ public class Analysis {
         this.converter = new TopologyConverter(topologyInfo,
                 analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor());
         this.config = analysisConfig;
-        this.marketPriceTable = Objects.requireNonNull(marketPriceTable);
+
+        this.cloudTopologyFactory = cloudTopologyFactory;
+        this.topologyCostCalculator = cloudCostCalculator;
+        this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
+        this.marketPriceTable = priceTableFactory.newPriceTable(this.originalCloudTopology);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -311,6 +330,13 @@ public class Analysis {
                     projectedTraderDTO,
                     realTopologyDTOs,
                     results.getPriceIndexMsg());
+
+                // Calculate the projected entity costs.
+                final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
+                        cloudTopologyFactory.newCloudTopology(projectedEntities.stream()
+                                .filter(ProjectedTopologyEntity::hasEntity)
+                                .map(ProjectedTopologyEntity::getEntity));
+                projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology);
             }
 
             // Create the action plan
@@ -472,6 +498,19 @@ public class Analysis {
      */
     public Optional<Collection<ProjectedTopologyEntity>> getProjectedTopology() {
         return completed ? Optional.ofNullable(projectedEntities) : Optional.empty();
+    }
+
+
+    /**
+     * Calculate and return the entity costs in the projected topology.Get the entity costs
+     *
+     * @return If the analysis is completed, an {@link Optional} containing the {@link CostJournal}s
+     *         for the cloud entities in the projected topology. If there are no cloud entities in
+     *         the projected topology, returns an empty map. If the analysis is not completed,
+     *         returns an empty {@link Optional}.
+     */
+    public Optional<Map<Long, CostJournal<TopologyEntityDTO>>> getProjectedCosts() {
+        return completed ? Optional.ofNullable(projectedEntityCosts) : Optional.empty();
     }
 
     /**

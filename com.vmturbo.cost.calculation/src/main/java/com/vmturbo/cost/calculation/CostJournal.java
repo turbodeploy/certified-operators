@@ -18,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
@@ -85,6 +87,27 @@ public class CostJournal<ENTITY_CLASS> {
     @Nonnull
     public ENTITY_CLASS getEntity() {
         return entity;
+    }
+
+    /**
+     * Convert this entry to an {@link EntityCost} protobuf that can be sent over the wire.
+     *
+     * @return The {@link EntityCost} protobuf message representing this entry.
+     */
+    @Nonnull
+    public EntityCost toEntityCostProto() {
+        final EntityCost.Builder costBuilder = EntityCost.newBuilder()
+            .setAssociatedEntityId(infoExtractor.getId(entity))
+            .setAssociatedEntityType(infoExtractor.getEntityType(entity))
+            .setTotalAmount(CurrencyAmount.newBuilder()
+                .setAmount(getTotalHourlyCost()));
+        getCategories().forEach(category -> {
+            costBuilder.addComponentCost(ComponentCost.newBuilder()
+                .setCategory(category)
+                .setAmount(CurrencyAmount.newBuilder()
+                    .setAmount(getHourlyCostForCategory(category))));
+        });
+        return costBuilder.build();
     }
 
     /**

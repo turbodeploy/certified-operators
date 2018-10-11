@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.cost";
 import "CloudCostDTO.proto";
 import "common/Pagination.proto";
 import "stats/Stats.proto";
+import "topology/TopologyDTO.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -364,6 +365,37 @@ message EntityCost {
 
         // Hourly rate for Cloud entity
         optional common_dto.CurrencyAmount amount = 2;
+    }
+}
+
+// This is the actual message that gets sent across the wire when broadcasting per-entity projected
+// costs.
+message ProjectedEntityCosts {
+    // The ID of the projected topology the cost is for.
+    optional int64 projected_topology_id = 1;
+
+    oneof segment {
+        Start start = 2;
+        Data data = 3;
+        End end = 4;
+    }
+
+    // Marker message, declaring the start of the broadcast
+    message Start {
+        // The basic information of the source topology
+        optional .topology.TopologyInfo source_topology_info = 1;
+    };
+
+    // Message to hold real data of the entity costs.
+    message Data {
+        // Some number of projected entity costs.
+        repeated EntityCost entity_costs = 1;
+    }
+
+    // Message to appear at the very end of the broadcast
+    message End {
+        // Total number of costs sent (can be used for integrity checks)
+        required uint64 total_count = 1;
     }
 }
 

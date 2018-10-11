@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.topology;
+package com.vmturbo.cost.calculation.topology;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -17,10 +17,8 @@ import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFacto
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -37,7 +35,7 @@ public class TopologyCostCalculatorTest {
 
     private CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory = mock(CloudCostCalculatorFactory.class);
 
-    private LocalCostDataProvider localCostDataProvider = mock(LocalCostDataProvider.class);
+    private CloudCostDataProvider localCostDataProvider = mock(CloudCostDataProvider.class);
 
     private DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory = mock(DiscountApplicatorFactory.class);
 
@@ -66,3 +64,4 @@ public class TopologyCostCalculatorTest {
         assertThat(costs.get(ENTITY.getOid()), is(journal));
     }
 }
+

@@ -1,7 +1,6 @@
 package com.vmturbo.market.runner;
 
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -40,7 +39,6 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -48,11 +46,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -90,6 +92,11 @@ public class MarketRunnerTest {
 
     private AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
 
+    private TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
+
+    private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
+            mock(TopologyEntityCloudTopologyFactory.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
@@ -106,9 +113,17 @@ public class MarketRunnerTest {
             AnalysisConfigCustomizer configCustomizer =
                     invocation.getArgumentAt(2, AnalysisConfigCustomizer.class);
             configCustomizer.customize(configBuilder);
-            return new Analysis(topologyInfo, entities, mock(MarketPriceTable.class),
+
+            final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
+            final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+            final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
+            when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+            when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+
+            return new Analysis(topologyInfo, entities,
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                    Clock.systemUTC(), configBuilder.build());
+                    Clock.systemUTC(), configBuilder.build(),
+                    cloudTopologyFactory, cloudCostCalculator, priceTableFactory);
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 

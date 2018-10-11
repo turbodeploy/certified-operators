@@ -3,8 +3,10 @@ package com.vmturbo.market.runner;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -47,10 +49,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -236,13 +242,17 @@ public class AnalysisDebuggingTest {
             analysisConfig.setMaxPlacementsOverride(Optional.of(analysisInput.getMaxPlacementsOverride()));
         }
 
-        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
+        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
+        when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
-                Sets.newHashSet(analysisInput.getEntitiesList()),
-                marketPriceTable,
-                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-                Clock.systemUTC(),
-                analysisConfig.build());
+            Sets.newHashSet(analysisInput.getEntitiesList()),
+            GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            Clock.systemUTC(),
+            analysisConfig.build(), cloudTopologyFactory, cloudCostCalculator, priceTableFactory);
         return analysis;
     }
 

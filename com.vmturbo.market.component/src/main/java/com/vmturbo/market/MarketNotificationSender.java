@@ -2,12 +2,19 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.Collections2;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
@@ -31,14 +38,17 @@ public class MarketNotificationSender extends
         ComponentNotificationSender<ActionPlan> {
 
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
+    private final IMessageSender<ProjectedEntityCosts> projectedEntityCostsSender;
     private final IMessageSender<Topology> planAnalysisTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
 
     public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
+            @Nonnull IMessageSender<ProjectedEntityCosts> projectedEntityCostsSender,
             @Nonnull IMessageSender<Topology> planAnalysisTopologySender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
+        this.projectedEntityCostsSender = Objects.requireNonNull(projectedEntityCostsSender);
         this.planAnalysisTopologySender = Objects.requireNonNull(planAnalysisTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
     }
@@ -132,6 +142,49 @@ public class MarketNotificationSender extends
                 .setTopologyId(projectedTopologyId)
                 .setEnd(End.newBuilder().setTotalCount(totalCount).build())
                 .build());
+    }
+
+    /**
+     * Send projected entity costs notification synchronously. Synchronously means this method
+     * will not return until all costs have been sent over to the message broker.
+     *
+     * @param originalTopologyInfo The {@link TopologyInfo} describing the original topology.
+     * @param projectedTopologyId The ID of the projected topology.
+     * @param entityCosts The entity costs of cloud entities in the projected topology.
+     * @throws CommunicationException if persistent communication error occurs
+     * @throws InterruptedException if thread interrupted
+     */
+    public void notifyProjectedEntityCosts(@Nonnull final TopologyInfo originalTopologyInfo,
+                                           final long projectedTopologyId,
+                                           @Nonnull final Collection<EntityCost> entityCosts)
+            throws CommunicationException, InterruptedException {
+        sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
+                .setStart(ProjectedEntityCosts.Start.newBuilder()
+                        .setSourceTopologyInfo(originalTopologyInfo))
+                .setProjectedTopologyId(projectedTopologyId)
+                .build());
+        long totalCount = 0;
+        for (Collection<EntityCost> costChunk : MessageChunker.chunk(entityCosts)) {
+            totalCount += costChunk.size();
+            sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
+                .setProjectedTopologyId(projectedTopologyId)
+                .setData(ProjectedEntityCosts.Data.newBuilder()
+                        .addAllEntityCosts(costChunk))
+                .build());
+        }
+        sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
+            .setProjectedTopologyId(projectedTopologyId)
+            .setEnd(ProjectedEntityCosts.End.newBuilder()
+                    .setTotalCount(totalCount))
+            .build());
+    }
+
+    private void sendProjectedEntityCostSegment(@Nonnull final ProjectedEntityCosts entityCostSegment)
+            throws CommunicationException, InterruptedException {
+        getLogger().debug("Sending projected entity cost segment {} for topology {}",
+                entityCostSegment::getSegmentCase, entityCostSegment::getProjectedTopologyId);
+        projectedEntityCostsSender.sendMessage(entityCostSegment);
+
     }
 
     private void sendProjectedTopologySegment(@Nonnull final ProjectedTopology segment)

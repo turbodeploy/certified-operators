@@ -109,13 +109,15 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getOwner(final long entityId);
 
     /**
-     * Get the service a particular entity belongs to.
+     * Get the service a particular entity belongs to. If called with the ID of a service, this is
+     * equivalent to {@link CloudTopology#getEntity(long)}.
      *
      * This method does not search for the owner recursively. Typically services are connected to
      * tiers. To get the service associated with, say, a VM, the caller has to find the ID(s) of the
      * tier(s) the VM buys from, and then call this method.
      *
-     * @param entityId The ID of the entity.
+     * @param entityId The ID of the entity. This can be the ID of a consumer from a service, or the
+     *                 ID of a service.
      * @return An optional containing the service connected to this entity, or an empty optional if
      * the ID is not found, or there is no associated service.
      */

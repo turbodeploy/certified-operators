@@ -24,6 +24,8 @@ public class MarketKafkaSender {
         return new MarketNotificationSender(kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC),
                 kafkaMessageProducer.messageSender(
+                        MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC),
+                kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC),
                 kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC));

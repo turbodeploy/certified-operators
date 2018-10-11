@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.topology;
+package com.vmturbo.cost.calculation.topology;
 
 import java.util.Collections;
 import java.util.Map;
@@ -16,6 +16,7 @@ import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFacto
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
@@ -32,20 +33,20 @@ public class TopologyCostCalculator {
 
     private final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory;
 
-    private final LocalCostDataProvider localCostDataProvider;
+    private final CloudCostDataProvider cloudCostDataProvider;
 
     private final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory;
 
     private final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory;
 
     public TopologyCostCalculator(@Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor,
-            @Nonnull final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory,
-            @Nonnull final LocalCostDataProvider localCostDataProvider,
-            @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory,
-            @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory) {
+                                  @Nonnull final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory,
+                                  @Nonnull final CloudCostDataProvider cloudCostDataProvider,
+                                  @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory,
+                                  @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory) {
         this.topologyEntityInfoExtractor = Objects.requireNonNull(topologyEntityInfoExtractor);
         this.cloudCostCalculatorFactory = Objects.requireNonNull(cloudCostCalculatorFactory);
-        this.localCostDataProvider = Objects.requireNonNull(localCostDataProvider);
+        this.cloudCostDataProvider = Objects.requireNonNull(cloudCostDataProvider);
         this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
         this.riApplicatorFactory = Objects.requireNonNull(riApplicatorFactory);
     }
@@ -56,14 +57,15 @@ public class TopologyCostCalculator {
      * @param cloudTopology The cloud entities in a topology.
      * @return A map of id -> {@link CostJournal} for the entity with that ID.
      */
+    @Nonnull
     public Map<Long, CostJournal<TopologyEntityDTO>> calculateCosts(final CloudTopology<TopologyEntityDTO> cloudTopology) {
         final CloudCostCalculator<TopologyEntityDTO> costCalculator;
         try {
-            costCalculator = cloudCostCalculatorFactory.newCalculator(localCostDataProvider,
+            costCalculator = cloudCostCalculatorFactory.newCalculator(cloudCostDataProvider,
                     cloudTopology, topologyEntityInfoExtractor,
                     discountApplicatorFactory, riApplicatorFactory);
             return cloudTopology.getEntities().values().stream()
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, costCalculator::calculateCost));
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, costCalculator::calculateCost));
         } catch (CloudCostDataRetrievalException e) {
             logger.error("Failed to retrieve cloud cost data. Not doing any cloud cost calculation.", e);
             return Collections.emptyMap();

@@ -203,6 +203,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>cost-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>market-component-api</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework</groupId>

@@ -220,8 +220,15 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      */
     @Nonnull
     @Override
-    public Optional<TopologyEntityDTO> getConnectedService(final long tierId) {
-        return Optional.ofNullable(serviceForEntity.get(tierId))
-            .flatMap(this::getEntity);
+    public Optional<TopologyEntityDTO> getConnectedService(final long entityId) {
+        return getEntity(entityId)
+            .flatMap(targetEntity -> {
+                if (targetEntity.getEntityType() == EntityType.CLOUD_SERVICE_VALUE) {
+                    return Optional.of(targetEntity);
+                } else {
+                    return Optional.ofNullable(serviceForEntity.get(entityId))
+                        .flatMap(this::getEntity);
+                }
+            });
     }
 }

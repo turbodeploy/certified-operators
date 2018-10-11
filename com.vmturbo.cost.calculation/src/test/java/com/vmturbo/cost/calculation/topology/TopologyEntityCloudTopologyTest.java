@@ -162,4 +162,10 @@ public class TopologyEntityCloudTopologyTest {
         final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getConnectedService(COMPUTE_TIER.getOid()), is(Optional.of(SERVICE)));
     }
+
+    @Test
+    public void testGetServiceWithService() {
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
+        assertThat(cloudTopology.getConnectedService(SERVICE.getOid()), is(Optional.of(SERVICE)));
+    }
 }

@@ -59,10 +59,14 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -119,13 +123,20 @@ public class ScopedTopologyTest {
                 .setIncludeVDC(INCLUDE_VDC)
                 .build();
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
+        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
+        when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+
         testAnalysis = new Analysis(topoogyInfo,
                 Collections.emptySet(),
-                marketPriceTable,
                 groupServiceClient,
                 Clock.systemUTC(),
-                analysisConfig);
+                analysisConfig,
+                cloudTopologyFactory,
+                cloudCostCalculator,
+                priceTableFactory);
     }
 
     /**
@@ -234,6 +245,10 @@ public class ScopedTopologyTest {
         MarketNotificationSender serverApi = mock(MarketNotificationSender.class);
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
+        TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
+        TopologyEntityCloudTopologyFactory cloudTopologyFactory =
+                mock(TopologyEntityCloudTopologyFactory.class);
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty());
 
         long topologyContextId = 1000;
@@ -256,8 +271,12 @@ public class ScopedTopologyTest {
                 AnalysisConfigCustomizer configCustomizer =
                         invocation.getArgumentAt(2, AnalysisConfigCustomizer.class);
                 configCustomizer.customize(configBuilder);
-                return new Analysis(topologyInfo, topologyDTOs, mock(MarketPriceTable.class),
-                        groupServiceClient, Clock.systemUTC(), configBuilder.build());
+
+                final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
+                when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+                return new Analysis(topologyInfo, topologyDTOs,
+                        groupServiceClient, Clock.systemUTC(), configBuilder.build(),
+                        cloudTopologyFactory, topologyCostCalculator, priceTableFactory);
             });
 
         Analysis analysis =

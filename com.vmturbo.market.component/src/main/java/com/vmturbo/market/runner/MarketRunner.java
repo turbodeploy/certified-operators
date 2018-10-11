@@ -2,6 +2,7 @@ package com.vmturbo.market.runner;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -11,11 +12,13 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
@@ -48,13 +51,13 @@ public class MarketRunner {
             .register();
 
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
-            @Nonnull final MarketNotificationSender serverApi,
-            @Nonnull final AnalysisFactory analysisFactory,
-            @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService) {
-        this.runnerThreadPool = runnerThreadPool;
-        this.serverApi = serverApi;
-        this.marketDebugRpcService = marketDebugRpcService;
-        this.analysisFactory = analysisFactory;
+                        @Nonnull final MarketNotificationSender serverApi,
+                        @Nonnull final AnalysisFactory analysisFactory,
+                        @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService) {
+        this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
+        this.serverApi = Objects.requireNonNull(serverApi);
+        this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
+        this.analysisFactory = Objects.requireNonNull(analysisFactory);
     }
 
     /**
@@ -147,6 +150,16 @@ public class MarketRunner {
                             analysis.getSkippedEntities(),
                             analysis.getProjectedTopology().get());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
+
+                    // Send projected entity costs. We only send them for the realtime topology.
+                    if (!isPlan) {
+                        final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
+                                analysis.getProjectedCosts().get();
+                        serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
+                                analysis.getProjectedTopologyId().get(),
+                                Collections2.transform(projectedCosts.values(),
+                                        CostJournal::toEntityCostProto));
+                    }
                 } catch (CommunicationException | InterruptedException e) {
                     // TODO we need to decide, whether to commit the incoming topology here or not.
                     logger.error("Could not send market notifications", e);

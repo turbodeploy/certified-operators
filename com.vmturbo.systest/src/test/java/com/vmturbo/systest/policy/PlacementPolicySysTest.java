@@ -64,6 +64,7 @@ import io.grpc.stub.StreamObserver;
 import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -149,6 +150,7 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<TopologyProcessorNotification> tpMessageReceiver;
     private IMessageReceiver<Topology> tpTopologyReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
+    private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
     private DiscoveryDriverController discoveryDriverController;
@@ -263,10 +265,14 @@ public class PlacementPolicySysTest {
         projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC,
                 ProjectedTopology::parseFrom);
+        projectedEntityCostReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC,
+                ProjectedEntityCosts::parseFrom);
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
-                projectedTopologyReceiver, actionsReceiver, null, threadPool);
+                projectedTopologyReceiver, projectedEntityCostReceiver,
+                actionsReceiver, null, threadPool);
         kafkaMessageConsumer.start();
     }
 

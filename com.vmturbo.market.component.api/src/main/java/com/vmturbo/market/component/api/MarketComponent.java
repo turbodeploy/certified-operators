@@ -23,6 +23,13 @@ public interface MarketComponent {
     void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener);
 
     /**
+     * Registers a listener for projected entity cost notifications.
+     *
+     * @param listener Listener to register.
+     */
+    void addProjectedEntityCostsListener(@Nonnull final ProjectedEntityCostsListener listener);
+
+    /**
      * Register a listener for handling plan analysis topologies.
      *
      * @param listener the listener for plan analysis topologies

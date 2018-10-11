@@ -263,6 +263,8 @@ cost:
   # END - database-related properties
   <<: *auth_conn_info
 
+  marketHost: 'market'
+
   # CurrentWeight for calculating the weighted_value in
   # instance_type_hourly_by_week table.
   # Value range from [0.0, 1.0]
