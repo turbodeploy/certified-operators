@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.web.bind.annotation.PathVariable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -126,6 +127,18 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     static final String UNKNOWN_TARGET_STATUS = "UNKNOWN";
 
+    /**
+     * This is currently required because the SDK probes have
+     * the category field inconsistently cased
+     */
+    public static final ImmutableBiMap<String, String> USER_FACING_CATEGORY_MAP = ImmutableBiMap
+            .<String, String>builder()
+            .put("STORAGE", "Storage")
+            .put("HYPERVISOR", "Hypervisor")
+            .put("FABRIC", "Fabric")
+            .put("ORCHESTRATOR", "Orchestrator")
+            .put("HYPERCONVERGED", "Hyperconverged")
+            .build();
     /**
      * The 'displayName' for a target is taken from either the 'address' or 'nameOrAddress' property
      */
@@ -581,7 +594,7 @@ public class TargetsService implements ITargetsService {
     private TargetApiDTO mapProbeInfoToDTO(ProbeInfo probeInfo) throws FieldVerificationException {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(probeInfo.getId()));
-        targetApiDTO.setCategory(probeInfo.getCategory());
+        targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
         targetApiDTO.setType(probeInfo.getType());
         targetApiDTO.setIdentifyingFields(probeInfo.getIdentifyingFields());
         List<InputFieldApiDTO> inputFields =
@@ -768,7 +781,7 @@ public class TargetsService implements ITargetsService {
                     .collect(Collectors.toList()));
         } else {
             targetApiDTO.setType(probeInfo.getType());
-            targetApiDTO.setCategory(probeInfo.getCategory());
+            targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
 
             final Map<String, AccountValue> accountValuesByName = targetInfo.getAccountData()
                     .stream()
@@ -869,6 +882,19 @@ public class TargetsService implements ITargetsService {
             default:
                 throw new RuntimeException("Unrecognized account field value type: " + type);
         }
+    }
+
+    /**
+     * Probe category strings as defined by the difference probe_conf.xml are not consistent
+     * regarding uppercase/lowercase, etc. This maps the known problem category strings into
+     * more user-friendly names.
+     *
+     * @param probeInfo the probe to map the category for
+     * @return a user-friendly string for the probe category (for the problem categories we know of).
+     */
+    private String getUserFacingCategoryString(final ProbeInfo probeInfo) {
+        return USER_FACING_CATEGORY_MAP.getOrDefault(probeInfo.getCategory(),
+                probeInfo.getCategory());
     }
 
     /**
