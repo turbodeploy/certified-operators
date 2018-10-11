@@ -24,6 +24,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.search.Search;
@@ -34,12 +35,13 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class TopologyFilterFactoryTest {
@@ -52,6 +54,7 @@ public class TopologyFilterFactoryTest {
         .setOid(1L)
         .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
         .setDisplayName("foo");
+
     final TopologyEntityDTO.Builder barEntity = TopologyEntityDTO.newBuilder()
         .setOid(2L)
         .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
@@ -219,6 +222,72 @@ public class TopologyFilterFactoryTest {
 
         when(entity2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
         assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityStateMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("state")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setMatch(true)
+                                .setStringPropertyRegex("ACTIVE")))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getEntityState()).thenReturn(EntityState.POWERED_ON);
+        assertTrue(propertyFilter.test(entity1));
+
+        when(entity2.getEntityState()).thenReturn(EntityState.POWERED_OFF);
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityStateNoMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("state")
+                        .setStringFilter(StringFilter.newBuilder()
+                                // Match set to false, so "ACTIVE" entities shouldn't match.
+                                .setMatch(false)
+                                .setStringPropertyRegex("ACTIVE")))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getEntityState()).thenReturn(EntityState.POWERED_ON);
+        assertFalse(propertyFilter.test(entity1));
+
+        when(entity2.getEntityState()).thenReturn(EntityState.POWERED_OFF);
+        assertTrue(propertyFilter.test(entity2));
+
+        when(entity2.getEntityState()).thenReturn(EntityState.FAILOVER);
+        assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEntityStateCaseInsensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("state")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setMatch(true)
+                                .setStringPropertyRegex("AcTivE")
+                                // Ignore case sensitive flag.
+                                .setCaseSensitive(true)))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getEntityState()).thenReturn(EntityState.POWERED_ON);
+        assertTrue(propertyFilter.test(entity1));
     }
 
     @Test

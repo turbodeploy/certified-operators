@@ -13,7 +13,6 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -24,9 +23,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
@@ -61,12 +60,11 @@ public class TopologyConverter {
             topologyEntityBuilder.setDisplayName(serviceEntityDTO.getDisplayName());
             topologyEntityBuilder.setEntityType(mapEntityType(serviceEntityDTO.getEntityType()));
             topologyEntityBuilder.setEntityState(
-                    EntityState.forNumber(mapEntityState(serviceEntityDTO.getState())));
-            serviceEntityDTO.getTags().entrySet().forEach(
-                    t ->
-                            topologyEntityBuilder.putTags(
-                                    t.getKey(),
-                                    TagValuesDTO.newBuilder().addAllValues(t.getValue()).build()));
+                    UIEntityState.fromString(serviceEntityDTO.getState()).toEntityState());
+            serviceEntityDTO.getTags().forEach((key, value) ->
+                    topologyEntityBuilder.putTags(key, TagValuesDTO.newBuilder()
+                        .addAllValues(value)
+                        .build()));
             topologyEntityBuilder.addAllCommoditySoldList(
                     serviceEntityDTO.getCommoditySoldList().stream()
                             .map(CommodityMapper::convert)
@@ -126,10 +124,6 @@ public class TopologyConverter {
         static int mapEntityType(String type) {
             return RepoObjectType.toTopologyEntityType(type);
         }
-
-        static int mapEntityState(String state) {
-            return RepoObjectState.toTopologyEntityState(state);
-        }
     }
 
     static class ServiceEntityMapper {
@@ -141,7 +135,7 @@ public class TopologyConverter {
             se.setDisplayName(t.getDisplayName());
             se.setEntityType(mapEntityType(t.getEntityType()));
             se.setUuid(String.valueOf(t.getOid()));
-            se.setState(mapEntityState(t.getEntityState()));
+            se.setState(UIEntityState.fromEntityState(t.getEntityState()).getValue());
             se.setTags(new HashMap<>());
             t.getTagsMap().entrySet().forEach(
                     tag -> se.getTags().put(tag.getKey(), tag.getValue().getValuesList()));
@@ -191,18 +185,6 @@ public class TopologyConverter {
 
         static String mapEntityType(int type) {
             return RepoObjectType.mapEntityType(type);
-        }
-
-        /**
-         * Maps the entity state from the one used in TopologyDTO to
-         * the one expected in UI.
-         * TODO: This is a temporary fix, see OM-11305.
-         *
-         * @param topologyEntityState
-         * @return A string of entity state that UI expects
-         */
-        static String mapEntityState(EntityState topologyEntityState) {
-            return RepoObjectState.toRepoEntityState(topologyEntityState);
         }
     }
 

@@ -54,6 +54,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.mapping.UIEntityState;
 
 public class SupplyChainFetcherFactoryTest {
     private static final String VM = "VirtualMachine";
@@ -122,8 +123,8 @@ public class SupplyChainFetcherFactoryTest {
      */
     @Test
     public void testHealthStatusAllNormal() throws Exception {
-        final String onState = ServiceEntityMapper.toState(EntityState.POWERED_ON_VALUE);
-        final String offState = ServiceEntityMapper.toState(EntityState.POWERED_OFF_VALUE);
+        final String onState = UIEntityState.ACTIVE.getValue();
+        final String offState = UIEntityState.IDLE.getValue();
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
             .setEntityType(VM)
             .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()

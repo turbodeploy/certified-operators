@@ -19,7 +19,6 @@ import java.io.StringWriter;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -36,8 +35,7 @@ import com.google.gson.Gson;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.repository.constant.RepoObjectState;
-import com.vmturbo.repository.constant.RepoObjectState.RepoEntityState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultEdge;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
@@ -159,10 +157,10 @@ public class SupplyChainSubgraphTest {
 
     @Test
     public void testNodeBuilder() {
-        final String activeState = RepoEntityState.ACTIVE.getValue();
-        final String idleState = RepoEntityState.IDLE.getValue();
-        final int activeStateInt = RepoObjectState.toTopologyEntityState(activeState);
-        final int idleStateInt = RepoObjectState.toTopologyEntityState(idleState);
+        final String activeState = UIEntityState.ACTIVE.getValue();
+        final String idleState = UIEntityState.IDLE.getValue();
+        final int activeStateInt = UIEntityState.ACTIVE.toEntityState().getNumber();
+        final int idleStateInt = UIEntityState.IDLE.toEntityState().getNumber();
 
         final SupplyChainNodeBuilder nodeBuilder = new SupplyChainNodeBuilder();
         nodeBuilder.setEntityType("VirtualMachine");

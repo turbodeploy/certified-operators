@@ -2,7 +2,6 @@ package com.vmturbo.repository.graph.result;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
@@ -23,7 +22,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.repository.constant.RepoObjectState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 
 /**
  * An in-memory graph built from supply chain queries used for traversal in order to compute the actual
@@ -507,7 +506,7 @@ public class SupplyChainSubgraph {
         public void addMember(@Nonnull final String oid, @Nullable final String state) {
             if (state != null) {
                 final Set<Long> membersForState = membersByState.computeIfAbsent(
-                        RepoObjectState.toTopologyEntityState(state),
+                        UIEntityState.fromString(state).toEntityState().getNumber(),
                         k -> new HashSet<>());
                 membersForState.add(Long.parseLong(oid));
             }

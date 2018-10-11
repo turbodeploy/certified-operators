@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.repository.constant.RepoObjectState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
 /**
@@ -111,7 +111,7 @@ public class SupplyChainResultsConverter {
                 return;
             }
             addOids(group.getEntityType(),
-                    RepoObjectState.toTopologyEntityState(group.getState()),
+                    UIEntityState.fromString(group.getState()).toEntityState().getNumber(),
                     group.getOids());
         }
 

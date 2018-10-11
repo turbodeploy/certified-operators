@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -703,7 +704,9 @@ public class SupplyChainFetcherFactory {
                 final Map<String, Integer> stateSummary = new HashMap<>();
                 for (final Entry<Integer, MemberList> entry : node.getMembersByStateMap().entrySet()) {
                     entitiesCount += entry.getValue().getMemberOidsCount();
-                    stateSummary.compute(ServiceEntityMapper.toState(entry.getKey()),
+                    final UIEntityState uiState =
+                            UIEntityState.fromEntityState(EntityState.forNumber(entry.getKey()));
+                    stateSummary.compute(uiState.getValue(),
                         (k, existingValue) -> {
                             if (existingValue != null) {
                                 logger.warn("Multiple states in supply chain node for entity type " +

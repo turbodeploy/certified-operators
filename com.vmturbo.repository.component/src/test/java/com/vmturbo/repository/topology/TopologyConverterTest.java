@@ -20,16 +20,15 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
-import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
@@ -69,7 +68,7 @@ public class TopologyConverterTest {
         vmServiceEntity.setOid("111");
         vmServiceEntity.setUuid("111");
         vmServiceEntity.setEntityType(RepoObjectType.mapEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        vmServiceEntity.setState(RepoObjectState.toRepoEntityState(TopologyDTO.EntityState.POWERED_ON));
+        vmServiceEntity.setState(UIEntityState.ACTIVE.getValue());
         final Map<String, List<String>> tagsMap = new HashMap<>();
         tagsMap.put("key1", Arrays.asList("value1", "value2"));
         tagsMap.put("key2", Arrays.asList("value1"));
@@ -218,8 +217,7 @@ public class TopologyConverterTest {
 
     private static void verifySE(
             final TopologyEntityDTO seTopoDTO, final ServiceEntityRepoDTO seRepoDTO) {
-        final String expectedState = TopologyConverter.ServiceEntityMapper.mapEntityState(
-                seTopoDTO.getEntityState());
+        final String expectedState = UIEntityState.fromEntityState(seTopoDTO.getEntityState()).getValue();
         final String expectedType = TopologyConverter.ServiceEntityMapper.mapEntityType(
                 seTopoDTO.getEntityType());
 

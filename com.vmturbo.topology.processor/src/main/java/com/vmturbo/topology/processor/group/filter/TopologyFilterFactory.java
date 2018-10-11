@@ -15,6 +15,8 @@ import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
@@ -151,8 +153,28 @@ public class TopologyFilterFactory {
                             stringCriteria.getCaseSensitive()
                     ));
                 }
+            case "state":
+                // Note - we are ignoring the case-sensitivity parameter. Since the state is an
+                // enum it doesn't really make sense to be case-sensitive.
+                final UIEntityState targetState =
+                        UIEntityState.fromString(stringCriteria.getStringPropertyRegex());
+
+                // If the target state resolves to "UNKNOWN" but "UNKNOWN" wasn't what the user
+                // explicitly wanted, we throw an exception to avoid weird behaviour.
+                if (targetState == UIEntityState.UNKNOWN &&
+                        !StringUtils.equalsIgnoreCase(UIEntityState.UNKNOWN.getValue(),
+                                stringCriteria.getStringPropertyRegex())) {
+                    throw new IllegalArgumentException("Desired state: " +
+                            stringCriteria.getStringPropertyRegex() +
+                            " doesn't match a known/valid entity state.");
+                }
+                // It's more efficient to compare the numeric value of the enum.
+                return new PropertyFilter(intPredicate(targetState.toEntityState().getNumber(),
+                        stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                        entity -> entity.getEntityState().getNumber()));
             default:
-                throw new IllegalArgumentException("Unknown string property named: " + stringCriteria);
+                throw new IllegalArgumentException("Unknown string property: " + propertyName
+                        + " with criteria: " + stringCriteria);
         }
     }
 

@@ -9,10 +9,9 @@ import java.util.stream.Collectors;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.repository.constant.RepoObjectState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
@@ -206,7 +205,7 @@ public class SearchDTOConverter {
     public static Search.Entity toSearchEntity(final ServiceEntityRepoDTO serviceEntityRepoDTO) {
         Objects.requireNonNull(serviceEntityRepoDTO, "serviceEntityRepoDTO must not be null");
 
-        final int state = RepoObjectState.toTopologyEntityState(serviceEntityRepoDTO.getState());
+        final int state = UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState().getNumber();
         final int type = RepoObjectType.toTopologyEntityType(serviceEntityRepoDTO.getEntityType());
 
         return Search.Entity.newBuilder().setDisplayName(serviceEntityRepoDTO.getDisplayName())

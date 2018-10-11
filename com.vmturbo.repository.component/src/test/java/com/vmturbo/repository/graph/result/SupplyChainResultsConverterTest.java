@@ -18,14 +18,13 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.repository.constant.RepoObjectState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SupplyChainResultsConverterTest {
@@ -58,8 +57,8 @@ public class SupplyChainResultsConverterTest {
 
         final SupplyChainNode vmNode = supplyChain.get("VirtualMachine");
         assertThat(vmNode, Matchers.notNullValue());
-        final int idleState = RepoObjectState.toTopologyEntityState("IDLE");
-        final int activeState = RepoObjectState.toTopologyEntityState("ACTIVE");
+        final int idleState = UIEntityState.IDLE.toEntityState().getNumber();
+        final int activeState = UIEntityState.ACTIVE.toEntityState().getNumber();
         assertThat(vmNode.getMembersByStateMap().keySet(), containsInAnyOrder(
                 idleState, activeState));
         assertThat(vmNode.getMembersByStateOrThrow(activeState).getMemberOidsList(),

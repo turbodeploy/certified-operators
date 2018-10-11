@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -67,6 +68,16 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
      */
     public int getEntityType() {
         return entityBuilder.getEntityType();
+    }
+
+    /**
+     * Get the entity's state. This field corresponds to {@link TopologyEntityDTO#getEntityState}
+     *
+     * @return The {@link EntityState} for the entity builder corresponding to this node.
+     */
+    @Nonnull
+    public EntityState getEntityState() {
+        return entityBuilder.getEntityState();
     }
 
     @Nonnull

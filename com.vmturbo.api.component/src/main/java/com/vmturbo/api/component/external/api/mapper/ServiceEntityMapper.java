@@ -8,6 +8,7 @@ import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ServiceEntityMapper {
@@ -141,25 +142,6 @@ public class ServiceEntityMapper {
     }
 
     /**
-     * Convert numerical representation of the state used in TopologyEntityDTO
-     * to a string value that the UI understands.
-     * @param state numerical representation of state
-     * @return string representation of state
-     *
-     * TODO: Refactor this and RepoObjectState so this conversion lives in one place.
-     */
-    public static String toState(int state) {
-        switch (state) {
-            case EntityState.POWERED_ON_VALUE: return "ACTIVE";
-            case EntityState.POWERED_OFF_VALUE: return "IDLE";
-            case EntityState.SUSPENDED_VALUE: return "SUSPENDED";
-            case EntityState.MAINTENANCE_VALUE: return "MAINTENANCE";
-            case EntityState.FAILOVER_VALUE: return "FAILOVER";
-            default: return "UNKNOWN";
-        }
-    }
-
-    /**
      * Convert a TopolgyEntityDTO to a ServiceEntityApiDTO to return to the REST API.
      *
      * @param toplogyEntity the internal {@link TopologyEntityDTO} to convert
@@ -168,7 +150,7 @@ public class ServiceEntityMapper {
     public static ServiceEntityApiDTO toServiceEntityApiDTO(TopologyEntityDTO toplogyEntity) {
         ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
         seDTO.setDisplayName(toplogyEntity.getDisplayName());
-        seDTO.setState(ServiceEntityMapper.toState(toplogyEntity.getEntityState().getNumber()));
+        seDTO.setState(UIEntityState.fromEntityState(toplogyEntity.getEntityState()).getValue());
         seDTO.setClassName(ServiceEntityMapper.toUIEntityType(toplogyEntity.getEntityType()));
         seDTO.setUuid(String.valueOf(toplogyEntity.getOid()));
         return seDTO;

@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.components.common.mapping.UIEntityState;
 
 /**
  * Utility class with static methods to facilitate the creation of searches and filters.
@@ -274,7 +276,7 @@ public class SearchMapper {
     public static ServiceEntityApiDTO seDTO(Entity entity) {
         ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
         seDTO.setDisplayName(entity.getDisplayName());
-        seDTO.setState(ServiceEntityMapper.toState(entity.getState()));
+        seDTO.setState(UIEntityState.fromEntityState(EntityState.forNumber(entity.getState())).getValue());
         seDTO.setClassName(ServiceEntityMapper.toUIEntityType(entity.getType()));
         seDTO.setUuid(String.valueOf(entity.getOid()));
         return seDTO;
