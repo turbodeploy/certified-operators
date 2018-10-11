@@ -2,6 +2,7 @@ package com.vmturbo.repository.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.google.common.base.MoreObjects;
 
 @JsonInclude(Include.NON_EMPTY)
 public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
@@ -18,6 +19,8 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
     private float capacityIncrement;
 
     private double maxQuantity;
+
+    private double scalingFactor;
 
     public double getCapacity() {
         return capacity;
@@ -73,5 +76,28 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     public double getMaxQuantity() {
         return this.maxQuantity;
+    }
+
+
+    public void setScalingFactor(double scalingFactor) {
+        this.scalingFactor = scalingFactor;
+    }
+
+    public double getScalingFactor() {
+        return this.scalingFactor;
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + MoreObjects.toStringHelper(this)
+                .add("capacity", capacity)
+                .add("effectiveCapacityPercentage", effectiveCapacityPercentage)
+                .add("reservedCapacity", reservedCapacity)
+                .add("isResizeable", isResizeable)
+                .add("isThin", isThin)
+                .add("capacityIncrement", capacityIncrement)
+                .add("maxQuantity", maxQuantity)
+                .add("scalingFactor", scalingFactor)
+                .toString();
     }
 }

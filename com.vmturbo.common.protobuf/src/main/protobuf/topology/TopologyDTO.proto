@@ -529,6 +529,9 @@ message CommoditySoldDTO {
 
     // The historic max value(within the data retention period)
     optional double max_quantity = 12;
+
+    // A scale factor to multiply this commodity by before analysis, if present
+    optional double scaling_factor = 13;
 }
 
 message IpAddress {

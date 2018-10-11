@@ -8,6 +8,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +42,7 @@ import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -55,7 +57,6 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -87,6 +88,8 @@ public class SharedStorageIntegrationTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityClock);
+    private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
+
     private final DiskCapacityCalculator diskCapacityCalculator =
         Mockito.mock(DiskCapacityCalculator.class);
     private final Clock clock = Mockito.mock(Clock.class);
@@ -107,7 +110,7 @@ public class SharedStorageIntegrationTest {
             new PostStitchingOperationLibrary(
                 new SetCommodityMaxQuantityPostStitchingOperationConfig(
                     statsServiceClient, 30, 10), //meaningless values
-                diskCapacityCalculator, clock, 0);
+                diskCapacityCalculator, cpuCapacityStore, clock, 0);
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
@@ -135,7 +138,7 @@ public class SharedStorageIntegrationTest {
 
         final StitchingManager stitchingManager =
             new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
-                postStitchingOperationLibrary, probeStore, targetStore);
+                postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         when(probeStore.getProbeIdsForCategory(eq(ProbeCategory.HYPERVISOR)))
             .thenReturn(Collections.singletonList(5678L));

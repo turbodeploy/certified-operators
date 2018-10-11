@@ -28,6 +28,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.PostStitchingOperationScopeFactory;
 import com.vmturbo.topology.processor.targets.Target;
@@ -38,6 +39,7 @@ public class PostStitchingOperationScopeFactoryTest {
 
     private final ProbeStore probeStore = mock(ProbeStore.class);
     private final TargetStore targetStore = mock(TargetStore.class);
+    private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private PostStitchingOperationScopeFactory scopeFactory;
 
     private final TopologyEntity.Builder vm1 = topologyEntityBuilder(1L, EntityType.VIRTUAL_MACHINE,
@@ -66,7 +68,7 @@ public class PostStitchingOperationScopeFactoryTest {
     @Before
     public void setup() {
         scopeFactory = new PostStitchingOperationScopeFactory(topologyGraph,
-            probeStore, targetStore);
+            probeStore, targetStore, cpuCapacityStore);
 
         when(probeStore.getProbeIdForType("111")).thenReturn(Optional.of(111L));
         when(probeStore.getProbeIdForType("222")).thenReturn(Optional.of(222L));

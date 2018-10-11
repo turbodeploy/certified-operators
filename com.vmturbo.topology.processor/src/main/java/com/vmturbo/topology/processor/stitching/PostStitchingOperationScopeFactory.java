@@ -21,6 +21,7 @@ import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -40,13 +41,16 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
     private final TopologyGraph topologyGraph;
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
+    private final CpuCapacityStore cpuCapacitystore;
 
     public PostStitchingOperationScopeFactory(@Nonnull final TopologyGraph topologyGraph,
                                               @Nonnull final ProbeStore probeStore,
-                                              @Nonnull final TargetStore targetStore) {
+                                              @Nonnull final TargetStore targetStore,
+                                              @Nonnull final CpuCapacityStore cpuCapacityStore) {
         this.topologyGraph = Objects.requireNonNull(topologyGraph);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.cpuCapacitystore = Objects.requireNonNull(cpuCapacityStore);
     }
 
     /**

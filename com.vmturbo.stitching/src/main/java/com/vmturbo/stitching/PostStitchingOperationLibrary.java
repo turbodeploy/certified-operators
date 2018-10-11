@@ -10,9 +10,11 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
@@ -59,12 +61,14 @@ public class PostStitchingOperationLibrary {
      *    PmMemoryAllocationPostStitchingOperation.
      *
      * @param setMaxValuesConfig Configuration parameters for SetCommodityMaxQuantityPostStitchingOperation
+     * @param cpuCapacityStore
      */
     public PostStitchingOperationLibrary(
-        @Nonnull SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig,
-        @Nonnull final DiskCapacityCalculator diskCapacityCalculator,
-        @Nonnull final Clock clock,
-        final double resizeDownWarmUpIntervalHours) {
+            @Nonnull SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig,
+            @Nonnull final DiskCapacityCalculator diskCapacityCalculator,
+            @Nonnull final CpuCapacityStore cpuCapacityStore,
+            @Nonnull final Clock clock,
+            final double resizeDownWarmUpIntervalHours) {
 
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
@@ -93,7 +97,8 @@ public class PostStitchingOperationLibrary {
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
-            new ComputedQxVcpuUsedValuePostStitchingOperation()
+            new ComputedQxVcpuUsedValuePostStitchingOperation(),
+            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore)
         );
     }
 

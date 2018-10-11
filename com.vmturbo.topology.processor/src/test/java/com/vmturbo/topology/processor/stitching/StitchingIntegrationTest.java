@@ -10,6 +10,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +69,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
@@ -114,15 +116,16 @@ public class StitchingIntegrationTest {
     private final long ciscoVcenterTargetId = 3131L;
     private final long vcProbeId = 5678L;
 
-    private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-    private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
-    private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private IdentityProvider identityProvider = mock(IdentityProvider.class);
+    private final ProbeStore probeStore = mock(ProbeStore.class);
+    private final TargetStore targetStore = mock(TargetStore.class);
+    private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
             Clock.systemUTC());
     private final DiskCapacityCalculator diskCapacityCalculator =
-            Mockito.mock(DiskCapacityCalculator.class);
+            mock(DiskCapacityCalculator.class);
 
-    private final Clock clock = Mockito.mock(Clock.class);
+    private final Clock clock = mock(Clock.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
@@ -135,7 +138,7 @@ public class StitchingIntegrationTest {
                 new PostStitchingOperationLibrary(
                         new SetCommodityMaxQuantityPostStitchingOperationConfig(
                                 statsServiceClient, 30, 10),  //meaningless values
-                        diskCapacityCalculator, clock, 0);
+                        diskCapacityCalculator, cpuCapacityStore, clock, 0);
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
         when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
@@ -154,8 +157,9 @@ public class StitchingIntegrationTest {
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
-        final Target netAppTarget = Mockito.mock(Target.class);
+                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
+                cpuCapacityStore);
+        final Target netAppTarget = mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
         when(targetStore.getProbeTargets(netAppProbeId))
@@ -269,13 +273,14 @@ public class StitchingIntegrationTest {
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
-        final Target netAppTarget = Mockito.mock(Target.class);
+                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
+                cpuCapacityStore);
+        final Target netAppTarget = mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
-        final Target vcTarget = Mockito.mock(Target.class);
+        final Target vcTarget = mock(Target.class);
         when(vcTarget.getId()).thenReturn(vcTargetId);
 
         when(targetStore.getProbeTargets(vcProbeId))
@@ -417,10 +422,11 @@ public class StitchingIntegrationTest {
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
-        final Target ucsTarget = Mockito.mock(Target.class);
+                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
+                cpuCapacityStore);
+        final Target ucsTarget = mock(Target.class);
         when(ucsTarget.getId()).thenReturn(ucsTargetId);
-        final Target ucsVcenterTarget = Mockito.mock(Target.class);
+        final Target ucsVcenterTarget = mock(Target.class);
         when(ucsVcenterTarget.getId()).thenReturn(ciscoVcenterTargetId);
 
         when(targetStore.getProbeTargets(ucsProbeId))

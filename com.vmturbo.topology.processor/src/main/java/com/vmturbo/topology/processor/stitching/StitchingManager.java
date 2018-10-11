@@ -34,6 +34,7 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalTargetEntrySupplier;
@@ -133,26 +134,29 @@ public class StitchingManager {
 
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
+    private final CpuCapacityStore cpuCapacityStore;
 
     /**
      * Create a new {@link StitchingManager} instance.
-     *
      * @param stitchingOperationStore The store of the operations to be applied during the main stitching phase.
      * @param preStitchingOperationLibrary The store of pre stitching operations to be applied during pre-stitching.
      * @param postStitchingOperationLibrary The store of post stitching operations to be applied during post-stitching.
      * @param probeStore The store of probes known to the topology processor.
      * @param targetStore The store of available targets known to the topology processor.
+     * @param cpuCapacityStore RPC handle to call the CPU Capacity Service
      */
     public StitchingManager(@Nonnull final StitchingOperationStore stitchingOperationStore,
                             @Nonnull final PreStitchingOperationLibrary preStitchingOperationLibrary,
                             @Nonnull final PostStitchingOperationLibrary postStitchingOperationLibrary,
                             @Nonnull final ProbeStore probeStore,
-                            @Nonnull final TargetStore targetStore) {
+                            @Nonnull final TargetStore targetStore,
+                            @Nonnull final CpuCapacityStore cpuCapacityStore) {
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
         this.preStitchingOperationLibrary = Objects.requireNonNull(preStitchingOperationLibrary);
         this.postStitchingOperationLibrary = Objects.requireNonNull(postStitchingOperationLibrary);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.cpuCapacityStore = cpuCapacityStore;
     }
 
     /**
@@ -196,7 +200,7 @@ public class StitchingManager {
         final DataMetricTimer executionTimer = POST_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
 
         final PostStitchingOperationScopeFactory scopeFactory = new PostStitchingOperationScopeFactory(
-            graphWithSettings.getTopologyGraph(), probeStore, targetStore);
+            graphWithSettings.getTopologyGraph(), probeStore, targetStore, cpuCapacityStore);
         final EntitySettingsCollection settingsCollection = graphWithSettings.constructEntitySettingsCollection();
 
         stitchingJournal.markPhase(StitchingPhase.POST_STITCHING);

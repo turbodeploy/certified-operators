@@ -152,6 +152,8 @@ topology-processor:
   # can specify (permits custom journal filters and options), use the
   # /topology-processor/stitchingJournal REST endpoint.
   journalsPerRecording: 6
+  # Time, in hours that a cpu_model -> scale_factor mapping is cached.
+  scaleFactorCacheTimeoutHr: 8
 
 repository:
   <<: *baseVmtComponentSettings

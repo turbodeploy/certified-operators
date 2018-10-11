@@ -32,14 +32,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -54,6 +53,7 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -68,6 +68,7 @@ public class StitchingManagerTest {
 
     private final TargetStore targetStore = mock(TargetStore.class);
     private final EntityStore entityStore = mock(EntityStore.class);
+    private final CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final ProbeStore probeStore = mock(ProbeStore.class);
     private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary = mock(PreStitchingOperationLibrary.class);
@@ -132,7 +133,7 @@ public class StitchingManagerTest {
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
         final StitchingManager stitchingManager =
                 new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
-                    postStitchingOperationLibrary, probeStore, targetStore);
+                    postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
         verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
@@ -153,7 +154,7 @@ public class StitchingManagerTest {
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
         verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
@@ -177,7 +178,7 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = contextBuilder.build();
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
 
         entityData.values().forEach(entity -> {
@@ -205,7 +206,8 @@ public class StitchingManagerTest {
             Collections.emptyMap());
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
+                cpuCapacityStore);
         stitchingManager.postStitch(graphWithSettings, stitchingJournal);
 
         graph.entities().forEach(entity -> {
@@ -223,7 +225,7 @@ public class StitchingManagerTest {
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
         final StitchingManager stitchingManager =
             spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
-                postStitchingOperationLibrary, probeStore, targetStore));
+                postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore));
         @SuppressWarnings("unchecked")
         final StitchingJournal<StitchingEntity> journal = mock(StitchingJournal.class);
         stitchingManager.stitch(stitchingContext, journal);

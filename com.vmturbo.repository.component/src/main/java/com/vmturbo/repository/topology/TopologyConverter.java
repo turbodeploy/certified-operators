@@ -245,6 +245,7 @@ public class TopologyConverter {
             commRepo.setThin(comm.getIsThin());
             commRepo.setCapacityIncrement(comm.getCapacityIncrement());
             commRepo.setMaxQuantity(comm.getMaxQuantity());
+            commRepo.setScalingFactor(comm.getScalingFactor());
             return commRepo;
         }
 
@@ -258,6 +259,7 @@ public class TopologyConverter {
             commoditySoldDTOBuilder.setReservedCapacity(commoditySoldRepoDTO.getReservedCapacity());
             commoditySoldDTOBuilder.setIsResizeable(commoditySoldRepoDTO.isResizeable());
             commoditySoldDTOBuilder.setIsThin(commoditySoldRepoDTO.isThin());
+            commoditySoldDTOBuilder.setScalingFactor(commoditySoldRepoDTO.getScalingFactor());
             CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
 
             if (commoditySoldRepoDTO.getType() != null) {

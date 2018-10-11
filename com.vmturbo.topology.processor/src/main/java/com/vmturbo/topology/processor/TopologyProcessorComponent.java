@@ -31,6 +31,7 @@ import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiSecurityConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
+import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
@@ -60,6 +61,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     ActionsConfig.class,
     AnalysisConfig.class,
     ClockConfig.class,
+    CpuCapacityConfig.class,
     EntityConfig.class,
     GlobalConfig.class,
     GroupConfig.class,

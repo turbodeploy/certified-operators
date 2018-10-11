@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
+import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditiesBoughtFromProvider;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommodityBoughtBuilder;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditySold;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntityBuilder;
@@ -401,15 +402,6 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
             oid, type.getNumber(), Arrays.asList(storageAccessSold, storageLatencySold),
             Arrays.asList(storageAccessBought.build(), storageLatencyBought.build())
         );
-    }
-
-    private CommoditiesBoughtFromProvider makeCommoditiesBoughtFromProvider(final long providerId,
-                                            final int providerType,
-                                            @Nonnull final List<CommodityBoughtDTO> commodities) {
-        return CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerId)
-            .setProviderEntityType(providerType)
-            .addAllCommodityBought(commodities)
-            .build();
     }
 
     private void loadBuyer(@Nonnull final TopologyEntity.Builder buyer,

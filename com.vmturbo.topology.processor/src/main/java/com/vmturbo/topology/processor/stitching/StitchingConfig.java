@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Channel;
 
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.GrpcChannelFactory;
@@ -17,6 +19,8 @@ import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.RandomEntityStitchingJournalFactory;
@@ -89,6 +93,11 @@ public class StitchingConfig {
     @Autowired
     private ProbeConfig probeConfig;
 
+    @Autowired
+    private CpuCapacityConfig cpuCapacityConfig;
+
+
+
     @Bean
     public StitchingOperationLibrary stitchingOperationLibrary() {
         return new StitchingOperationLibrary();
@@ -129,6 +138,7 @@ public class StitchingConfig {
                 maxValuesBackgroundLoadFrequencyMinutes,
                 maxValuesBackgroundLoadDelayOnInitFailureMinutes),
                 diskPropertyCalculator(),
+                cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),
                 resizeDownWarmUpIntervalHours);
     }
@@ -136,7 +146,8 @@ public class StitchingConfig {
     @Bean
     public StitchingManager stitchingManager() {
         return new StitchingManager(stitchingOperationStore(), preStitchingOperationStore(),
-            postStitchingOperationStore(), probeConfig.probeStore(), targetConfig.targetStore());
+            postStitchingOperationStore(), probeConfig.probeStore(), targetConfig.targetStore(),
+                cpuCapacityConfig.cpucCapacityStore());
     }
 
     @Bean
