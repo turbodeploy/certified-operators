@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.rest;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -24,6 +25,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -81,6 +83,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
@@ -141,7 +144,11 @@ public class TargetControllerTest {
 
         @Bean
         public TargetStore targetStore() {
-            return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore());
+            GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+            Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                    .then(AdditionalAnswers.returnsFirstArg());
+            return new KVBackedTargetStore(keyValueStore(), probeStore(),
+                    targetIdentityStore(), groupScopeResolver);
         }
 
         @Override

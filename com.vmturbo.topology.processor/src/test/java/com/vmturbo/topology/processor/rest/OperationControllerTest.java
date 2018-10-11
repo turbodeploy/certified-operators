@@ -83,6 +83,7 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUp
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
@@ -127,7 +128,9 @@ public class OperationControllerTest {
 
         @Bean
         TargetStore targetStore() {
-            return new KVBackedTargetStore(new MapKeyValueStore(), probeStore(), targetIdentityStore());
+            GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+            return new KVBackedTargetStore(new MapKeyValueStore(), probeStore(),
+                    targetIdentityStore(), groupScopeResolver);
         }
 
         /**

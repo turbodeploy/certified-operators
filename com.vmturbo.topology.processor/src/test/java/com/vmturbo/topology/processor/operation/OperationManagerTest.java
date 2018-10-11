@@ -67,6 +67,7 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
@@ -88,7 +89,10 @@ public class OperationManagerTest {
 
     private final KeyValueStore kvStore = new MapKeyValueStore();
 
-    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore, targetIdentityStore);
+    private final GroupScopeResolver grpScopeResolver = Mockito.mock(GroupScopeResolver.class);
+
+    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
+            targetIdentityStore, grpScopeResolver);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 

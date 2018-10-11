@@ -131,6 +131,7 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUp
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
@@ -473,7 +474,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 new KVBackedTargetStore(
                         new MapKeyValueStore(),
                         mock(ProbeStore.class),
-                        new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
+                        new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)),
+                        mock(GroupScopeResolver.class));
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(simpleTargetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,

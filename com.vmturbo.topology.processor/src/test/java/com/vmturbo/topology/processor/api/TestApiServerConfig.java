@@ -1,11 +1,14 @@
 package com.vmturbo.topology.processor.api;
 
+import static org.mockito.Matchers.any;
+
 import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +20,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.SenderReceiverPair;
@@ -46,6 +50,7 @@ import com.vmturbo.topology.processor.rest.ProbeController;
 import com.vmturbo.topology.processor.rest.TargetController;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -144,7 +149,11 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore());
+        GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                .then(AdditionalAnswers.returnsFirstArg());
+        return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore(),
+                groupScopeResolver);
     }
 
     @Override

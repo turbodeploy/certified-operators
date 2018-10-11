@@ -7,9 +7,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -19,11 +21,15 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  * Configuration for the target package.
  */
 @Configuration
-@Import({ProbeConfig.class, KVConfig.class, SQLDatabaseConfig.class})
+@Import({ProbeConfig.class, KVConfig.class, SQLDatabaseConfig.class, GroupClientConfig.class,
+        RepositoryClientConfig.class})
 public class TargetConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
 
     @Autowired
     private ProbeConfig probeConfig;
@@ -34,12 +40,19 @@ public class TargetConfig {
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
+
     @Bean
     public TargetStore targetStore() {
         return new KVBackedTargetStore(
                 kvConfig.keyValueStore(),
                 probeConfig.probeStore(),
-                identityStore());
+                identityStore(),
+                groupScopeResolver());
     }
 
     @Bean
@@ -61,5 +74,13 @@ public class TargetConfig {
     @Bean
     public DerivedTargetParser derivedTargetParser() {
         return new DerivedTargetParser(probeConfig.probeStore(), targetStore());
+    }
+
+    @Bean
+    public GroupScopeResolver groupScopeResolver() {
+        return new GroupScopeResolver(
+                groupClientConfig.groupChannel(),
+                repositoryClientConfig.repositoryChannel(),
+                realtimeTopologyContextId);
     }
 }

@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -89,7 +90,8 @@ public class TestMediationCommonConfig {
 
     @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), probeStore(), Mockito.mock(IdentityStore.class));
+        return new KVBackedTargetStore(keyValueStore(), probeStore(),
+                Mockito.mock(IdentityStore.class), Mockito.mock(GroupScopeResolver.class));
     }
 
     @Bean

@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
@@ -35,6 +36,7 @@ import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec.Builder;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -51,6 +53,8 @@ public class KVBackedTargetStore implements TargetStore {
     private static final String TARGET_PREFIX = "targets/";
 
     private final Logger logger = LogManager.getLogger();
+    private final GroupScopeResolver groupScopeResolver;
+
 
     @GuardedBy("storeLock")
     private final KeyValueStore keyValueStore;
@@ -72,11 +76,13 @@ public class KVBackedTargetStore implements TargetStore {
 
     public KVBackedTargetStore(@Nonnull final KeyValueStore keyValueStore,
                         @Nonnull final ProbeStore probeStore,
-                        @Nonnull final IdentityStore<TargetSpec> identityStore) {
+                        @Nonnull final IdentityStore<TargetSpec> identityStore,
+        @Nonnull final GroupScopeResolver groupScopeResolver) {
 
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityStore = Objects.requireNonNull(identityStore);
+        this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
 
         this.derivedTargetIdsByParentId = new ConcurrentHashMap<>();
 
@@ -149,6 +155,25 @@ public class KVBackedTargetStore implements TargetStore {
     }
 
     /**
+     * If builder has any account values that have a group scope, populate the values within the
+     * group scope.  Leave non group scope values as they are.
+     *
+     * @param builder {@link TargetSpec} builder for a new target being created.
+     * @param probeInfo {@link ProbeInfo} for the probe that will discover the target.
+     */
+    private void populateGroupScopeValues(@Nonnull TargetSpec.Builder builder,
+                                          @Nonnull Optional<ProbeInfo> probeInfo) {
+        Objects.requireNonNull(builder);
+        Objects.requireNonNull(probeInfo);
+        probeInfo.ifPresent(prbInf -> {
+            Collection<AccountValue> adjustedAccountValues =
+                    groupScopeResolver.processGroupScope(builder.getAccountValueList(), prbInf);
+            builder.clearAccountValue();
+            builder.addAllAccountValue(adjustedAccountValues).build();
+        });
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Nonnull
@@ -162,9 +187,13 @@ public class KVBackedTargetStore implements TargetStore {
             final Map<TargetSpec, Long> oldItems = identityStoreUpdate.getOldItems();
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
             if (!newItems.isEmpty()) {
+                // populate group scope account values before creating new target
+                final Optional<ProbeInfo> probeInfo = probeStore.getProbe(spec.getProbeId());
+                final Builder specBuilder = spec.toBuilder();
+                populateGroupScopeValues(specBuilder, probeInfo);
                 final long newTargetId = newItems.values().iterator().next();
-                final Target retTarget = new Target(newTargetId, probeStore, Objects.requireNonNull(spec),
-                        true);
+                final Target retTarget = new Target(newTargetId, probeStore,
+                        specBuilder.build(), true);
                 registerTarget(retTarget);
                 return retTarget;
             } else if (!oldItems.isEmpty()) {
@@ -303,7 +332,10 @@ public class KVBackedTargetStore implements TargetStore {
             if (oldTarget == null) {
                 throw new TargetNotFoundException(targetId);
             }
-            retTarget = oldTarget.withUpdatedFields(updatedFields, probeStore);
+
+            retTarget = oldTarget.withUpdatedFields(
+                    groupScopeResolver.processGroupScope(updatedFields,
+                            probeStore.getProbe(oldTarget.getProbeId()).get()), probeStore);
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
             keyValueStore.put(TARGET_PREFIX + Long.toString(retTarget.getId()),

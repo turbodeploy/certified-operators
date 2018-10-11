@@ -20,6 +20,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableSet;
@@ -59,6 +60,8 @@ public class KVBackedTargetStoreTest {
 
     private ProbeStore probeStore;
 
+    private GroupScopeResolver groupScopeResolver;
+
     private IdentityStore<TargetSpec> targetIdentityStore;
 
     private KVBackedTargetStore targetStore;
@@ -81,8 +84,12 @@ public class KVBackedTargetStoreTest {
         probeInfo = Probes.emptyProbe;
         keyValueStore = Mockito.mock(KeyValueStore.class);
         probeStore = Mockito.mock(ProbeStore.class);
+        groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                .then(AdditionalAnswers.returnsFirstArg());
         targetIdentityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
+        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore,
+                groupScopeResolver);
     }
 
     /**
@@ -162,7 +169,7 @@ public class KVBackedTargetStoreTest {
         Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(
                 Collections.singletonMap(String.valueOf(targetId), target.toJsonString()));
         final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, probeStore,
-                targetIdentityStore);
+                targetIdentityStore, groupScopeResolver);
         verify(kvStore).getByPrefix(Mockito.eq("targets/"));
         newTargetStore.getTarget(0L).get();
     }
@@ -291,7 +298,7 @@ public class KVBackedTargetStoreTest {
         final KeyValueStore kvStore = prepareKvStoreWithTarget(target);
 
         final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, probeStore,
-                targetIdentityStore);
+                targetIdentityStore, groupScopeResolver);
         verify(kvStore).getByPrefix(Mockito.eq("targets/"));
 
         final Target retTarget = newTargetStore.getTarget(0L).get();
@@ -312,7 +319,7 @@ public class KVBackedTargetStoreTest {
                 .thenReturn(Collections.singletonMap("targets/0", "aoishtioa"));
 
         // Instantiating a KVBackedStore should work.
-        new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
+        new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore, groupScopeResolver);
     }
 
     @Test
