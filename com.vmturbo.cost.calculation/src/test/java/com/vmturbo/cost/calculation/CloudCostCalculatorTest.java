@@ -30,6 +30,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
@@ -213,7 +215,7 @@ public class CloudCostCalculatorTest {
         final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
                 .setType(EntityType.DATABASE_VALUE)
                 .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(DatabaseEdition.SQL_SERVER_ENTERPRISE
-                        , DatabaseEngine.MYSQL))
+                        , DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
 
         final TestEntityClass region = TestEntityClass.newBuilder(regionId)
