@@ -157,6 +157,7 @@ public class TopologyConfig {
                 entityConfig.entityValidator(),
                 supplyChainValidationConfig.supplyChainValidator(),
                 groupConfig.discoveredClusterConstraintCache(),
+                applicationCommodityKeyChanger(),
                 controllableConfig.controllableManager(),
                 commoditiesEditor()
         );
@@ -179,5 +180,10 @@ public class TopologyConfig {
     @Bean
     public CommoditiesEditor commoditiesEditor() {
         return  new CommoditiesEditor(historyClient());
+    }
+
+    @Bean
+    public ApplicationCommodityKeyChanger applicationCommodityKeyChanger() {
+        return new ApplicationCommodityKeyChanger();
     }
 }

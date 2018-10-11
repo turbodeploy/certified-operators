@@ -44,6 +44,8 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -410,6 +412,16 @@ public class StagesTest {
         verify(entityValidator).validateTopologyEntities(any());
     }
 
+    @Test
+    public void testChangeAppCommodityKeyOnVMAndAppStage() throws Exception {
+        final ApplicationCommodityKeyChanger applicationCommodityKeyChanger = mock(ApplicationCommodityKeyChanger.class);
+        final ChangeAppCommodityKeyOnVMAndAppStage changeAppCommodityKeyOnVMAndAppStage = new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger);
+        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+
+        changeAppCommodityKeyOnVMAndAppStage.passthrough(topologyGraph);
+        verify(applicationCommodityKeyChanger).execute(any());
+    }
+
     private TopologyGraph createTopologyGraph() {
         final TopologyGraph graph = mock(TopologyGraph.class);
         final TopologyEntity entity = mock(TopologyEntity.class);
@@ -417,4 +429,5 @@ public class StagesTest {
         when(graph.entities()).thenReturn(Stream.of(entity));
         return graph;
     }
+
 }

@@ -6,9 +6,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -27,10 +29,15 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -64,6 +71,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -84,7 +92,7 @@ public class Stages {
      * This stage uploads cloud cost data to the cost component. We are doing this before the other
      * uploads, because all of the data we need to upload is available from the stitching context,
      * but not in the topology created from the stitching context.
-     *
+     * <p>
      * We could cache the data somewhere and upload it during a later stage, such as when the groups
      * and workflows are uploaded, so that the "upload" stages can be grouped, but this will require
      * extra coding to hand the cloud cost data between stages, or to sync the cache in the cloud
@@ -170,7 +178,7 @@ public class Stages {
     /**
      * This stage stitches together the various sub-topologies discovered by individual targets
      * into a unified "complete" topology.
-     *
+     * <p>
      * Stitching can happen in both the live topology broadcast and the plan topology broadcast if
      * the plan is on top of the "live" topology.
      */
@@ -218,7 +226,7 @@ public class Stages {
     /**
      * A stage that fixes up groups that references entities whose identifiers were modified
      * during stitching. See {@link StitchingGroupFixer} for more details.
-     *
+     * <p>
      * TODO: (DavidBlinn 2/16/2018) Ideally, instead of being a separate stage, this should
      * be part of stitching itself. Unfortunately, because it has to be run with the Live
      * pipeline but cannot be run in the PlanOverLive topology we have to split it out.
@@ -244,13 +252,12 @@ public class Stages {
     /**
      * This stage scans service entities for discovered setting policies to be uploaded.
      * See {@link com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage}.
-     *
+     * <p>
      * This stage only happens in the live topology broadcast.
      * <table>
-     *     <tr><th>Stage Input</th><td>{@link StitchingContext}</td></tr>
-     *     <tr><th nowrap="nowrap">Stage Output</th><td>The topology (which is a map of entity id -> Entity builder) created from the StitchingContext</td></tr>
+     * <tr><th>Stage Input</th><td>{@link StitchingContext}</td></tr>
+     * <tr><th nowrap="nowrap">Stage Output</th><td>The topology (which is a map of entity id -> Entity builder) created from the StitchingContext</td></tr>
      * </table>
-     *
      */
     public static class ScanDiscoveredSettingPoliciesStage
         extends Stage<StitchingContext, Map<Long, TopologyEntity.Builder>> {
@@ -284,13 +291,33 @@ public class Stages {
     }
 
     /**
+     * This stage modifies the ApplicationCommodity key on Apps and VMs, in order to make them
+     * unique across the whole environment.
+     * See {@link ApplicationCommodityKeyChanger} for further details.
+     */
+    public static class ChangeAppCommodityKeyOnVMAndAppStage extends PassthroughStage<TopologyGraph> {
+
+        private final ApplicationCommodityKeyChanger applicationCommodityKeyChanger;
+
+        public ChangeAppCommodityKeyOnVMAndAppStage(
+            @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger) {
+            this.applicationCommodityKeyChanger = applicationCommodityKeyChanger;
+        }
+
+        @Override
+        public void passthrough(final TopologyGraph topologyGraph) {
+            applicationCommodityKeyChanger.execute(topologyGraph);
+        }
+    }
+
+    /**
      * This stage is for adding cluster commodities to relate TopologyEntityDTO.
      */
     public static class ApplyClusterCommodityStage extends PassthroughStage<TopologyGraph> {
         private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
         public ApplyClusterCommodityStage(
-                @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
+            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
             this.discoveredClusterConstraintCache = discoveredClusterConstraintCache;
         }
 
@@ -320,7 +347,7 @@ public class Stages {
 
     /**
      * This stage acquires an old topology from the repository.
-     *
+     * <p>
      * We only do this in plans, because the live topology pipeline doesn't depend
      * on old topologies.
      */
@@ -337,20 +364,20 @@ public class Stages {
         public Map<Long, TopologyEntity.Builder> execute(@Nonnull final Long topologyId) {
             // we need to gather the entire topology in order to perform editing below
             Iterable<RepositoryDTO.RetrieveTopologyResponse> dtos =
-                    () -> repository.retrieveTopology(topologyId);
+                () -> repository.retrieveTopology(topologyId);
             return StreamSupport.stream(dtos.spliterator(), false)
-                    .map(RepositoryDTO.RetrieveTopologyResponse::getEntitiesList)
-                    .flatMap(List::stream)
-                    .map(TopologyEntityDTO::toBuilder)
-                    .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
-                        // TODO: Persist and pass through discovery information for this entity.
-                        TopologyEntity::newBuilder));
+                .map(RepositoryDTO.RetrieveTopologyResponse::getEntitiesList)
+                .flatMap(List::stream)
+                .map(TopologyEntityDTO::toBuilder)
+                .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
+                    // TODO: Persist and pass through discovery information for this entity.
+                    TopologyEntity::newBuilder));
         }
     }
 
     /**
      * This stage applies a set of {@link ScenarioChange} objects to a topology.
-     *
+     * <p>
      * We only do this in plans because only plans have scenario changes on top of a topology.
      */
     public static class TopologyEditStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
@@ -417,7 +444,7 @@ public class Stages {
      * into a list of "seed" entity oid's representing the focus on the topology to be analyzed.
      * These "seed entities" will be written into to the TopologyInfo for inclusion in the
      * broadcast.
-     *
+     * <p>
      * Each scope entry will refer either to a specific entity, or to a group. Scope entry id's for
      * specific entities will be directly to the seed entity list. Scope entry id's for "Group"
      * types will be resolved to a list of group member entities, and each of those will be added
@@ -428,7 +455,7 @@ public class Stages {
 
         private static final String GROUP_TYPE = "Group";
         private static final String CLUSTER_TYPE = "Cluster";
-        private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP_TYPE,CLUSTER_TYPE);
+        private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP_TYPE, CLUSTER_TYPE);
         private final PlanScope planScope;
 
         private final GroupServiceBlockingStub groupServiceClient;
@@ -468,9 +495,9 @@ public class Stages {
             if (groupsToResolve.size() > 0) {
                 // fetch the group definitions from the group service
                 GetGroupsRequest request = GetGroupsRequest.newBuilder()
-                        .addAllId(groupsToResolve)
-                        .setResolveClusterSearchFilters(true)
-                        .build();
+                    .addAllId(groupsToResolve)
+                    .setResolveClusterSearchFilters(true)
+                    .build();
                 groupServiceClient.getGroups(request)
                     .forEachRemaining(
                         group -> {
@@ -519,7 +546,7 @@ public class Stages {
 
 
         public CommoditiesEditStage(@Nonnull CommoditiesEditor commoditiesEditor,
-                        @Nonnull List<ScenarioChange> changes, @Nonnull PlanScope scope) {
+                                    @Nonnull List<ScenarioChange> changes, @Nonnull PlanScope scope) {
             this.changes = Objects.requireNonNull(changes);
             this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
             this.scope = Objects.requireNonNull(scope);
@@ -545,7 +572,7 @@ public class Stages {
         private final List<ScenarioChange> changes;
 
         public IgnoreConstraintsStage(@Nonnull GroupResolver groupResolver,
-                @Nonnull GroupServiceBlockingStub groupService, @Nonnull List<ScenarioChange> changes) {
+                                      @Nonnull GroupServiceBlockingStub groupService, @Nonnull List<ScenarioChange> changes) {
             this.groupResolver = Objects.requireNonNull(groupResolver);
             this.groupService = Objects.requireNonNull(groupService);
             this.changes = Objects.requireNonNull(changes);
@@ -608,8 +635,8 @@ public class Stages {
         }
 
         public static SettingsResolutionStage plan(
-                @Nonnull final EntitySettingsResolver entitySettingsResolver,
-                @Nonnull final List<ScenarioChange> scenarioChanges) {
+            @Nonnull final EntitySettingsResolver entitySettingsResolver,
+            @Nonnull final List<ScenarioChange> scenarioChanges) {
             return new SettingsResolutionStage(entitySettingsResolver, scenarioChanges);
         }
 
@@ -618,11 +645,11 @@ public class Stages {
         public GraphWithSettings execute(@Nonnull final TopologyGraph topologyGraph) {
             try {
                 return entitySettingsResolver.resolveSettings(getContext().getGroupResolver(),
-                        topologyGraph, settingOverrides, getContext().getTopologyInfo());
+                    topologyGraph, settingOverrides, getContext().getTopologyInfo());
             } catch (RuntimeException e) {
                 logger.error("Error resolving settings for graph", e);
                 return new GraphWithSettings(topologyGraph,
-                        Collections.emptyMap(), Collections.emptyMap());
+                    Collections.emptyMap(), Collections.emptyMap());
             }
         }
     }
@@ -643,7 +670,7 @@ public class Stages {
             // This method does a sync call to Group Component.
             // If GC has trouble, the topology broadcast would be delayed.
             entitySettingsResolver.sendEntitySettings(getContext().getTopologyInfo(),
-                    input.getEntitySettings());
+                input.getEntitySettings());
         }
     }
 
@@ -669,7 +696,7 @@ public class Stages {
     /**
      * This stage applies post-stitching operations to apply additional stitching operations to the topology
      * that operate in a context with settings available. For additional details {@see PostStitchingOperation}.
-     *
+     * <p>
      * Post-stitching should be applied in the same pipelines as the main stitching phase.
      * {@see StitchingStage}.
      */
@@ -703,7 +730,7 @@ public class Stages {
     /**
      * This stage validates all entities within a graph, and sets any illegal commodity values to
      * appropriate substitutes.
-     *
+     * <p>
      * This stage should occur after post-stitching; if it happens before, some commodity values
      * may be erroneously substituted and some necessary post-stitching operations may not occur.
      */
@@ -738,7 +765,7 @@ public class Stages {
         private final SupplyChainValidator supplyChainValidator;
 
         public SupplyChainValidationStage(
-              @Nonnull final SupplyChainValidator supplyChainValidator) {
+            @Nonnull final SupplyChainValidator supplyChainValidator) {
             this.supplyChainValidator = supplyChainValidator;
         }
 
@@ -756,16 +783,16 @@ public class Stages {
     /**
      * Placeholder stage to extract the {@link TopologyGraph} for the {@link BroadcastStage}
      * in the live and plan (but not plan-over-plan) topology.
-     *
+     * <p>
      * Also records {@link TopologyInfo} to the {@link StitchingJournal}.
-     *
+     * <p>
      * We shouldn't need this once plan-over-plan supports policies and settings.
      */
     public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph> {
         @Nonnull
         @Override
         public TopologyGraph execute(@Nonnull final GraphWithSettings graphWithSettings)
-                throws PipelineStageException, InterruptedException {
+            throws PipelineStageException, InterruptedException {
             return graphWithSettings.getTopologyGraph();
         }
     }
@@ -788,7 +815,7 @@ public class Stages {
         @Nonnull
         @Override
         public TopologyBroadcastInfo execute(@Nonnull final TopologyGraph input)
-                throws PipelineStageException, InterruptedException {
+            throws PipelineStageException, InterruptedException {
 
             // Record TopologyInfo and Metrics to the journal if there is one.
             getContext().getStitchingJournalContainer().getPostStitchingJournal().ifPresent(journal -> {
@@ -797,8 +824,8 @@ public class Stages {
             });
 
             final Iterator<TopologyEntityDTO> entities = input.entities()
-                    .map(topologyEntity -> topologyEntity.getTopologyEntityDtoBuilder().build())
-                    .iterator();
+                .map(topologyEntity -> topologyEntity.getTopologyEntityDtoBuilder().build())
+                .iterator();
             try {
                 switch (getContext().getTopologyInfo().getTopologyType()) {
                     case REALTIME:
@@ -818,9 +845,9 @@ public class Stages {
         }
 
         private TopologyBroadcastInfo broadcastTopology(
-                @Nonnull List<Function<TopologyInfo, TopologyBroadcast>> broadcastFunctions,
-                final Iterator<TopologyEntityDTO> topology)
-                throws InterruptedException, CommunicationException {
+            @Nonnull List<Function<TopologyInfo, TopologyBroadcast>> broadcastFunctions,
+            final Iterator<TopologyEntityDTO> topology)
+            throws InterruptedException, CommunicationException {
             final TopologyInfo topologyInfo = getContext().getTopologyInfo();
             final List<TopologyBroadcast> broadcasts = broadcastFunctions.stream()
                 .map(function -> function.apply(topologyInfo))

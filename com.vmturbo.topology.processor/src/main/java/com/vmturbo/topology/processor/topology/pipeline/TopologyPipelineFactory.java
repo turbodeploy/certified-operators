@@ -32,11 +32,13 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage;
@@ -106,6 +108,8 @@ public class TopologyPipelineFactory {
 
     private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
+    private final ApplicationCommodityKeyChanger applicationCommodityKeyChanger;
+
     private final EntityValidator entityValidator;
 
     private final SupplyChainValidator supplyChainValidator;
@@ -133,6 +137,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final EntityValidator entityValidator,
                                    @Nonnull final SupplyChainValidator supplyChainValidator,
                                    @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
+                                   @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                    @Nonnull final ControllableManager controllableManager,
                                    @Nonnull final CommoditiesEditor commoditiesEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
@@ -152,6 +157,7 @@ public class TopologyPipelineFactory {
         this.discoveredSettingPolicyScanner = Objects.requireNonNull(discoveredSettingPolicyScanner);
         this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
         this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
+        this.applicationCommodityKeyChanger = Objects.requireNonNull(applicationCommodityKeyChanger);
         this.entityValidator = Objects.requireNonNull(entityValidator);
         this.supplyChainValidator = Objects.requireNonNull(supplyChainValidator);
         this.controllableManager = Objects.requireNonNull(controllableManager);
@@ -199,6 +205,7 @@ public class TopologyPipelineFactory {
                 .addStage(new ControllableStage(controllableManager))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
+                .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new PolicyStage(policyManager))
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
@@ -251,6 +258,7 @@ public class TopologyPipelineFactory {
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
+                .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),
                         groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))
