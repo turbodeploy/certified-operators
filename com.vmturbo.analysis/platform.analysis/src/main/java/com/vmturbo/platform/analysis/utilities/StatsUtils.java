@@ -52,7 +52,7 @@ public class StatsUtils {
 
     public StatsUtils(@NonNull String filename, boolean isEnabled) {
         enabled_ = isEnabled;
-        if (!(enabled_)) {
+        if (!isEnabled()) {
             return;
         }
         Path path = Paths.get(statsFilePrefix);
@@ -80,6 +80,7 @@ public class StatsUtils {
             file.getParentFile().mkdirs();
         }
         logger.info("stats file path:" + statsFileName);
+        setEnabled(isEnabled);
     }
 
     /**
