@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
@@ -411,22 +412,55 @@ public class ScenarioMapper {
     @Nonnull
     public ScenarioApiDTO toScenarioApiDTO(@Nonnull final Scenario scenario) {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
+        boolean isAlleviatePressurePlan = false;
         dto.setUuid(Long.toString(scenario.getId()));
         dto.setDisplayName(scenario.getScenarioInfo().getName());
         if (scenario.getScenarioInfo().hasType()) {
             dto.setType(scenario.getScenarioInfo().getType());
+            isAlleviatePressurePlan = scenario.getScenarioInfo().getType()
+                .equals(ALLEVIATE_PRESSURE_PLAN_TYPE);
         } else {
             dto.setType(CUSTOM_SCENARIO_TYPE);
         }
 
         dto.setScope(buildApiScopeObjects(scenario));
         dto.setProjectionDays(buildApiProjChanges());
-        dto.setTopologyChanges(buildApiTopologyChanges(scenario.getScenarioInfo().getChangesList()));
-        dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo().getChangesList()));
+        dto.setTopologyChanges(buildApiTopologyChanges(scenario.getScenarioInfo()
+            .getChangesList()));
+
+        if (isAlleviatePressurePlan) {
+            // Show cluster info in UI for Alleviate pressure plan.
+            updateApiDTOForAlleviatePressurePlan(scenario.getScenarioInfo()
+                .getScope().getScopeEntriesList(), dto);
+        } else {
+            // Show configuration settings in UI when it is not Alleviate pressure plan.
+            dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo()
+                            .getChangesList()));
+        }
+
         dto.setLoadChanges(buildLoadChangesApiDTO(scenario.getScenarioInfo().getChangesList()));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
         return dto;
+    }
+
+    private void updateApiDTOForAlleviatePressurePlan(List<PlanScopeEntry> scopeEntriesList,
+                    ScenarioApiDTO dto) {
+        // pressure plan will have two clusters in scope.
+        BaseApiDTO srcCluster =  convertPlanScopeEntryToBaseApiDTO(scopeEntriesList.get(0));
+        BaseApiDTO destinationCluster =  convertPlanScopeEntryToBaseApiDTO(scopeEntriesList.get(1));
+        RelievePressureObjectApiDTO alleviatePressureDTO = new RelievePressureObjectApiDTO();
+        alleviatePressureDTO.setSources(Collections.singletonList(srcCluster));
+        alleviatePressureDTO.setDestinations(Collections.singletonList(destinationCluster));
+        dto.getTopologyChanges().setRelievePressureList(ImmutableList.of(alleviatePressureDTO));
+    }
+
+    private BaseApiDTO convertPlanScopeEntryToBaseApiDTO(PlanScopeEntry scopeEntry) {
+        BaseApiDTO baseApi = new BaseApiDTO();
+        baseApi.setUuid(String.valueOf(scopeEntry.getScopeObjectOid()));
+        baseApi.setDisplayName(scopeEntry.getDisplayName());
+        baseApi.setClassName(scopeEntry.getClassName());
+        return baseApi;
     }
 
     @Nonnull
