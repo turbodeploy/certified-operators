@@ -98,8 +98,8 @@ sha256sum "turbo_upgrade_spec.yml" >> turbonomic_sums.txt
 # For customers who don't allow access to remote yum repository, we would have
 # to ship the PyYAML package along with XL components.
 # PyYAML is used by turboupgrade.py script for parsing yml files.
+curl -O -ks https://10.10.150.66/repository/xl/libyaml-0.1.4-11.el7_0.x86_64.rpm
 curl -O -ks https://10.10.150.66/repository/xl/PyYAML-3.10-11.el7.x86_64.rpm
-
 
 for file in `ls *tgz`; do sha256sum $file >> turbonomic_sums.txt; done
 popd

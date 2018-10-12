@@ -85,8 +85,15 @@ try:
 except ImportError:
     LOGGER.info("Installing PyYAML package")
     mount_iso(ISO_MOUNTPOINT)
-    exec_cmd("True", "yum", "-q", "-y", "install",
-        os.path.join(ISO_MOUNTPOINT, "pyyaml-3.10-11.el7.x86_64.rpm"))
+    already_installed_msg = "is already installed"
+    for pkg in ["libyaml-0.1.4-11.el7_0.x86_64.rpm", "pyyaml-3.10-11.el7.x86_64.rpm"]:
+        retcode, output = exec_cmd(False, "rpm", "-i", os.path.join(ISO_MOUNTPOINT, pkg))
+        if (retcode!=0 and (already_installed_msg not in output)):
+            LOGGER.error("Failed to install pyyaml package. "+
+                "Aborting upgrade. Return code:%s. Error:%s"
+                %(retcode, output))
+            sys.exit(1)
+
     import yaml
 
 def topological_sort(dag):
