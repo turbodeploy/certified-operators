@@ -265,7 +265,8 @@ public class ScenarioMapper {
     /*
      * Create merge policy out of cluster ids in relieve pressure list.
      */
-    private ScenarioChange getMergePolicyForSourceAndDestinationClusters(List<RelievePressureObjectApiDTO> relievePressureList) {
+    private ScenarioChange getMergePolicyForSourceAndDestinationClusters(List<RelievePressureObjectApiDTO> relievePressureList)
+                    throws InvalidOperationException {
         MergePolicy.Builder mergePolicyBuilder = MergePolicy.newBuilder()
             .setMergeType(MergeType.CLUSTER);
 
@@ -277,6 +278,18 @@ public class ScenarioMapper {
                 .map(obj -> Long.valueOf(obj.getUuid()))
                 .collect(Collectors.toList()));
         });
+
+        // Should be two groups : one source and one destination for alleviate pressure plan.
+        if (mergePolicyBuilder.getMergeGroupIdsCount() != 2) {
+            throw new InvalidOperationException(
+                            "Invalid number of clusters : " + mergePolicyBuilder.getMergeGroupIdsCount());
+        }
+
+        // Source and destination clusters should be different
+        if (mergePolicyBuilder.getMergeGroupIds(0) == mergePolicyBuilder.getMergeGroupIds(1)) {
+            throw new InvalidOperationException(
+                            "Source and destination clusters are same.");
+        }
 
         ScenarioChange change = ScenarioChange.newBuilder()
             .setPlanChanges(PlanChanges.newBuilder()
