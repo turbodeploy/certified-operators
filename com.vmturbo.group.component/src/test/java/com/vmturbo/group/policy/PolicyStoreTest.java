@@ -47,6 +47,7 @@ import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -324,6 +325,7 @@ public class PolicyStoreTest {
         record.setName("Fuel Injected " + id);
         record.setType(GroupDTO.Group.Type.GROUP_VALUE);
         record.setOrigin(GroupDTO.Group.Origin.USER_VALUE);
+        record.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         record.setGroupData(GroupInfo.getDefaultInstance().toByteArray());
         record.store();
     }

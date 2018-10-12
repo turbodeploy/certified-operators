@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,6 +20,7 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import com.google.common.base.Preconditions;
 import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
@@ -43,6 +45,7 @@ import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -249,9 +252,6 @@ public class GroupStore implements Diagnosable {
                 }
 
                 final Group newGroup = existingGroup.toBuilder().setGroup(newInfo).build();
-
-                checkForDuplicates(transactionDsl, id, GroupProtoUtil.getGroupName(newGroup));
-
                 return internalUpdate(dslContext, newGroup);
             });
         } catch (DataAccessException e) {
@@ -409,23 +409,24 @@ public class GroupStore implements Diagnosable {
      */
     private void checkForDuplicates(@Nonnull final DSLContext context,
                            final long id,
-                           @Nonnull final String name)
+                           @Nonnull final String name,
+                           final int type)
             throws DuplicateNameException {
         final List<Long> sameNameDiffId = context.select(Tables.GROUPING.ID)
                 .from(Tables.GROUPING)
-                .where(Tables.GROUPING.NAME.eq(name))
+                .where(Tables.GROUPING.NAME.eq(name).and(Tables.GROUPING.TYPE.eq(type)))
                 .and(Tables.GROUPING.ID.ne(id))
                 .fetch()
                 .getValues(Tables.GROUPING.ID);
         if (!sameNameDiffId.isEmpty()) {
             if (sameNameDiffId.size() > 1) {
                 // This shouldn't happen, because there is a constraint on the name.
-                logger.error("Multiple groups ({}) exist with the name {}. " +
+                logger.error("Multiple groups ({}) exist with name {} and type {}. " +
                                 "This should never happen because the name column is unique.",
-                        sameNameDiffId, name);
+                        sameNameDiffId, name, type);
             }
             GROUP_STORE_DUPLICATE_NAME_COUNT.increment();
-            throw new DuplicateNameException(sameNameDiffId.get(0), name);
+            throw new DuplicateNameException(sameNameDiffId.get(0), name, type);
         }
     }
 
@@ -460,15 +461,17 @@ public class GroupStore implements Diagnosable {
                                  @Nonnull final Group group)
             throws DuplicateNameException {
         final String groupName = GroupProtoUtil.getGroupName(group);
+        final int groupEntityType = GroupProtoUtil.getEntityType(group);
         // Explicitly search for an existing group with the same name, so that we
         // know when to throw a DuplicateNameException as opposed to a generic
         // DataIntegrityException.
-        checkForDuplicates(context, group.getId(), groupName);
+        checkForDuplicates(context, group.getId(), groupName, groupEntityType);
 
         final Grouping grouping = new Grouping(group.getId(),
                 groupName,
                 group.getOrigin().getNumber(),
                 group.getType().getNumber(),
+                groupEntityType,
                 group.getOrigin().equals(Group.Origin.DISCOVERED) ? group.getTargetId() : null,
                 getGroupData(group));
 
@@ -483,13 +486,14 @@ public class GroupStore implements Diagnosable {
                                  @Nonnull final Group group)
             throws GroupNotFoundException, DuplicateNameException {
         final String groupName = GroupProtoUtil.getGroupName(group);
+        final int groupEntityType = GroupProtoUtil.getEntityType(group);
         final GroupingRecord groupingRecord =
                 context.fetchOne(Tables.GROUPING, Tables.GROUPING.ID.eq(group.getId()));
         if (groupingRecord == null) {
             throw new GroupNotFoundException(group.getId());
         }
 
-        checkForDuplicates(context, group.getId(), groupName);
+        checkForDuplicates(context, group.getId(), groupName, groupEntityType);
 
         if (group.hasTargetId()) {
             groupingRecord.setDiscoveredById(group.getTargetId());
@@ -499,6 +503,7 @@ public class GroupStore implements Diagnosable {
         groupingRecord.setName(groupName);
         groupingRecord.setOrigin(group.getOrigin().getNumber());
         groupingRecord.setType(group.getType().getNumber());
+        groupingRecord.setEntityType(groupEntityType);
         final int modifiedRecords = groupingRecord.update();
         if (modifiedRecords == 0) {
             // This should never happen, because we overwrote fields in the record,
@@ -550,24 +555,76 @@ public class GroupStore implements Diagnosable {
             groupBuilder.setTargetId(grouping.getDiscoveredById());
         }
 
+        // Database has NOT NULL and default row.
+        Preconditions.checkArgument(grouping.getEntityType() != null);
+        final int entityTypeCol = grouping.getEntityType();
+
         try {
             switch (groupType) {
                 case GROUP:
-                    groupBuilder.setGroup(
-                        GroupInfo.parseFrom(grouping.getGroupData()).toBuilder()
-                            .setName(grouping.getName()));
+                    final GroupInfo.Builder group =
+                            GroupInfo.parseFrom(grouping.getGroupData()).toBuilder();
+                    if (!StringUtils.equals(group.getName(), grouping.getName())) {
+                        logger.error("Inconsistent group name - column: {}, blob: {}. " +
+                            "Keeping column value.", grouping.getName(), group.getName());
+                        group.setName(grouping.getName());
+                    }
+
+                    if (group.getEntityType() != entityTypeCol) {
+                        if (grouping.getEntityType() == -1) {
+                            logger.warn("Group record has invalid entity type {}. " +
+                                "This should only happen during migration.", entityTypeCol);
+                        } else {
+                            logger.error("Inconsistent group entity types - column: {}, blob: {}." +
+                                " Keeping blob value.", entityTypeCol, group.getEntityType());
+                        }
+                    }
+                    groupBuilder.setGroup(group);
                     break;
                 case CLUSTER:
-                    groupBuilder.setCluster(
-                        ClusterInfo.parseFrom(grouping.getGroupData()).toBuilder()
-                            .setName(grouping.getName()));
+                    final ClusterInfo.Builder cluster =
+                            ClusterInfo.parseFrom(grouping.getGroupData()).toBuilder();
+                    if (!StringUtils.equals(cluster.getName(), grouping.getName())) {
+                        logger.error("Inconsistent cluster name - column: {}, blob: {}. " +
+                            "Keeping column value.", grouping.getName(), cluster.getName());
+                        cluster.setName(grouping.getName());
+                    }
+
+                    final int entityType = cluster.getClusterType() == ClusterInfo.Type.COMPUTE ?
+                            EntityType.PHYSICAL_MACHINE_VALUE : EntityType.STORAGE_VALUE;
+                    if (entityType != entityTypeCol) {
+                        if (entityTypeCol == -1) {
+                            logger.warn("Cluster record has invalid entity type {}. " +
+                                "This should only happen during migration.", entityTypeCol);
+                        } else {
+                            logger.error("Inconsistent cluster entity types - column: {}, blob: {}." +
+                                " Keeping blob value.", entityTypeCol, entityType);
+                        }
+                    }
+                    groupBuilder.setCluster(cluster);
                     break;
                 case TEMP_GROUP:
                     // This shouldn't happen at the time of this writing (May 2018) but
                     // it's not fatal, so we allow it.
-                    groupBuilder.setTempGroup(
-                        TempGroupInfo.parseFrom(grouping.getGroupData()).toBuilder()
-                            .setName(grouping.getName()));
+                    final TempGroupInfo.Builder tempGroup =
+                            TempGroupInfo.parseFrom(grouping.getGroupData()).toBuilder();
+                    if (!StringUtils.equals(tempGroup.getName(), grouping.getName())) {
+                        logger.error("Inconsistent temp group name - column: {}, blob: {}. " +
+                            "Keeping column value.", grouping.getName(), tempGroup.getName());
+                        tempGroup.setName(grouping.getName());
+                    }
+
+                    if (tempGroup.getEntityType() != entityTypeCol) {
+                        if (grouping.getEntityType() == -1) {
+                            logger.warn("Temp group record has invalid entity type {}. " +
+                                "This should only happen during migration.", entityTypeCol);
+                        } else {
+                            logger.error("Inconsistent temp groupentity types - column: {}, blob: {}." +
+                                " Keeping blob value.", entityTypeCol, tempGroup.getEntityType());
+                        }
+                    }
+
+                    groupBuilder.setTempGroup(tempGroup);
                     logger.warn("Temp group somehow made it into database: {}",
                             TextFormat.printToString(groupBuilder.getTempGroup()));
                     break;

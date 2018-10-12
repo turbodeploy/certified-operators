@@ -1,6 +1,7 @@
 package com.vmturbo.group;
 
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -20,13 +21,16 @@ import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
+import com.vmturbo.group.migration.MigrationConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration("theComponent")
 @Import({IdentityProviderConfig.class,
+        MigrationConfig.class,
         RpcConfig.class,
         SettingConfig.class,
         SQLDatabaseConfig.class,
@@ -36,6 +40,9 @@ public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
+
+    @Autowired
+    private MigrationConfig migrationConfig;
 
     @Autowired
     private RpcConfig rpcConfig;
@@ -62,6 +69,11 @@ public class GroupComponent extends BaseVmtComponent {
         logger.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor().addHealthCheck(
             new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
+    }
+
+    @Nonnull
+    protected SortedMap<String, Migration> getMigrations() {
+        return migrationConfig.groupMigrationsLibrary().getMigrationsList();
     }
 
     @Nonnull

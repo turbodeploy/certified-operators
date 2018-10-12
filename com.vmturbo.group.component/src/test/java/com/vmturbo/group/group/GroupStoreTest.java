@@ -33,14 +33,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
-import com.vmturbo.group.db.Tables;
-import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
-import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
+import com.vmturbo.group.db.Tables;
+import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -108,15 +108,29 @@ public class GroupStoreTest {
         assertThat(gotGroup, is(group));
     }
 
-    @Test(expected = DuplicateNameException.class)
-    public void testNewUserGroupDuplicateName() throws DuplicateNameException {
+    public void testNewUserGroupDuplicateNameOnly() throws DuplicateNameException {
         when(identityProvider.next()).thenReturn(GROUP_ID).thenReturn(GROUP_ID + 1);
         groupStore.newUserGroup(GROUP_INFO);
 
         // Try to create a group with the same name.
+        // This shouldn't throw an exception.
         groupStore.newUserGroup(GroupInfo.newBuilder()
             .setName(GROUP_INFO.getName())
+            .setEntityType(GROUP_INFO.getEntityType() + 1)
             .build());
+    }
+
+    @Test(expected = DuplicateNameException.class)
+    public void testNewUserGroupDuplicateNameAndType() throws DuplicateNameException {
+        when(identityProvider.next()).thenReturn(GROUP_ID).thenReturn(GROUP_ID + 1);
+        groupStore.newUserGroup(GROUP_INFO);
+
+        // Try to create a group with the same name.
+        // This shouldn't throw an exception.
+        groupStore.newUserGroup(GroupInfo.newBuilder()
+                .setName(GROUP_INFO.getName())
+                .setEntityType(GROUP_INFO.getEntityType())
+                .build());
     }
 
     @Test

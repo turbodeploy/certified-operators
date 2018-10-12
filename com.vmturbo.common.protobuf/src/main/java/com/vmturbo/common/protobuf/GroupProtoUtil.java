@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -42,7 +43,7 @@ public class GroupProtoUtil {
      * @param group The {@link Group}.
      * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
      */
-    public static void checkEntityType(@Nonnull final Group group) {
+    public static void checkEntityType(@Nonnull final GroupOrBuilder group) {
         Preconditions.checkArgument(group.getType().equals(Type.CLUSTER) ||
                 group.getTempGroup().hasEntityType() ||
                 group.getGroup().hasEntityType());
@@ -55,7 +56,7 @@ public class GroupProtoUtil {
      * @return An integer representing the entity type.
      * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
      */
-    public static int getEntityType(@Nonnull final Group group) {
+    public static int getEntityType(@Nonnull final GroupOrBuilder group) {
         checkEntityType(group);
         switch (group.getType()) {
             case GROUP:
