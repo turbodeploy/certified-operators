@@ -204,9 +204,6 @@ public class Resizer {
                 } else {
                     newCapacity += proposedIncrement;
                 }
-                if (newCapacity > rawMaterial.getEffectiveCapacity()) {
-                    newCapacity = rawMaterial.getEffectiveCapacity();
-                }
             }
         } else {
             if (commoditySold.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
