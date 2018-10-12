@@ -10,10 +10,12 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
+import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
 public class PriceTableMergeTest {
 
@@ -128,6 +130,48 @@ public class PriceTableMergeTest {
                 .build();
 
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));
+    }
+
+    @Test
+    public void testMergeRiEmpty() {
+        assertThat(merge.mergeRi(Collections.emptyList()), is(ReservedInstancePriceTable.getDefaultInstance()));
+    }
+
+    @Test
+    public void testMergeSingleRiPriceTable() {
+        final ReservedInstancePriceTable priceTable = ReservedInstancePriceTable.newBuilder()
+                .putRiPricesBySpecId(7L, ReservedInstancePrice.getDefaultInstance())
+                .build();
+        assertThat(merge.mergeRi(Collections.singleton(priceTable)), is(priceTable));
+    }
+
+    @Test
+    public void testMergeRiTables() {
+        final ReservedInstancePriceTable priceTable1 = ReservedInstancePriceTable.newBuilder()
+                .putRiPricesBySpecId(7L, ReservedInstancePrice.getDefaultInstance())
+                .build();
+        final ReservedInstancePriceTable priceTable2 = ReservedInstancePriceTable.newBuilder()
+                .putRiPricesBySpecId(77L, ReservedInstancePrice.getDefaultInstance())
+                .build();
+        assertThat(merge.mergeRi(Arrays.asList(priceTable1, priceTable2)),
+                is(ReservedInstancePriceTable.newBuilder()
+                    .putRiPricesBySpecId(7L, ReservedInstancePrice.getDefaultInstance())
+                    .putRiPricesBySpecId(77L, ReservedInstancePrice.getDefaultInstance())
+                    .build()));
+    }
+
+    @Test
+    public void testMergeRiTablesDuplicateSpecs() {
+        final ReservedInstancePriceTable priceTable1 = ReservedInstancePriceTable.newBuilder()
+                .putRiPricesBySpecId(7L, ReservedInstancePrice.getDefaultInstance())
+                .build();
+        final ReservedInstancePriceTable priceTable2 = ReservedInstancePriceTable.newBuilder()
+                .putRiPricesBySpecId(7L, ReservedInstancePrice.getDefaultInstance())
+                .build();
+        assertThat(merge.mergeRi(Arrays.asList(priceTable1, priceTable2)),
+                is(ReservedInstancePriceTable.newBuilder()
+                        .putRiPricesBySpecId(7L, ReservedInstancePrice.getDefaultInstance())
+                        .build()));
     }
 
 }

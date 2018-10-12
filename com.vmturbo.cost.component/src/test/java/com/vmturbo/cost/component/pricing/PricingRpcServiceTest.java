@@ -12,16 +12,16 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import io.grpc.Status.Code;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
-import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class PricingRpcServiceTest {
@@ -51,32 +51,14 @@ public class PricingRpcServiceTest {
 
     @Test
     public void testUpload() {
-        clientStub.uploadPriceTable(UploadPriceTableRequest.newBuilder()
-                .setProbeType(PROBE_TYPE)
+        final ProbePriceTable probePriceTable = ProbePriceTable.newBuilder()
                 .setPriceTable(PRICE_TABLE)
-                .build());
-
-        Mockito.verify(priceTableStore).putPriceTable(PROBE_TYPE, PRICE_TABLE);
-    }
-
-    @Test
-    public void testUploadNoProbeType() {
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("probe type"));
+                .build();
         clientStub.uploadPriceTable(UploadPriceTableRequest.newBuilder()
-                // Not setting probe type.
-                .setPriceTable(PRICE_TABLE)
+                .putProbePriceTables(PROBE_TYPE, probePriceTable)
                 .build());
-    }
 
-    @Test
-    public void testUploadNoPriceTable() {
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("price table"));
-        clientStub.uploadPriceTable(UploadPriceTableRequest.newBuilder()
-                .setProbeType(PROBE_TYPE)
-                // Not setting price table.
-                .build());
+        Mockito.verify(priceTableStore).putProbePriceTables(ImmutableMap.of(PROBE_TYPE, probePriceTable));
     }
 
     @Test

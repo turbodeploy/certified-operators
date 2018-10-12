@@ -162,6 +162,14 @@
                                     <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
                                     <converter>com.vmturbo.cost.component.discount.DiscountInfoConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Pricing.PriceTable</name>
+                                    <converter>com.vmturbo.cost.component.pricing.PriceTableConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable</name>
+                                    <converter>com.vmturbo.cost.component.pricing.RIPriceTableConverter</converter>
+                                </customType>
                             </customTypes>
                             <forcedTypes>
                                 <!-- Automatically convert timestamp fields to Java LocalDateTime-->
@@ -182,6 +190,14 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
                                     <expression>.*\.discount\.discount_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Pricing.PriceTable</name>
+                                    <expression>.*\.price_table\.price_table_data</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable</name>
+                                    <expression>.*\.price_table\.ri_price_table_data</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

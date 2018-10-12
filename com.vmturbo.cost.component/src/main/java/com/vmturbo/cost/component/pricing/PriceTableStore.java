@@ -1,10 +1,13 @@
 package com.vmturbo.cost.component.pricing;
 
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 
 /**
  * The persistence and retrieval layer for price tables discovered by the Topology Processor
@@ -34,19 +37,27 @@ public interface PriceTableStore {
     PriceTable getMergedPriceTable();
 
     /**
-     * Put a new price table associated with a particular probe type into the store.
+     * Get the merged reserved instance price table that the RI purchase algorithm can use to
+     * calculate costs for suggested RI purchases.
+     *
+     * @return The global reserved instance price table.
+     */
+    @Nonnull
+    ReservedInstancePriceTable getMergedRiPriceTable();
+
+    /**
+     * Put a new collection of probe type -> price table associations into the store. This
+     * completely overwrites the existing probe type -> price table associations.
+     *
+     * In the future we may want to have methods to update price tables as well as overwrite them.
+     *
      * <p>
      * We keep the price tables separated by probe type to make it easy to delete prices no longer
      * offered by a particular service provider.
      *
-     * @param probeType The type of the probe, as reported by the probe during its registration
-     *                  with the Topology Processor.
-     * @param priceTable The price table discovered by the probe. This price table will completely
-     *                   replace the previous price table for this probe type in the store.
-     * @return An optional containing the previous price table for the probe type, if any, or
-     *         an empty optional if there was no previous price table.
+     * @param tablesByProbeType The new {@link ProbePriceTable}s by probe type. These will
+     *        completely overwrite the existing price tables by probe type, and any
+     *        existing probe types that are not found in this map will be deleted.
      */
-    @Nonnull
-    Optional<PriceTable> putPriceTable(@Nonnull final String probeType, @Nonnull final PriceTable priceTable);
-
+    void putProbePriceTables(@Nonnull final Map<String, ProbePriceTable> tablesByProbeType);
 }

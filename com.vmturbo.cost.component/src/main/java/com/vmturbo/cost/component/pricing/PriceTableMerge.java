@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 
 /**
@@ -39,6 +40,46 @@ public class PriceTableMerge {
                 return new PriceTableMerge();
             }
         };
+    }
+
+    /**
+     * Merge a number of RI price tables - coming from probes of different categories (e.g. AWS and
+     * Azure) - into a single global RI price table that can be used for the RI buy algorithm.
+     *
+     * The underlying assumption is that the input {@link ReservedInstancePriceTable}s are from
+     * different probe categories, and do not contain duplicate IDs.
+     *
+     * @param riPriceTables A collection of {@link ReservedInstancePriceTable}s.
+     * @return A single {@link ReservedInstancePriceTable} containing the information of all the
+     *         input price tables.
+     */
+    @Nonnull
+    public ReservedInstancePriceTable mergeRi(@Nonnull final Collection<ReservedInstancePriceTable> riPriceTables) {
+        if (riPriceTables.isEmpty()) {
+            return ReservedInstancePriceTable.getDefaultInstance();
+        } else if (riPriceTables.size() == 1) {
+            return riPriceTables.iterator().next();
+        } else {
+            final Iterator<ReservedInstancePriceTable> riPriceTableIterator = riPriceTables.iterator();
+            final ReservedInstancePriceTable.Builder mergeBuilder = riPriceTableIterator.next().toBuilder();
+            while (riPriceTableIterator.hasNext()) {
+                final ReservedInstancePriceTable nextPriceTable = riPriceTableIterator.next();
+                nextPriceTable.getRiPricesBySpecIdMap().forEach((specId, riPrice) -> {
+                    if (mergeBuilder.containsRiPricesBySpecId(specId)) {
+                        // This shouldn't happen, because different price tables should be coming from
+                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
+                        // RI spec IDs.
+                        logger.error("RI Spec {} exists in two separate RI price tables! This means" +
+                            " RI spec ID assignment isn't working as expected. Ignoring one of them.",
+                            specId);
+                    } else {
+                        mergeBuilder.putRiPricesBySpecId(specId, riPrice);
+                    }
+                });
+                mergeBuilder.putAllRiPricesBySpecId(nextPriceTable.getRiPricesBySpecIdMap());
+            }
+            return mergeBuilder.build();
+        }
     }
 
     /**

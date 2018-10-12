@@ -110,19 +110,29 @@ message GetPriceTableResponse {
 }
 
 message UploadPriceTableRequest {
-    // The type of the probe that discovered this price table.
+
+    // The per-probe price tables, indexed by probe type.
+    //
     // We expect the listed prices for each probe type (e.g. AWS, Azure, and so on) to be the
     // same across all targets, so there is no point of supporting per-target price tables.
     //
     // The main purpose of uploading per-probe-type price tables is to have a mechanism to discard
     // old/expired prices. For example, if a particular tier or configuration is deprecated and
     // no longer has a price, we want to delete it.
-    optional string probe_type = 1;
+    map<string, ProbePriceTable> probe_price_tables = 10;
+}
 
-    // The price table discovered for the target.
+message ProbePriceTable {
+
+    // The price table discovered for the probe.
     // This price table will completely overwrite the previously-uploaded price table for the
-    // target.
+    // probe.
     optional PriceTable price_table = 10;
+
+    // The reserved instance price table discovered for the probe.
+    // This price table will completely overwrite the previously-uploaded price table for the
+    // probe.
+    optional ReservedInstancePriceTable ri_price_table = 20;
 }
 
 message UploadPriceTableResponse {
