@@ -79,7 +79,8 @@ public class ActionStoreConfig {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 Executors.newSingleThreadExecutor(),
                 actionTranslator(),
-                workflowConfig.workflowStore());
+                workflowConfig.workflowStore(),
+                actionExecutionConfig.actionTargetSelector());
     }
 
     @Bean
@@ -89,7 +90,8 @@ public class ActionStoreConfig {
             databaseConfig.dsl(),
             actionOrchestratorGlobalConfig.topologyProcessorChannel(),
             actionOrchestratorGlobalConfig.topologyProcessor(),
-            entitySettingsCache());
+            entitySettingsCache(),
+            repositoryClientConfig.repositoryClient());
     }
 
     @Bean

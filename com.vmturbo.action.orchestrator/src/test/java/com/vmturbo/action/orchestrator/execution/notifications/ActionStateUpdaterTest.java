@@ -18,8 +18,8 @@ import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
-import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
+import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -51,7 +51,7 @@ public class ActionStateUpdaterTest {
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
         .setId(actionId)
         .setImportance(0)
-        .setInfo(ActionTest.makeMoveInfo(3, 2, 1, 1, 1))
+        .setInfo(TestActionBuilder.makeMoveInfo(3, 2, 1, 1, 1))
         .setExplanation(Explanation.newBuilder().build())
         .build();
 

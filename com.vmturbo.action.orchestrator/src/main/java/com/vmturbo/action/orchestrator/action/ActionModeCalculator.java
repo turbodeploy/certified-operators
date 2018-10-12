@@ -80,7 +80,7 @@ public class ActionModeCalculator {
     public static ActionMode calculateActionMode(@Nonnull final ActionDTO.Action actionDto,
                 @Nullable final EntitySettingsCache entitySettingsCache) {
         try {
-            final long targetEntityId = ActionDTOUtil.getTargetEntityId(actionDto);
+            final long targetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDto);
 
             final Map<String, Setting> settingsForTargetEntity = entitySettingsCache == null ?
                     Collections.emptyMap() : entitySettingsCache.getSettingsForEntity(targetEntityId);
@@ -132,7 +132,7 @@ public class ActionModeCalculator {
             }
 
             // find the entity which is the target of this action
-            final long actionTargetEntityId = ActionDTOUtil.getTargetEntityId(actionDTO);
+            final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDTO);
 
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget = entitySettingsCache
@@ -191,7 +191,7 @@ public class ActionModeCalculator {
             }
 
             // find the entity which is the target of this action
-            final long actionTargetEntityId = ActionDTOUtil.getTargetEntityId(actionDTO);
+            final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDTO);
 
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget = entitySettingsCache

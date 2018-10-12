@@ -9,10 +9,12 @@ import org.jooq.DSLContext;
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.EntityAndActionTypeBasedEntitySelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -34,6 +36,11 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final TopologyProcessor topologyProcessor;
 
+    /**
+     * For fetching entity type data from the repository in ActionExecutor
+     */
+    private final RepositoryClient repositoryClient;
+
     private final EntitySettingsCache entitySettingsCache;
 
     private static final String PLAN_CONTEXT_TYPE_NAME = "plan";
@@ -43,21 +50,22 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     /**
      * Create a new ActionStoreFactory.
-     *
-     * @param actionFactory The actionFactory to be passed to all store instances created
+     *  @param actionFactory The actionFactory to be passed to all store instances created
      *                      by the {@link this}.
      * @param realtimeTopologyContextId The context ID for the live topology context.
      * @param databaseDslContext The DSL context for use when interacting with the database.
      * @param topologyProcessorChannel Grpc Channel for topology processor.
      * @param topologyProcessor Topology processor client.
      * @param entitySettingsCache cache of entity settings.
+     * @param repositoryClient
      */
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
                               final long realtimeTopologyContextId,
                               @Nonnull final DSLContext databaseDslContext,
                               @Nonnull final Channel topologyProcessorChannel,
                               @Nonnull final TopologyProcessor topologyProcessor,
-                              @Nonnull final EntitySettingsCache entitySettingsCache) {
+                              @Nonnull final EntitySettingsCache entitySettingsCache,
+                              @Nonnull final RepositoryClient repositoryClient) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -67,6 +75,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionCapabilitiesStore = new ProbeActionCapabilitiesStore(actionCapabilitiesService);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.repositoryClient = repositoryClient;
     }
 
     /**
@@ -78,10 +87,14 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel,
-                    new ActionTargetByProbeCategoryResolver(topologyProcessor, actionCapabilitiesStore));
+            final ActionTargetSelector actionTargetSelector = new ActionTargetSelector(
+                    new ActionTargetByProbeCategoryResolver(topologyProcessor, actionCapabilitiesStore),
+                    new EntityAndActionTypeBasedEntitySelector(),
+                    topologyProcessorChannel,
+                    repositoryClient,
+                    topologyContextId);
             return new LiveActionStore(actionFactory, topologyContextId,
-                    new ActionSupportResolver(actionCapabilitiesStore, actionExecutor), entitySettingsCache,
+                    new ActionSupportResolver(actionCapabilitiesStore, actionTargetSelector), entitySettingsCache,
                     new ActionHistoryDaoImpl(databaseDslContext));
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);

@@ -103,14 +103,15 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Get the ID of the "main" entity targetted by a specific action.
-     * This will be one of the entities involved in the action.
+     * Get the ID of the "main" entity targeted by a specific action.
+     * This will be one of the entities involved in the action. It can be thought of as the entity
+     * that the action is acting upon.
      *
      * @param action The action in question.
      * @return The ID of the entity targetted by the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
-    public static long getTargetEntityId(@Nonnull final Action action) throws UnsupportedActionException {
+    public static long getPrimaryEntityId(@Nonnull final Action action) throws UnsupportedActionException {
         final ActionInfo actionInfo = action.getInfo();
 
         switch (actionInfo.getActionTypeCase()) {

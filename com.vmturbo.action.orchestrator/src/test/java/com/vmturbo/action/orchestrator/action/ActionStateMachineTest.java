@@ -1,8 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static junit.framework.TestCase.assertEquals;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -42,7 +40,7 @@ public class ActionStateMachineTest {
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
                     .setId(0)
                     .setImportance(0)
-                    .setInfo(ActionTest.makeMoveInfo(1, 2, 1, 2, 1))
+                    .setInfo(TestActionBuilder.makeMoveInfo(1, 2, 1, 2, 1))
                     .setExplanation(Explanation.newBuilder().build())
                 .build();
 

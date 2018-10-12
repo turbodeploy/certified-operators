@@ -22,6 +22,7 @@ import org.mockito.stubbing.Answer;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -54,7 +55,11 @@ public class ActionSupportResolverTest {
     private static final long PROBE_ID = 101L;
     private static final long ACTION_ID = 100;
 
-    private ActionExecutor actionExecutor;
+    /**
+     * For determining which probe would execute an action
+     * Used in determining action support level
+     */
+    private ActionTargetSelector actionTargetSelector;
 
     private ProbeActionCapabilitiesServiceMole actionCapabilitiesSvc;
 
@@ -68,15 +73,15 @@ public class ActionSupportResolverTest {
 
     @Before
     public void setup() throws Exception {
-        actionExecutor = Mockito.mock(ActionExecutor.class);
+        actionTargetSelector = Mockito.mock(ActionTargetSelector.class);
         actionCapabilitiesSvc = Mockito.spy(new ProbeActionCapabilitiesServiceMole());
         testServer = GrpcTestServer.newServer(actionCapabilitiesSvc);
         testServer.start();
         final ActionCapabilitiesStore actionCapabilitiesStore = new ProbeActionCapabilitiesStore(
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(testServer.getChannel()));
-        filter = new ActionSupportResolver(actionCapabilitiesStore, actionExecutor);
+        filter = new ActionSupportResolver(actionCapabilitiesStore, actionTargetSelector);
         actionFactory = new ActionFactory();
-        Mockito.when(actionExecutor.getProbeIdsForActions(Mockito.any()))
+        Mockito.when(actionTargetSelector.getProbeIdsForActions(Mockito.any()))
                 .thenAnswer(new Answer<Object>() {
                     @Override
                     public Object answer(InvocationOnMock invocation) throws Throwable {

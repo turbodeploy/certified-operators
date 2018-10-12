@@ -25,15 +25,12 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -67,14 +64,14 @@ public class ActionTest {
         IdentityGenerator.initPrefix(0);
 
         moveRecommendation =
-                makeRec(makeMoveInfo(11L, 22L/*srcId*/, 1/*srcType*/, 33L/*destId*/, 1/*destType*/),
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L/*srcId*/, 1/*srcType*/, 33L/*destId*/, 1/*destType*/),
                             SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeRec(makeActivateInfo(11L), SupportLevel.SUPPORTED).build();
         storageMoveRecommendation =
-                makeRec(makeMoveInfo(11L, 44L/*srcId*/, EntityType.STORAGE.getNumber()/*srcType*/,
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 44L/*srcId*/, EntityType.STORAGE.getNumber()/*srcType*/,
                             55L/*destId*/, EntityType.STORAGE.getNumber()/*destType*/),
                     SupportLevel.SUPPORTED).build();
         reconfigureRecommendation = makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SUPPORTED).build();
@@ -179,7 +176,8 @@ public class ActionTest {
     public void testGetModeSupportLevelShowOnly() {
         //SHOW ONLY support level - no modes above RECOMMEND even though set to AUTOMATIC
         moveRecommendation =
-                makeRec(makeMoveInfo(11L, 22L, 1, 33L, 1), SupportLevel.SHOW_ONLY).build();
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
+                        SupportLevel.SHOW_ONLY).build();
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SHOW_ONLY).build();
@@ -191,7 +189,8 @@ public class ActionTest {
                 makeRec(makeResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
         resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         storageMoveRecommendation =
-                makeRec(makeMoveInfo(11L, 44L, 2, 55L, 2), SupportLevel.SHOW_ONLY).build();
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
+                        SupportLevel.SHOW_ONLY).build();
         storageMoveAction =
                 new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
         reconfigureRecommendation =
@@ -221,7 +220,8 @@ public class ActionTest {
     public void testGetModeSupportLevelUnsupported(){
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
         moveRecommendation =
-                makeRec(makeMoveInfo(11L, 22L, 1, 33L, 1), SupportLevel.UNSUPPORTED).build();
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
+                        SupportLevel.UNSUPPORTED).build();
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
@@ -232,7 +232,8 @@ public class ActionTest {
         resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
         resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         storageMoveRecommendation =
-                makeRec(makeMoveInfo(11L, 44L, 2, 55L, 2), SupportLevel.UNSUPPORTED).build();
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
+                        SupportLevel.UNSUPPORTED).build();
         storageMoveAction =
                 new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
         reconfigureRecommendation =
@@ -291,28 +292,6 @@ public class ActionTest {
                 .setExecutable(true)
                 .setSupportingLevel(supportLevel)
                 .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());
-    }
-
-    public static ActionInfo.Builder makeMoveInfo(
-                long targetId,
-                long sourceId,
-                int sourceType,
-                long destinationId,
-                int destinationType) {
-
-        return ActionInfo.newBuilder().setMove(Move.newBuilder()
-                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
-                .addChanges(ChangeProvider.newBuilder()
-                    .setSource(ActionEntity.newBuilder()
-                        .setId(sourceId)
-                        .setType(sourceType)
-                        .build())
-                    .setDestination(ActionEntity.newBuilder()
-                        .setId(destinationId)
-                        .setType(destinationType)
-                        .build())
-                    .build())
-                .build());
     }
 
     private ActionInfo.Builder makeResizeInfo(long targetId) {

@@ -15,6 +15,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionTypeToActionTypeCaseConverter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -37,6 +38,7 @@ public class ProbePrioritiesRpcTest {
     public void setup() {
         actionsRpcService = new ActionsRpcService(Mockito.mock(ActionStorehouse.class),
                 Mockito.mock(ActionExecutor.class),
+                Mockito.mock(ActionTargetSelector.class),
                 Mockito.mock(ActionTranslator.class),
                 Mockito.mock(ActionPaginatorFactory.class),
                 Mockito.mock(WorkflowStore.class));

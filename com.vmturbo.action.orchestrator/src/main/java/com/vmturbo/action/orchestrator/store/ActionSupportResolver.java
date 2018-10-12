@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -34,11 +35,18 @@ import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCa
  */
 public class ActionSupportResolver {
 
-    private Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
-    private ActionCapabilitiesStore actionCapabilitiesStore;
+    /**
+     * A store to get action capabilities for probes
+     */
+    private final ActionCapabilitiesStore actionCapabilitiesStore;
 
-    private ActionExecutor actionExecutor;
+    /**
+     * For determining which probe would execute an action
+     * Used in determining action support level
+     */
+    private final ActionTargetSelector actionTargetSelector;
 
     private static Map<ActionTypeCase, CapabilityMatcher> ACTION_MATCHERS;
 
@@ -58,12 +66,12 @@ public class ActionSupportResolver {
      * Class which determines whether action executed by probe or not.
      *
      * @param actionCapabilitiesStore store to get action capabilities for probes
-     * @param actionExecutor Action executor to determine entities of actions
+     * @param actionTargetSelector for determining which probe would execute an action
      */
     public ActionSupportResolver(@Nonnull final ActionCapabilitiesStore actionCapabilitiesStore,
-            @Nonnull final ActionExecutor actionExecutor) {
+                                 @Nonnull final ActionTargetSelector actionTargetSelector) {
         this.actionCapabilitiesStore = Objects.requireNonNull(actionCapabilitiesStore);
-        this.actionExecutor = Objects.requireNonNull(actionExecutor);
+        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
     }
 
     /**
@@ -79,24 +87,19 @@ public class ActionSupportResolver {
      * @return actions with their isSupported field set.
      */
     public Collection<Action> resolveActionsSupporting(Collection<Action> actions) {
-        try {
-            final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
-            final Map<Long, List<ProbeActionCapability>> probeCapabilities =
-                    actionCapabilitiesStore.getCapabilitiesForProbes(actionsProbes.values());
-            final Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
-                    actionsProbes.entrySet()
-                            .stream()
-                            .collect(Collectors.toMap(Entry::getKey,
-                                    actionAndProbe -> probeCapabilities.get(
-                                            actionAndProbe.getValue())));
+        final Map<Action, Long> actionsProbes = actionTargetSelector.getProbeIdsForActions(actions);
+        final Map<Long, List<ProbeActionCapability>> probeCapabilities =
+                actionCapabilitiesStore.getCapabilitiesForProbes(actionsProbes.values());
+        final Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
+                actionsProbes.entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(Entry::getKey,
+                                actionAndProbe -> probeCapabilities.get(
+                                        actionAndProbe.getValue())));
 
-            return actionsAndCapabilities.entrySet().stream()
+        return actionsAndCapabilities.entrySet().stream()
                 .map(entry -> resolveActionProbeSupport(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toSet());
-        } catch (EntitiesResolutionException ex) {
-            logger.warn("Cannot resolve support level for request for " + actions.size() + " actions", ex);
-            return actions;
-        }
     }
 
     @Nonnull

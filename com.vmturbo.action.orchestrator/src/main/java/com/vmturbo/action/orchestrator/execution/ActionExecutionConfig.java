@@ -10,6 +10,7 @@ import com.vmturbo.action.orchestrator.store.ActionCapabilitiesStore;
 import com.vmturbo.action.orchestrator.store.ProbeActionCapabilitiesStore;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -17,11 +18,14 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  * the {@link TopologyProcessor}.
  */
 @Configuration
-@Import({ActionOrchestratorGlobalConfig.class})
+@Import({ActionOrchestratorGlobalConfig.class, RepositoryClientConfig.class})
 public class ActionExecutionConfig {
 
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Bean
     public ActionCapabilitiesStore actionCapabilitiesStore() {
@@ -52,12 +56,28 @@ public class ActionExecutionConfig {
     }
 
     @Bean
+    public ActionExecutionEntitySelector actionExecutionTargetEntitySelector() {
+        return new EntityAndActionTypeBasedEntitySelector();
+    }
+
+    @Bean
     public ActionExecutor actionExecutor() {
         final ActionExecutor executor =
-                new ActionExecutor(globalConfig.topologyProcessorChannel(), actionTargetResolver());
+                new ActionExecutor(globalConfig.topologyProcessorChannel());
 
         globalConfig.topologyProcessor().addActionListener(executor);
 
         return executor;
+    }
+
+    @Bean
+    public ActionTargetSelector actionTargetSelector() {
+        final ActionTargetSelector actionTargetSelector =
+                new ActionTargetSelector(actionTargetResolver(),
+                        actionExecutionTargetEntitySelector(),
+                        globalConfig.topologyProcessorChannel(),
+                        repositoryClientConfig.repositoryClient(),
+                        globalConfig.realtimeTopologyContextId());
+        return actionTargetSelector;
     }
 }

@@ -110,16 +110,14 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
         if (targets.isEmpty()) {
             throw new IllegalArgumentException("targets set must not be empty");
         }
-        if (targets.size() == 1) {
-            return targets.iterator().next();
-        }
-        logger.debug("There are multiple targets for action {}", action);
+
         final Map<Long, ProbeInfo> targetIdsToProbeInfos = getProbeInfosOfTargets(targets);
         final Map<Long, ProbeInfo> supportActionTargetsToProbes =
                 getSupportActionTargetsToProbes(action, targetIdsToProbeInfos);
         if (supportActionTargetsToProbes.size() == 1) {
             return supportActionTargetsToProbes.keySet().iterator().next();
         }
+        logger.debug("There are multiple targets for action {}", action);
 
         final List<String> probePriorities =
                 ACTION_TYPES_PROBE_PRIORITIES.get(action.getInfo().getActionTypeCase());

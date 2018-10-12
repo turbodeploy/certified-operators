@@ -15,6 +15,7 @@ import io.grpc.Status.Code;
 
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -41,6 +42,7 @@ public class ActionDeletionRpcTest {
     private ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse,
                     Mockito.mock(ActionExecutor.class),
+                    Mockito.mock(ActionTargetSelector.class),
                     Mockito.mock(ActionTranslator.class),
                     paginatorFactory,
                     workflowStore);

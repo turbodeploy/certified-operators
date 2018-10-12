@@ -11,6 +11,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +46,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPagin
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -94,6 +96,9 @@ public class ActionQueryRpcTest {
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
+    private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
+    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final ActionTranslator actionTranslator = new ActionTranslator(actionStream ->
         actionStream.map(action -> {
             action.getActionTranslation().setPassthroughTranslationSuccess();
@@ -113,14 +118,14 @@ public class ActionQueryRpcTest {
     private final long topologyContextId = 3;
 
     private ActionsRpcService actionsRpcService = new ActionsRpcService(
-            actionStorehouse, Mockito.mock(ActionExecutor.class),
+            actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslator, paginatorFactory,
-            Mockito.mock(WorkflowStore.class));
+            workflowStore);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
-            actionStorehouse, Mockito.mock(ActionExecutor.class),
+            actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslatorWithFailedTranslation, paginatorFactory,
-            Mockito.mock(WorkflowStore.class));
+            workflowStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

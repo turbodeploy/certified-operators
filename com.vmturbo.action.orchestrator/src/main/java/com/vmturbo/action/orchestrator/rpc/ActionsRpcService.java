@@ -35,6 +35,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
@@ -91,15 +92,33 @@ import com.vmturbo.components.api.TimeUtil;
  */
 public class ActionsRpcService extends ActionsServiceImplBase {
 
+    private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * The storehouse containing action stores.
+     */
     private final ActionStorehouse actionStorehouse;
 
+    /**
+     * To execute actions (by sending them to Topology Processor)
+     */
     private final ActionExecutor actionExecutor;
 
+    /**
+     * For selecting which target/probe to execute each action against
+     */
+    private final ActionTargetSelector actionTargetSelector;
+
+    /**
+     * To translate an action from the market's domain-agnostic form to the domain-specific form
+     * relevant for execution and display in the real world.
+     */
     private final ActionTranslator actionTranslator;
 
+    /**
+     * For paginating views of actions
+     */
     private final ActionPaginatorFactory paginatorFactory;
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * the store for all the known {@link WorkflowDTO.Workflow} items
@@ -110,16 +129,20 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * Create a new ActionsRpcService.
      * @param actionStorehouse The storehouse containing action stores.
      * @param actionExecutor The executor for executing actions.
+     * @param actionTargetSelector For selecting which target/probe to execute each action against
      * @param actionTranslator The translator for translating actions (from market to real-world).
+     * @param paginatorFactory For paginating views of actions
      * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      */
     public ActionsRpcService(@Nonnull final ActionStorehouse actionStorehouse,
                              @Nonnull final ActionExecutor actionExecutor,
+                             @Nonnull final ActionTargetSelector actionTargetSelector,
                              @Nonnull final ActionTranslator actionTranslator,
                              @Nonnull final ActionPaginatorFactory paginatorFactory,
                              @Nonnull final WorkflowStore workflowStore) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
+        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
         this.workflowStore = Objects.requireNonNull(workflowStore);
@@ -494,8 +517,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         Optional<FailureEvent> failure = Optional.empty();
 
         try {
-            // TODO change the behaviour when supporting cross-target moves
-            actionTargetId = actionExecutor.getTargetId(action.getRecommendation());
+            actionTargetId = actionTargetSelector.getTargetId(action.getRecommendation());
         } catch (TargetResolutionException | UnsupportedActionException | EntitiesResolutionException e) {
             logger.error("Failed to resolve target id for action {} due to error: {}", action.getId(), e);
             failure = Optional.of(new FailureEvent("Failed to resolve target id due to error: " + e.getMessage()));

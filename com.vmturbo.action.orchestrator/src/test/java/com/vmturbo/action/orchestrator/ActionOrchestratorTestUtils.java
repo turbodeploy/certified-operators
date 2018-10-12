@@ -10,8 +10,8 @@ import org.junit.Assert;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
+import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -56,7 +56,7 @@ public class ActionOrchestratorTestUtils {
                                                             final long destinationId, final int destType) {
         return baseAction(actionId)
                         .setInfo(
-                            ActionTest.makeMoveInfo(targetId, sourceId, sourceType,
+                            TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
                                 destinationId, destType))
                         .build();
     }

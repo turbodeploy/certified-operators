@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
@@ -33,6 +34,9 @@ public class RpcConfig {
     private ActionTranslator actionTranslator;
 
     @Autowired
+    private ActionTargetSelector actionTargetSelector;
+
+    @Autowired
     WorkflowConfig workflowConfig;
 
     @Value("${actionPaginationDefaultLimit}")
@@ -46,6 +50,7 @@ public class RpcConfig {
         return new ActionsRpcService(
                 actionStoreConfig.actionStorehouse(),
                 actionExecutor,
+                actionTargetSelector,
                 actionTranslator,
                 actionPaginatorFactory(),
                 workflowConfig.workflowStore());

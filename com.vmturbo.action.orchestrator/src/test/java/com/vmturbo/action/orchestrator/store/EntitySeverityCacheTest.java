@@ -20,8 +20,8 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -168,7 +168,7 @@ public class EntitySeverityCacheTest {
             .setId(IdentityGenerator.next())
             .setImportance(mapSeverityToImportance(severity))
             .setInfo(
-                ActionTest.makeMoveInfo(targetId, sourceId, sourceType,
+                    TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
                     destinationId, destinationType))
             .setExplanation(Explanation.newBuilder().build())
             .build();

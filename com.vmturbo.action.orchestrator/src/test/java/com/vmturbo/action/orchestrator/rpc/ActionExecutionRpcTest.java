@@ -29,6 +29,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
@@ -76,6 +77,7 @@ public class ActionExecutionRpcTest {
             executor, actionStoreLoader);
 
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
         actionStream.map(action -> {
@@ -95,7 +97,11 @@ public class ActionExecutionRpcTest {
     private static final long ACTION_ID = 9999;
 
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory,
+            new ActionsRpcService(actionStorehouse,
+                    actionExecutor,
+                    actionTargetSelector,
+                    actionTranslator,
+                    paginatorFactory,
                     workflowStore);
 
     @Rule
@@ -229,7 +235,7 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
-        when(actionExecutor.getTargetId(eq(recommendation)))
+        when(actionTargetSelector.getTargetId(eq(recommendation)))
             .thenThrow(new TargetResolutionException("Could not resolve target"));
 
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
@@ -250,7 +256,7 @@ public class ActionExecutionRpcTest {
 
         actionStorehouse.storeActions(plan);
 
-        when(actionExecutor.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
+        when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
         doThrow(new ExecutionStartException("ERROR!"))
             .when(actionExecutor).execute(eq(targetId), eq(recommendation), eq(EMPTY_WORKFLOW_OPTIONAL));
 
@@ -271,7 +277,7 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
-        when(actionExecutor.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
+        when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
         // Have the action translator act as a passthrough.
         doAnswer(invocation -> {
             final Action action = (Action)invocation.getArguments()[0];
@@ -295,7 +301,7 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
-        when(actionExecutor.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
+        when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
         doReturn(false).when(actionTranslator).translate(any(Action.class));
 
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);

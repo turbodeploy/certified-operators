@@ -41,9 +41,8 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 public class AutomatedActionExecutor {
 
-    @VisibleForTesting
-    static final String UNSUPPORTED_MSG = "Action %d is of unsupported type %s " +
-            "and cannot be executed.";
+    private static final Logger logger = LogManager.getLogger();
+
     @VisibleForTesting
     static final String TARGET_RESOLUTION_MSG = "Action %d has no resolvable target " +
             "and cannot be executed.";
@@ -52,98 +51,77 @@ public class AutomatedActionExecutor {
     @VisibleForTesting
     static final String EXECUTION_START_MSG = "Failed to start action %d due to error.";
 
+    /**
+     * To execute actions (by sending them to Topology Processor)
+     */
     private final ActionExecutor actionExecutor;
 
+    /**
+     * To translate an action from the market's domain-agnostic form to the domain-specific form
+     * relevant for execution and display in the real world.
+     */
     private final ActionTranslator actionTranslator;
 
+    /**
+     * To schedule actions for asynchronous execution
+     */
     private final ExecutorService executionService;
 
-    private final Logger logger = LogManager.getLogger();
+    /**
+     * For selecting which target/probe to execute each action against
+     */
+    private final ActionTargetSelector actionTargetSelector;
 
     /**
      * the store for all the known {@link WorkflowDTO.Workflow} items
      */
     private final WorkflowStore workflowStore;
 
-    public AutomatedActionExecutor(@Nonnull final ActionExecutor executor,
+    /**
+     * @param actionExecutor to execute actions (by sending them to Topology Processor)
+     * @param executorService to schedule actions for asynchronous execution
+     * @param translator to translate an action from the market's domain-agnostic form to the
+     *                   domain-specific form relevant for execution and display in the real world.
+     * @param workflowStore to determine if any workflows should be used to execute actions
+     * @param actionTargetSelector to select which target/probe to execute each action against
+     */
+    public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
                                    @Nonnull final ExecutorService executorService,
                                    @Nonnull final ActionTranslator translator,
-                                   @Nonnull final WorkflowStore workflowStore) {
-        this.actionExecutor = Objects.requireNonNull(executor);
+                                   @Nonnull final WorkflowStore workflowStore,
+                                   @Nonnull final ActionTargetSelector actionTargetSelector) {
+        this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.executionService = Objects.requireNonNull(executorService);
         this.actionTranslator = Objects.requireNonNull(translator);
         this.workflowStore = Objects.requireNonNull(workflowStore);
-    }
-
-    /**
-     * Retrieves all entity ids relevant to all actions of supported type.
-     * Does not include actions of unsupported type.
-     * @param actions map of action id to action
-     * @return map of action id to set of involved entity ids
-     */
-    private Map<Long, Set<Long>> mapActionsToInvolvedEntities(Map<Long, Action> actions) {
-        Map<Long, Set<Long>> result = new HashMap<>();
-        for (final Action action : actions.values()) {
-            try {
-                result.put(action.getId(),
-                        ActionDTOUtil.getInvolvedEntities(action.getRecommendation()));
-            } catch (UnsupportedActionException e) {
-                final String errorMessage = String.format(UNSUPPORTED_MSG, e.getActionId(),
-                        e.getActionType());
-                logger.error(errorMessage, e);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Retrieves map of entity info for each action by combining map of all entity info with
-     * map of action ids to involved entity ids
-     * @param allEntityInfos map of entity id to entity info for all entities in the action set
-     * @param actionEntityIds map of action id to set of involved entity ids
-     * @return map of action id to entity info map for that action
-     */
-    private Map<Long, Map<Long, EntityInfo>> mapActionsToEntityInfoMap(
-            Map<Long, EntityInfo> allEntityInfos, Map<Long, Set<Long>> actionEntityIds) {
-        Map<Long, Map<Long, EntityInfo>> result = new HashMap<>();
-        for (final Entry<Long, Set<Long>> actionEntityEntry : actionEntityIds.entrySet()) {
-            Map<Long, EntityInfo> relevantEntities = actionEntityEntry.getValue().stream()
-                    .collect(Collectors.toMap(Function.identity(), allEntityInfos::get));
-            result.put(actionEntityEntry.getKey(), relevantEntities);
-        }
-        return result;
+        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
     }
 
     /**
      * Finds the target associated with all entities involved in each action.
      * Does not include actions with no resolvable target
+     *
      * @param allActions action objects
-     * @param actionEntityMapMap map of action id to the entity info map of entities involved
      * @return map of target id to the set of action ids directed at the target
      */
-    private Map<Long, Set<Long>> mapActionsToTarget(Map<Long, Action> allActions,
-                                        Map<Long, Map<Long, EntityInfo>> actionEntityMapMap) {
+    private Map<Long, Set<Long>> mapActionsToTarget(Map<Long, Action> allActions) {
         final Map<Long, Set<Long>> result = new HashMap<>();
-        for (final Entry<Long, Map<Long, EntityInfo>> actionEntry : actionEntityMapMap.entrySet()) {
-            final Optional<Long> targetId = actionExecutor.getEntitiesTarget(
-                    allActions.get(actionEntry.getKey()).getRecommendation(),
-                    actionEntry.getValue());
-            if (targetId.isPresent()) {
-                final Set<Long> targetActions =
-                        result.computeIfAbsent(targetId.get(), tgt -> new HashSet<>());
-                targetActions.add(actionEntry.getKey());
-                result.put(targetId.get(), targetActions);
-            } else {
-                final String message = String.format(TARGET_RESOLUTION_MSG, actionEntry.getKey());
-                logger.debug(message);
-            }
+        final Map<Action, Long> mapActionToProbeId =
+                actionTargetSelector.getTargetIdsForActions(allActions.values());
+        for(Entry<Action, Long> actionToProbeIdEntry : mapActionToProbeId.entrySet()) {
+            final long actionId = actionToProbeIdEntry.getKey().getId();
+            final long targetId = actionToProbeIdEntry.getValue();
+            final Set<Long> targetActions = result.computeIfAbsent(targetId, tgt -> new HashSet<>());
+            targetActions.add(actionId);
+            result.put(targetId, targetActions);
         }
         return result;
     }
 
     /**
-     * Execute all^* actions in store that are in Automatic mode.
-     * ^* subject to queueing and/or throttling
+     * Execute all actions in store that are in Automatic mode.
+     * subject to queueing and/or throttling
+     *
      * @param store ActionStore containing all actions
      */
     public List<ActionExecutionTask> executeAutomatedFromStore(ActionStore store) {
@@ -155,32 +133,10 @@ public class AutomatedActionExecutor {
                             && entry.getValue().determineExecutability())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        Map<Long, Set<Long>> actionEntityIdMap = mapActionsToInvolvedEntities(autoActions);
-
-        //remove any actions for which entity retrieval failed, and send failure events to them
-        List<Long> toRemove = new ArrayList<>();
-        autoActions.entrySet().stream()
-                .filter(entry -> !actionEntityIdMap.containsKey(entry.getKey()))
-                .map(Entry::getValue)
-                .forEach(failed -> {
-                    toRemove.add(failed.getId());
-                    String errorMsg = String.format(UNSUPPORTED_MSG, failed.getId(),
-                            failed.getRecommendation().getInfo().getActionTypeCase().toString());
-                    failed.receive(new FailureEvent(errorMsg));
-                });
-        toRemove.forEach(autoActions::remove);
-
-        Set<Long> allEntities = actionEntityIdMap.values().stream().flatMap(Set::stream)
-                .collect(Collectors.toSet());
-        Map<Long, EntityInfo> allEntityInfos = actionExecutor.getEntityInfo(allEntities);
-
-        Map<Long, Map<Long, EntityInfo>> actionEntityMapMap =
-                mapActionsToEntityInfoMap(allEntityInfos, actionEntityIdMap);
-
-        Map<Long, Set<Long>> actionsByTarget = mapActionsToTarget(autoActions, actionEntityMapMap);
+        Map<Long, Set<Long>> actionsByTarget = mapActionsToTarget(autoActions);
 
         //remove any actions for which target retrieval failed
-        toRemove.clear();
+        List<Long> toRemove = new ArrayList<>();
         Set<Long> validActions = actionsByTarget.values().stream()
                 .flatMap(Set::stream).collect(Collectors.toSet());
         autoActions.entrySet().stream()
@@ -193,9 +149,6 @@ public class AutomatedActionExecutor {
                 });
         toRemove.forEach(id -> {
             autoActions.remove(id);
-            //these two intermediate maps aren't used anymore, but keep them up to date just in case?
-            actionEntityIdMap.remove(id);
-            actionEntityMapMap.remove(id);
         });
 
         List<ActionExecutionTask> actionsToBeExecuted = new ArrayList<>();

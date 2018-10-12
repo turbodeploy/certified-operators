@@ -1,10 +1,11 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -12,14 +13,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,8 +40,8 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
+import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -55,22 +54,27 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class AutomatedActionExecutorTest {
 
     private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
     private final Channel channel = Mockito.mock(Channel.class);
-    private final ActionTargetResolver resolver = Mockito.mock(ActionTargetResolver.class);
     private final ActionExecutor actionExecutor =
-            Mockito.spy(new ActionExecutor(channel, resolver));
+            Mockito.spy(new ActionExecutor(channel));
+    private final ActionTargetSelector actionTargetSelector =
+            Mockito.mock(ActionTargetSelector.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
 
     private final AutomatedActionExecutor automatedActionExecutor =
-            new AutomatedActionExecutor(actionExecutor, executorService, actionTranslator,
-                    workflowStore);
+            new AutomatedActionExecutor(actionExecutor,
+                    executorService,
+                    actionTranslator,
+                    workflowStore,
+                    actionTargetSelector);
 
     private final long timeout = 30L;
     private final TimeUnit unit = TimeUnit.SECONDS;
@@ -79,31 +83,19 @@ public class AutomatedActionExecutorTest {
     private final long targetId2 = 51L;
 
     private final long entityId1 = 111L;
-    private final int entityType1 = 1;
     private final long entityId2 = 222L;
-    private final int  entityType2 = 2;
     private final long entityId3 = 333L;
-    private final int  entityType3 = 3;
-    private final long entityId4 = 444L;
-    private final int entityType4 = 4;
+    private final long crossTargetEntity = 444L;
 
-    private final EntityInfo entityInfo1 = makeEntityInfo(entityId1, targetId1);
-    private final EntityInfo entityInfo2 = makeEntityInfo(entityId2, targetId1);
-    private final EntityInfo entityInfo3 = makeEntityInfo(entityId3, targetId1);
-    private final EntityInfo entityInfo4 = makeEntityInfo(entityId4, targetId2);
+    private final int pmType = EntityType.PHYSICAL_MACHINE.getNumber();
 
     private final Map<Long, Action> actionMap = new HashMap<>();
 
-    private final Set<Long> entitySet = new HashSet<>();
-    private final Map<Long, EntityInfo> entityMap = new HashMap<>();
     private Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
 
     @Before
     public void setup() throws Exception {
         when(actionStore.getActions()).thenReturn(actionMap);
-        Mockito.doReturn(entityMap).when(actionExecutor).getEntityInfo(entitySet);
-        Mockito.doCallRealMethod()
-                .when(actionExecutor).getEntitiesTarget(any(ActionDTO.Action.class), eq(entityMap));
         Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(),
                 any(ActionDTO.Action.class), any(Optional.class));
         when(actionStore.allowsExecution()).thenReturn(true);
@@ -130,7 +122,6 @@ public class AutomatedActionExecutorTest {
         Mockito.verifyZeroInteractions(actionTranslator, channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(Collections.emptySet());
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor);
     }
 
@@ -146,7 +137,6 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(nonAutoAction, never()).receive(any(ActionEvent.class));
         Mockito.verifyZeroInteractions(actionTranslator, channel);
         Mockito.verify(actionStore).getActions();
-        Mockito.verify(actionExecutor).getEntityInfo(Collections.emptySet());
         Mockito.verifyNoMoreInteractions(actionExecutor);
     }
 
@@ -164,45 +154,49 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(unsupportedAction).receive(captor.capture());
         FailureEvent event = captor.getValue();
 
-        String expectedFailure = String.format(AutomatedActionExecutor.UNSUPPORTED_MSG, 99,
-                unsupportedRec.getInfo().getActionTypeCase());
-        Assert.assertEquals(event.getErrorDescription(), expectedFailure);
+        String expectedFailure = String.format(AutomatedActionExecutor.TARGET_RESOLUTION_MSG, 99);
+        Assert.assertEquals(expectedFailure, event.getErrorDescription());
 
         Mockito.verifyZeroInteractions(actionTranslator, channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(Collections.emptySet());
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor);
     }
 
     @Test
-    public void testAutomatedExecuteOneUntargetedAction() throws TargetResolutionException {
-        final Action noTargetAction = Mockito.mock(Action.class);
+    public void testAutomatedExecuteOneCrossTargetMove() throws Exception {
+        final Action crossTargetAction = Mockito.mock(Action.class);
 
-        final ActionDTO.Action noTargetRec = makeActionRec(99L,
-                makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId4));
-        entityMap.put(entityId1, entityInfo1);
-        entityMap.put(entityId2, entityInfo2);
-        entityMap.put(entityId4, entityInfo4);
-        entitySet.addAll(Arrays.asList(entityId4, entityId2, entityId1));
+        final long actionId = 99;
+        final ActionDTO.Action crossTargetRec = makeActionRec(actionId,
+                makeMoveInfo(entityId1, pmType, crossTargetEntity, pmType, entityId2));
 
-        setUpMocks(noTargetAction, 99L, noTargetRec);
+        setUpMocks(crossTargetAction, actionId, crossTargetRec);
+        // Map this action to target #1
+        when(actionTargetSelector.getTargetIdsForActions(any()))
+                .thenReturn(Collections.singletonMap(crossTargetAction, targetId1));
+
+        final ActionTranslation translation = new ActionTranslation(crossTargetRec);
+        translation.setPassthroughTranslationSuccess();
+        when(crossTargetAction.getActionTranslation()).thenReturn(translation);
+        when(crossTargetAction.getWorkflow(workflowStore)).thenReturn(Optional.empty());
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
-        final ArgumentCaptor<FailureEvent> captor = ArgumentCaptor.forClass(FailureEvent.class);
-        Mockito.verify(noTargetAction).receive(captor.capture());
-        FailureEvent event = captor.getValue();
+        executorService.shutdown();
+        executorService.awaitTermination(timeout, unit);
 
-        String expectedFailure = String.format(AutomatedActionExecutor.TARGET_RESOLUTION_MSG, 99);
-        Assert.assertEquals(event.getErrorDescription(), expectedFailure);
+        InOrder order = Mockito.inOrder(crossTargetAction);
+        order.verify(crossTargetAction).receive(isA(AutomaticAcceptanceEvent.class));
+        order.verify(crossTargetAction).receive(isA(BeginExecutionEvent.class));
 
-        Mockito.verifyZeroInteractions(actionTranslator, channel);
+        Mockito.verifyZeroInteractions(channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(entitySet);
-        Mockito.verify(actionExecutor).getEntitiesTarget(noTargetRec, entityMap);
-        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor);
+        Mockito.verify(actionTargetSelector).getTargetIdsForActions(any());
+        Mockito.verify(actionTranslator).translate(any(Action.class));
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, crossTargetRec, workflowOpt);
+        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
@@ -210,15 +204,15 @@ public class AutomatedActionExecutorTest {
         final Action failedTranslationAction = Mockito.mock(Action.class);
 
         final ActionDTO.Action rec = makeActionRec(99L,
-                makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
-        entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3));
-        entityMap.put(entityId1, entityInfo1);
-        entityMap.put(entityId2, entityInfo2);
-        entityMap.put(entityId3, entityInfo3);
+                makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setTranslationFailure();
 
         setUpMocks(failedTranslationAction, 99L, rec);
+        // Map this action to target #1
+        when(actionTargetSelector.getTargetIdsForActions(any()))
+                .thenReturn(Collections.singletonMap(failedTranslationAction, targetId1));
         when(failedTranslationAction.getActionTranslation()).thenReturn(translation);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
@@ -237,31 +231,26 @@ public class AutomatedActionExecutorTest {
         Mockito.verifyZeroInteractions(channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(entitySet);
-        Mockito.verify(actionExecutor).getEntitiesTarget(rec, entityMap);
+        Mockito.verify(actionTargetSelector).getTargetIdsForActions(any());
         Mockito.verify(actionTranslator).translate(failedTranslationAction);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor);
+        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
     public void testAutomatedExecuteFail() throws Exception {
-
         final Action failedExecuteAction = Mockito.mock(Action.class);
         final ActionDTO.Action rec =
                 makeActionRec(99L,
-                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
-        entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3));
-        entityMap.put(entityId1, entityInfo1);
-        entityMap.put(entityId2, entityInfo2);
-        entityMap.put(entityId3, entityInfo3);
+                    makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setPassthroughTranslationSuccess();
         setUpMocks(failedExecuteAction, 99L, rec);
+        // Map this action to target #1
+        when(actionTargetSelector.getTargetIdsForActions(any()))
+                .thenReturn(Collections.singletonMap(failedExecuteAction, targetId1));
         when(failedExecuteAction.getActionTranslation()).thenReturn(translation);
         when(failedExecuteAction.getWorkflow(workflowStore)).thenReturn(Optional.empty());
-
-        when(resolver.resolveExecutantTarget(any(), any()))
-            .thenReturn(targetId1);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!"))
                 .when(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
@@ -282,32 +271,29 @@ public class AutomatedActionExecutorTest {
         Mockito.verifyZeroInteractions(channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(entitySet);
-        Mockito.verify(actionExecutor).getEntitiesTarget(rec, entityMap);
+        Mockito.verify(actionTargetSelector).getTargetIdsForActions(any());
         Mockito.verify(actionTranslator).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor);
+        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
     public void testAutomatedExecuteOneAction() throws Exception {
 
         final Action goodAction = Mockito.mock(Action.class);
+        final long actionId = 1;
         final ActionDTO.Action rec =
-                makeActionRec(1L,
-                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
-        entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3));
-        entityMap.put(entityId1, entityInfo1);
-        entityMap.put(entityId2, entityInfo2);
-        entityMap.put(entityId3, entityInfo3);
+                makeActionRec(actionId,
+                    makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setPassthroughTranslationSuccess();
-        setUpMocks(goodAction, 1L, rec);
+        setUpMocks(goodAction, actionId, rec);
+        // Map this action to target #1
+        when(actionTargetSelector.getTargetIdsForActions(any()))
+                .thenReturn(Collections.singletonMap(goodAction, targetId1));
         when(goodAction.getActionTranslation()).thenReturn(translation);
         when(goodAction.getWorkflow(workflowStore)).thenReturn(Optional.empty());
-
-        when(resolver.resolveExecutantTarget(any(), any()))
-            .thenReturn(targetId1);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -321,11 +307,10 @@ public class AutomatedActionExecutorTest {
         Mockito.verifyZeroInteractions(channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(entitySet);
-        Mockito.verify(actionExecutor).getEntitiesTarget(rec, entityMap);
+        Mockito.verify(actionTargetSelector).getTargetIdsForActions(any());
         Mockito.verify(actionTranslator).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor);
+        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
@@ -343,18 +328,18 @@ public class AutomatedActionExecutorTest {
                 makeActionRec(unsupportedId, ActionInfo.newBuilder().build());
         setUpMocks(unsupportedAction, unsupportedId, unsupportedRec);
 
-        final Action noTargetAction = Mockito.mock(Action.class);
-        final long noTargetId = 97;
-        final ActionDTO.Action noTargetRec =
-                makeActionRec(noTargetId,
-                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId4));
-        setUpMocks(noTargetAction, noTargetId, noTargetRec);
+        final Action crossTargetAction = Mockito.mock(Action.class);
+        final long crossTargetId = 97;
+        final ActionDTO.Action crossTargetRec =
+                makeActionRec(crossTargetId,
+                    makeMoveInfo(entityId1, pmType, crossTargetEntity, pmType, entityId2));
+        setUpMocks(crossTargetAction, crossTargetId, crossTargetRec);
 
         final Action failedTranslationAction = Mockito.mock(Action.class);
         final long noTransId = 96;
         final ActionDTO.Action noTransRec =
                 makeActionRec(noTransId,
-                    makeMoveInfo(entityId4, 1, 555L, 1, 666L));
+                    makeMoveInfo(crossTargetEntity, 1, 555L, 1, 666L));
         final ActionTranslation badTrans = new ActionTranslation(noTransRec);
         badTrans.setTranslationFailure();
         setUpMocks(failedTranslationAction, noTransId, noTransRec);
@@ -363,8 +348,9 @@ public class AutomatedActionExecutorTest {
         final Action failedExecuteAction = Mockito.mock(Action.class);
         final long execFailId = 95;
         final ActionDTO.Action execFailRec =
-                makeActionRec(execFailId,
-                    makeMoveInfo(entityId4, entityType4, 555L, 1, 666L));
+                makeActionRec(
+                        execFailId,
+                        makeMoveInfo(crossTargetEntity, pmType, 555L, pmType, 666L));
         final ActionTranslation execFailTrans = new ActionTranslation(execFailRec);
         execFailTrans.setPassthroughTranslationSuccess();
         setUpMocks(failedExecuteAction, execFailId, execFailRec);
@@ -376,25 +362,20 @@ public class AutomatedActionExecutorTest {
         final long goodId = 1L;
         final ActionDTO.Action goodRec =
                 makeActionRec(goodId,
-                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
+                    makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
         final ActionTranslation goodTrans = new ActionTranslation(goodRec);
         goodTrans.setPassthroughTranslationSuccess();
         setUpMocks(goodAction, goodId, goodRec);
         when(goodAction.getActionTranslation()).thenReturn(goodTrans);
         when(goodAction.getWorkflow(workflowStore)).thenReturn(Optional.empty());
 
-        entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3, entityId4, 555L, 666L));
-        entityMap.put(entityId1, entityInfo1);
-        entityMap.put(entityId2, entityInfo2);
-        entityMap.put(entityId3, entityInfo3);
-        entityMap.put(entityId4, entityInfo4);
-        entityMap.put(555L, makeEntityInfo(555L, targetId2));
-        entityMap.put(666L, makeEntityInfo(666L, targetId2));
-
-        when(resolver.resolveExecutantTarget(eq(goodRec), any()))
-            .thenReturn(targetId1);
-        when(resolver.resolveExecutantTarget(eq(execFailRec), any()))
-                .thenReturn(targetId2);
+        // Map the actions to targets
+        Map<Action, Long> actionToTargetMap = new HashMap<>();
+        actionToTargetMap.put(crossTargetAction, targetId1);
+        actionToTargetMap.put(failedExecuteAction, targetId2);
+        actionToTargetMap.put(failedTranslationAction, targetId1);
+        actionToTargetMap.put(goodAction, targetId1);
+        when(actionTargetSelector.getTargetIdsForActions(any())).thenReturn(actionToTargetMap);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -408,12 +389,11 @@ public class AutomatedActionExecutorTest {
 
         Mockito.verify(unsupportedAction).receive(failureCaptor.capture());
         Assert.assertEquals(failureCaptor.getValue().getErrorDescription(),
-                String.format(AutomatedActionExecutor.UNSUPPORTED_MSG, unsupportedId,
-                        unsupportedRec.getInfo().getActionTypeCase()));
+                String.format(AutomatedActionExecutor.TARGET_RESOLUTION_MSG, unsupportedId));
 
-        Mockito.verify(noTargetAction).receive(failureCaptor.capture());
-        Assert.assertEquals(failureCaptor.getValue().getErrorDescription(),
-                String.format(AutomatedActionExecutor.TARGET_RESOLUTION_MSG, noTargetId));
+        InOrder crossOrder = Mockito.inOrder(crossTargetAction);
+        crossOrder.verify(crossTargetAction).receive(isA(AutomaticAcceptanceEvent.class));
+        crossOrder.verify(crossTargetAction).receive(isA(BeginExecutionEvent.class));
 
         InOrder noTransOrder = Mockito.inOrder(failedTranslationAction);
         noTransOrder.verify(failedTranslationAction).receive(isA(AutomaticAcceptanceEvent.class));
@@ -436,25 +416,26 @@ public class AutomatedActionExecutorTest {
         Mockito.verifyZeroInteractions(channel);
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
-        Mockito.verify(actionExecutor).getEntityInfo(entitySet);
-        Mockito.verify(actionExecutor, times(4))
-                .getEntitiesTarget(any(ActionDTO.Action.class), anyMap());
-        Mockito.verify(actionTranslator, times(3)).translate(any(Action.class));
+        // This mapping happens once, for all actions
+        Mockito.verify(actionTargetSelector).getTargetIdsForActions(any());
+        // This translation happens once per action
+        // When adding actions to this test case, increment this number
+        Mockito.verify(actionTranslator, times(4)).translate(any(Action.class));
         Mockito.verify(actionExecutor).executeSynchronously(targetId1, goodRec, workflowOpt);
         Mockito.verify(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt);
-        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor);
+        Mockito.verifyNoMoreInteractions(actionTranslator, actionStore, actionExecutor, actionTargetSelector);
 
     }
 
     @Test
     // Verify that only actions which are in READY state and which
     // have the executable flag set are submitted for execution.
-    public void testexecuteAutomatedFromStoreExecutableActions() {
+    public void testexecuteAutomatedFromStoreExecutableActions() throws Exception {
         ExecutorService testExecutor = mock(ExecutorService.class);
         ActionExecutor testActionExecutor = mock(ActionExecutor.class);
         final AutomatedActionExecutor automatedActionExecutor =
                 new AutomatedActionExecutor(testActionExecutor, testExecutor, actionTranslator,
-                        workflowStore);
+                        workflowStore, actionTargetSelector);
         long actionId = 1L;
         Callable<Action> mockCallable = new Callable<Action>() {
             @Override
@@ -462,13 +443,10 @@ public class AutomatedActionExecutorTest {
                 return null;
             }
         };
-        ActionDTO.Action testRecommendation =
-                makeRec(ActionTest.makeMoveInfo(targetId1, entityId1, entityType1, entityId2, entityType2),
-                        1, true, SupportLevel.SUPPORTED).build();
-        Map<Long, EntityInfo> testEntityMap = new HashMap<>();
-        testEntityMap.put(entityId1, entityInfo1);
-        testEntityMap.put(entityId2, entityInfo2);
-        testEntityMap.put(targetId1, entityInfo3);
+        ActionDTO.Action testRecommendation = makeRec(
+                TestActionBuilder.makeMoveInfo(targetId1, entityId1, pmType, entityId2, pmType),
+                1, true, SupportLevel.SUPPORTED).build();
+
         when(testExecutor.submit(mockCallable)).thenReturn(
                 new FutureTask<Action>(new Callable<Action>() {
                     @Override
@@ -481,8 +459,13 @@ public class AutomatedActionExecutorTest {
         Action testAction  = mock(Action.class);
         testActionMap.put(actionId, testAction);
         when(actionStore.getActions()).thenReturn(testActionMap);
-        Mockito.doReturn(testEntityMap).when(testActionExecutor).getEntityInfo(any());
-        when(testActionExecutor.getEntitiesTarget(any(), any())).thenReturn(Optional.of(targetId1));
+        // Map the action (if present) to targetId1
+        when(actionTargetSelector.getTargetIdsForActions(
+                (Collection)argThat(containsInAnyOrder(testAction))))
+                .thenReturn(Collections.singletonMap(testAction, targetId1));
+        // If the actions list is empty, return an empty list
+        when(actionTargetSelector.getTargetIdsForActions(Collections.emptyList()))
+                .thenReturn(Collections.emptyMap());
         // Case 1: when the action is executable and is in READY state.
         when(testAction.getId()).thenReturn(actionId);
         when(testAction.getState()).thenReturn(ActionState.READY);
@@ -522,7 +505,7 @@ public class AutomatedActionExecutorTest {
     private ActionInfo makeMoveInfo(long sourceId, int sourceType,
                                     long destId, int destType,
                                     long targetId) {
-        return ActionTest.makeMoveInfo(targetId, sourceId, sourceType,
+        return TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
                     destId, destType).build();
     }
 

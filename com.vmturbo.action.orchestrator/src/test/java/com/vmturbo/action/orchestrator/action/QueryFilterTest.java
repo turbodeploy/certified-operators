@@ -7,18 +7,13 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Multimap;
 
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
@@ -171,7 +166,7 @@ public class QueryFilterTest {
     public void testFilterActionViewsByCategory() {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(0L)
-                .setInfo(ActionTest.makeMoveInfo(3L, 1L, 1, 2L, 1))
+                .setInfo(TestActionBuilder.makeMoveInfo(3L, 1L, 1, 2L, 1))
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
@@ -188,7 +183,7 @@ public class QueryFilterTest {
     public void testFilterActionViewsByCategoryNoMatch() {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(0L)
-                .setInfo(ActionTest.makeMoveInfo(3L, 1L, 1, 2L, 1))
+                .setInfo(TestActionBuilder.makeMoveInfo(3L, 1L, 1, 2L, 1))
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
@@ -276,7 +271,7 @@ public class QueryFilterTest {
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
+                .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                 .build();
 
         return spy(new Action(action, ACTION_PLAN_ID));
@@ -288,7 +283,7 @@ public class QueryFilterTest {
                         .setImportance(0)
                         .setExplanation(Explanation.newBuilder().build())
                         .setExecutable(false)
-                        .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
+                        .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                         .build();
 
         return spy(new Action(action, ACTION_PLAN_ID));

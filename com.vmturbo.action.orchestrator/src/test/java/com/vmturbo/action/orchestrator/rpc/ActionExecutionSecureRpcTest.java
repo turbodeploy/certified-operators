@@ -32,6 +32,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
@@ -93,6 +94,7 @@ public class ActionExecutionSecureRpcTest {
             executor, actionStoreLoader);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
             actionStream.peek(action -> {
@@ -104,7 +106,11 @@ public class ActionExecutionSecureRpcTest {
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory,
+            new ActionsRpcService(actionStorehouse,
+                    actionExecutor,
+                    actionTargetSelector,
+                    actionTranslator,
+                    paginatorFactory,
                     workflowStore);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;

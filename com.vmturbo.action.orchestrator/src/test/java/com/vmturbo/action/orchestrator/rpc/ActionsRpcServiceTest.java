@@ -15,9 +15,9 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
-import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -96,7 +96,8 @@ public class ActionsRpcServiceTest {
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
+                .setInfo(TestActionBuilder
+                        .makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                 .build();
 
         SerializationState orchesratorAction = new SerializationState(ACTION_PLAN_ID,
