@@ -35,7 +35,7 @@ spec:
       containers:
       - env:
         - name: JAVA_OPTS
-          value: -Xmx768M
+          value: JAVA_OPTIONS
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -56,8 +56,10 @@ spec:
         imagePullPolicy: IfNotPresent
         name: reporting
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "1073741824"
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

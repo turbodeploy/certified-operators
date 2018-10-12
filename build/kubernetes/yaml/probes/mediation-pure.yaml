@@ -33,6 +33,8 @@ spec:
     spec:
       containers:
       - env:
+        - name: JAVA_OPTS
+          value: JAVA_OPTIONS
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -48,7 +50,11 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.mediation.pure.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: mediation-pure
-        resources: {}
+        resources:
+          requests:
+            memory: MEMORY_REQUEST
+          limits:
+            memory: MEMORY_LIMIT
         ports:
         - containerPort: 8080
           name: pure-port

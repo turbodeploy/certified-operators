@@ -67,8 +67,10 @@ spec:
         ports:
         - containerPort: 9092
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: 20971520e3
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

@@ -34,7 +34,7 @@ spec:
       containers:
       - env:
         - name: JAVA_OPTS
-          value: -Xmx3072M
+          value: JAVA_OPTIONS
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -51,8 +51,10 @@ spec:
         imagePullPolicy: IfNotPresent
         name: mediation-hyperv
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "4294967296"
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

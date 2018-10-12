@@ -75,8 +75,10 @@ spec:
         - containerPort: 8529
         name: arangodb
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "1024Mi"
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

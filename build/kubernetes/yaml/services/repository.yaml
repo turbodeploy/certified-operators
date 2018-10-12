@@ -34,7 +34,7 @@ spec:
       containers:
       - env:
         - name: JAVA_OPTS
-          value: -Xmx5G
+          value: JAVA_OPTIONS
         - name: REPOSITORY_ARANGODB_HOST
           value: arangodb
         - name: clustermgr_host
@@ -57,8 +57,10 @@ spec:
         imagePullPolicy: IfNotPresent
         name: repository
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "6442450944"
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

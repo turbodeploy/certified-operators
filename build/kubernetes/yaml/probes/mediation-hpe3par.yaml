@@ -34,7 +34,7 @@ spec:
       containers:
       - env:
         - name: JAVA_OPTS
-          value: -Xmx384M
+          value: JAVA_OPTIONS
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -51,7 +51,11 @@ spec:
         ports:
         - containerPort: 8080
         - containerPort: 8000
-        resources: {}
+        resources:
+          requests:
+            memory: MEMORY_REQUEST
+          limits:
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

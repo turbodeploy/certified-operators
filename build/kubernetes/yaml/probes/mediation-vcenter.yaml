@@ -34,7 +34,7 @@ spec:
       containers:
       - env:
         - name: JAVA_OPTS
-          value: -Xmx3G
+          value: JAVA_OPTIONS
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -54,8 +54,10 @@ spec:
         - containerPort: 8080
           name: vcenter-port
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "4294967296"
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

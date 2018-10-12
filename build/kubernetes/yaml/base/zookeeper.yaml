@@ -53,8 +53,10 @@ spec:
         - containerPort: 2181
         imagePullPolicy: IfNotPresent
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "402653184"
+            memory: MEMORY_LIMIT
         securityContext:
           capabilities:
             drop:

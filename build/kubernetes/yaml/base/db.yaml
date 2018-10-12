@@ -71,8 +71,10 @@ spec:
         ports:
         - containerPort: 3306
         resources:
+          requests:
+            memory: MEMORY_REQUEST
           limits:
-            memory: "8589934592"
+            memory: MEMORY_LIMIT
         securityContext:
           privileged: true
         volumeMounts:
