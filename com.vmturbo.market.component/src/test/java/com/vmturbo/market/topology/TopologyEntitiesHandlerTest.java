@@ -53,16 +53,10 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.Analysis;
-import com.vmturbo.cost.api.CostClientConfig;
-import com.vmturbo.cost.calculation.DiscountApplicator;
-import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.market.topology.conversions.CostLibrary;
+import com.vmturbo.market.topology.conversions.CostLibrary.ComputePriceBundle;
+import com.vmturbo.market.topology.conversions.CostLibrary.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
-import com.vmturbo.market.runner.cost.MarketCloudCostDataProvider;
-import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -85,7 +79,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.Converter;
-
 
 /**
  * Unit tests for {@link TopologyEntitiesHandler}.
@@ -113,8 +106,6 @@ public class TopologyEntitiesHandlerTest {
     private static String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
             "protobuf/messages/simple-cloudTopology.json";
     private static final Gson GSON = new Gson();
-
-    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
 
     /**
      * Test loading a file that was generated using the hyper-v probe.
@@ -187,7 +178,7 @@ public class TopologyEntitiesHandlerTest {
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable)
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)
@@ -260,7 +251,7 @@ public class TopologyEntitiesHandlerTest {
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
         TopologyConverter topoConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                 .map(TopologyEntityDTO.Builder::build)
@@ -306,7 +297,7 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
 
         Set<TraderTO> traderDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable).convertToMarket(topoDTOs.stream()
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO).convertToMarket(topoDTOs.stream()
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
@@ -355,7 +346,7 @@ public class TopologyEntitiesHandlerTest {
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter togetherConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -388,7 +379,7 @@ public class TopologyEntitiesHandlerTest {
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter shopTogetherConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         final Set<TraderTO> shopTogetherTraderDTOs = shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -426,7 +417,7 @@ public class TopologyEntitiesHandlerTest {
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
-        new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable).convertToMarket(
+        new TopologyConverter(REALTIME_TOPOLOGY_INFO).convertToMarket(
             topoDTOs.stream()
                 .map(TopologyEntityDTO.Builder::build)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -474,7 +465,8 @@ public class TopologyEntitiesHandlerTest {
                     ba = topologyEntityDTO;
                 }
             }
-
+            // Mock the costs for the tiers
+            CostLibrary costLib = spy(CostLibrary.class);
             Map<OSType, Double> m1LargePrices = new HashMap<>();
             m1LargePrices.put(OSType.LINUX, 5d);
             m1LargePrices.put(OSType.RHEL, 3d);
@@ -484,16 +476,16 @@ public class TopologyEntitiesHandlerTest {
             Map<OSType, Double> m1SmallPrices = new HashMap<>();
             m1SmallPrices.put(OSType.LINUX, 0.5d);
             m1SmallPrices.put(OSType.RHEL, 0.25d);
-            when(marketPriceTable.getComputePriceBundle(m1Large.getOid(), region.getOid()))
-                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
-            when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
-                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
-            when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
-                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
-            when(marketPriceTable.getComputePriceBundle(m1Small.getOid(), region.getOid()))
-                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1SmallPrices));
+            when(costLib.getComputePriceBundle(m1Large.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices, OSType.LINUX));
+            when(costLib.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices, OSType.LINUX));
+            when(costLib.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices, OSType.LINUX));
+            when(costLib.getComputePriceBundle(m1Small.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1SmallPrices, OSType.LINUX));
             final TopologyConverter converter =
-                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, costLib);
             final Set<EconomyDTOs.TraderTO> traderTOs =
                     converter.convertToMarket(topologyEntityDTOs.stream()
                             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -549,12 +541,10 @@ public class TopologyEntitiesHandlerTest {
     }
 
     private ComputePriceBundle mockComputePriceBundle(
-            Long businessAccountId, Map<OSType, Double> osPriceMapping) {
-        Builder builder = ComputePriceBundle.newBuilder();
-        for (Map.Entry<OSType, Double> e : osPriceMapping.entrySet()) {
-            builder.addPrice(businessAccountId, e.getKey(), e.getValue());
-        }
-        return builder.build();
+            Long businessAccountId, Map<OSType, Double> osPriceMapping, OSType baseOSType) {
+        List<ComputePriceBundle.ComputePrice> prices = new ArrayList<>();
+        osPriceMapping.forEach((k,v) -> prices.add(new ComputePrice(businessAccountId, k, v)));
+        return new ComputePriceBundle(baseOSType, prices);
     }
 
     private Set<TopologyEntityDTO.Builder> readTopologyFromJsonFile()
@@ -599,7 +589,7 @@ public class TopologyEntitiesHandlerTest {
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable)
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)

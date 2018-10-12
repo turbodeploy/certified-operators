@@ -10,17 +10,14 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
-import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.market.topology.conversions.CostLibrary.ComputePriceBundle;
+import com.vmturbo.market.topology.conversions.CostLibrary.ComputePriceBundle.ComputePrice;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
@@ -31,12 +28,12 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
-    private final MarketPriceTable marketPriceTable;
-    private final CommodityConverter commodityConverter;
+    CostLibrary costLibrary;
+    CommodityConverter commodityConverter;
 
-    public CostDTOCreator(CommodityConverter commodityConverter, MarketPriceTable marketPriceTable) {
+    public CostDTOCreator(CommodityConverter commodityConverter, CostLibrary costLibrary) {
         this.commodityConverter = commodityConverter;
-        this.marketPriceTable = marketPriceTable;
+        this.costLibrary = costLibrary;
     }
 
     /**
@@ -51,7 +48,7 @@ public class CostDTOCreator {
     public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, TopologyEntityDTO region, Set<TopologyEntityDTO> businessAccountDTOs) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         //createComputeResourceDependency(tier); TODO: add it once dto has proper field to store
-        ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier.getOid(), region.getOid());
+        ComputePriceBundle priceBundle = costLibrary.getComputePriceBundle(tier.getOid(), region.getOid());
         Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                 .map(CommoditySoldDTO::getCommodityType)
@@ -61,7 +58,7 @@ public class CostDTOCreator {
             List<CommodityType> licenseCommType = licenseCommoditySet.stream()
                     .filter(c -> c.getKey().equals(price.getOsType().name())).collect(Collectors.toList());
             if (licenseCommType.size() != 1) {
-                logger.warn("Entity in tier {} region {} have duplicate number of license",
+                logger.warn("Entity in tier {} region {} does not have wrong number of license",
                         tier.getDisplayName(), region.getDisplayName());
                 continue;
             }
@@ -103,14 +100,7 @@ public class CostDTOCreator {
                 .setStorageTierCost(StorageTierCostDTO.newBuilder().build()).build();
     }
 
-    /**
-     * Create {@link ComputeResourceDependency} which specifies the constraint between comm bought used
-     * and comm sold capacity.
-     *
-     * @param tier the compute tier topology entity DTO
-     * @return ComputeResourceDependency
-     */
     public ComputeResourceDependency createComputeResourceDependency(TopologyEntityDTO tier) {
-        return ComputeResourceDependency.newBuilder().build();
+        return null;
     }
 }

@@ -59,7 +59,6 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
 import com.vmturbo.market.topology.MarketTier;
@@ -184,13 +183,26 @@ public class TopologyConverter {
 
     private final CommodityConverter commodityConverter;
 
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo, MarketPriceTable marketPriceTable) {
+    /**
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo Information about the topology.
+     */
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts);
+    }
+
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo, CostLibrary costLibrary) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
-                businessAccounts, marketPriceTable);
+                businessAccounts, costLibrary);
     }
 
     /**
@@ -202,8 +214,7 @@ public class TopologyConverter {
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
-                             final float quoteFactor,
-                             @Nonnull final MarketPriceTable marketPriceTable) {
+                             final float quoteFactor) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor  = quoteFactor;
@@ -211,8 +222,7 @@ public class TopologyConverter {
         this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable);
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts);
     }
 
     private boolean isPlan() {
