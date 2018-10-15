@@ -108,12 +108,12 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                 .findFirst().orElseThrow(() -> new IllegalArgumentException(INVALID_BUSINESS_UNIT_DTO
                         + businessUnitApiInputDTO));
         // TODO validate input DTO with validateInput method. It must have displayName
-        final DiscountInfo discountInfo = (businessUnitApiInputDTO.getDiscount() != null) ? DiscountInfo.newBuilder()
+        final DiscountInfo discountInfo = (businessUnitApiInputDTO.getPriceAdjustment() != null) ? DiscountInfo.newBuilder()
                 .setDisplayName(businessUnitApiInputDTO.getName())
                 .setAccountLevelDiscount(DiscountInfo
                         .AccountLevelDiscount
                         .newBuilder()
-                        .setDiscountPercentage(businessUnitApiInputDTO.getDiscount()))
+                        .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()))
                 .build()
                 : DiscountInfo.newBuilder()
                 .setDisplayName(businessUnitApiInputDTO.getName())
@@ -140,7 +140,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     .setAssociatedAccountId(Long.parseLong(uuid))
                     .setNewDiscountInfo(DiscountInfo.newBuilder()
                             .setAccountLevelDiscount(AccountLevelDiscount.newBuilder()
-                                    .setDiscountPercentage(businessUnitApiInputDTO.getDiscount()).build())
+                                    .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()).build())
                             .setDisplayName(businessUnitApiInputDTO.getName()))
                     .build());
             return mapper.toBusinessUnitApiDTO(response.getUpdatedDiscount(), repositoryClient, targetsService);
@@ -153,7 +153,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     setAccountLevelDiscount(DiscountInfo
                             .AccountLevelDiscount
                             .newBuilder()
-                            .setDiscountPercentage(businessUnitApiInputDTO.getDiscount()))
+                            .setDiscountPercentage(businessUnitApiInputDTO.getPriceAdjustment().getValue()))
                     .build();
             final CreateDiscountResponse response = costService.createDiscount(CreateDiscountRequest.newBuilder()
                     .setId(Long.parseLong(associatedAccountId))

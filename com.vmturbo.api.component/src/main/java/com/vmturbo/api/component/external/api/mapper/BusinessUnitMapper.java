@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -22,6 +23,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
+import com.vmturbo.api.dto.businessunit.EntityDiscountDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -69,6 +71,11 @@ public class BusinessUnitMapper {
     private final long realtimeTopologyContextId;
 
     private final Set SUPPORTED_CLOUD_TYPE = ImmutableSet.of("AWS", "AZURE");
+
+    // EntityDiscountDTO predicate to filter those only have price adjustment
+    private static final Predicate<EntityDiscountDTO> ENTITY_DISCOUNT_DTO_PREDICATE = dto ->
+            dto.getPriceAdjustment() != null
+            && dto.getPriceAdjustment().getValue() != null;
 
     public BusinessUnitMapper(final long realtimeTopologyContextId) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -129,18 +136,12 @@ public class BusinessUnitMapper {
     public TierLevelDiscount toTierDiscountProto(@Nonnull final BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO) {
         final TierLevelDiscount.Builder builder = TierLevelDiscount.newBuilder();
         businessUnitDiscountApiDTO.getServicePriceAdjustments().stream()
-                .filter(serviceDiscountApiDTO ->
-                        serviceDiscountApiDTO.getTemplatePriceAdjustments() != null
-                                && serviceDiscountApiDTO.getTemplatePriceAdjustments().size() > ZERO
-                                && serviceDiscountApiDTO.getTemplatePriceAdjustments().stream().anyMatch(templateDiscountDTO ->
-                                templateDiscountDTO != null && templateDiscountDTO.getDiscount() != null
-                                        && templateDiscountDTO.getDiscount() > ZERO))
-                .forEach(serviceWithTierDiscount ->
-                        serviceWithTierDiscount.getTemplatePriceAdjustments().forEach(templateDiscountDTO -> {
-                            if (templateDiscountDTO.getDiscount() != null)
-                                builder.putDiscountPercentageByTierId(Long.parseLong(templateDiscountDTO.getUuid()), templateDiscountDTO.getDiscount());
-                        }));
-
+                .filter(serviceDiscountApiDTO -> serviceDiscountApiDTO.getTemplatePriceAdjustments() != null)
+                .flatMap(serviceDiscountApiDTO -> serviceDiscountApiDTO.getTemplatePriceAdjustments().stream())
+                .filter(ENTITY_DISCOUNT_DTO_PREDICATE)
+                .forEach(templateDiscountDTO -> builder.
+                        putDiscountPercentageByTierId(Long.parseLong(templateDiscountDTO.getUuid()),
+                                templateDiscountDTO.getPriceAdjustment().getValue()));
         return builder.build();
     }
 
@@ -154,8 +155,9 @@ public class BusinessUnitMapper {
     public ServiceLevelDiscount toServiceDiscountProto(@Nonnull final BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO) {
         final Builder builder = DiscountInfo.ServiceLevelDiscount.newBuilder();
         businessUnitDiscountApiDTO.getServicePriceAdjustments().stream()
-                .filter(serviceDiscountApiDTO -> serviceDiscountApiDTO.getDiscount() != null && serviceDiscountApiDTO.getDiscount() > ZERO)
-                .forEach(serviceWithDiscount -> builder.putDiscountPercentageByServiceId(Long.parseLong(serviceWithDiscount.getUuid()), serviceWithDiscount.getDiscount()));
+                .filter(ENTITY_DISCOUNT_DTO_PREDICATE)
+                .forEach(serviceWithDiscount -> builder.putDiscountPercentageByServiceId(Long.parseLong(serviceWithDiscount.getUuid()),
+                        serviceWithDiscount.getPriceAdjustment().getValue()));
         return builder.build();
     }
 
