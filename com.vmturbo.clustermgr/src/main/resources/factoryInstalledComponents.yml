@@ -77,11 +77,15 @@ topology-processor:
   # authentication-related properties
   <<: *auth_conn_info
 
-  # 30 seconds to match the hardcoded timeout value on the probe side.
-  # 4 keep-alive messages are sent by the client during this interval.
-  discoveryTimeoutSeconds: 30
+  # cloud probe discovery involves downloading some large files, so we are setting the discovery
+  # timeout to 120 seconds, instead of using the default of 30 seconds.
+  # several keep-alive messages are sent by the client during this interval to keep the connection
+  # open.
+  discoveryTimeoutSeconds: 120
   validationTimeoutSeconds: 30
   topologyBroadcastIntervalMinutes: 10
+  minimumAccountExpensesUploadIntervalMins: 60
+  minimumRIDataUploadIntervalMins: 5
   actionTimeoutSeconds: 30
   groupHost: 'group'
   actionOrchestratorHost: 'action-orchestrator'

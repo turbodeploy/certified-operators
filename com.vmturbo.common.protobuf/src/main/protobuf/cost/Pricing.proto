@@ -109,10 +109,13 @@ message GetPriceTableResponse {
     optional PriceTable global_price_table = 1;
 }
 
-message UploadPriceTableRequest {
+message UploadPriceTablesRequest {
+    // the checksum of the data in this request
+    optional int64 checksum = 1;
 
-    // The per-probe price tables, indexed by probe type.
-    //
+    // the time the request was created
+    optional int64 created_time = 2;
+
     // We expect the listed prices for each probe type (e.g. AWS, Azure, and so on) to be the
     // same across all targets, so there is no point of supporting per-target price tables.
     //
@@ -135,7 +138,14 @@ message ProbePriceTable {
     optional ReservedInstancePriceTable ri_price_table = 20;
 }
 
-message UploadPriceTableResponse {
+message UploadPriceTablesResponse {
+}
+
+message GetPriceTableChecksumRequest {
+}
+
+message GetPriceTableChecksumResponse {
+    optional int64 price_table_checksum = 1;
 }
 
 // The pricing service is the interface to upload and retrieve pricing data from the cost
@@ -144,8 +154,11 @@ service PricingService {
     // Get the current "global" price table.
     rpc GetPriceTable(GetPriceTableRequest) returns (GetPriceTableResponse);
 
+    // request for the checksum of the current price table data
+    rpc GetPriceTableChecksum(GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
+
     // Upload the most recent price table discovered by a particular cost probe.
     //
     // Returns INVALID_ARGUMENT if the request is missing fields.
-    rpc UploadPriceTable(UploadPriceTableRequest) returns (UploadPriceTableResponse);
+    rpc UploadPriceTables(UploadPriceTablesRequest) returns (UploadPriceTablesResponse);
 }

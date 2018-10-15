@@ -1,10 +1,12 @@
 package com.vmturbo.cost.component.pricing;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.hamcrest.CoreMatchers.is;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -12,14 +14,12 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTableRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesRequest;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -54,7 +54,7 @@ public class PricingRpcServiceTest {
         final ProbePriceTable probePriceTable = ProbePriceTable.newBuilder()
                 .setPriceTable(PRICE_TABLE)
                 .build();
-        clientStub.uploadPriceTable(UploadPriceTableRequest.newBuilder()
+        clientStub.uploadPriceTables(UploadPriceTablesRequest.newBuilder()
                 .putProbePriceTables(PROBE_TYPE, probePriceTable)
                 .build());
 

@@ -724,7 +724,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                           @Nonnull final DiscoveryResponse response) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
         final long targetId = discovery.getTargetId();
-        logger.debug("Received discovery result from target {}: {}", targetId, response);
+        // pjs: these discovery results can be pretty huge, (i.e. the cloud price discovery is over
+        // 100 mb of json), so I'm splitting this into two messages, a debug and trace version so
+        // you don't get large response dumps by accident. Maybe we should have a toggle that
+        // controls whether the actual response is logged instead.
+        logger.debug("Received discovery result from target {}: {} bytes", targetId, response.getSerializedSize());
+        logger.trace("Discovery result from target {}: {}", targetId, response);
 
         try {
             if (success) {
@@ -743,7 +748,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
                 derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                 discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
-                        response.getNonMarketEntityDTOList(), response.getCostDTOList());
+                        response.getNonMarketEntityDTOList(), response.getCostDTOList(),
+                        response.getPriceTable());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |

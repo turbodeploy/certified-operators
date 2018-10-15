@@ -13,10 +13,15 @@ import org.jooq.impl.DSL;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.cost.Cost.ChecksumResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetRIDataChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
-import com.vmturbo.common.protobuf.cost.Cost.UploadRIAndExpenseDataRequest;
-import com.vmturbo.common.protobuf.cost.Cost.UploadRIAndExpenseDataResponse;
+import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesResponse;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceImplBase;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
@@ -39,6 +44,11 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
 
     private final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate;
 
+    // remember the checksum of the last upload requests we successfully processed.
+    private long lastProcessedRIDataChecksum = 0;
+
+    private long lastProcessedAccountExpensesChecksum = 0;
+
     public RIAndExpenseUploadRpcService(@Nonnull final DSLContext dsl,
                                         @Nonnull AccountExpensesStore accountExpensesStore,
                                         @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
@@ -52,8 +62,22 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
     }
 
     @Override
-    public void uploadRIAndExpenseData(final UploadRIAndExpenseDataRequest request, final StreamObserver<UploadRIAndExpenseDataResponse> responseObserver) {
-        logger.info("Processing cost data for topology {}", request.getTopologyId());
+    public void getRIDataChecksum(final GetRIDataChecksumRequest request, final StreamObserver<ChecksumResponse> responseObserver) {
+        responseObserver.onNext(ChecksumResponse.newBuilder()
+                .setChecksum(lastProcessedRIDataChecksum).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getAccountExpensesChecksum(final GetAccountExpensesChecksumRequest request, final StreamObserver<ChecksumResponse> responseObserver) {
+        responseObserver.onNext(ChecksumResponse.newBuilder()
+                .setChecksum(lastProcessedAccountExpensesChecksum).build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void uploadAccountExpenses(final UploadAccountExpensesRequest request, final StreamObserver<UploadAccountExpensesResponse> responseObserver) {
+        logger.info("Processing account expenses for topology {}", request.getTopologyId());
         if (request.getAccountExpensesCount() > 0) {
             // update biz accounts
             logger.debug("Updating expenses for {} Business Accounts...", request.getAccountExpensesCount());
@@ -71,20 +95,28 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
             // TODO: do we need to delete business accounts that were NOT updated? If so, how should
             // we do this?
         }
+        lastProcessedAccountExpensesChecksum = request.getChecksum();
+        responseObserver.onNext(UploadAccountExpensesResponse.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void uploadRIData(final UploadRIDataRequest request, final StreamObserver<UploadRIDataResponse> responseObserver) {
+        logger.info("Processing RI data for topology {}", request.getTopologyId());
         // need to update reserved instance bought and spec first, because reserved instance coverage
         // data will use them later.
         storeRIBoughtAndSpecIntoDB(request);
         reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(request.getTopologyId(),
                 request.getReservedInstanceCoverageList());
-        responseObserver.onNext(UploadRIAndExpenseDataResponse.getDefaultInstance());
+        lastProcessedRIDataChecksum = request.getChecksum();
+        responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
-
     /**
      * Store the received reserved instance bought and specs into database.
-     * @param request a {@link UploadRIAndExpenseDataRequest} contains RI bought and spec data.
+     * @param request a {@link UploadRIDataRequest} contains RI bought and spec data.
      */
-    private void storeRIBoughtAndSpecIntoDB(@Nonnull final UploadRIAndExpenseDataRequest request) {
+    private void storeRIBoughtAndSpecIntoDB(@Nonnull final UploadRIDataRequest request) {
         if (request.getReservedInstanceBoughtList().isEmpty() && request.getReservedInstanceSpecsList().isEmpty()) {
             logger.info("There is no RI bought and spec in uploaded data!");
         }

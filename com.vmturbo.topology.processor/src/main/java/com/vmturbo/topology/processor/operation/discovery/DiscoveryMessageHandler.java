@@ -45,6 +45,9 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                                 DiscoveryResponse.Builder::addAllCostDTO)
                         .addRepeatedField(DiscoveryResponse::getNonMarketEntityDTOList,
                                 DiscoveryResponse.Builder::addAllNonMarketEntityDTO)
+                        .addField(DiscoveryResponse::hasPriceTable,
+                                DiscoveryResponse::getPriceTable,
+                                DiscoveryResponse.Builder::setPriceTable)
                         .build();
     }
 
