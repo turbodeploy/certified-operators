@@ -89,9 +89,8 @@ except ImportError:
     for pkg in ["libyaml-0.1.4-11.el7_0.x86_64.rpm", "pyyaml-3.10-11.el7.x86_64.rpm"]:
         retcode, output = exec_cmd(False, "rpm", "-i", os.path.join(ISO_MOUNTPOINT, pkg))
         if (retcode!=0 and (already_installed_msg not in output)):
-            LOGGER.error("Failed to install pyyaml package. "+
-                "Aborting upgrade. Return code:%s. Error:%s"
-                %(retcode, output))
+            LOGGER.error("Failed to install package: %s. Aborting upgrade.\n"\
+                "Return code: %s. Error: %s"%(pkg, retcode, output))
             sys.exit(1)
 
     import yaml
