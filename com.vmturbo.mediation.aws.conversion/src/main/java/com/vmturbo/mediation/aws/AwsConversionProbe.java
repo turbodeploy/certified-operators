@@ -41,7 +41,7 @@ public class AwsConversionProbe extends AwsProbe {
             EntityType.CLOUD_SERVICE,
             EntityType.COMPUTE_TIER,
             EntityType.STORAGE_TIER,
-            EntityType.DATABASE_TIER,
+            EntityType.DATABASE_SERVER_TIER,
             EntityType.AVAILABILITY_ZONE,
             EntityType.REGION
     );

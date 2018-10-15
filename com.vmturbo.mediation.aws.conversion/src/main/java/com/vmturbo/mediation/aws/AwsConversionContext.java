@@ -19,7 +19,7 @@ import com.vmturbo.mediation.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.cloud.converter.DatabaseTierConverter;
+import com.vmturbo.mediation.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.cloud.converter.RegionConverter;
@@ -46,7 +46,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
         converters.put(EntityType.REGION, new RegionConverter());
         converters.put(EntityType.STORAGE, new StorageConverter());
-        converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
+        converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
         converters.put(EntityType.APPLICATION, new ApplicationConverter());
@@ -81,14 +81,14 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     private static final Map<EntityType, CloudService> ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP =
             ImmutableMap.of(
                     EntityType.COMPUTE_TIER, CloudService.AWS_EC2,
-                    EntityType.DATABASE_TIER, CloudService.AWS_RDS,
+                    EntityType.DATABASE_SERVER_TIER, CloudService.AWS_RDS,
                     EntityType.STORAGE_TIER, CloudService.AWS_EBS
             );
 
     private static final Map<EntityType, EntityType> AWS_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE =
             ImmutableMap.of(
                     EntityType.VIRTUAL_MACHINE, EntityType.COMPUTE_TIER,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE_TIER
+                    EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER_TIER
             );
 
     @Nonnull

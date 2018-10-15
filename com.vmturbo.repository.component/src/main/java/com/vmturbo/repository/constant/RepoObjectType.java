@@ -49,6 +49,7 @@ public class RepoObjectType {
         COMPUTE_TIER("ComputeTier"),
         STORAGE_TIER("StorageTier"),
         DATABASE_TIER("DatabaseTier"),
+        DATABASE_SERVER_TIER("DatabaseServerTier"),
         AVAILABILITY_ZONE("AvailabilityZone"),
         REGION("Region"),
         UNKNOWN("Unknown");
@@ -114,6 +115,7 @@ public class RepoObjectType {
             .put(EntityType.COMPUTE_TIER,           RepoEntityType.COMPUTE_TIER)
             .put(EntityType.STORAGE_TIER,           RepoEntityType.STORAGE_TIER)
             .put(EntityType.DATABASE_TIER,          RepoEntityType.DATABASE_TIER)
+            .put(EntityType.DATABASE_SERVER_TIER,   RepoEntityType.DATABASE_SERVER_TIER)
             .put(EntityType.AVAILABILITY_ZONE,      RepoEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION,                 RepoEntityType.REGION)
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)

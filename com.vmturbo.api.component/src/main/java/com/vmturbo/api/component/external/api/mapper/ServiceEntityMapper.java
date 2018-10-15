@@ -44,6 +44,7 @@ public class ServiceEntityMapper {
         COMPUTE_TIER("ComputeTier"),
         STORAGE_TIER("StorageTier"),
         DATABASE_TIER("DatabaseTier"),
+        DATABASE_SERVER_TIER("DatabaseServerTier"),
         AVAILABILITY_ZONE("AvailabilityZone"),
         REGION("Region"),
         UNKNOWN("Unknown");
@@ -108,6 +109,7 @@ public class ServiceEntityMapper {
             .put(EntityType.COMPUTE_TIER.getNumber(),           UIEntityType.COMPUTE_TIER)
             .put(EntityType.STORAGE_TIER.getNumber(),           UIEntityType.STORAGE_TIER)
             .put(EntityType.DATABASE_TIER.getNumber(),          UIEntityType.DATABASE_TIER)
+            .put(EntityType.DATABASE_SERVER_TIER.getNumber(),   UIEntityType.DATABASE_SERVER_TIER)
             .put(EntityType.AVAILABILITY_ZONE.getNumber(),      UIEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION.getNumber(),                 UIEntityType.REGION)
             .put(EntityType.UNKNOWN.getNumber(),                UIEntityType.UNKNOWN)

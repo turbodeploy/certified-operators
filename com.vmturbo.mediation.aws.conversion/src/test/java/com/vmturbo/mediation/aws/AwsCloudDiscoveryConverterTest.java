@@ -27,7 +27,7 @@ import com.vmturbo.mediation.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.cloud.converter.DatabaseTierConverter;
+import com.vmturbo.mediation.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.cloud.converter.LoadBalancerConverter;
@@ -141,7 +141,7 @@ public class AwsCloudDiscoveryConverterTest {
 
             // check providers changed
             verifyProvidersChanged(oldDBS, newDBS, ImmutableMap.of(
-                    EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_TIER));
+                    EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER_TIER));
 
             // connected to AZ
             assertEquals(0, oldDBS.getLayeredOverCount());
@@ -213,9 +213,9 @@ public class AwsCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testDatabaseTierConverter() {
-        IEntityConverter converter = new DatabaseTierConverter();
-        newEntitiesByType.get(EntityType.DATABASE_TIER).forEach(entity -> {
+    public void testDatabaseServerTierConverter() {
+        IEntityConverter converter = new DatabaseServerTierConverter();
+        newEntitiesByType.get(EntityType.DATABASE_SERVER_TIER).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
 
@@ -234,10 +234,11 @@ public class AwsCloudDiscoveryConverterTest {
             // check sold commodities
             assertThat(newEntity.getCommoditiesSoldList().stream()
                     .map(CommodityDTO::getCommodityType)
-                    .collect(Collectors.toList()), containsInAnyOrder(CommodityType.VSTORAGE,
-                    CommodityType.VMEM, CommodityType.VCPU, CommodityType.IO_THROUGHPUT));
+                    .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.VMEM,
+                    CommodityType.VCPU, CommodityType.VSTORAGE, CommodityType.IO_THROUGHPUT,
+                    CommodityType.APPLICATION, CommodityType.LICENSE_ACCESS));
 
-            // check ct owned by CloudService
+            // check that database server tier is owned by cloud service
             assertThat(awsConverter.getNewEntityBuilder(
                     CloudService.AWS_RDS.getId()).getConsistsOfList(), hasItem(entityId));
         });

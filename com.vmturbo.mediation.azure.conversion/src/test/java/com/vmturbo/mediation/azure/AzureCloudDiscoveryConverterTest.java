@@ -205,10 +205,12 @@ public class AzureCloudDiscoveryConverterTest {
             // check sold commodities
             assertThat(newEntity.getCommoditiesSoldList().stream()
                     .map(CommodityDTO::getCommodityType)
-                    .collect(Collectors.toList()), containsInAnyOrder(CommodityType.VSTORAGE,
-                    CommodityType.VMEM, CommodityType.VCPU, CommodityType.IO_THROUGHPUT));
+                    .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.DB_MEM,
+                    CommodityType.TRANSACTION, CommodityType.TRANSACTION_LOG,
+                    CommodityType.CONNECTION, CommodityType.DB_CACHE_HIT_RATE,
+                    CommodityType.RESPONSE_TIME, CommodityType.APPLICATION, CommodityType.LICENSE_ACCESS));
 
-            // check ct owned by CloudService
+            // check that database tier is owned by cloud service
             assertThat(azureConverter.getNewEntityBuilder(CloudService.AZURE_DATA_SERVICES.getId())
                             .getConsistsOfList(), hasItem(entityId));
         });
