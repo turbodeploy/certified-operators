@@ -95,7 +95,7 @@ public class ExecutableActionsTest {
                         + classifier.getExecutable());
             classifier.classify(actions);
             // PS:  If there's another of doing this, I don't need to modify ActionClassifier ..
-            assertTrue(classifier.getExecutable() == 0);
+            assertTrue(classifier.getExecutable() == 1);
 
         }
         catch (Exception e) {

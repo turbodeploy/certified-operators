@@ -781,11 +781,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @param cloneTrader the clone of the original trader
      */
     private void cloneShoppingLists(Trader trader, Trader cloneTrader) {
-        for (ShoppingList sl : trader.getCustomers()) {
-            int j = sl.getBuyer().getEconomyIndex();
-            Trader cloneBuyer = this.getTraders().get(j);
+        Set<ShoppingList> shoppingListsOfTrader = getMarketsAsBuyer(trader).keySet();
+        for (ShoppingList sl : shoppingListsOfTrader) {
             Basket cloneBasketBought = sl.getBasket(); // reuse baskets in original and clone
-            ShoppingList cloneShoppingList = this.addBasketBought(cloneBuyer, cloneBasketBought);
+            ShoppingList cloneShoppingList = addBasketBought(cloneTrader, cloneBasketBought);
             cloneShoppingList.setShoppingListId(sl.getShoppingListId());
             double[] quantities = sl.getQuantities();
             double[] peakQuantities = sl.getPeakQuantities();
@@ -798,7 +797,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 cloneQuantities[q] = quantities[q];
                 clonePeakQuantities[q] = peakQuantities[q];
             }
-            cloneShoppingList.move(cloneTrader);
+            // find supplier in clone economy and move sl to that supplier.
+            if (sl.getSupplier() != null) {
+                int economyIndexofSupplier = sl.getSupplier().getEconomyIndex();
+                Trader cloneSupplier = getTraders().get(economyIndexofSupplier);
+                cloneShoppingList.move(cloneSupplier);
+            }
         }
     }
 
