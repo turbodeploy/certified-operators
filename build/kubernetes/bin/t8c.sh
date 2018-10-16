@@ -101,7 +101,7 @@ sed -i "s/${dns_strict}/${dns_not_strick}/g" ${kubesprayPath}/roles/docker/defau
 sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all.yml
 
 # Run ansible kubespray install
-ansible-playbook -i inventory/turbocluster/hosts.ini cluster.yml
+ansible-playbook -i inventory/turbocluster/hosts.ini -b --become-user=root cluster.yml
 popd
 
 # Setup storage
