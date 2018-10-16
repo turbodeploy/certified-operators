@@ -42,6 +42,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntit
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -112,11 +113,31 @@ import com.vmturbo.reports.db.StringConstants;
  **/
 public class StatsService implements IStatsService {
 
+    /**
+     * Cloud cost price constant to match UI request, also used in test case
+     */
     public static final String COST_PRICE = "costPrice";
+
+    /**
+     * Market constant o match UI request, also used in test case
+     */
     public static final String MARKET = "Market";
+
+    /**
+     * Cloud target constant to match UI request, also used in test case
+     */
     public static final String TARGET = "target";
+
+    /**
+     * Cloud service constant to match UI request, also used in test cases
+     */
     public static final String CLOUD_SERVICE = "cloudService";
+
+    /**
+     * Cloud service provider constant to match UI request, also used in test cases
+     */
     public static final String CSP = "CSP";
+
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
     // the +/- threshold (relative to the current time) in which a stats request specifying a time
@@ -325,7 +346,8 @@ public class StatsService implements IStatsService {
         // and it is handled as a special case.  If more use cases need to get cluster level
         // statistics in the future, the conditions for calling getClusterStats will need to change.
         final List<StatApiInputDTO> statsFilters = inputDto.getStatistics();
-        if (isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
+        final boolean isDefaultCloudGroupUuid = isDefaultCloudGroupUuid(uuid);
+        if (!isDefaultCloudGroupUuid && isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
             // uuid belongs to a cluster. Call Stats service to retrieve cluster related stats.
             ClusterStatsRequest clusterStatsRequest = statsMapper.toClusterStatsRequest(uuid, inputDto);
             Iterator<StatSnapshot> statSnapshotIterator = statsServiceRpc.getClusterStats(clusterStatsRequest);
@@ -338,7 +360,7 @@ public class StatsService implements IStatsService {
 
             // determine the list of entity OIDs to query for this operation
             final Set<Long> entityStatOids;
-            if (fullMarketRequest) {
+            if (fullMarketRequest || isDefaultCloudGroupUuid ) {
                 // An empty set means a request for the full market.
                 entityStatOids = Collections.emptySet();
             } else {
@@ -437,22 +459,29 @@ public class StatsService implements IStatsService {
 
                 // move the get targets here, so they can be passed to building Cloud expense API dto
                 final List<TargetApiDTO> finalTargets = targets = getTargets();
-                if (isCostStats && finalTargets != null && !finalTargets.isEmpty()) {
+                //TODO refactor conditions (probably Strategy pattern)
+                if (isCostStats) {
                     final Set<String> requestGroupBySet = parseGroupBy(inputDto);
-                    final Function<TargetApiDTO, String> valueFunction = getValueFunction(requestGroupBySet);
-                    final Function<TargetApiDTO, String> typeFunction = getTypeFunction(requestGroupBySet);
-                    // for group by Cloud services, we need to find all the services and
-                    // stitch with expenses in Cost component
-                    final List<BaseApiDTO> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
-                            getDiscoveredServiceDTO() : Collections.emptyList();
+                    if (isTopDownRequest(requestGroupBySet) && finalTargets != null && !finalTargets.isEmpty()) {
+                        final Function<TargetApiDTO, String> valueFunction = getValueFunction(requestGroupBySet);
+                        final Function<TargetApiDTO, String> typeFunction = getTypeFunction(requestGroupBySet);
+                        // for group by Cloud services, we need to find all the services and
+                        // stitch with expenses in Cost component
+                        final List<BaseApiDTO> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
+                                getDiscoveredServiceDTO() : Collections.emptyList();
 
-                    stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
-                            .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot,
-                                    finalTargets,
-                                    typeFunction,
-                                    valueFunction,
-                                    cloudServiceDTOs))
-                            .collect(Collectors.toList()));
+                        stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
+                                .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot,
+                                        finalTargets,
+                                        typeFunction,
+                                        valueFunction,
+                                        cloudServiceDTOs))
+                                .collect(Collectors.toList()));
+                    } else if (isDefaultCloudGroupUuid || fullMarketRequest) {
+                        stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
+                                .map(statsMapper::toCloudStatSnapshotApiDTO)
+                                .collect(Collectors.toList()));
+                    }
                 } else {
                     stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
                             .map(statsMapper::toStatSnapshotApiDTO)
@@ -463,6 +492,15 @@ public class StatsService implements IStatsService {
 
         // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
+    }
+
+    // It seems there is no easy way to distinguish top down (expense) or bottom up (cost) requests.
+    // Since both using {"statistics":[{"name":"costPrice" ...
+    // Now, it seems following group by are top down requests.
+    private boolean isTopDownRequest(final Set<String> requestGroupBySet) {
+        return requestGroupBySet.contains(TARGET)
+                || requestGroupBySet.contains(CSP)
+                || requestGroupBySet.contains(CLOUD_SERVICE);
     }
 
     // Search discovered Cloud services.
@@ -515,7 +553,7 @@ public class StatsService implements IStatsService {
      */
     private boolean isCostStats(@Nonnull final String uuid,
                                 @Nonnull final StatPeriodApiInputDTO inputDto) {
-        return MARKET.equals(uuid) && inputDto.getStatistics() != null && inputDto.getStatistics()
+        return inputDto.getStatistics() != null && inputDto.getStatistics()
                 .stream()
                 .anyMatch(dto -> COST_PRICE.equals(dto.getName()));
     }
@@ -543,6 +581,12 @@ public class StatsService implements IStatsService {
             throw new IllegalArgumentException("Cluster uuid is invalid: " + uuid);
         }
         return false;
+    }
+
+    // check if the UUID is a predefined default Cloud group
+    private boolean isDefaultCloudGroupUuid(@Nonnull final String uuid) {
+        return DefaultCloudGroupProducer.getDefaultCloudGroup().stream()
+            .anyMatch(group -> group.getUuid().equals(uuid));
     }
 
     private Optional<PlanInstance> getRequestedPlanInstance(@Nonnull final StatScopesApiInputDTO inputDto) {
@@ -1092,15 +1136,6 @@ public class StatsService implements IStatsService {
         } else {
             return Optional.empty();
         }
-    }
-
-    // helper method to check if
-    private static boolean isGroupBy(final StatPeriodApiInputDTO inputDto, final String groupBy) {
-        return inputDto.getStatistics().stream()
-                .anyMatch(statApiInputDTO ->
-                        statApiInputDTO.getGroupBy() == null ? false :
-                                statApiInputDTO.getGroupBy().stream().anyMatch(name ->
-                                        groupBy.equalsIgnoreCase(name)));
     }
 
     private Set<String> parseGroupBy(final StatPeriodApiInputDTO inputDto) {

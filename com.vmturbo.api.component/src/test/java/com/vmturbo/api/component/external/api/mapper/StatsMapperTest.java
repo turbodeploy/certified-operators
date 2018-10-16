@@ -551,7 +551,7 @@ public class StatsMapperTest {
 
     }
 
-    public void verifyFilters(final String csp, final String aws) {
+    private void verifyFilters(final String csp, final String aws) {
         String[] postfixes = {"A", "B", "C"};
         String[] relations = {RelationType.COMMODITIES.getLiteral(),
                 RelationType.COMMODITIESBOUGHT.getLiteral(),
@@ -591,6 +591,39 @@ public class StatsMapperTest {
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getValue().equals(aws))));
+    }
+
+    @Test
+    public void testToCloudStatSnapshotApiDTO() throws Exception{
+        String[] postfixes = {"A", "B", "C"};
+        String[] relations = {RelationType.COMMODITIES.getLiteral(),
+                RelationType.COMMODITIESBOUGHT.getLiteral(),
+                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+
+        // Arrange
+        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
+                .addAllStatRecords(buildStatRecords(postfixes, relations))
+                .build();
+
+        TargetApiDTO targetApiDTO1 = new TargetApiDTO();
+        targetApiDTO1.setUuid(PUID+"A");
+        TargetApiDTO targetApiDTO2 = new TargetApiDTO();
+        targetApiDTO2.setUuid(PUID+"B");
+
+        TargetApiDTO targetApiDTO3 = new TargetApiDTO();
+        targetApiDTO3.setUuid(PUID+"C");
+        // ImmutableList.of(targetApiDTO1, targetApiDTO2, targetApiDTO3);
+
+        // Act
+        StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(testSnapshot);
+        // Assert
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, testSnapshot.getStatRecordsCount());
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() == null ));
     }
 
     private void verifyMappedStatRecord(StatRecord test,

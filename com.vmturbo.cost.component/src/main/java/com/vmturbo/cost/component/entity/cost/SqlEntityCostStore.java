@@ -36,7 +36,7 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * {@inheritDoc}
  */
-public class SQLEntityCostStore implements EntityCostStore {
+public class SqlEntityCostStore implements EntityCostStore {
 
     private final DSLContext dsl;
 
@@ -44,7 +44,7 @@ public class SQLEntityCostStore implements EntityCostStore {
 
     private final int chunkSize;
 
-    public SQLEntityCostStore(@Nonnull final DSLContext dsl,
+    public SqlEntityCostStore(@Nonnull final DSLContext dsl,
                               @Nonnull final Clock clock,
                               final int chunkSize) {
         this.dsl = Objects.requireNonNull(dsl);
@@ -88,13 +88,13 @@ public class SQLEntityCostStore implements EntityCostStore {
                     // Bind values to the batch insert statement. Each "bind" should have values for
                     // all fields set during batch initialization.
                     chunk.forEach(entityCost -> entityCost.getComponentCostList()
-                        .forEach(componentCost ->
-                            batch.bind(entityCost.getAssociatedEntityId(),
-                            curTime,
-                            entityCost.getAssociatedEntityType(),
-                            componentCost.getCategory().getNumber(),
-                            entityCost.getTotalAmount().getCurrency(),
-                            BigDecimal.valueOf(componentCost.getAmount().getAmount()))));
+                            .forEach(componentCost ->
+                                    batch.bind(entityCost.getAssociatedEntityId(),
+                                            curTime,
+                                            entityCost.getAssociatedEntityType(),
+                                            componentCost.getCategory().getNumber(),
+                                            entityCost.getTotalAmount().getCurrency(),
+                                            BigDecimal.valueOf(componentCost.getAmount().getAmount()))));
 
                     // Actually execute the batch insert.
                     batch.execute();
@@ -119,36 +119,36 @@ public class SQLEntityCostStore implements EntityCostStore {
             // TODO (roman, Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
             // committed data).
             Iterators.partition(costJournals.values().iterator(), chunkSize)
-                .forEachRemaining(chunk -> dsl.transaction(transaction -> {
-                    final DSLContext transactionContext = DSL.using(transaction);
-                    // Initialize the batch.
-                    final BatchBindStep batch = transactionContext.batch(
-                            //have to provide dummy values for jooq
-                            dsl.insertInto(ENTITY_COST)
-                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
-                                    .set(ENTITY_COST.CREATED_TIME, curTime)
-                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
-                                    .set(ENTITY_COST.COST_TYPE, 0)
-                                    .set(ENTITY_COST.CURRENCY, 0)
-                                    .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
+                    .forEachRemaining(chunk -> dsl.transaction(transaction -> {
+                        final DSLContext transactionContext = DSL.using(transaction);
+                        // Initialize the batch.
+                        final BatchBindStep batch = transactionContext.batch(
+                                //have to provide dummy values for jooq
+                                dsl.insertInto(ENTITY_COST)
+                                        .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
+                                        .set(ENTITY_COST.CREATED_TIME, curTime)
+                                        .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
+                                        .set(ENTITY_COST.COST_TYPE, 0)
+                                        .set(ENTITY_COST.CURRENCY, 0)
+                                        .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
 
-                    // Bind values to the batch insert statement. Each "bind" should have values for
-                    // all fields set during batch initialization.
-                    chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
-                        final double categoryCost = journal.getHourlyCostForCategory(costType);
-                        batch.bind(journal.getEntity().getOid(),
-                                curTime,
-                                journal.getEntity().getEntityType(),
-                                costType.getNumber(),
-                                // TODO (roman, Sept 5 2018): Not handling currency in cost
-                                // calculation yet.
-                                CurrencyAmount.getDefaultInstance().getCurrency(),
-                                BigDecimal.valueOf(categoryCost));
+                        // Bind values to the batch insert statement. Each "bind" should have values for
+                        // all fields set during batch initialization.
+                        chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
+                            final double categoryCost = journal.getHourlyCostForCategory(costType);
+                            batch.bind(journal.getEntity().getOid(),
+                                    curTime,
+                                    journal.getEntity().getEntityType(),
+                                    costType.getNumber(),
+                                    // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                    // calculation yet.
+                                    CurrencyAmount.getDefaultInstance().getCurrency(),
+                                    BigDecimal.valueOf(categoryCost));
+                        }));
+
+                        // Actually execute the batch insert.
+                        batch.execute();
                     }));
-
-                    // Actually execute the batch insert.
-                    batch.execute();
-                }));
 
         } catch (DataAccessException e) {
             throw new DbException("Failed to persist entity costs to DB" + e.getMessage());
@@ -174,7 +174,7 @@ public class SQLEntityCostStore implements EntityCostStore {
         try {
             return constructEntityCostMap(dsl
                     .selectFrom(ENTITY_COST)
-                    .where(ENTITY_COST.CREATED_TIME.between(endDate, startDate))
+                    .where(ENTITY_COST.CREATED_TIME.between(startDate, endDate))
                     .fetch());
         } catch (DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB" + e.getMessage());
@@ -217,6 +217,23 @@ public class SQLEntityCostStore implements EntityCostStore {
                     .selectFrom(ENTITY_COST)
                     .where(ENTITY_COST.CREATED_TIME.between(startDate, endDate))
                     .and(ENTITY_COST.ASSOCIATED_ENTITY_ID.in(entityIds))
+                    .fetch());
+        } catch (DataAccessException e) {
+            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Map<Long, Map<Long, EntityCost>> getLatestEntityCost() throws DbException {
+        try {
+            return constructEntityCostMap(dsl
+                    .selectFrom(ENTITY_COST)
+                    .where(ENTITY_COST.CREATED_TIME.eq(dsl.select(ENTITY_COST.CREATED_TIME
+                            .max())
+                            .from(ENTITY_COST)))
                     .fetch());
         } catch (DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB" + e.getMessage());

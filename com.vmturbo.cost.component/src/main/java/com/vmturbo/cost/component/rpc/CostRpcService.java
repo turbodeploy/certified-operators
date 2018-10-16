@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
+import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.sql.utils.DbException;
 
@@ -51,23 +53,61 @@ import com.vmturbo.sql.utils.DbException;
  */
 public class CostRpcService extends CostServiceImplBase {
 
-    private static final String ERR_MSG = "Invalid discount deletion input: No associated account ID or discount ID specified";
-    private static final String NO_ASSOCIATED_ACCOUNT_ID_OR_DISCOUNT_INFO_PRESENT = "No discount info present.";
-    private static final String INVALID_ARGUMENTS_FOR_DISCOUNT_UPDATE = "Invalid arguments for discount update";
-    private static final String CREATING_A_DISCOUNT_WITH_ASSOCIATED_ACCOUNT_ID = "Creating a discount: {} with associated account id: {}";
-    private static final String DELETING_A_DISCOUNT = "Deleting a discount {}: {}";
-    private static final String UPDATING_A_DISCOUNT = "Updating a discount: {}";
-    private static final String FAILED_TO_UPDATE_DISCOUNT = "Failed to update discount ";
-    private static final String FAILED_TO_FIND_THE_UPDATED_DISCOUNT = "Failed to find the updated discount";
-    private static final Logger logger = LogManager.getLogger();
+    /**
+     *  Cloud service constant to match UI request, also used in test cases
+     */
     public static final String CLOUD_SERVICE = "cloudService";
+
+    /**
+     * Cloud service provider constant to match UI request, also used in test cases
+     */
     public static final String CSP = "CSP";
+
+    /**
+     * Cloud target constant to match UI request, also used in test case
+     */
     public static final String TARGET = "target";
-    private static final Set SUPPORT_GROUP_BY = ImmutableSet.of(CLOUD_SERVICE, CSP, TARGET);
+
+    /**
+     * Cloud cost price constant to match UI request, also used in test case
+     */
     public static final String COST_PRICE = "costPrice";
 
+    /**
+     * Cloud workload constant to match UI request, also used in test case
+     */
+    public static final String WORKLOAD = "workload";
+
+    /**
+     * Cloud VM constant to match UI request, also used in test case
+     */
+    public static final String VIRTUAL_MACHINE = "VirtualMachine";
+
+    private static final String ERR_MSG = "Invalid discount deletion input: No associated account ID or discount ID specified";
+
+    private static final String NO_ASSOCIATED_ACCOUNT_ID_OR_DISCOUNT_INFO_PRESENT = "No discount info present.";
+
+    private static final String INVALID_ARGUMENTS_FOR_DISCOUNT_UPDATE = "Invalid arguments for discount update";
+
+    private static final String CREATING_A_DISCOUNT_WITH_ASSOCIATED_ACCOUNT_ID = "Creating a discount: {} with associated account id: {}";
+
+    private static final String DELETING_A_DISCOUNT = "Deleting a discount {}: {}";
+
+    private static final String UPDATING_A_DISCOUNT = "Updating a discount: {}";
+
+    private static final String FAILED_TO_UPDATE_DISCOUNT = "Failed to update discount ";
+
+    private static final String FAILED_TO_FIND_THE_UPDATED_DISCOUNT = "Failed to find the updated discount";
+
+    private static final Logger logger = LogManager.getLogger();
+
+    private static final Set SUPPORT_GROUP_BY = ImmutableSet.of(CLOUD_SERVICE, CSP, TARGET);
+
     private final DiscountStore discountStore;
+
     private final AccountExpensesStore accountExpensesStore;
+
+    private final EntityCostStore entityCostStore;
 
 
     /**
@@ -76,9 +116,12 @@ public class CostRpcService extends CostServiceImplBase {
      * @param discountStore        The store containing account discounts
      * @param accountExpensesStore The store containing account expenses
      */
-    public CostRpcService(@Nonnull final DiscountStore discountStore, final AccountExpensesStore accountExpensesStore) {
+    public CostRpcService(@Nonnull final DiscountStore discountStore,
+                          @Nonnull final AccountExpensesStore accountExpensesStore,
+                          @Nonnull final EntityCostStore costStoreHouse) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
+        this.entityCostStore = Objects.requireNonNull(costStoreHouse);
     }
 
     /**
@@ -247,22 +290,76 @@ public class CostRpcService extends CostServiceImplBase {
     @Override
     public void getAveragedEntityStats(GetAveragedEntityStatsRequest request,
                                        StreamObserver<StatSnapshot> responseObserver) {
-
         final StatsFilter filter = request.getFilter();
-        final Optional<String> groupByOptional = getGroupByType(filter);
+
+        final Optional<String> relatedEntityType = getRelatedEntityType(filter);
+        if (CLOUD_SERVICE.equals(relatedEntityType.orElse(null))) {
+            final Optional<String> groupByOptional = getGroupByType(filter);
+            processCloudServiceStats(request, responseObserver, filter, groupByOptional);
+        } else if (WORKLOAD.equals(relatedEntityType.orElse(null))
+                || VIRTUAL_MACHINE.equals(relatedEntityType.orElse(null))) {
+            processBottomUpCostStats(request, responseObserver, filter);
+        } else {
+            responseOnError(request, responseObserver);
+        }
+    }
+
+    // perform bottom up cost stats retrieval.
+    private void processBottomUpCostStats(@Nonnull final GetAveragedEntityStatsRequest request,
+                                          @Nonnull final StreamObserver<StatSnapshot> responseObserver,
+                                          @Nonnull final StatsFilter filter) {
+        try {
+            final Map<Long, Map<Long, EntityCost>> snapshoptToEntityCostMap =
+                    (filter.hasStartDate() && filter.hasEndDate()) ?
+                            entityCostStore.getEntityCosts(getLocalDateTime(filter.getStartDate())
+                                    , getLocalDateTime(filter.getEndDate())) :
+                            entityCostStore.getLatestEntityCost();
+
+            snapshoptToEntityCostMap.forEach((time, costsByEntity) -> {
+                        final Builder snapshotBuilder = StatSnapshot.newBuilder();
+                        snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(time));
+                        costsByEntity.values().forEach(entityCost -> {
+                            entityCost.getComponentCostList().forEach(serviceExpenses -> {
+                                        final float amount = (float) serviceExpenses.getAmount().getAmount();
+                                        // build the record for this stat (commodity type)
+                                        final StatRecord statRecord = buildStatRecord(
+                                                entityCost.getAssociatedEntityId()
+                                                , amount);
+                                        // return add this record to the snapshot for this timestamp
+                                        snapshotBuilder.addStatRecords(statRecord);
+                                    }
+                            );
+                        });
+                        responseObserver.onNext(snapshotBuilder.build());
+                    }
+            );
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            logger.error("Error getting stats snapshots for {}", request);
+            logger.error("    ", e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
+                            + e.getMessage())
+                    .asException());
+        }
+
+    }
+
+    // perform top down account expense stat retrieval
+    private void processCloudServiceStats(@Nonnull final GetAveragedEntityStatsRequest request,
+                                          @Nonnull final StreamObserver<StatSnapshot> responseObserver,
+                                          @Nonnull final StatsFilter filter, final Optional<String> groupByOptional) {
         groupByOptional.ifPresent(groupByType -> {
                     try {
                         final Map<Long, Map<Long, AccountExpenses>> snapshoptToAccountExpensesMap =
                                 (filter.hasStartDate() && filter.hasEndDate()) ?
-                                accountExpensesStore.getAccountExpenses(getLocalDateTime(filter.getStartDate())
-                                        , getLocalDateTime(filter.getEndDate())) :
-                                accountExpensesStore.getAccountLatestExpenses();
-
+                                        accountExpensesStore.getAccountExpenses(getLocalDateTime(filter.getStartDate())
+                                                , getLocalDateTime(filter.getEndDate())) :
+                                        accountExpensesStore.getLatestExpenses();
                         createStatSnapshots(snapshoptToAccountExpensesMap, groupByType)
-                                .map(StatSnapshot.Builder::build)
+                                .map(Builder::build)
                                 .forEach(responseObserver::onNext);
                         responseObserver.onCompleted();
-
                     } catch (Exception e) {
                         logger.error("Error getting stats snapshots for {}", request);
                         logger.error("    ", e);
@@ -274,11 +371,15 @@ public class CostRpcService extends CostServiceImplBase {
                 }
         );
         if (!groupByOptional.isPresent()) {
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("The request includes unsupported group by type: " + request
-                            + ", currently only group by CSP, CloudService and target (Account) are supported")
-                    .asException());
+            responseOnError(request, responseObserver);
         }
+    }
+
+    private void responseOnError(final @Nonnull GetAveragedEntityStatsRequest request, final @Nonnull StreamObserver<StatSnapshot> responseObserver) {
+        responseObserver.onError(Status.INTERNAL
+                .withDescription("The request includes unsupported group by type: " + request
+                        + ", currently only group by CSP, CloudService and target (Account) are supported")
+                .asException());
     }
 
 
@@ -289,6 +390,17 @@ public class CostRpcService extends CostServiceImplBase {
         if (f.apply(CLOUD_SERVICE)) return Optional.of(CLOUD_SERVICE);
         if (f.apply(CSP)) return Optional.of(CSP);
         if (f.apply(TARGET)) return Optional.of(TARGET);
+        return Optional.empty();
+
+    }
+
+    // get related entity type
+    private Optional<String> getRelatedEntityType(@Nonnull final StatsFilter filter) {
+        final Function<String, Boolean> f = s -> filter.getCommodityRequestsList().stream().anyMatch(commodityRequest ->
+                commodityRequest.getRelatedEntityType().equalsIgnoreCase(s));
+        if (f.apply(CLOUD_SERVICE)) return Optional.of(CLOUD_SERVICE);
+        if (f.apply(WORKLOAD)) return Optional.of(WORKLOAD);
+        if (f.apply(VIRTUAL_MACHINE)) return Optional.of(VIRTUAL_MACHINE);
         return Optional.empty();
 
     }

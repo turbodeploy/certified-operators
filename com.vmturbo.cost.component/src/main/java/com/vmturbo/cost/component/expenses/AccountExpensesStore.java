@@ -68,7 +68,7 @@ public interface AccountExpensesStore {
      * @return Map with entry (timestamp -> (associatedAccountId -> AccountExpenses))
      * @throws DbException if anything goes wrong in the database
      */
-    Map<Long, Map<Long, Cost.AccountExpenses>> getAccountLatestExpenses() throws DbException;
+    Map<Long, Map<Long, Cost.AccountExpenses>> getLatestExpenses() throws DbException;
 
         /**
      * Delete account expense by associated account id.

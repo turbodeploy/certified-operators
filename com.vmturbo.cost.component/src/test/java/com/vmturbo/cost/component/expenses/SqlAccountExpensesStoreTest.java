@@ -108,7 +108,7 @@ public class SqlAccountExpensesStoreTest {
 
         clock.changeInstant(clock.instant().plusMillis(1000));
         expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID, accountExpensesInfo);
-        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getAccountLatestExpenses();
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getLatestExpenses();
         assertEquals(1, accountExpenses1.size());
         assertEquals(ASSOCIATED_ACCOUNT_ID, accountExpenses1.values().stream()
                 .findFirst()

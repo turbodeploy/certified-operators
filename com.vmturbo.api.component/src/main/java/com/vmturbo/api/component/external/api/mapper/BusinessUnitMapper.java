@@ -53,21 +53,32 @@ import com.vmturbo.repository.api.RepositoryClient;
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
  * {@link BusinessUnitApiDTO} and {@link BusinessUnitPriceAdjustmentApiDTO}.
+ * Note: XL currently only support discount type, and seems account abstraction is not yet needed.
+ *
+ * @Todo: consider adding business unit abstraction to handle CRUD operations, when supporting other business unit types.
  */
 public class BusinessUnitMapper {
 
-    private static final float COST_PRICE = 0.0f;
-    private static final String ADDRESS = "address";
+    private static final String TARGET_ADDRESS = "address";
+
     private static final String FAILED_TO_GET_TARGET_NAME_FROM_TARGET = "Failed to get target name from target: ";
+
     private static final String REPOSITORY_CANNOT_RESOLVE_OIDS = "Repository cannot resolve oids: ";
+
     private static final String FAILED_TO_GET_TARGET_INFORMATION_BY_TARGET_ORIGIN_ID = "Failed to get target information by target originId: ";
+
     private static final double ZERO = 0.0;
+
     private static final Logger logger = LogManager.getLogger();
+
     private static final Set<Integer> TIER_TYPES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE,
             EntityType.DATABASE_TIER_VALUE,
             EntityType.STORAGE_TIER_VALUE);
-    private static final String WORKLOAD = "Workload";
+
+    // business unit workload member type
+    private static final String WORKLOAD_MEMBER_TYPE = "Workload";
+
     private final long realtimeTopologyContextId;
 
     private final Set SUPPORTED_CLOUD_TYPE = ImmutableSet.of("AWS", "AZURE");
@@ -118,11 +129,11 @@ public class BusinessUnitMapper {
         businessUnitApiDTO.setCostPrice(0.0f);
         // TODO provide severity for this business account
         businessUnitApiDTO.setSeverity(Severity.NORMAL.name());
-        // It's not clear if new business account can have many members.
-        // It seems it's always 0 in legacy for new business discount unit.
+        // It's not clear if business account can have many members.
+        // It seems it's always 0 in legacy for business discount unit.
         businessUnitApiDTO.setMembersCount(0);
-        // It seems it's always "workload" type in legacy for new business discount unit.
-        businessUnitApiDTO.setMemberType(WORKLOAD);
+        // It seems it's always "workload" type in legacy for business discount unit.
+        businessUnitApiDTO.setMemberType(WORKLOAD_MEMBER_TYPE);
         return businessUnitApiDTO;
     }
 
@@ -466,11 +477,11 @@ public class BusinessUnitMapper {
         businessUnitApiDTO.setBudget(new StatApiDTO());
 
         // TODO set cost
-        businessUnitApiDTO.setCostPrice(COST_PRICE);
+        businessUnitApiDTO.setCostPrice(0.0f);
         // discovered account doesn't have discount (yet)
-        businessUnitApiDTO.setDiscount(COST_PRICE);
+        businessUnitApiDTO.setDiscount(0.0f);
 
-        businessUnitApiDTO.setMemberType(WORKLOAD);
+        businessUnitApiDTO.setMemberType(WORKLOAD_MEMBER_TYPE);
         final List<ConnectedEntity> accounts = topologyEntityDTO.getConnectedEntityListList().stream()
                 .filter(entity -> entity.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
                 .collect(Collectors.toList());
@@ -511,7 +522,7 @@ public class BusinessUnitMapper {
             final TargetApiDTO targetApiDTO = targetsService.getTarget(String.valueOf(targetId));
             targetApiDTO.setType(cloudType.name());
             targetApiDTO.setDisplayName(targetApiDTO.getInputFields().stream()
-                    .filter(apiDTO -> apiDTO.getName().equalsIgnoreCase(ADDRESS))
+                    .filter(apiDTO -> apiDTO.getName().equalsIgnoreCase(TARGET_ADDRESS))
                     .findFirst()
                     .orElseThrow(() -> new MissingTargetNameException(FAILED_TO_GET_TARGET_NAME_FROM_TARGET + targetApiDTO)).getValue());
             return targetApiDTO;

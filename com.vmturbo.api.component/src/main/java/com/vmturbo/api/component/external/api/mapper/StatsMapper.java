@@ -34,6 +34,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
@@ -103,6 +104,11 @@ public class StatsMapper {
         StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_DISCOUNT
     );
     private static final String UNKNOWN = "UNKNOWN";
+
+    /**
+     * Cloud cost component constant, a filter type for bottom-up cost
+     */
+    private static final String COST_COMPONENT = "costComponent";
 
     private final PaginationMapper paginationMapper;
 
@@ -211,7 +217,19 @@ public class StatsMapper {
                                                @Nonnull final Function<TargetApiDTO, String> typeFunction,
                                                @Nonnull final Function<TargetApiDTO, String> valueFunction,
                                                @Nonnull final List<BaseApiDTO> cloudServiceDTOs) {
-        final StatApiDTO statApiDTO = toStatApiDto(statRecord);
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName(statRecord.getName());
+        statApiDTO.setUnits(statRecord.getUnits());
+
+        // The "values" should be equivalent to "used".
+        statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
+        statApiDTO.setValue(statRecord.getUsed().getAvg());
+
+        final BaseApiDTO provider = new BaseApiDTO();
+        provider.setDisplayName(statRecord.getProviderDisplayName());
+        provider.setUuid(statRecord.getProviderUuid());
+
+        statApiDTO.setRelatedEntity(provider);
 
         // Build filters
         final List<StatFilterApiDTO> filters = new ArrayList<>();
@@ -236,7 +254,8 @@ public class StatsMapper {
     private Optional<String> popluateCloudServiceName(@Nonnull final List<BaseApiDTO> finalCloudServiceOids,
                                                       @Nonnull final StatApiDTO statApiDTO) {
        return finalCloudServiceOids.stream()
-               .filter(service -> service.getUuid().equals(statApiDTO.getRelatedEntity().getUuid()))
+               .filter(service -> statApiDTO.getRelatedEntity() != null
+                       && service.getUuid().equals(statApiDTO.getRelatedEntity().getUuid()))
                .map(baseApiDTO -> baseApiDTO.getDisplayName())
                .findFirst();
     }
@@ -622,5 +641,32 @@ public class StatsMapper {
         return relatedType.equals(EntityType.CLUSTER.getClsName()) ||
                 relatedType.equals(EntityType.DATA_CENTER.getClsName())?
                 EntityType.PHYSICAL_MACHINE.getClsName() : relatedType;
+    }
+
+    /**
+     * Convert Cloud related stat snap shot to StatSnapshotApiDTO
+     * @param statSnapshot stat snap shot
+     * @return StatSnapshotApiDTO
+     */
+    public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final StatSnapshot statSnapshot) {
+        final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
+        if (statSnapshot.hasSnapshotDate()) {
+            dto.setDate(statSnapshot.getSnapshotDate());
+        }
+        dto.setStatistics(statSnapshot.getStatRecordsList().stream()
+                .map(statRecord -> {
+                    final StatApiDTO statApiDTO = new StatApiDTO();
+                    statApiDTO.setName(statRecord.getName());
+                    statApiDTO.setUnits(statRecord.getUnits());
+
+                    // The "values" should be equivalent to "used".
+                    statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
+                    statApiDTO.setValue(statRecord.getUsed().getAvg());
+
+                    return statApiDTO;
+                })
+                .collect(Collectors.toList()));
+        return dto;
+
     }
 }

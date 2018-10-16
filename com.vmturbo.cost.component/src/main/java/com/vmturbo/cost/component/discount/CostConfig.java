@@ -9,30 +9,32 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.expenses.SqlAccountExpensesStore;
 import com.vmturbo.cost.component.rpc.CostRpcService;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class})
+@Import({SQLDatabaseConfig.class,
+        IdentityProviderConfig.class,
+        DiscountConfig.class,
+        EntityCostConfig.class})
 public class CostConfig {
-
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    private DiscountConfig discountConfig;
+
+    @Autowired
+    private EntityCostConfig entityCostConfig;
+
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
-
-
-    @Bean
-    public DiscountStore discountStore() {
-        return new SQLDiscountStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
-    }
 
     @Bean
     public AccountExpensesStore accountExpensesStore() {
@@ -43,6 +45,8 @@ public class CostConfig {
 
     @Bean
     public CostRpcService costRpcService() {
-        return new CostRpcService(discountStore(), accountExpensesStore());
+        return new CostRpcService(discountConfig.discountStore(),
+                accountExpensesStore(),
+                entityCostConfig.entityCostStore());
     }
 }

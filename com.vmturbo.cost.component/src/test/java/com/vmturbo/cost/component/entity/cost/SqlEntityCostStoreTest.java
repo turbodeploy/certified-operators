@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.entity.cost;
 
 import static junit.framework.TestCase.assertTrue;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -76,7 +76,7 @@ public class SqlEntityCostStoreTest {
     @Autowired
     protected TestSQLDatabaseConfig dbConfig;
     private Flyway flyway;
-    private SQLEntityCostStore store;
+    private SqlEntityCostStore store;
     private DSLContext dsl;
 
     /**
@@ -91,7 +91,7 @@ public class SqlEntityCostStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
-        store = new SQLEntityCostStore(dsl, clock, 1);
+        store = new SqlEntityCostStore(dsl, clock, 1);
     }
 
     @Test
@@ -102,7 +102,7 @@ public class SqlEntityCostStoreTest {
 
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(now, now.minusHours(1l));
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(now.minusHours(1l), now);
         validateResults(results, 1, 2, 2);
 
         // clean up
@@ -134,13 +134,29 @@ public class SqlEntityCostStoreTest {
 
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(now, now.minusHours(1l));
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(now.minusHours(1l), now);
         validateResults(results, 2, 2, 2);
 
         // clean up
         store.cleanEntityCosts(now);
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
 
+    }
+
+    @Test
+    public void testGetLatestEntityCost() throws DbException, InvalidEntityCostsException, InterruptedException {
+
+        // insert
+        saveCostsWithTwoTimeStamps();
+
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        Map<Long, Map<Long, EntityCost>> results = store.getLatestEntityCost();
+        validateResults(results, 1, 2, 2);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
     }
 
     @Test
@@ -160,17 +176,17 @@ public class SqlEntityCostStoreTest {
         assertThat(entityCost.getComponentCostCount(), is(2));
         assertThat(entityCost.getComponentCostList(), containsInAnyOrder(
                 ComponentCost.newBuilder()
-                    .setCategory(CostCategory.COMPUTE)
-                    .setAmount(CurrencyAmount.newBuilder()
-                            .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
-                            .setAmount(7.0))
-                    .build(),
+                        .setCategory(CostCategory.COMPUTE)
+                        .setAmount(CurrencyAmount.newBuilder()
+                                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                                .setAmount(7.0))
+                        .build(),
                 ComponentCost.newBuilder()
-                    .setCategory(CostCategory.LICENSE)
-                    .setAmount(CurrencyAmount.newBuilder()
-                            .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
-                            .setAmount(3.0))
-                    .build()));
+                        .setCategory(CostCategory.LICENSE)
+                        .setAmount(CurrencyAmount.newBuilder()
+                                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                                .setAmount(3.0))
+                        .build()));
     }
 
     private CostJournal<TopologyEntityDTO> mockCostJournal(final long entityId, final int entityType,
@@ -184,15 +200,15 @@ public class SqlEntityCostStoreTest {
         when(journal.getCategories()).thenReturn(costsByCategory.keySet());
         for (final CostCategory category : CostCategory.values()) {
             when(journal.getHourlyCostForCategory(category))
-                .thenReturn(costsByCategory.getOrDefault(category, 0.0));
+                    .thenReturn(costsByCategory.getOrDefault(category, 0.0));
         }
         return journal;
     }
 
     private void validateResults(final Map<Long, Map<Long, EntityCost>> map
-                                , final int expectedSizeOfEntries
-                                , final int expectedSizeOfEntityCosts
-                                , final int expectedSizeOfComponentCosts) {
+            , final int expectedSizeOfEntries
+            , final int expectedSizeOfEntityCosts
+            , final int expectedSizeOfComponentCosts) {
         // ensure have expected entries (timestamps)
         assertEquals(expectedSizeOfEntries, map.size());
 
@@ -223,7 +239,7 @@ public class SqlEntityCostStoreTest {
         store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1));
     }
 
-    private void saveCostsWithTwoTimeStamps() throws DbException, InvalidEntityCostsException, InterruptedException {
+    private void saveCostsWithTwoTimeStamps() throws DbException, InvalidEntityCostsException {
         store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1));
         clock.changeInstant(clock.instant().plusMillis(1000));
         store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1));

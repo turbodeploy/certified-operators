@@ -32,7 +32,7 @@ public class EntityCostConfig {
 
     @Bean
     public EntityCostStore entityCostStore() {
-        return new SQLEntityCostStore(databaseConfig.dsl(), Clock.systemUTC(), persistEntityCostChunkSize);
+        return new SqlEntityCostStore(databaseConfig.dsl(), Clock.systemUTC(), persistEntityCostChunkSize);
     }
 
     @Bean

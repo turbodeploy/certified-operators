@@ -178,7 +178,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
     public Map<Long, Map<Long, Cost.AccountExpenses>> getAccountExpenses(@Nonnull final LocalDateTime startDate,
                                                                          @Nonnull final LocalDateTime endDate) throws DbException {
         try {
-            return constructEntityCostMap(dsl
+            return constructExpensesMap(dsl
                     .selectFrom(ACCOUNT_EXPENSES)
                     .where(ACCOUNT_EXPENSES.SNAPSHOT_TIME.between(startDate, endDate))
                     .fetch());
@@ -191,9 +191,9 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
      * {@inheritDoc}
      */
     @Override
-    public Map<Long, Map<Long, Cost.AccountExpenses>> getAccountLatestExpenses() throws DbException {
+    public Map<Long, Map<Long, Cost.AccountExpenses>> getLatestExpenses() throws DbException {
         try {
-            return constructEntityCostMap(dsl
+            return constructExpensesMap(dsl
                     .selectFrom(ACCOUNT_EXPENSES)
                     .where(ACCOUNT_EXPENSES.SNAPSHOT_TIME.eq(dsl.select(ACCOUNT_EXPENSES.SNAPSHOT_TIME
                             .max())
@@ -208,10 +208,10 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
      * Construct Account expense map. Key is timestamp in long, Values are Map of AccountId -> AccountExpense
      * It will first group the records by timestamp, and combine the account expense with same id.
      *
-     * @param accountExpensesRecords entity cost records in db
+     * @param accountExpensesRecords account expense records in db
      * @return Account expenses map, key is timestamp in long, values are Map of AccountId -> AccountExpense.
      */
-    private Map<Long, Map<Long, Cost.AccountExpenses>> constructEntityCostMap(final Result<AccountExpensesRecord> accountExpensesRecords) {
+    private Map<Long, Map<Long, Cost.AccountExpenses>> constructExpensesMap(final Result<AccountExpensesRecord> accountExpensesRecords) {
         final Map<Long, Map<Long, Cost.AccountExpenses>> records = new HashMap<>();
         accountExpensesRecords.forEach(expense -> {
             final Map<Long, Cost.AccountExpenses> costsForTimestamp = records

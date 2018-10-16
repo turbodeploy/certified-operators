@@ -55,6 +55,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntit
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -323,6 +324,45 @@ public class StatsServiceTest {
 
         verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
         verify(costServiceSpy, never()).getAveragedEntityStats(any());
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostBottomUpWorkload() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setRelatedEntityType("Workload");
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder().build())
+                        .build())
+                .build();
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
+                .thenReturn(request);
+
+        when(costServiceSpy.getAveragedEntityStats(any()))
+                .thenReturn(ImmutableList.of(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
+
+        when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+
+        final List<StatSnapshotApiDTO> resp = statsService
+                .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
+
+        verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
+        verify(costServiceSpy).getAveragedEntityStats(any());
+        verify(statsMapper).toCloudStatSnapshotApiDTO(any());
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets(null);
+        assertEquals(1, resp.size());
     }
 
     public void verifyCall(final GetAveragedEntityStatsRequest request, final StatPeriodApiInputDTO inputDto) throws Exception {

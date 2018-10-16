@@ -59,4 +59,14 @@ public interface EntityCostStore {
     Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final Set<Long> entityIds,
                                                     @Nonnull final LocalDateTime startDate,
                                                     @Nonnull final LocalDateTime endDate) throws DbException;
+
+    /**
+     * Get the latest entity cost.
+     * It returns Map with entry (timestamp -> (associatedEntityId -> EntityCost)).
+     * In a timestamp/snapshot, the entity cost with same ids will be combined to one entity cost.
+     *
+     * @return Map with entry (timestamp -> (associatedEntityId -> EntityCost))
+     * @throws DbException if anything goes wrong in the database
+     */
+    Map<Long,Map<Long,EntityCost>> getLatestEntityCost() throws DbException;
 }

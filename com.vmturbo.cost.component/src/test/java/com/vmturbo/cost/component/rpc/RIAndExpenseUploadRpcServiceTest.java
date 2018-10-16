@@ -28,14 +28,17 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
-import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
+import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
-import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountQueryFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -49,6 +52,7 @@ import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
+import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -56,12 +60,13 @@ import com.vmturbo.sql.utils.DbException;
 @SuppressWarnings("unchecked")
 public class RIAndExpenseUploadRpcServiceTest {
 
-    public static final long ASSOCIATED_ACCOUNT_ID = 1111l;
-    public static final double DISCOUNT_PERCENTAGE2 = 20.0;
-    public static final double DISCOUNT_PERCENTAGE1 = 10.0;
+    public static final double ACCOUNT_EXPENSE1 = 10.0;
+    private static final long ASSOCIATED_ACCOUNT_ID = 1111l;
+    private static final double DISCOUNT_PERCENTAGE2 = 20.0;
+    private static final double DISCOUNT_PERCENTAGE1 = 10.0;
     private static final long id = 1234L;
     private static final long id2 = 1235L;
-    public static final long ASSOCIATED_SERVICE_ID = 4l;
+    private static final long ASSOCIATED_SERVICE_ID = 4l;
     final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
@@ -74,7 +79,6 @@ public class RIAndExpenseUploadRpcServiceTest {
                     .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
                     .build())
             .build();
-
     final DiscountInfo discountInfo2 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
@@ -112,8 +116,6 @@ public class RIAndExpenseUploadRpcServiceTest {
                     .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
                     .build())
             .build();
-
-
     final DiscountInfo discountInfo5 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
@@ -130,8 +132,6 @@ public class RIAndExpenseUploadRpcServiceTest {
                     .newBuilder()
                     .putDiscountPercentageByTierId(id, DISCOUNT_PERCENTAGE1))
             .build();
-
-
     final DiscountInfo discountInfoAccountOnly1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
@@ -140,7 +140,6 @@ public class RIAndExpenseUploadRpcServiceTest {
                     .build())
             .setDisplayName("testname")
             .build();
-
     final DiscountInfo discountInfoServiceAndTierOnly1 = DiscountInfo.newBuilder()
             .setServiceLevelDiscount(DiscountInfo
                     .ServiceLevelDiscount
@@ -152,9 +151,6 @@ public class RIAndExpenseUploadRpcServiceTest {
                     .newBuilder()
                     .putDiscountPercentageByTierId(id, DISCOUNT_PERCENTAGE1))
             .build();
-
-    public static final double ACCOUNT_EXPENSE1 = 10.0;
-
     final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
@@ -162,16 +158,28 @@ public class RIAndExpenseUploadRpcServiceTest {
                     .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).build())
                     .build())
             .build();
-
+    private final int ASSOCIATED_ENTITY_TYPE1 = 1;
+    private final ComponentCost componentCost = ComponentCost.newBuilder()
+            .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
+            .setCategory(CostCategory.COMPUTE)
+            .build();
+    private final EntityCost entityCost = EntityCost.newBuilder()
+            .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
+            .addComponentCost(componentCost)
+            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
+            .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
+            .build();
     public DiscountStore discountStore = mock(DiscountStore.class);
 
     public AccountExpensesStore accountExpenseStore = mock(AccountExpensesStore.class);
+
+    public EntityCostStore entityCostStore = mock(EntityCostStore.class);
 
     private CostRpcService costRpcService;
 
     @Before
     public void setUp() {
-        costRpcService = new CostRpcService(discountStore, accountExpenseStore);
+        costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore);
     }
 
     @Test
@@ -534,10 +542,11 @@ public class RIAndExpenseUploadRpcServiceTest {
     public void testGetAveragedEntityStatsGroupByCSP() throws Exception {
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy(CostRpcService.CSP).build())
+                        .addGroupBy(CostRpcService.CSP)
+                        .setRelatedEntityType(CostRpcService.CLOUD_SERVICE).build())
                         .build())
                 .build();
-        performTest(request,2);
+        performTest(request, 2);
     }
 
     @Test
@@ -547,17 +556,19 @@ public class RIAndExpenseUploadRpcServiceTest {
                         .setStartDate(1l)
                         .setEndDate(2l)
                         .addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy(CostRpcService.TARGET).build())
+                                .setRelatedEntityType(CostRpcService.CLOUD_SERVICE)
+                                .addGroupBy(CostRpcService.TARGET).build())
                         .build())
                 .build();
-        performTest(request,2 );
+        performTest(request, 2);
     }
 
     @Test
     public void testGetAveragedEntityStatsGroupByCloudService() throws Exception {
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy(CostRpcService.CLOUD_SERVICE).build())
+                        .addGroupBy(CostRpcService.CLOUD_SERVICE)
+                        .setRelatedEntityType(CostRpcService.CLOUD_SERVICE).build())
                         .build())
                 .build();
         performTest(request, 4);
@@ -567,7 +578,7 @@ public class RIAndExpenseUploadRpcServiceTest {
     public void testGetAveragedEntityStatsGroupByUnknown() throws Exception {
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy("unknown").build())
+                        .addGroupBy("unknown").setRelatedEntityType(CostRpcService.CLOUD_SERVICE).build())
                         .build())
                 .build();
 
@@ -592,8 +603,53 @@ public class RIAndExpenseUploadRpcServiceTest {
                         .setAccountExpensesInfo(accountExpensesInfo)
                         .build());
         final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
-        given(accountExpenseStore.getAccountLatestExpenses()).willReturn(snapshotToAccountExpensesMap);
+        given(accountExpenseStore.getLatestExpenses()).willReturn(snapshotToAccountExpensesMap);
         given(accountExpenseStore.getAccountExpenses(any(), any())).willReturn(snapshotToAccountExpensesMap);
+        final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder().setName(CostRpcService.COST_PRICE);
+        final Builder snapshotBuilder = StatSnapshot.newBuilder();
+        snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(1));
+
+        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setProviderUuid(String.valueOf(providerId));
+        StatValue.Builder statValueBuilder = StatValue.newBuilder();
+
+        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
+
+        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
+
+        // currentValue
+        statRecordBuilder.setCurrentValue((float) ACCOUNT_EXPENSE1);
+
+        StatValue statValue = statValueBuilder.build();
+
+        statRecordBuilder.setValues(statValue);
+        statRecordBuilder.setUsed(statValue);
+        statRecordBuilder.setPeak(statValue);
+
+        snapshotBuilder.addStatRecords(statRecordBuilder.build());
+        costRpcService.getAveragedEntityStats(request, mockObserver);
+        verify(mockObserver).onNext(snapshotBuilder.build());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
+    public void testGetAveragedEntityStatsWithWorkload() throws Exception {
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .setRelatedEntityType(CostRpcService.WORKLOAD).build())
+                        .build())
+                .build();
+        performEntityCostTest(request, 4);
+    }
+
+    private void performEntityCostTest(final GetAveragedEntityStatsRequest request, int providerId) throws DbException {
+        final StreamObserver<StatSnapshot> mockObserver =
+                mock(StreamObserver.class);
+        final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2l,
+                entityCost);
+        final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
+        given(entityCostStore.getLatestEntityCost()).willReturn(snapshotToAccountExpensesMap);
+        given(entityCostStore.getEntityCosts(any(), any())).willReturn(snapshotToAccountExpensesMap);
         final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder().setName(CostRpcService.COST_PRICE);
         final Builder snapshotBuilder = StatSnapshot.newBuilder();
         snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(1));
