@@ -189,14 +189,14 @@ public class Analysis {
         this.projectedTopologyId = IdentityGenerator.next();
         this.groupServiceClient = groupServiceClient;
         this.clock = Objects.requireNonNull(clock);
-        this.converter = new TopologyConverter(topologyInfo,
-                analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor());
         this.config = analysisConfig;
-
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.topologyCostCalculator = cloudCostCalculator;
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
-        this.marketPriceTable = priceTableFactory.newPriceTable(this.originalCloudTopology);
+        MarketPriceTable marketPriceTable = priceTableFactory.newPriceTable(this.originalCloudTopology);
+        this.marketPriceTable = marketPriceTable;
+        this.converter = new TopologyConverter(topologyInfo,
+                                               analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(), marketPriceTable);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()

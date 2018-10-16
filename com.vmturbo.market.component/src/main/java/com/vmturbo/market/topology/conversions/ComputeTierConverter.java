@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -36,17 +37,11 @@ public class ComputeTierConverter implements TierConverter {
     CommodityConverter commodityConverter;
     CostDTOCreator costDTOCreator;
 
-    ComputeTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter) {
-        this.topologyInfo = topologyInfo;
-        this.commodityConverter = commodityConverter;
-        this.costDTOCreator = new CostDTOCreator(commodityConverter, new CostLibrary());
-    }
-
     ComputeTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
-                         CostLibrary costLibrary) {
+                         @Nonnull CostDTOCreator costDTOCreator) {
         this.topologyInfo = topologyInfo;
         this.commodityConverter = commodityConverter;
-        this.costDTOCreator = new CostDTOCreator(commodityConverter, costLibrary);
+        this.costDTOCreator = costDTOCreator;
     }
 
     /**

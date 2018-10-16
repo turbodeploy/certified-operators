@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.checkerframework.checker.units.qual.m;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -102,6 +103,7 @@ public class ScopedTopologyTest {
 
     private GroupServiceBlockingStub groupServiceClient;
     Analysis testAnalysis;
+    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
@@ -152,7 +154,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyCluster1() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -170,7 +172,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -189,7 +191,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -209,7 +211,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable);
         // add an additional VM, which should be considered unplaced
         topologyDTOs.add(TopologyEntityDTO.newBuilder()
                 .setDisplayName("VM-unplaced")

@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -65,25 +66,6 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
 
-    CloudTopologyConverter(
-            @Nonnull Map<Long, TopologyEntityDTO> topology, @Nonnull TopologyInfo topologyInfo,
-            @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
-            @Nonnull CommodityConverter commodityConverter,
-            @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts) {
-        this.topology = topology;
-        this.topologyInfo = topologyInfo;
-        this.commodityConverter = commodityConverter;
-        this.pmBasedBicliquer = pmBasedBicliquer;
-        this.dsBasedBicliquer = dsBasedBicliquer;
-        this.azToRegionMap = azToRegionMap;
-        this.businessAccounts = businessAccounts;
-        computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter);
-        storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter);
-        dbTierConverter = new DatabaseTierConverter(topologyInfo);
-        converterMap = Collections.unmodifiableMap(createConverterMap());
-    }
-
     /**
      * This constructor will be used by tests. Mock converters can be passed in.
      */
@@ -93,15 +75,16 @@ public class CloudTopologyConverter {
              @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
-             @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull CostLibrary costLibrary) {
+             @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable) {
          this.topology = topology;
          this.topologyInfo = topologyInfo;
          this.commodityConverter = commodityConverter;
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
-         this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costLibrary);
-         this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costLibrary);
+         CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
+         this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
          this.dbTierConverter = new DatabaseTierConverter(topologyInfo);
          this.businessAccounts = businessAccounts;
          converterMap = Collections.unmodifiableMap(createConverterMap());
