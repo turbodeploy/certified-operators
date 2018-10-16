@@ -4,6 +4,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.cloud.IEntityConverter;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -37,6 +40,13 @@ public class AvailabilityZoneConverter implements IEntityConverter {
         // discard any commodities bought and sold
         entity.clearCommoditiesBought();
         entity.clearCommoditiesSold();
+
+        // sell ZONE access commodity, whose key is az id
+        entity.addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.ZONE)
+                .setKey(entity.getId())
+                .setCapacity(ConverterUtils.DEFAULT_ACCESS_COMMODITY_CAPACITY)
+                .build());
 
         return true;
     }

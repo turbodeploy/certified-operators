@@ -8,14 +8,17 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -105,6 +108,15 @@ public class AwsCloudDiscoveryConverterTest {
                     .filter(commodityDTO -> commodityDTO.getCommodityType() == CommodityType.LICENSE_ACCESS)
                     .count());
 
+            // check VM buys 1 ZONE commodity from AZ
+            assertEquals(1, newVM.getCommoditiesBoughtList().stream()
+                    .filter(commodityBought -> commodityBought.getProviderType() ==
+                            EntityType.AVAILABILITY_ZONE)
+                    .flatMap(commodityBought -> commodityBought.getBoughtList().stream()
+                            .filter(commodityDTO -> commodityDTO.getCommodityType() == CommodityType.ZONE
+                                    && commodityDTO.getKey().equals(commodityBought.getProviderId())))
+                    .count());
+
             // check 'active' for VM bought commodities not set to false
             newVM.getCommoditiesBoughtList().stream()
                     .flatMap(commodityBought -> commodityBought.getBoughtList().stream())
@@ -115,7 +127,7 @@ public class AwsCloudDiscoveryConverterTest {
             verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
                     EntityType.STORAGE, EntityType.STORAGE_TIER,
                     EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER
-            ));
+            ), ImmutableList.of(EntityType.AVAILABILITY_ZONE));
 
             // check old connected
             assertEquals(0, oldVM.getLayeredOverCount());
@@ -189,7 +201,7 @@ public class AwsCloudDiscoveryConverterTest {
 
             // check providers changed
             verifyProvidersChanged(oldDBS, newDBS, ImmutableMap.of(
-                    EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER_TIER));
+                    EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER_TIER), Collections.emptyList());
 
             // connected to AZ
             assertEquals(0, oldDBS.getLayeredOverCount());
@@ -375,9 +387,11 @@ public class AwsCloudDiscoveryConverterTest {
             // check az not removed
             assertTrue(converter.convert(newEntity, awsConverter));
 
-            // check no commodities
+            // check no bought commodities
             assertEquals(0, newEntity.getCommoditiesBoughtCount());
-            assertEquals(0, newEntity.getCommoditiesSoldCount());
+            // check 1 sold commodity which is ZONE
+            assertEquals(1, newEntity.getCommoditiesSoldCount());
+            assertEquals(CommodityType.ZONE, newEntity.getCommoditiesSold(0).getCommodityType());
 
             // check no connected to
             assertEquals(0, newEntity.getLayeredOverCount());
@@ -488,11 +502,12 @@ public class AwsCloudDiscoveryConverterTest {
      * Verify that the commodity providers are changed to new types.
      */
     private static void verifyProvidersChanged(EntityDTO oldEntity, EntityDTO.Builder newEntity,
-            Map<EntityType, EntityType> oldToNewProviderTypeMapping) {
-        Object[] newProviderTypes = TestUtils.getOldProviderTypes(oldEntity, awsConverter).stream()
-                .map(entityType -> oldToNewProviderTypeMapping.getOrDefault(entityType, entityType))
-                .toArray();
-        assertThat(TestUtils.getNewProviderTypes(newEntity, awsConverter), containsInAnyOrder(newProviderTypes));
+            Map<EntityType, EntityType> oldToNewProviderTypeMapping,
+            List<EntityType> newEntityTypesWithNoMapping) {
+        Object[] expectedNewProviderTypes = Stream.concat(TestUtils.getOldProviderTypes(oldEntity, awsConverter).stream()
+                        .map(entityType -> oldToNewProviderTypeMapping.getOrDefault(entityType, entityType)),
+                newEntityTypesWithNoMapping.stream()).toArray();
+        assertThat(TestUtils.getNewProviderTypes(newEntity, awsConverter), containsInAnyOrder(expectedNewProviderTypes));
     }
 
     /**
