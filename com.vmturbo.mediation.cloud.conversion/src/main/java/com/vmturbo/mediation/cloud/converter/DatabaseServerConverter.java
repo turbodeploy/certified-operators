@@ -38,7 +38,7 @@ public class DatabaseServerConverter implements IEntityConverter {
             return false;
         }
 
-        // aws: change provider from fake VM to DatabaseTier
+        // aws: change provider from fake VM to DatabaseServerTier
         List<CommodityBought> newCommodityBoughtList = entity.getCommoditiesBoughtList().stream()
                 .map(commodityBought -> {
                     CommodityBought.Builder cbBuilder = commodityBought.toBuilder();
@@ -56,9 +56,9 @@ public class DatabaseServerConverter implements IEntityConverter {
                                 .ifPresent(c -> entity.addLayeredOver(c.getProviderId()));
 
 
-                        // change commodity provider from VM to DT
+                        // change commodity provider from VM to DST
                         cbBuilder.setProviderId(entity.getProfileId());
-                        cbBuilder.setProviderType(EntityType.DATABASE_TIER);
+                        cbBuilder.setProviderType(EntityType.DATABASE_SERVER_TIER);
                     }
 
                     return cbBuilder.build();
