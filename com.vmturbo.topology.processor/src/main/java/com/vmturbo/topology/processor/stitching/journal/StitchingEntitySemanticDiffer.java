@@ -278,9 +278,10 @@ public class StitchingEntitySemanticDiffer implements SemanticDiffer<StitchingEn
         }
 
         private Map<StitchingEntityIdentifier, List<CommodityDTO>> boughtMap(@Nonnull final StitchingEntity entity) {
-            return entity.getCommoditiesBoughtByProvider().entrySet().stream()
+            return entity.getCommodityBoughtListByProvider().entrySet().stream()
                 .collect(Collectors.toMap(entry ->
                         new StitchingEntityIdentifier(entry.getKey()), entry -> entry.getValue().stream()
+                        .flatMap(cb -> cb.getBoughtList().stream())
                         .map(Builder::build)
                         .collect(Collectors.toList())));
         }

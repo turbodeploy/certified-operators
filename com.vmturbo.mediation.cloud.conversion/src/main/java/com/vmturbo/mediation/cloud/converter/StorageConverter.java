@@ -14,6 +14,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Cloud Storages each represent a combination of storage tier + availability zone. We don't
@@ -23,6 +24,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * tiers when converting the VMs and other consumers.
  */
 public class StorageConverter implements IEntityConverter {
+
+    private SDKProbeType probeType;
+
+    public StorageConverter(@Nonnull SDKProbeType probeType) {
+        this.probeType = probeType;
+    }
 
     @Override
     public boolean convert(@Nonnull EntityDTO.Builder entity, @Nonnull CloudDiscoveryConverter converter) {
@@ -36,14 +43,47 @@ public class StorageConverter implements IEntityConverter {
 
         final EntityDTO.Builder storageTierEntity = converter.getNewEntityBuilder(storageTierId);
 
-        // find the related region and connect StorageTier to it
+        // find az
         entity.getCommoditiesSoldList().stream()
                 .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
-                .map(commodity -> converter.getRegionIdFromAzId(CloudDiscoveryConverter.keyToUuid(commodity.getKey())))
-                .forEach(regionId -> {
+                .map(commodityDTO -> CloudDiscoveryConverter.keyToUuid(commodityDTO.getKey()))
+                .findAny()
+                .ifPresent(azId -> {
+                    // connect storage tier to region
+                    final String regionId = converter.getRegionIdFromAzId(azId);
                     if (!storageTierEntity.getLayeredOverList().contains(regionId)) {
                         storageTierEntity.addLayeredOver(regionId);
                     }
+
+                    // set up connected relationship from volume to storage tier and az
+                    // these are wasted files which are currently only for aws probe
+                    String regionName = CloudDiscoveryConverter.getRegionNameFromAzId(azId);
+                    entity.getStorageData().getFileList().forEach(file ->
+                        converter.getVolumeId(regionName, file.getPath()).ifPresent(volumeId -> {
+                            // get volume
+                            EntityDTO.Builder volume = converter.getNewEntityBuilder(volumeId);
+
+                            if (probeType == SDKProbeType.AWS) {
+                                // connect to AZ for aws
+                                if (!volume.getLayeredOverList().contains(azId)) {
+                                    volume.addLayeredOver(azId);
+                                }
+                            } else if (probeType == SDKProbeType.AZURE) {
+                                // connect to region for azure
+                                if (!volume.getLayeredOverList().contains(regionId)) {
+                                    volume.addLayeredOver(regionId);
+                                }
+                            }
+
+                            // connect to storage tier
+                            if (!volume.getLayeredOverList().contains(storageTierId)) {
+                                volume.addLayeredOver(storageTierId);
+                            }
+
+                            // volume owned by business account
+                            converter.ownedByBusinessAccount(volumeId);
+                        })
+                    );
                 });
 
         // merge commodities sold from storage into storage tier

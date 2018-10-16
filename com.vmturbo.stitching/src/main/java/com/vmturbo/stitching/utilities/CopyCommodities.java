@@ -132,28 +132,35 @@ public class CopyCommodities {
     private static void copyCommoditiesBought(@Nonnull final StitchingEntity source,
                                               @Nonnull final StitchingEntity destination,
                                               @Nullable Collection<CommodityBoughtMetadata>
-                                                      commBoughtMetaData)
-    {
-        final Map<StitchingEntity, List<CommodityDTO.Builder>> destinationBought =
-                destination.getCommoditiesBoughtByProvider();
+                                                      commBoughtMetaData) {
+        final Map<StitchingEntity, List<CommoditiesBought>> destinationBought =
+                destination.getCommodityBoughtListByProvider();
 
-        if (source.getCommoditiesBoughtByProvider().isEmpty()) {
+        if (source.getCommodityBoughtListByProvider().isEmpty()) {
             logger.warn("Attempting to copy commodities from {} when it has no commodities to copy. " +
                     "Was this entity already removed from the topology?", source);
         }
 
         // iterate over providers in the source and copy the commodities there over to destination
         // subject to the boughtMetaData Map.
-        source.getCommoditiesBoughtByProvider().forEach((provider, commoditiesBought) ->
-                destinationBought.put(provider, mergeCommoditiesBought(commoditiesBought,
-                        destinationBought.get(provider),
-                        commBoughtMetaData == null ? Optional.empty()
-                                : commBoughtMetaData.stream()
-                                .filter(m -> m.getProviderType() == provider.getEntityType())
-                                .findFirst()
-                                .map(CommodityBoughtMetadata::getCommodityMetadataList)
-                        ,
-                        commBoughtMetaData != null)));
+        source.getCommodityBoughtListByProvider().forEach((provider, commodityBoughtList) -> {
+            final Optional<Collection<CommodityType>> commodityMetaData =
+                    commBoughtMetaData == null ? Optional.empty() : commBoughtMetaData.stream()
+                            .filter(m -> m.getProviderType() == provider.getEntityType())
+                            .findFirst()
+                            .map(CommodityBoughtMetadata::getCommodityMetadataList);
+            final List<CommoditiesBought> cbList = commodityBoughtList.stream()
+                    .map(commodityBought -> {
+                        Optional<CommoditiesBought> cb = destination.getMatchingCommoditiesBought(
+                                provider, commodityBought);
+                        List<CommodityDTO.Builder> commoditiesBought = mergeCommoditiesBought(
+                                commodityBought.getBoughtList(),
+                                cb.isPresent() ? cb.get().getBoughtList() : null,
+                                commodityMetaData, commBoughtMetaData != null);
+                        return new CommoditiesBought(commoditiesBought, commodityBought.getVolumeId());
+                    }).collect(Collectors.toList());
+            destinationBought.put(provider, cbList);
+        });
     }
 
     /**

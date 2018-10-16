@@ -9,7 +9,6 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
-import com.vmturbo.stitching.utilities.DeleteCommodities;
 
 /**
  * Stitch a physical machine discovered by a fabric probe with the corresponding physical machine
@@ -49,9 +48,7 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
 
         fabricDatacenter.ifPresent(fabricDC ->
             resultBuilder.queueChangeRelationships(fabricPM,
-                    toUpdate -> DeleteCommodities
-                            .deleteCommoditiesBoughtFromProvider(fabricDC,
-                                    toUpdate)));
+                    toUpdate -> toUpdate.removeProvider(fabricDC)));
 
         logger.debug("Stitching UCS PM {} with hypervisor PM {}",
                 fabricPM.getDisplayName(), hypervisorPM.getDisplayName());

@@ -45,7 +45,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AWS));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
         converters.put(EntityType.REGION, new RegionConverter());
-        converters.put(EntityType.STORAGE, new StorageConverter());
+        converters.put(EntityType.STORAGE, new StorageConverter(SDKProbeType.AWS));
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
@@ -117,6 +117,12 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "aws::" + region + "::DC::" + region;
+    }
+
+    @Nonnull
+    @Override
+    public Optional<String> getVolumeIdFromStorageFilePath(@Nonnull String regionName, @Nonnull String filePath) {
+        return Optional.of("aws::" + regionName + "::VL::" + filePath);
     }
 
     @Nonnull

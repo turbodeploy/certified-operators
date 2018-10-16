@@ -21,6 +21,7 @@ message TypeSpecificInfo {
         PhysicalMachineInfo physical_machine = 14;
         DatabaseInfo database = 46;
         ComputeTierInfo compute_tier = 56;
+        VirtualVolumeInfo virtual_volume = 60;
     }
 
     message VirtualMachineInfo {
@@ -67,6 +68,18 @@ message TypeSpecificInfo {
 
         // Engine
         optional .common_dto.DatabaseEngine engine = 2;
+    }
+
+    // specific data for virtual volume
+    message VirtualVolumeInfo {
+        // float iops capacity of volume needed for cost calculations
+        optional float storage_access_capacity = 1;
+
+        // float storage capacity (MB) of volume needed for cost calculations
+        optional float storage_amount_capacity = 2;
+
+        // String identifying the replication type needed for cost calculations
+        optional .common_dto.EntityDTO.VirtualVolumeData.RedundancyType redundancy_type = 3;
     }
 }
 
@@ -129,6 +142,10 @@ message TopologyEntityDTO {
         // If unset, the movable value for an entity will be calculated based on its entityType from
         // the list of movable types in AnalysisUtil.
         optional bool movable = 4;
+
+        // id of the volume which is associated with this set of bought commodities, it is used to
+        // support volumes in the cloud
+        optional int64 volume_id = 5;
     }
 
     // entity state

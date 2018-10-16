@@ -39,12 +39,13 @@ public class AzureConversionProbeTest {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 9 different entity types in new topology
-        assertEquals(9, entitiesByType.size());
+        // verify there are 10 different entity types in new topology
+        assertEquals(10, entitiesByType.size());
 
         // check each changed entity
         assertEquals(2, entitiesByType.get(EntityType.DATABASE).size());
         assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(91, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
         assertEquals(6, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(216, entitiesByType.get(EntityType.COMPUTE_TIER).size());
@@ -70,11 +71,12 @@ public class AzureConversionProbeTest {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 8 different entity types in new topology
-        assertEquals(8, entitiesByType.size());
+        // verify there are 9 different entity types in new topology
+        assertEquals(9, entitiesByType.size());
 
         // check each changed entity
         assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
         assertEquals(6, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(210, entitiesByType.get(EntityType.COMPUTE_TIER).size());

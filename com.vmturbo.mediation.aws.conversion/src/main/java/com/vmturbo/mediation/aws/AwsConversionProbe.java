@@ -34,16 +34,24 @@ public class AwsConversionProbe extends AwsProbe {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * List of new cloud entity types to create supply chain node for, which don't exist in
-     * original AWS probe discovery response.
+     * List of new cloud entity types to create supply chain nodes for, which don't exist in
+     * original AWS probe supply chain definition.
      */
-    private static Set<EntityType> NEW_SUPPLY_CHAIN_NODE_ENTITY_TYPES = ImmutableSet.of(
+    private static Set<EntityType> NEW_SHARED_ENTITY_TYPES = ImmutableSet.of(
             EntityType.CLOUD_SERVICE,
             EntityType.COMPUTE_TIER,
             EntityType.STORAGE_TIER,
             EntityType.DATABASE_SERVER_TIER,
             EntityType.AVAILABILITY_ZONE,
             EntityType.REGION
+    );
+
+    /**
+     * List of new non-shared cloud entity types to create supply chain nodes for, which don't
+     * exist in original AWS probe supply chain definition.
+     */
+    private static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
+            EntityType.VIRTUAL_VOLUME
     );
 
     @Nonnull
@@ -79,22 +87,31 @@ public class AwsConversionProbe extends AwsProbe {
     public Set<TemplateDTO> getSupplyChainDefinition() {
         final Set<TemplateDTO> sc = Sets.newHashSet();
 
-        // add stitching metadata for PM (AZ) and DC (Region)
-        super.getSupplyChainDefinition().stream()
-                .map(templateDTO -> templateDTO.getTemplateClass() == EntityType.BUSINESS_ACCOUNT ?
-                        templateDTO.toBuilder()
-                                .setMergedEntityMetaData(createMergedEntityMetadata())
-                                .build() : templateDTO
-                ).forEach(sc::add);
+        // add stitching metadata for existing nodes (BUSINESS_ACCOUNT)
+        for (TemplateDTO templateDTO : super.getSupplyChainDefinition()) {
+            if (templateDTO.getTemplateClass() == EntityType.BUSINESS_ACCOUNT) {
+                sc.add(templateDTO.toBuilder()
+                        .setMergedEntityMetaData(createMergedEntityMetadata())
+                        .build());
+            } else {
+                sc.add(templateDTO);
+            }
+        }
 
-        // create supply chain node and add stitching metadata for new cloud entity types
-        NEW_SUPPLY_CHAIN_NODE_ENTITY_TYPES.stream()
-                .map(entityType ->
-                        new SupplyChainNodeBuilder()
-                            .entity(entityType)
-                            .mergedBy(createMergedEntityMetadata())
-                            .buildEntity())
-                .forEach(sc::add);
+        // create supply chain nodes for new shared entities and add stitching metadata
+        for (EntityType entityType : NEW_SHARED_ENTITY_TYPES) {
+            sc.add(new SupplyChainNodeBuilder()
+                    .entity(entityType)
+                    .mergedBy(createMergedEntityMetadata())
+                    .buildEntity());
+        }
+
+        // create supply chain nodes for new non-shared entities
+        for (EntityType entityType : NEW_NON_SHARED_ENTITY_TYPES) {
+            sc.add(new SupplyChainNodeBuilder()
+                    .entity(entityType)
+                    .buildEntity());
+        }
 
         return sc;
     }

@@ -53,22 +53,10 @@
       "bought": [
         {
           "commodityType": "MEM"
-        }
-      ],
-      "providerType": "PHYSICAL_MACHINE"
-    },
-    {
-      "providerId": "OpenStackSDK:hp-dl386.eng.vmturbo.com:PM:hp-dl380.eng.vmturbo.com",
-      "bought": [
+        },
         {
           "commodityType": "CPU"
-        }
-      ],
-      "providerType": "PHYSICAL_MACHINE"
-    },
-    {
-      "providerId": "OpenStackSDK:hp-dl386.eng.vmturbo.com:PM:hp-dl380.eng.vmturbo.com",
-      "bought": [
+        },
         {
           "commodityType": "BALLOONING",
           "active": false

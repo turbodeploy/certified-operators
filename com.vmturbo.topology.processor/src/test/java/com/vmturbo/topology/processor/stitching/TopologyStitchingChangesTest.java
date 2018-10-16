@@ -37,9 +37,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.stitching.StitchingMergeInformation;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
-import com.vmturbo.stitching.utilities.MergeEntities;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
@@ -142,7 +142,8 @@ public class TopologyStitchingChangesTest {
         assertThat(entity3.getConsumers(), is(empty()));
 
         new UpdateEntityRelationshipsChange(entity5, toUpdate ->
-            entity5.putProviderCommodities(entity3, Collections.singletonList(cpuMHz().build().toBuilder())))
+            entity5.addProviderCommodityBought(entity3,
+                    new CommoditiesBought(Collections.singletonList(cpuMHz().build().toBuilder()))))
             .applyChange(new StitchingJournal<>());
         assertThat(entity5.getProviders(), containsInAnyOrder(entity2, entity3));
         assertThat(entity3.getConsumers(), contains(entity5));
@@ -337,9 +338,10 @@ public class TopologyStitchingChangesTest {
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         merge.applyChange(new StitchingJournal<>());
 
-        assertThat(entity3.getCommoditiesBoughtByProvider().get(entity1).stream()
-            .map(Builder::getCommodityType)
-            .collect(Collectors.toList()), containsInAnyOrder(CommodityType.CPU, CommodityType.MEM));
+        assertThat(entity3.getCommodityBoughtListByProvider().get(entity1).stream()
+                .flatMap(commodityBought -> commodityBought.getBoughtList().stream())
+                .map(Builder::getCommodityType)
+                .collect(Collectors.toList()), containsInAnyOrder(CommodityType.CPU, CommodityType.MEM));
     }
 
     @Test

@@ -220,14 +220,15 @@ public class StitchingTestUtils {
                     .map(Builder::build)
                     .collect(Collectors.toList()));
 
-                e.getCommoditiesBoughtByProvider().forEach((provider, commodities) -> {
-                    final CommodityBought.Builder boughtBuilder = CommodityBought.newBuilder()
-                        .setProviderId(provider.getLocalId())
-                        .addAllBought(commodities.stream()
-                            .map(CommodityDTO.Builder::build)
-                            .collect(Collectors.toList()));
-
-                    builder.addCommoditiesBought(boughtBuilder);
+                e.getCommodityBoughtListByProvider().forEach((provider, commodityBoughtList) -> {
+                    commodityBoughtList.forEach(commodityBought -> {
+                        final CommodityBought.Builder boughtBuilder = CommodityBought.newBuilder()
+                                .setProviderId(provider.getLocalId())
+                                .addAllBought(commodityBought.getBoughtList().stream()
+                                        .map(CommodityDTO.Builder::build)
+                                        .collect(Collectors.toList()));
+                        builder.addCommoditiesBought(boughtBuilder);
+                    });
                 });
 
                 return builder.build();
@@ -249,7 +250,7 @@ public class StitchingTestUtils {
             @SuppressWarnings("unchecked")
             public boolean matches(Object o) {
                 final StitchingEntity entity = (StitchingEntity) o;
-                for (StitchingEntity provider : entity.getCommoditiesBoughtByProvider().keySet()) {
+                for (StitchingEntity provider : entity.getCommodityBoughtListByProvider().keySet()) {
                     if (providerOid.equals(provider.getLocalId())) {
                         return true;
                     }

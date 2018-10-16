@@ -20,12 +20,11 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.journal.StitchingEntitySemanticDiffer;
 
 /**
@@ -57,7 +56,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
      */
     private List<StitchingMergeInformation> mergeInformation;
 
-    private final Map<StitchingEntity, List<CommodityDTO.Builder>> commoditiesBoughtByProvider = new IdentityHashMap<>();
+    private final Map<StitchingEntity, List<CommoditiesBought>> commodityBoughtListByProvider = new IdentityHashMap<>();
     private final Set<StitchingEntity> consumers = Sets.newIdentityHashSet();
     private final List<CommoditySold> commoditiesSold = new ArrayList<>();
 
@@ -121,11 +120,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
         // Copy commodities sold
         commoditiesSold.forEach(sold -> copy.commoditiesSold.add(sold.deepCopy()));
 
-        // Copy commoditiesBoughtByProvider
-        commoditiesBoughtByProvider.forEach((provider, commodities) ->
-            copy.commoditiesBoughtByProvider.put(provider, commodities.stream()
-                .map(Builder::clone)
-                .collect(Collectors.toList())));
+        // Copy commodityBoughtListByProvider
+        commodityBoughtListByProvider.forEach((provider, commodityBoughtList) ->
+                copy.commodityBoughtListByProvider.put(provider, commodityBoughtList.stream()
+                        .map(CommoditiesBought::deepCopy)
+                        .collect(Collectors.toList())));
 
         // copy connectedTo
         copy.connectedTo.putAll(connectedTo);
@@ -159,7 +158,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Override
     public Set<StitchingEntity> getProviders() {
-        return commoditiesBoughtByProvider.keySet();
+        return commodityBoughtListByProvider.keySet();
     }
 
     @Override
@@ -188,8 +187,20 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public Map<StitchingEntity, List<CommodityDTO.Builder>> getCommoditiesBoughtByProvider() {
-        return commoditiesBoughtByProvider;
+    public Map<StitchingEntity, List<CommoditiesBought>> getCommodityBoughtListByProvider() {
+        return commodityBoughtListByProvider;
+    }
+
+    @Override
+    public Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull StitchingEntity provider,
+            @Nonnull CommoditiesBought commoditiesBought) {
+        List<CommoditiesBought> commoditiesBoughtList = commodityBoughtListByProvider.get(provider);
+        if (commoditiesBoughtList == null) {
+            return Optional.empty();
+        }
+        return commoditiesBoughtList.stream()
+                .filter(cb -> cb.match(commoditiesBought))
+                .findAny();
     }
 
     public List<CommoditySold> getTopologyCommoditiesSold() {
@@ -197,7 +208,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     public Stream<TopologyStitchingEntity> getTopologyProviders() {
-        return commoditiesBoughtByProvider.keySet().stream().map(e -> (TopologyStitchingEntity)e);
+        return commodityBoughtListByProvider.keySet().stream().map(e -> (TopologyStitchingEntity)e);
     }
 
     public Stream<TopologyStitchingEntity> getTopologyConsumers() {
@@ -220,19 +231,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public Optional<List<CommodityDTO.Builder>> removeProvider(@Nonnull final StitchingEntity entity) {
-        return Optional.ofNullable(commoditiesBoughtByProvider.remove(entity));
+    public Optional<List<CommoditiesBought>> removeProvider(@Nonnull final StitchingEntity entity) {
+        return Optional.ofNullable(commodityBoughtListByProvider.remove(entity));
     }
 
-    public void putProviderCommodities(@Nonnull final StitchingEntity entity,
-                                       @Nonnull final List<CommodityDTO.Builder> commmoditiesBoughtFromProvider) {
+    public void addProviderCommodityBought(@Nonnull final StitchingEntity entity,
+            @Nonnull final CommoditiesBought commoditiesBought) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
 
-        commoditiesBoughtByProvider.put(entity, commmoditiesBoughtFromProvider);
-    }
-
-    public Optional<List<CommodityDTO.Builder>> getProviderCommodities(@Nonnull final StitchingEntity entity) {
-        return Optional.ofNullable(commoditiesBoughtByProvider.get(entity));
+        commodityBoughtListByProvider.computeIfAbsent(entity, k -> new ArrayList<>())
+                .add(commoditiesBought);
     }
 
     public void setCommoditiesSold(@Nonnull final Collection<CommoditySold> commoditiesSold) {
@@ -242,7 +250,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Override
     public boolean hasProvider(@Nonnull final StitchingEntity entity) {
-        return commoditiesBoughtByProvider.containsKey(entity);
+        return commodityBoughtListByProvider.containsKey(entity);
     }
 
     public void clearConsumers() {
@@ -250,7 +258,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     public void clearProviders() {
-        commoditiesBoughtByProvider.clear();
+        commodityBoughtListByProvider.clear();
     }
 
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
@@ -265,7 +273,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return String.format("(%s %s %s %s numConsumers-%d numProviders-%d)",
             getEntityType().name(), getLocalId(), getDisplayName(),
             StitchingMergeInformation.formatOidAndTarget(getOid(), getTargetId()),
-            consumers.size(), commoditiesBoughtByProvider.size());
+            consumers.size(), commodityBoughtListByProvider.size());
     }
 
     /**

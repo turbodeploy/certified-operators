@@ -11,15 +11,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.conversions.Converter;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 
@@ -140,7 +140,7 @@ public class TopologyStitchingGraph {
         final TopologyStitchingEntity entity = getOrCreateStitchingEntity(entityData);
         final EntityDTO.Builder entityDtoBuilder = entityData.getEntityDtoBuilder();
 
-        for (CommodityBought commodityBought : entityDtoBuilder.getCommoditiesBoughtList()) {
+        for (EntityDTO.CommodityBought commodityBought : entityDtoBuilder.getCommoditiesBoughtList()) {
             final String providerId = commodityBought.getProviderId();
             final StitchingEntityData providerData = entityMap.get(providerId);
             if (providerData == null) {
@@ -156,9 +156,26 @@ public class TopologyStitchingGraph {
                     " does not match provider localId value: " + provider.getLocalId());
             }
 
-            entity.putProviderCommodities(provider, commodityBought.getBoughtList().stream()
-                .map(CommodityDTO::toBuilder)
-                .collect(Collectors.toList()));
+            // add commodity bought for this provider, there may be multiple set of commodity
+            // bought from same provider
+            final Long volumeId;
+            if (!commodityBought.hasSubDivision()) {
+                volumeId = null;
+            } else {
+                String volumeLocalId = commodityBought.getSubDivision().getSubDivisionId();
+                StitchingEntityData volumeData = entityMap.get(volumeLocalId);
+                if (volumeData == null) {
+                    throw new IllegalArgumentException("Entity " + entityDtoBuilder +
+                            " is related to volume " + volumeLocalId + " which does not exist.");
+                }
+                volumeId = volumeData.getOid();
+            }
+
+            entity.addProviderCommodityBought(provider, new CommoditiesBought(
+                    commodityBought.getBoughtList().stream()
+                            .map(CommodityDTO::toBuilder)
+                            .collect(Collectors.toList()), volumeId));
+
             provider.addConsumer(entity);
         }
 

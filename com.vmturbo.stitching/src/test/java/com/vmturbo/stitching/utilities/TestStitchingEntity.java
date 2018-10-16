@@ -107,12 +107,18 @@ public class TestStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public Map<StitchingEntity, List<CommodityDTO.Builder>> getCommoditiesBoughtByProvider() {
+    public Map<StitchingEntity, List<CommoditiesBought>> getCommodityBoughtListByProvider() {
         throw new IllegalStateException();
     }
 
     @Override
-    public Optional<List<CommodityDTO.Builder>> removeProvider(@Nonnull StitchingEntity entity) {
+    public Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull StitchingEntity provider,
+            @Nonnull CommoditiesBought commoditiesBought) {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    public Optional<List<CommoditiesBought>> removeProvider(@Nonnull StitchingEntity entity) {
         throw new IllegalStateException();
     }
 

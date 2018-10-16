@@ -6,7 +6,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
-import com.vmturbo.stitching.utilities.DeleteCommodities;
 
 /**
  * Class for stitching a chassis from a fabric probe with the physical machines from the hypervisor
@@ -62,9 +61,7 @@ public class FabricChassisStitchingOperation extends FabricStitchingOperation{
                     // Update the commodities bought on the hypervisorPM to buy from the
                     // fabric-probe discovered chassis
                     .queueChangeRelationships(hypervisorPM,
-                            toUpdate -> DeleteCommodities
-                                    .deleteCommoditiesBoughtFromProvider(hypervisorDatacenter,
-                                            toUpdate));
+                            toUpdate -> toUpdate.removeProvider(hypervisorDatacenter));
         }
     }
 

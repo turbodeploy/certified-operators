@@ -16,6 +16,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.journal.JournalableEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 
 /**
  * An entity capable of being stitched.
@@ -188,8 +189,12 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
                           @Nonnull final Optional<StitchingEntity> accesses);
 
     /**
-     * Get the commodities bought by this entity, indexed by the provider
-     * of those commodities.
+     * Get the commodities bought list by this entity, indexed by the provider of those commodities.
+     * For most cases, there is one set of commodity bought for one provider, but there is use case
+     * that multiple commodity bought exist for same provider.
+     *
+     * For example: cloud VM may buy multiple set of commodities bought from same storage tier,
+     * depending how may volumes are attached to it.
      *
      * Mutations to this map may affect relations with other entities in the topology
      * (ie providers of the commodities in the map may need to be notified of new or removed
@@ -198,19 +203,26 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * Prefer using the appropriate helper utilities in the {@link com.vmturbo.stitching.utilities}
      * package to ensure that updates to commodities are performed appropriately.
      *
-     * TODO: Support the possibility of entities buying multiple groupings of commodities from the
-     * TODO: same provider.
-     *
-     * @return the commodities bought by this entity, indexed by the provider of those commodities.
+     * @return the commodities bought list by this entity, indexed by the provider of those commodities.
      */
-    Map<StitchingEntity, List<CommodityDTO.Builder>> getCommoditiesBoughtByProvider();
+    Map<StitchingEntity, List<CommoditiesBought>> getCommodityBoughtListByProvider();
+
+    /**
+     * Find the matching bought commodities set on this entity based on the provider and
+     * commoditiesBought, since there may be multiple set of CommoditiesBought.
+     *
+     * @param provider the provider from which to find commodity bought
+     * @param commoditiesBought the {@link CommoditiesBought} instance used to match the
+     * CommoditiesBought on this entity
+     * @return matched CommoditiesBought wrapped by Optional, or empty if not existing.
+     */
+    Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull final StitchingEntity provider,
+            @Nonnull CommoditiesBought commoditiesBought);
 
     /**
      * Remove an entity as a provider to this entity. If the provider is successfully
      * removed, returns the {@link List} of all commodities that this entity was
      * buying from the provider that this entity will no longer be buying goods from.
-     *
-     * TODO: Support multiple commodity groupings being bought from the same entity.
      *
      * @param entity The entity providing commodities that this entity should stop
      *               buying commodities from.
@@ -218,7 +230,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *         the list of commodities no longer being bought from the provider. If
      *         the entity was not a provider, returns {@link Optional#empty()}.
      */
-    Optional<List<CommodityDTO.Builder>> removeProvider(@Nonnull final StitchingEntity entity);
+    Optional<List<CommoditiesBought>> removeProvider(@Nonnull final StitchingEntity entity);
 
     /**
      * Check if this entity is providing commodities to another {@link StitchingEntity}.

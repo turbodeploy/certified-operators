@@ -244,14 +244,14 @@ public class SharedStorageIntegrationTest {
         aTree.forEach(entity -> {
             if (entity.getEntityType() != EntityType.STORAGE && entity.getEntityType() != EntityType.DISK_ARRAY) {
                 List<StitchingEntity> providersToRemove = new ArrayList<>();
-                entity.getCommoditiesBoughtByProvider().keySet().forEach(key -> {
+                entity.getCommodityBoughtListByProvider().keySet().forEach(key -> {
                     if (key.getOid() != sharedStorageOid) {
                         providersToRemove.add(key);
                     }
                 });
-                providersToRemove.forEach(provider -> entity.getCommoditiesBoughtByProvider().remove(provider));
+                providersToRemove.forEach(provider -> entity.getCommodityBoughtListByProvider().remove(provider));
 
-                entity.getCommoditiesBoughtByProvider().clear();
+                entity.getCommodityBoughtListByProvider().clear();
                 final TopologyStitchingEntity e = (TopologyStitchingEntity)entity;
                 final List<CommoditySold> commoditiesSold = e.getCommoditiesSold()
                     .filter(commodity -> commodity.getCommodityType().name().toLowerCase().contains("storage"))
@@ -270,12 +270,12 @@ public class SharedStorageIntegrationTest {
         bTree.forEach(entity -> {
             if (entity.getEntityType() != EntityType.STORAGE && entity.getEntityType() != EntityType.DISK_ARRAY) {
                 List<StitchingEntity> providersToRemove = new ArrayList<>();
-                entity.getCommoditiesBoughtByProvider().keySet().forEach(key -> {
+                entity.getCommodityBoughtListByProvider().keySet().forEach(key -> {
                     if (key.getOid() != sharedStorageOid) {
                         providersToRemove.add(key);
                     }
                 });
-                providersToRemove.forEach(provider -> entity.getCommoditiesBoughtByProvider().remove(provider));
+                providersToRemove.forEach(provider -> entity.getCommodityBoughtListByProvider().remove(provider));
 
                 final TopologyStitchingEntity e = (TopologyStitchingEntity)entity;
                 final List<CommoditySold> commoditiesSold = e.getCommoditiesSold()

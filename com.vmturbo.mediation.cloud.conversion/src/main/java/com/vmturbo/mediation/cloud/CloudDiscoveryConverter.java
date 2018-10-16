@@ -17,8 +17,12 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.mediation.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.cloud.util.CloudService;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 
@@ -81,6 +85,7 @@ public class CloudDiscoveryConverter {
      * Pre process the discovery response (mainly entity dtos and profile dtos) to prepare for
      * entity type specific conversion later, such as putting entities into a map by id, etc.
      */
+    @VisibleForTesting
     public void preProcess() {
         // initial loop through entities list, prepare for entity type specific converter later
         discoveryResponseBuilder.getEntityDTOList().forEach(this::preProcessEntityDTO);
@@ -107,7 +112,8 @@ public class CloudDiscoveryConverter {
         } else if (entityType == EntityType.DATACENTER) {
             entityBuilder.setEntityType(EntityType.REGION);
         } else if (entityType == EntityType.STORAGE) {
-            createStorageTier(entityBuilder);
+            createStorageTier(entityDTO);
+            createVolumeFromStorageDTO(entityDTO);
         } else if (entityType == EntityType.BUSINESS_ACCOUNT) {
             // for aws there are two cases, store master account if possible:
             // 1. this aws target is added using sub account (discover sub)
@@ -115,6 +121,9 @@ public class CloudDiscoveryConverter {
             if (businessAccountToOwnEntities == null || entityBuilder.getConsistsOfCount() > 0) {
                 businessAccountToOwnEntities = entityBuilder;
             }
+        } else if (entityType == EntityType.VIRTUAL_MACHINE) {
+            // create volumes based on subDivision data in VM
+            createVolumeFromVmDTO(entityDTO);
         }
 
         // add to map for every entity builder
@@ -142,15 +151,15 @@ public class CloudDiscoveryConverter {
     /**
      * Create StorageTier entity based on the set of cloud storages discovered.
      *
-     * @param storageBuilder the dto builder of the storage to create storage tier for
+     * @param storageDTO the dto of the storage to create storage tier for
      */
-    private void createStorageTier(@Nonnull EntityDTO.Builder storageBuilder) {
+    private void createStorageTier(@Nonnull EntityDTO storageDTO) {
         // we got one -- create a storage tier based on it's storage data
-        if (!storageBuilder.hasStorageData()) {
+        if (!storageDTO.hasStorageData()) {
             return;
         }
 
-        final String storageTier = storageBuilder.getStorageData().getStorageTier();
+        final String storageTier = storageDTO.getStorageData().getStorageTier();
         final String storageTierId = conversionContext.getStorageTierId(storageTier);
         // create new StorageTier if not existing
         newEntityBuildersById.computeIfAbsent(storageTierId, k -> {
@@ -163,6 +172,110 @@ public class CloudDiscoveryConverter {
             allStorageTierIds.add(storageTierId);
             return stBuilder;
         });
+    }
+
+    /**
+     * Create volume based on the subDivision data on vm entity dto, or update if it already exists.
+     *
+     * @param entityDTO dto of the vm based on which to create volume
+     */
+    private void createVolumeFromVmDTO(@Nonnull EntityDTO entityDTO) {
+        entityDTO.getCommoditiesBoughtList().forEach(commodityBought -> {
+            if (!commodityBought.hasSubDivision()) {
+                return;
+            }
+
+            SubDivisionData subDivisionData = commodityBought.getSubDivision();
+            String volumeId = subDivisionData.getSubDivisionId();
+
+            // volume may have been created when processing storage data, update existing fields
+            // if not, then we need to create new volume and set fields
+            final EntityDTO.Builder volume = newEntityBuildersById.computeIfAbsent(volumeId, k ->
+                    EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_VOLUME).setId(volumeId));
+            updateVolumeDTO(volume, subDivisionData);
+        });
+    }
+
+    /**
+     * Update the fields on volume entity dto based on data availability in SubDivisionData.
+     *
+     * @param volume the volume EntityDTO to update
+     * @param subDivisionData the {@link SubDivisionData} object containing volume info
+     */
+    private void updateVolumeDTO(@Nonnull EntityDTO.Builder volume,
+                                 @Nonnull SubDivisionData subDivisionData) {
+        if (subDivisionData.hasDisplayName()) {
+            volume.setDisplayName(subDivisionData.getDisplayName());
+        }
+        VirtualVolumeData.Builder volumeData = volume.getVirtualVolumeData().toBuilder();
+        if (subDivisionData.hasStorageAccessCapacity()) {
+            volumeData.setStorageAccessCapacity(subDivisionData.getStorageAccessCapacity());
+        }
+        if (subDivisionData.hasStorageAmountCapacity()) {
+            volumeData.setStorageAmountCapacity(subDivisionData.getStorageAmountCapacity());
+        }
+        if (subDivisionData.hasRedundancyType()) {
+            try {
+                volumeData.setRedundancyType(RedundancyType.valueOf(
+                        subDivisionData.getRedundancyType()));
+            } catch (IllegalArgumentException e) {
+                logger.error("Unsupported redundancy type: {}", subDivisionData.getRedundancyType());
+            }
+        }
+        volume.setVirtualVolumeData(volumeData.build());
+    }
+
+    /**
+     * Create volume based on the storage file info in the Storage entity dto, if it doesn't exist.
+     * These files are all the volumes provided by this storage, some are used by VMs and have
+     * been created in {@link this::createVolumeFromVmDTO}, the rest are wasted volumes which are
+     * not used by any VMs and thus created here.
+     *
+     * Note: This is currently used by both AWS and Azure probe. The one from Azure may not make
+     * sense, since Azure has a separate storage browsing probe to handle wasted files.
+     *
+     * @param entityDTO the storage entity dto to create volume on
+     */
+    private void createVolumeFromStorageDTO(@Nonnull EntityDTO entityDTO) {
+        // find the related region name for this storage
+        Optional<String> regionName = entityDTO.getCommoditiesSoldList().stream()
+                .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
+                .map(commodity -> getRegionNameFromAzId(keyToUuid(commodity.getKey())))
+                .findAny();
+
+        if (!regionName.isPresent() || !entityDTO.hasStorageData()) {
+            return;
+        }
+
+        entityDTO.getStorageData().getFileList().forEach(file ->
+            conversionContext.getVolumeIdFromStorageFilePath(regionName.get(), file.getPath())
+                    .ifPresent(volumeId ->
+                            newEntityBuildersById.computeIfAbsent(volumeId, k -> {
+                                EntityDTO.Builder volume = EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.VIRTUAL_VOLUME)
+                                        .setId(volumeId)
+                                        .setDisplayName(file.getPath());
+                                VirtualVolumeData.Builder vvData = VirtualVolumeData.newBuilder();
+                                if (file.hasIopsProvisioned()) {
+                                    vvData.setStorageAccessCapacity(file.getIopsProvisioned());
+                                }
+                                if (file.hasSizeKb()) {
+                                    vvData.setStorageAmountCapacity(file.getSizeKb() / 1024);
+                                }
+                                if (file.hasRedundancyType()) {
+                                    try {
+                                        vvData.setRedundancyType(RedundancyType.valueOf(
+                                                file.getRedundancyType()));
+                                    } catch (IllegalArgumentException e) {
+                                        logger.error("Unsupported redundancy type: {}",
+                                                file.getRedundancyType());
+                                    }
+                                }
+                                volume.setVirtualVolumeData(vvData.build());
+                                return volume;
+                            })
+                    )
+        );
     }
 
     /**
@@ -302,6 +415,11 @@ public class CloudDiscoveryConverter {
         return key.split("::", 2)[1];
     }
 
+    @Nonnull
+    public static String getRegionNameFromAzId(@Nonnull String azId) {
+        return azId.split("::")[1];
+    }
+
     /**
      * Get the region id based on the zone id.
      *
@@ -322,5 +440,10 @@ public class CloudDiscoveryConverter {
     @Nonnull
     public String getStorageTierId(@Nonnull String storageTier) {
         return conversionContext.getStorageTierId(storageTier);
+    }
+
+    @Nonnull
+    public Optional<String> getVolumeId(@Nonnull String regionName, @Nonnull String filePath) {
+        return conversionContext.getVolumeIdFromStorageFilePath(regionName, filePath);
     }
 }

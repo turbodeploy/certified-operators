@@ -45,7 +45,7 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));
         converters.put(EntityType.REGION, new RegionConverter());
-        converters.put(EntityType.STORAGE, new StorageConverter());
+        converters.put(EntityType.STORAGE, new StorageConverter(SDKProbeType.AZURE));
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AZURE));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
@@ -107,6 +107,20 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "azure::" + region + "::DC::" + region;
+    }
+
+    /**
+     * Azure replaces "/" with "::" to construct volume id. For example:
+     * "/subscriptions/758ad253-cbf5-4b18-8863-3eed0825bf07/resourceGroups/OLEGN_RG/
+     * providers/Microsoft.Compute/disks/olga-stress_OsDisk_1_586cb62ed63c42ea84b7e3bc135c6473"
+     *
+     * "::subscriptions::758ad253-cbf5-4b18-8863-3eed0825bf07::resourcegroups::olegn_rg::
+     * providers::microsoft.compute::disks::olga-stress_osdisk_1_586cb62ed63c42ea84b7e3bc135c6473"
+     */
+    @Nonnull
+    @Override
+    public Optional<String> getVolumeIdFromStorageFilePath(@Nonnull String regionName, @Nonnull String filePath) {
+        return Optional.of(filePath.replace("/", "::").toLowerCase());
     }
 
     @Nonnull

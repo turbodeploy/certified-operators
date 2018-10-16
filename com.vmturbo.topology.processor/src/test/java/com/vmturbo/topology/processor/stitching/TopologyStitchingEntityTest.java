@@ -22,6 +22,7 @@ import org.junit.Test;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.StitchingMergeInformation;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 
 public class TopologyStitchingEntityTest {
@@ -38,19 +39,20 @@ public class TopologyStitchingEntityTest {
 
     @Before
     public void setup() {
-        vm.putProviderCommodities(pm, vm.getEntityBuilder()
+        vm.addProviderCommodityBought(pm, new CommoditiesBought(vm.getEntityBuilder()
             .getCommoditiesBought(0).getBoughtList().stream()
             .map(CommodityDTO::toBuilder)
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList())));
     }
 
     @Test
     public void testGetProviders() {
         assertEquals(
             vm.getEntityBuilder().getCommoditiesBought(0).getBoughtList(),
-            vm.getProviderCommodities(pm).get().stream()
-                .map(CommodityDTO.Builder::build)
-                .collect(Collectors.toList())
+            vm.getCommodityBoughtListByProvider().get(pm).stream()
+                    .flatMap(cb -> cb.getBoughtList().stream())
+                    .map(CommodityDTO.Builder::build)
+                    .collect(Collectors.toList())
         );
     }
 
@@ -164,8 +166,8 @@ public class TopologyStitchingEntityTest {
         final TopologyStitchingEntity snapshotCopy = (TopologyStitchingEntity)pm.snapshot();
 
         // Should be comparison equal but not reference equal
-        assertEquals(pm.getCommoditiesBoughtByProvider(), snapshotCopy.getCommoditiesBoughtByProvider());
-        assertFalse(pm.getCommoditiesBoughtByProvider() == snapshotCopy.getCommoditiesBoughtByProvider());
+        assertEquals(pm.getCommodityBoughtListByProvider(), snapshotCopy.getCommodityBoughtListByProvider());
+        assertFalse(pm.getCommodityBoughtListByProvider() == snapshotCopy.getCommodityBoughtListByProvider());
 
         // Should be comparison equal but not reference equal
         assertEquals(pm.getTopologyCommoditiesSold(), snapshotCopy.getTopologyCommoditiesSold());

@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagVal
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -46,6 +47,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -124,18 +126,26 @@ public class Converter {
                 return builder.build();
             }).collect(Collectors.toList());
 
-        // Map from provider oid to list of commodities bought
-        final Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap = Maps.newHashMap();
-        final Map<Long, Integer> providerTypeMap = Maps.newHashMap();
-        entity.getCommoditiesBoughtByProvider().forEach((provider, commodityBoughtList) -> {
-            providerTypeMap.put(provider.getOid(), provider.getEntityType().getNumber());
-
-            commodityBoughtList.stream()
-                .map(Converter::newCommodityBoughtDTO)
-                .forEach(topologyCommodityDTO -> boughtMap
-                    .computeIfAbsent(provider.getOid(), id -> Lists.newArrayList())
-                    .add(topologyCommodityDTO));
-        });
+        // list of commodities bought from different providers (there may be multiple
+        // CommoditiesBoughtFromProvider for same provider)
+        List<CommoditiesBoughtFromProvider> boughtList =
+                entity.getCommodityBoughtListByProvider().entrySet().stream()
+                        .flatMap(entry -> entry.getValue().stream()
+                                .map(commodityBought -> {
+                                    CommoditiesBoughtFromProvider.Builder cbBuilder =
+                                            CommoditiesBoughtFromProvider.newBuilder()
+                                                    .setProviderId(entry.getKey().getOid())
+                                                    .addAllCommodityBought(commodityBought.getBoughtList().stream()
+                                                            .map(Converter::newCommodityBoughtDTO)
+                                                            .collect(Collectors.toList()))
+                                                    .setProviderEntityType(entry.getKey().getEntityType().getNumber());
+                                    Long volumeId = commodityBought.getVolumeId();
+                                    if (volumeId != null) {
+                                        cbBuilder.setVolumeId(volumeId);
+                                    }
+                                    return cbBuilder.build();
+                                }))
+                        .collect(Collectors.toList());
 
         // create the list of connected-to entities
         List<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
@@ -188,8 +198,7 @@ public class Converter {
             entity.getOid(),
             displayName,
             soldList,
-            boughtMap,
-            providerTypeMap,
+            boughtList,
             connectedEntities,
             entityState,
             entityPropertyMap,
@@ -241,6 +250,20 @@ public class Converter {
                             .build());
                     break;
                 }
+                break;
+            case VIRTUAL_VOLUME_DATA:
+                final VirtualVolumeData vvData = sdkEntity.getVirtualVolumeData();
+                VirtualVolumeInfo.Builder vvInfo = VirtualVolumeInfo.newBuilder();
+                if (vvData.hasStorageAccessCapacity()) {
+                    vvInfo.setStorageAccessCapacity(vvData.getStorageAccessCapacity());
+                }
+                if (vvData.hasStorageAmountCapacity()) {
+                    vvInfo.setStorageAmountCapacity(vvData.getStorageAmountCapacity());
+                }
+                if (vvData.hasRedundancyType()) {
+                    vvInfo.setRedundancyType(vvData.getRedundancyType());
+                }
+                retBuilder.setVirtualVolume(vvInfo.build());
                 break;
         }
         return retBuilder.build();
@@ -322,9 +345,9 @@ public class Converter {
             .map(commDTO -> newCommoditySoldDTO(commDTO, providerOIDs))
             .forEach(soldList::add);
 
-        // Map from provider oid to list of commodities bought
-        final Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap = Maps.newHashMap();
-        final Map<Long, Integer> providerTypeMap = Maps.newHashMap();
+        // list of commodities bought from different providers (there may be multiple
+        // CommoditiesBoughtFromProvider for same provider)
+        List<CommoditiesBoughtFromProvider> boughtList = Lists.newArrayList();
         for (CommodityBought commodityBought : dto.getCommoditiesBoughtList()) {
             Long providerOid = providerOIDs.get(commodityBought.getProviderId());
             if (providerOid == null) {
@@ -340,18 +363,27 @@ public class Converter {
                 continue;
             }
 
+            CommoditiesBoughtFromProvider.Builder cbBuilder = CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(providerOid)
+                    .addAllCommodityBought(commodityBought.getBoughtList().stream()
+                            .map(Converter::newCommodityBoughtDTO)
+                            .collect(Collectors.toList()));
+
             // TODO: Right now, we not guarantee that commodity bought will always have provider entity
             // type. In order to implement that, we need to have additional check that if commodity bought
             // doesn't have provider type, we use its provider id to find out entity type.
             if (commodityBought.hasProviderType()) {
-                providerTypeMap.put(providerOid, commodityBought.getProviderType().getNumber());
+                cbBuilder.setProviderEntityType(commodityBought.getProviderType().getNumber());
             }
 
-            commodityBought.getBoughtList().stream()
-                .map(Converter::newCommodityBoughtDTO)
-                .forEach(topologyCommodityDTO -> boughtMap
-                    .computeIfAbsent(providerOid, id -> Lists.newArrayList())
-                    .add(topologyCommodityDTO));
+            if (commodityBought.hasSubDivision()) {
+                Long volumeOid = providerOIDs.get(commodityBought.getSubDivision().getSubDivisionId());
+                if (volumeOid != null) {
+                    cbBuilder.setVolumeId(volumeOid);
+                }
+            }
+
+            boughtList.add(cbBuilder.build());
         }
 
         // Copy properties map from probe DTO to topology DTO
@@ -393,8 +425,7 @@ public class Converter {
                 oid,
                 displayName,
                 soldList,
-                boughtMap,
-                providerTypeMap,
+                boughtList,
                 // pass empty list since connection can not be retrieved from single EntityDTO
                 // and this is only used by existing tests for non-cloud topology
                 Collections.emptyList(),
@@ -416,8 +447,7 @@ public class Converter {
             long oid,
             String displayName,
             List<TopologyDTO.CommoditySoldDTO> soldList,
-            Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap,
-            Map<Long, Integer> providerTypeMap,
+            List<CommoditiesBoughtFromProvider> boughtList,
             List<ConnectedEntity> connectedToList,
             TopologyDTO.EntityState entityState,
             Map<String, String> entityPropertyMap,
@@ -427,16 +457,6 @@ public class Converter {
             boolean isControllable,
             Optional<Boolean> suspendable
         ) {
-        final List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> commodityBoughtGroups = new ArrayList<>();
-        boughtMap.forEach((providerId, commodityBoughtList) -> {
-            final CommoditiesBoughtFromProvider.Builder commodityBoughtGroupingBuilder =
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(providerId)
-                    .addAllCommodityBought(commodityBoughtList);
-            Optional.ofNullable(providerTypeMap.get(providerId))
-                .ifPresent(commodityBoughtGroupingBuilder::setProviderEntityType);
-            commodityBoughtGroups.add(commodityBoughtGroupingBuilder.build());
-        });
         AnalysisSettings.Builder analysisSettingsBuilder =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
                 .setShopTogether(isShopTogether)
@@ -453,7 +473,7 @@ public class Converter {
             .putAllEntityPropertyMap(entityPropertyMap)
             .putAllTags(entityTags)
             .addAllCommoditySoldList(soldList)
-            .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups)
+            .addAllCommoditiesBoughtFromProviders(boughtList)
             .addAllConnectedEntityList(connectedToList);
     }
 

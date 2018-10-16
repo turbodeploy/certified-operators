@@ -25,6 +25,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 
@@ -48,8 +49,9 @@ public class StitchingEntitySemanticDifferTest {
         boughtFromC.add(memKB().from("c").used(140.0).build().toBuilder());
 
         a.addConsumer(b);
-        a.putProviderCommodities(c, boughtFromC);
-        a.putProviderCommodities(d, Collections.singletonList(storageAmount().from("d").used(500.0).build().toBuilder()));
+        a.addProviderCommodityBought(c, new CommoditiesBought(boughtFromC));
+        a.addProviderCommodityBought(d, new CommoditiesBought(Collections.singletonList(
+                storageAmount().from("d").used(500.0).build().toBuilder())));
         a.getTopologyCommoditiesSold()
             .add(new CommoditySold(vCpuMHz().capacity(75.0).build().toBuilder(), e)); // Accesses e
         a.getTopologyCommoditiesSold()
@@ -125,7 +127,8 @@ public class StitchingEntitySemanticDifferTest {
 
     @Test
     public void testAddProvider() {
-        a.putProviderCommodities(f, Collections.singletonList(ioThroughputKBps().used(10.0).build().toBuilder()));
+        a.addProviderCommodityBought(f, new CommoditiesBought(
+                Collections.singletonList(ioThroughputKBps().used(10.0).build().toBuilder())));
         assertEquals(
             "VIRTUAL_MACHINE a a (oid-1 tgt-11)\n" +
                 "  Providers: added=[VIRTUAL_MACHINE-6-16]\n" +
@@ -144,7 +147,8 @@ public class StitchingEntitySemanticDifferTest {
 
     @Test
     public void testProviderAndConsumerChangesTogether() {
-        a.putProviderCommodities(f, Collections.singletonList(ioThroughputKBps().used(10.0).build().toBuilder()));
+        a.addProviderCommodityBought(f, new CommoditiesBought(
+                Collections.singletonList(ioThroughputKBps().used(10.0).build().toBuilder())));
         a.addConsumer(c);
         a.addConsumer(d);
         a.removeConsumer(b);
@@ -170,7 +174,8 @@ public class StitchingEntitySemanticDifferTest {
     public void testRemoveAndAddProviders() {
         a.removeProvider(c);
         a.removeProvider(d);
-        a.putProviderCommodities(f, Collections.singletonList(ioThroughputKBps().used(10.0).build().toBuilder()));
+        a.addProviderCommodityBought(f, new CommoditiesBought(
+                Collections.singletonList(ioThroughputKBps().used(10.0).build().toBuilder())));
 
         assertEquals(
             "VIRTUAL_MACHINE a a (oid-1 tgt-11)\n" +
@@ -288,7 +293,7 @@ public class StitchingEntitySemanticDifferTest {
 
     @Test
     public void testRemoveCommodityBought() {
-        a.getCommoditiesBoughtByProvider().get(c).remove(0);
+        a.getCommodityBoughtListByProvider().get(c).get(0).getBoughtList().remove(0);
         assertEquals(
             "VIRTUAL_MACHINE a a (oid-1 tgt-11)\n" +
                 "  CommoditiesBought:\n" +

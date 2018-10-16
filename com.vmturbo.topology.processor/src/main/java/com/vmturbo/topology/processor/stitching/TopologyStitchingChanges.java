@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -15,13 +16,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.stitching.journal.IStitchingJournal;
-import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
-import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
+import com.vmturbo.stitching.journal.JournalableEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 
@@ -170,17 +171,15 @@ public class TopologyStitchingChanges {
                                         @Nonnull final TopologyStitchingEntity oldProvider,
                                         @Nonnull final TopologyStitchingEntity newProvider) {
             // All commodities that used to be bought by the old provider should now be bought from the new provider.
-            List<CommodityDTO.Builder> commoditiesBought =
-                toUpdate.getCommoditiesBoughtByProvider().remove(oldProvider);
-            if (commoditiesBought == null) {
+            Optional<List<CommoditiesBought>> commoditiesBought = toUpdate.removeProvider(oldProvider);
+            if (!commoditiesBought.isPresent()) {
                 throw new IllegalStateException("Entity " + toUpdate + " is a consumer of " + oldProvider
-                    + " but is not buying any commodities from it.");
+                        + " but is not buying any commodities from it.");
             }
 
-            final List<CommodityDTO.Builder> boughtFromProvider = toUpdate.getCommoditiesBoughtByProvider()
-                .computeIfAbsent(newProvider, provider -> new ArrayList<>(commoditiesBought.size()));
             // TODO: Consider adding support for a consumerCommoditiesBoughtMerger
-            boughtFromProvider.addAll(commoditiesBought);
+            toUpdate.getCommodityBoughtListByProvider().computeIfAbsent(newProvider, p ->
+                    new ArrayList<>(commoditiesBought.get().size())).addAll(commoditiesBought.get());
 
             // Make the buying entity a consumer of the new provider.
             newProvider.addConsumer(toUpdate);

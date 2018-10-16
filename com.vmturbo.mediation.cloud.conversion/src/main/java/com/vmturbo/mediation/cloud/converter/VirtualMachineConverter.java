@@ -104,6 +104,47 @@ public class VirtualMachineConverter implements IEntityConverter {
                         // change commodity provider from Storage to StorageTier
                         cbBuilder.setProviderId(storageTierId);
                         cbBuilder.setProviderType(EntityType.STORAGE_TIER);
+
+                        //  add connected relationship between vm, volume, storage tier and zone
+                        if (commodityBought.hasSubDivision()) {
+                            // connect vm to volume
+                            String svId = commodityBought.getSubDivision().getSubDivisionId();
+                            if (!entity.getLayeredOverList().contains(svId)) {
+                                entity.addLayeredOver(svId);
+                            }
+
+                            // connect volume to storage tier
+                            EntityDTO.Builder volume = converter.getNewEntityBuilder(svId);
+                            if (!volume.getLayeredOverList().contains(storageTierId)) {
+                                volume.addLayeredOver(storageTierId);
+                            }
+
+                            // connect volume to az for aws
+                            Optional<String> azId = converter.getRawEntityDTO(entity.getId())
+                                    .getCommoditiesBoughtList().stream()
+                                    .map(CommodityBought::getProviderId)
+                                    .filter(id -> converter.getRawEntityDTO(id).getEntityType()
+                                            == EntityType.PHYSICAL_MACHINE)
+                                    .findAny();
+                            if (probeType == SDKProbeType.AWS) {
+                                azId.ifPresent(az -> {
+                                    if (!volume.getLayeredOverList().contains(az)) {
+                                        volume.addLayeredOver(az);
+                                    }
+                                });
+                            } else if (probeType == SDKProbeType.AZURE) {
+                                // connnect volume to region for azure
+                                azId.ifPresent(az -> {
+                                    String regionId = converter.getRegionIdFromAzId(az);
+                                    if (!volume.getLayeredOverList().contains(regionId)) {
+                                        volume.addLayeredOver(regionId);
+                                    }
+                                });
+                            }
+
+                            // volume owned by business account
+                            converter.ownedByBusinessAccount(svId);
+                        }
                     }
 
                     return cbBuilder.build();
