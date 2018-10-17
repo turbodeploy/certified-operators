@@ -80,21 +80,6 @@ def mount_iso(mount_point):
             %(ex.returncode, ex.output))
         sys.exit(1)
 
-try:
-    import yaml
-except ImportError:
-    LOGGER.info("Installing PyYAML package")
-    mount_iso(ISO_MOUNTPOINT)
-    already_installed_msg = "is already installed"
-    for pkg in ["libyaml-0.1.4-11.el7_0.x86_64.rpm", "pyyaml-3.10-11.el7.x86_64.rpm"]:
-        retcode, output = exec_cmd(False, "rpm", "-i", os.path.join(ISO_MOUNTPOINT, pkg))
-        if (retcode!=0 and (already_installed_msg not in output)):
-            LOGGER.error("Failed to install package: %s. Aborting upgrade.\n"\
-                "Return code: %s. Error: %s"%(pkg, retcode, output))
-            sys.exit(1)
-
-    import yaml
-
 def topological_sort(dag):
     """
     Returns the topological ordering of the DAG(Directed Acyclic Graph).
@@ -409,6 +394,21 @@ if __name__ == '__main__':
         shutil.copy(os.path.join(ISO_MOUNTPOINT, my_name), __file__)
         LOGGER.info("Upgraded the upgrade tool. Please restart the upgrade.")
         sys.exit(1)
+
+    try:
+        import yaml
+    except ImportError:
+        LOGGER.info("Installing PyYAML package")
+        mount_iso(ISO_MOUNTPOINT)
+        already_installed_msg = "is already installed"
+        for pkg in ["libyaml-0.1.4-11.el7_0.x86_64.rpm", "pyyaml-3.10-11.el7.x86_64.rpm"]:
+            retcode, output = exec_cmd(False, "rpm", "-i", os.path.join(ISO_MOUNTPOINT, pkg))
+            if (retcode!=0 and (already_installed_msg not in output)):
+                LOGGER.error("Failed to install package: %s. Aborting upgrade.\n"\
+                    "Return code: %s. Error: %s"%(pkg, retcode, output))
+                sys.exit(1)
+
+        import yaml
 
     # Backup old files
     # FIXME:(karthikt) Handle case where the script crashes or is interrupted
