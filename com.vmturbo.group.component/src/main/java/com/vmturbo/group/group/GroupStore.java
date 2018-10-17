@@ -414,7 +414,7 @@ public class GroupStore implements Diagnosable {
             throws DuplicateNameException {
         final List<Long> sameNameDiffId = context.select(Tables.GROUPING.ID)
                 .from(Tables.GROUPING)
-                .where(Tables.GROUPING.NAME.eq(name).and(Tables.GROUPING.TYPE.eq(type)))
+                .where(Tables.GROUPING.NAME.eq(name).and(Tables.GROUPING.ENTITY_TYPE.eq(type)))
                 .and(Tables.GROUPING.ID.ne(id))
                 .fetch()
                 .getValues(Tables.GROUPING.ID);

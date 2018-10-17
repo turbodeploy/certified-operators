@@ -59,7 +59,7 @@ public class GroupStoreTest {
 
     private static final GroupInfo GROUP_INFO = GroupInfo.newBuilder()
             .setName("the krew")
-            .setEntityType(1)
+            .setEntityType(123)
             .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(1L))
             .build();
