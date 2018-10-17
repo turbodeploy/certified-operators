@@ -589,3 +589,16 @@ services:
     volumes:
       - mediation-vcd:/home/turbonomic/data
     restart: always
+
+  mediation-mssql-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.database.mssql.component
+    environment:
+      consul_host: consul
+      component_type: mediation-mssql
+      instance_id: mediation-mssql-1
+    volumes:
+      - mediation-mssql:/home/turbonomic/data
+    restart: always

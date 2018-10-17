@@ -66,6 +66,7 @@ volumes:
   mediation-azure: *localdriver
   mediation-oneview: *localdriver
   mediation-vcd: *localdriver
+  mediation-mssql: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -969,3 +970,20 @@ services:
     volumes:
       - mediation-vcd:/home/turbonomic/data
     mem_limit: ${MEDIATION_VCD_MEM_LIMIT_MB}M
+
+  mediation-mssql:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.database.mssql.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_MSSQL_PORT}"
+      - "${MEDIATION_MSSQL_DEBUG_PORT}"
+    environment:
+      component_type: mediation-mssql
+      instance_id: mediation-mssql-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_MSSQL_XMX_MB}M ${MEDIATION_MSSQL_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-mssql:/home/turbonomic/data
+    mem_limit: ${MEDIATION_MSSQL_MEM_LIMIT_MB}M

@@ -58,11 +58,12 @@ volumes:
 #  mediation-azure: *localdriver
 #  mediation-oneview: *localdriver
 #  mediation-vcd: *localdriver
+#  mediation-mssql: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
   nginx-run: *localdriver
-  nginx-home: *localdriver 
+  nginx-home: *localdriver
 
 services:
   rsyslog:
@@ -463,6 +464,15 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-vcd-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-mssql:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-mssql-prod
 #    environment:
 #      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1024M
