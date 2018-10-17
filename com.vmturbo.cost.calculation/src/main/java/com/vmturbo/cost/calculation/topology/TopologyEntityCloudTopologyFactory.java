@@ -102,6 +102,8 @@ public interface TopologyEntityCloudTopologyFactory {
 
         /**
          * Check if the entity was discovered by cloud probes(AWS/Azure etc).
+         * TODO (roman, 17 Oct 2018): We should move this logic to the TP, as part of the Origin
+         * information. There are too many cases to properly handle here.
          *
          * @param entityDTO DTO of the entity.
          * @return Return true if the entity was discovered by Cloud probes.
@@ -109,12 +111,22 @@ public interface TopologyEntityCloudTopologyFactory {
          */
         private boolean isCloudEntity(@Nonnull final TopologyEntityDTO entityDTO,
                                       @Nonnull final Map<Long, SDKProbeType> probeTypesOfTargets) {
+            // If, for whatever reason, we don't have the probe types of targets, let all entities
+            // into the cloud topology. This may be bad for performance, but the alternative is not
+            // letting any entities, which would be much worse.
+            // TODO (roman, 17 Oct 2018): Restrict by entity type.
+            if (probeTypesOfTargets.isEmpty()) {
+                return true;
+            }
+
             final Set<Long> targetIds = new HashSet<>(entityDTO.getOrigin().getDiscoveryOrigin()
                     .getDiscoveringTargetIdsList());
             if (targetIds.isEmpty()) {
-                // Should we throw an exception?
-                logger.warn("TargetId not present for entity {}", entityDTO);
-                return false;
+                // If the discovering target is not set, we can't know if the entity should or
+                // shouldn't be in the cloud topology. We include it if it was added as part of
+                // a plan.
+                // TODO (roman, 17 Oct 2018): Restrict by entity type.
+                return entityDTO.getOrigin().hasPlanOrigin();
             }
 
             return targetIds.stream()
@@ -144,6 +156,9 @@ public interface TopologyEntityCloudTopologyFactory {
                 // Mapping from TargetId -> ProbeId
                 final Map<Long, Long> targetIdToProbeIdMap = targets.stream()
                         .collect(Collectors.toMap(TargetInfo::getId, TargetInfo::getProbeId));
+                if (targetIdToProbeIdMap.isEmpty()) {
+                    return retMap;
+                }
 
                 // Mapping from ProbeId -> ProbeType
                 final Set<ProbeInfo> probeInfos = topologyProcessorClient.getAllProbes();
@@ -164,6 +179,8 @@ public interface TopologyEntityCloudTopologyFactory {
                 });
             } catch (CommunicationException e) {
                 logger.error("Error getting target and probe infos from TP", e);
+            } catch (RuntimeException e) {
+                logger.error("Runtime error getting target and probe infos from TP.", e);
             }
             return retMap;
         }
