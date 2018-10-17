@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -86,12 +85,26 @@ public class CommodityConverter {
      * @return a {@link CommoditySoldTO}
      */
     @Nonnull
-    public CommodityDTOs.CommoditySoldTO createCommonCommoditySoldTO(
+    private CommodityDTOs.CommoditySoldTO createCommonCommoditySoldTO(
             @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold,
             @Nonnull TopologyDTO.TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
         float used = (float)topologyCommSold.getUsed();
+        // if this commodity has a scaling factor set, then scale up the
+        // USED and CAPACITY by scalingFactor for use in the new CommoditySoldTO
+        if (topologyCommSold.hasScalingFactor()) {
+            final float scalingFactor = (float) topologyCommSold.getScalingFactor();
+            if (logger.isDebugEnabled()) {
+                logger.debug("Scaling up comm {}, factor {}, for topology entity {}, prev used {}, new {}," +
+                                "prev capacity {}, new {}",
+                        commodityType.getType(), scalingFactor, dto.getDisplayName(),
+                        used, used * scalingFactor, capacity, capacity * scalingFactor
+                );
+            }
+            capacity *= scalingFactor;
+            used *= scalingFactor;
+        }
         final int type = commodityType.getType();
         boolean resizable = topologyCommSold.getIsResizeable();
         boolean capacityNaN = Double.isNaN(topologyCommSold.getCapacity());
