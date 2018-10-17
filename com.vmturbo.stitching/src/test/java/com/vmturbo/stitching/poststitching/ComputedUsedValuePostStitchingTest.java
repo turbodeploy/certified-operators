@@ -17,7 +17,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
@@ -71,7 +70,7 @@ public class ComputedUsedValuePostStitchingTest {
                     SELLER_TYPE.getNumber(),
                     Lists.newArrayList(
                         PostStitchingTestUtilities.makeCommoditySold(COMM_TYPE, COMM_KEY)),
-                    Collections.emptyList());
+                        Collections.emptyList());
 
         final CommodityBoughtDTO commBoughtInclude =
                         PostStitchingTestUtilities.makeCommodityBought(COMM_TYPE, COMM_KEY);

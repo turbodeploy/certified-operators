@@ -20,6 +20,9 @@ public abstract class CommodityBaseRepoDTO {
 
     private String ownerOid;
 
+    private double scalingFactor;
+
+
     public String getUuid() {
         return uuid;
     }
@@ -76,6 +79,14 @@ public abstract class CommodityBaseRepoDTO {
         this.ownerOid = ownerOid;
     }
 
+    public void setScalingFactor(double scalingFactor) {
+        this.scalingFactor = scalingFactor;
+    }
+
+    public double getScalingFactor() {
+        return this.scalingFactor;
+    }
+
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
@@ -86,6 +97,7 @@ public abstract class CommodityBaseRepoDTO {
                 .add("peak", peak)
                 .add("providerOid", providerOid)
                 .add("ownerOid", ownerOid)
+                .add("scalingFactor", scalingFactor)
                 .toString();
     }
 }

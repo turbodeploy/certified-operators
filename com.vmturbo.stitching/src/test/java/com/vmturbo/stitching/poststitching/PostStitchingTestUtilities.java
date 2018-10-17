@@ -146,9 +146,10 @@ public class PostStitchingTestUtilities {
             .getBuilder();
     }
 
-    public static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
-                                                            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-                                                            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+    public static TopologyEntity.Builder makeTopologyEntityBuilder(
+            final long oid, final int entityType,
+            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
+            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
         return TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(oid)

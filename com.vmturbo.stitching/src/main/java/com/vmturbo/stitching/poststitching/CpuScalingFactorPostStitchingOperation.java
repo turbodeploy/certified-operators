@@ -2,7 +2,6 @@ package com.vmturbo.stitching.poststitching;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_VALUE;
-import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -44,7 +43,7 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * Update the 'CPU' sold
      */
     private static final Collection<Integer> COMMODITIES_TO_SCALE =
-            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE, VCPU_VALUE);
+            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE);
     private final CpuCapacityStore cpuCapacityStore;
 
     public CpuScalingFactorPostStitchingOperation(final CpuCapacityStore cpuCapacityStore) {
@@ -61,23 +60,28 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     @Nonnull
     @Override
     public TopologicalChangelog<TopologyEntity> performOperation(
-            @Nonnull final Stream<TopologyEntity> entities,
+            @Nonnull final Stream<TopologyEntity> pmEntities,
             @Nonnull final EntitySettingsCollection settingsCollection,
             @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
-        entities.forEach(entity ->
-                resultBuilder.queueUpdateEntityAlone(entity, entityToUpdate -> {
-                    getCpuModelOpt(entityToUpdate).ifPresent(cpuModel -> {
-                        cpuCapacityStore.getScalingFactor(cpuModel)
-                                .ifPresent(scalingFactor -> {
-                                    updateScalingFactorForPm(entityToUpdate, scalingFactor);
-                                });
-                    });
-                }));
+        // the entities to operate on will all be PM's
+        pmEntities.forEach(pmEntity ->
+                // queue update to just this entity
+                resultBuilder.queueUpdateEntityAlone(pmEntity, entityToUpdate ->
+                        // check if there's a CPU Model specified
+                        getCpuModelOpt(entityToUpdate).ifPresent(cpuModel ->
+                                // if so, fetch the scalingFactor (if any) for that CPU Model
+                                cpuCapacityStore.getScalingFactor(cpuModel)
+                                        // if found, update the commodities for this entity
+                                        .ifPresent(scalingFactor ->
+                                                updateScalingFactorForPm(entityToUpdate,
+                                                        scalingFactor)))));
         return resultBuilder.build();
     }
 
     /**
      * Set the scalingFactor for the given PM entity and all the VMs that buy from it.
+     * The commodities to scale are sold by the PM given, and we udpate the
+     * commodities for each VM that buys from the VM.
      *
      * @param pmEntityToUpdate the TopologyEntity, a PM, to update.
      * @param scalingFactor the scalingFactor to set on the PM commodities to which it should apply
@@ -85,34 +89,50 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     private void updateScalingFactorForPm(@Nonnull final TopologyEntity pmEntityToUpdate,
                                           @Nonnull final Double scalingFactor) {
         // update the scaling factor for the PM itself
-        updateScalingFactorForEntity(pmEntityToUpdate, scalingFactor);
+        updateScalingFactorForSoldCommodities(pmEntityToUpdate, scalingFactor);
         // update the scaling factor for an VMs which buy from this PM
         pmEntityToUpdate.getConsumers().stream()
                 .filter(consumerEntity -> consumerEntity.getEntityType() ==
                         EntityType.VIRTUAL_MACHINE_VALUE)
                 .forEach(vmEntity -> {
-                    // add the scalingFactor to the VCPU commodity for the VM
-                    updateScalingFactorForEntity(vmEntity, scalingFactor);
+                    // add the scalingFactor to the CPU commodities bought by the VM
+                    updateScalingFactorForBoughtCommodities(vmEntity, scalingFactor);
                 });
     }
 
     /**
      * Update the 'scalingFactor' for any commoditiesSold of this entity that should be
-     * scaled (see COMMODITIES_TO_SCALE). Note that this applies to both PMs and
-     * VMs - the items in COMMODITIES_TO_SCALE include selected commodities from either.
-     * The set COMMODITIES_TO_SCALE is so small having both sets of commodities is not
-     * a performance problem.
+     * scaled (see COMMODITIES_TO_SCALE).
      *
      * @param entityToUpdate a TopologyEntity for which we should check for commodities to scale
      * @param scalingFactor the scaling factor to apply to any commodities that should scale
      */
-    private void updateScalingFactorForEntity(@Nonnull final TopologyEntity entityToUpdate,
-                                              final double scalingFactor) {
-        Objects.requireNonNull(entityToUpdate);
-        entityToUpdate.getTopologyEntityDtoBuilder()
+    private void updateScalingFactorForSoldCommodities(@Nonnull final TopologyEntity entityToUpdate,
+                                                       final double scalingFactor) {
+        Objects.requireNonNull(entityToUpdate)
+                .getTopologyEntityDtoBuilder()
                 .getCommoditySoldListBuilderList().stream()
-                .filter(this::commodityTypeShouldScale)
+                .filter(commoditySold -> commodityTypeShouldScale(commoditySold.getCommodityType()))
                 .forEach(commSold -> commSold.setScalingFactor(scalingFactor));
+    }
+
+    /**
+     * Update the 'scalingFactor' for any commoditiesBought of this entity that should be
+     * scaled (see COMMODITIES_TO_SCALE).
+     *
+     * @param entityToUpdate a TopologyEntity for which we should check for commodities to scale
+     * @param scalingFactor the scaling factor to apply to any commodities that should scale
+     */
+    private void updateScalingFactorForBoughtCommodities(@Nonnull final TopologyEntity entityToUpdate,
+                                                       final double scalingFactor) {
+        Objects.requireNonNull(entityToUpdate)
+                .getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .flatMap(commoditiesBoughtFromProvider ->
+                        commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
+                .filter(commodityBoughtFromProvider ->
+                        commodityTypeShouldScale(commodityBoughtFromProvider.getCommodityType()))
+                .forEach(commBought -> commBought.setScalingFactor(scalingFactor));
     }
 
     /**
@@ -126,9 +146,9 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * @return an Optional containing the 'cpuModel', or Optional.empty() if this isn't a PM, or
      * the PM doesn't have a 'cpuModel' field set.
      */
-    private Optional<String> getCpuModelOpt(final TopologyEntity entityToFetchFrom) {
-        final TypeSpecificInfo typeSpecificInfo = entityToFetchFrom.getTopologyEntityDtoBuilder()
-                .getTypeSpecificInfo();
+    private Optional<String> getCpuModelOpt(@Nonnull final TopologyEntity entityToFetchFrom) {
+        final TypeSpecificInfo typeSpecificInfo = Objects.requireNonNull(entityToFetchFrom)
+                .getTopologyEntityDtoBuilder().getTypeSpecificInfo();
         return typeSpecificInfo.hasPhysicalMachine() &&
                 typeSpecificInfo.getPhysicalMachine().hasCpuModel()
                 ? Optional.of(typeSpecificInfo.getPhysicalMachine().getCpuModel())
@@ -137,12 +157,12 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
 
     /**
      * Check to see if the given Commodity is of the type to which 'scaleFactor' applies. Currently
-     * this includes PM CommoditySold for CPU, CPU_PROVISIONED, and VCPU sold by VM.
+     * this includes PM CommoditySold for CPU, CPU_PROVISIONED.
      *
-     * @param commodity the commodity to test
+     * @param commodityType the commodityType to test
      * @return true iff this commodity should have a 'scaleFactor' applied, if one is found
      */
-    private boolean commodityTypeShouldScale(TopologyDTO.CommoditySoldDTO.Builder commodity) {
-        return COMMODITIES_TO_SCALE.contains(commodity.getCommodityType().getType());
+    private boolean commodityTypeShouldScale(@Nonnull TopologyDTO.CommodityType commodityType) {
+        return COMMODITIES_TO_SCALE.contains(Objects.requireNonNull(commodityType).getType());
     }
 }

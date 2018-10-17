@@ -204,6 +204,7 @@ public class TopologyConverter {
             commRepo.setKey(comm.getCommodityType().getKey());
             commRepo.setUsed(comm.getUsed());
             commRepo.setPeak(comm.getPeak());
+            commRepo.setScalingFactor(comm.getScalingFactor());
 
             return commRepo;
         }
@@ -220,6 +221,7 @@ public class TopologyConverter {
                 commodityTypeBuilder.setKey(commodityBoughtRepoDTO.getKey());
             }
             commodityBoughtBuilder.setCommodityType(commodityTypeBuilder);
+            commodityBoughtBuilder.setScalingFactor(commodityBoughtRepoDTO.getScalingFactor());
             return commodityBoughtBuilder.build();
         }
 

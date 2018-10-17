@@ -75,7 +75,8 @@ public class RemoteCpuCapacityStore implements CpuCapacityStore {
                 final CpuModelScaleFactorResponse scaleFactors = cpuCapacityServiceBlockingStub
                         .getCpuScaleFactors(CpuScaleFactorRequest.newBuilder().addCpuModelNames(cpuModel)
                                 .build());
-                return Optional.ofNullable(scaleFactors.getScaleFactorByCpuModelMap().get(cpuModel));            });
+                return Optional.ofNullable(scaleFactors.getScaleFactorByCpuModelMap().get(cpuModel));
+            });
         } catch (ExecutionException e) {
             logger.error("Error fetching CPU Model for: " + cpuModel, e);
             return Optional.empty();

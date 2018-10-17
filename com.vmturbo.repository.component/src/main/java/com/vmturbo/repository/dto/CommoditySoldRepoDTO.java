@@ -20,8 +20,6 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     private double maxQuantity;
 
-    private double scalingFactor;
-
     public double getCapacity() {
         return capacity;
     }
@@ -78,15 +76,6 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
         return this.maxQuantity;
     }
 
-
-    public void setScalingFactor(double scalingFactor) {
-        this.scalingFactor = scalingFactor;
-    }
-
-    public double getScalingFactor() {
-        return this.scalingFactor;
-    }
-
     @Override
     public String toString() {
         return super.toString() + MoreObjects.toStringHelper(this)
@@ -97,7 +86,6 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
                 .add("isThin", isThin)
                 .add("capacityIncrement", capacityIncrement)
                 .add("maxQuantity", maxQuantity)
-                .add("scalingFactor", scalingFactor)
                 .toString();
     }
 }
