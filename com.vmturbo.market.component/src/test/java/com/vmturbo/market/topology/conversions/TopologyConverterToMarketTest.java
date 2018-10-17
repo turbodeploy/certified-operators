@@ -425,7 +425,7 @@ public class TopologyConverterToMarketTest {
                         PriceFunctionDTOs.PriceFunctionTO.Step.newBuilder()
                             .setStepAt(1)
                             .setPriceAbove(Float.POSITIVE_INFINITY)
-                            .setPriceBelow(0)
+                            .setPriceBelow(0.0001f)
                             .build())
                     .build();
 
