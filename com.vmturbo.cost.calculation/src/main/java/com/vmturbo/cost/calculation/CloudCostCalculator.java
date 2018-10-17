@@ -160,27 +160,29 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
                                         entityInfoExtractor.getId(computeTier));
                                 // there can be only 1 entry in the priceList in the current implementation
-                                final IpConfigPrice ipPriceList = onDemandPriceTable.getIpPrices()
-                                        .getIpPriceList().get(0);
-                                // excess of Elastic IPs needed beyond the freeIPs available in the region
-                                long numElasticIps = networkConfigBought.getNumElasticIps()
-                                        - ipPriceList.getFreeIpCount();
-                                // this tracks the number of IPs in every price range that we have processed
-                                long numIpInAllPrevRanges = 0;
-                                for (Price price : ipPriceList.getPricesList()) {
-                                    // if there are no more elastic IPs needed, break
-                                    if (numElasticIps - numIpInAllPrevRanges < 0) {
-                                        break;
-                                    }
-                                    // create a journalEntry for elasticIPs purchased in every price range
-                                    journal.recordOnDemandCost(CostCategory.IP,
-                                            service.get(),
-                                            price,
-                                            // we buy as many IPs available in a price range as per demand
-                                            Math.min(numElasticIps - numIpInAllPrevRanges,
-                                                    price.getEndRangeInUnits()));
-                                    numIpInAllPrevRanges += price.getEndRangeInUnits();
-                                };
+                                onDemandPriceTable.getIpPrices().getIpPriceList().stream()
+                                    .findFirst()
+                                    .ifPresent(ipPriceList -> {
+                                        // excess of Elastic IPs needed beyond the freeIPs available in the region
+                                        long numElasticIps = networkConfigBought.getNumElasticIps()
+                                                - ipPriceList.getFreeIpCount();
+                                        // this tracks the number of IPs in every price range that we have processed
+                                        long numIpInAllPrevRanges = 0;
+                                        for (Price price : ipPriceList.getPricesList()) {
+                                            // if there are no more elastic IPs needed, break
+                                            if (numElasticIps - numIpInAllPrevRanges < 0) {
+                                                break;
+                                            }
+                                            // create a journalEntry for elasticIPs purchased in every price range
+                                            journal.recordOnDemandCost(CostCategory.IP,
+                                                    service.get(),
+                                                    price,
+                                                    // we buy as many IPs available in a price range as per demand
+                                                    Math.min(numElasticIps - numIpInAllPrevRanges,
+                                                            price.getEndRangeInUnits()));
+                                            numIpInAllPrevRanges += price.getEndRangeInUnits();
+                                        };
+                                    });
                             });
                         } else {
                             logger.warn("Global price table has no entry for region {}. This means there" +
