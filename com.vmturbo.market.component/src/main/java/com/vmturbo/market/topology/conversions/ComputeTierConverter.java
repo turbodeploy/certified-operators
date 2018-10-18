@@ -62,7 +62,7 @@ public class ComputeTierConverter implements TierConverter {
                 computeTier, EntityType.REGION_VALUE, topology);
         for(TopologyEntityDTO region : connectedRegions) {
             MarketTier marketTier = new OnDemandMarketTier(computeTier, region);
-            String debugInfo = TopologyConversionUtils.marketTierEntityDebugInfo(computeTier, region);
+            String debugInfo = marketTier.getDisplayName();
             logger.debug("Creating trader for {}", debugInfo);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
                     createCommonTraderSettingsTOBuilder(computeTier, topology,

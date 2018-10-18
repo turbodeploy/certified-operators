@@ -327,4 +327,54 @@ public class CommodityConverter {
         }
         return bcBaseType;
     }
+
+    /**
+     * Gets the name of the commodity from the id.
+     *
+     * @param commodityId the commodity id for which the name is needed
+     * @return the name of the commodity
+     */
+    String getCommodityName(int commodityId) {
+        return commodityTypeAllocator.getName(commodityId);
+    }
+
+    @VisibleForTesting
+    @Nonnull
+    Optional<CommodityType> economyToTopologyCommodity(
+            @Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
+        final CommodityType topologyCommodity =
+                commoditySpecMap.get(new EconomyCommodityId(economyCommodity));
+        if (topologyCommodity == null) {
+            if (commodityTypeAllocator.getName(economyCommodity.getBaseType()).equals(
+                    TopologyConversionConstants.BICLIQUE)) {
+                // this is a biclique commodity
+                return Optional.empty();
+            }
+            throw new IllegalStateException("Market returned invalid commodity specification " +
+                    economyCommodity + "! " +
+                    "Registered ones are " + commoditySpecMap.keySet());
+        }
+        return Optional.of(topologyCommodity);
+    }
+
+    @VisibleForTesting
+    @Nonnull
+    CommodityType commodityIdToCommodityType(final int marketCommodityId) {
+        return stringToCommodityType(getCommodityName(marketCommodityId));
+    }
+
+    @Nonnull
+    private CommodityType stringToCommodityType(@Nonnull final String commodityTypeString) {
+        int separatorIndex = commodityTypeString.indexOf(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR);
+        if (separatorIndex > 0) {
+            return CommodityType.newBuilder()
+                    .setType(Integer.parseInt(commodityTypeString.substring(0, separatorIndex)))
+                    .setKey(commodityTypeString.substring(separatorIndex + 1, commodityTypeString.length()))
+                    .build();
+        } else {
+            return CommodityType.newBuilder()
+                    .setType(Integer.parseInt(commodityTypeString))
+                    .build();
+        }
+    }
 }

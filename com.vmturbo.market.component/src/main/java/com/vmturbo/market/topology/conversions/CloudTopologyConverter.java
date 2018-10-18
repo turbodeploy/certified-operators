@@ -205,7 +205,7 @@ public class CloudTopologyConverter {
         if (connectedEntities.size() == 0) {
             return providerOids;
         }
-        TopologyEntityDTO region = getConnectedRegion(entity);
+        TopologyEntityDTO region = getRegionOfCloudConsumer(entity);
         if (region == null) {
             logger.error("{} is not connected to any region.", entity.getDisplayName());
             return providerOids;
@@ -243,6 +243,40 @@ public class CloudTopologyConverter {
     }
 
     /**
+     * Is the trader consuming from a market tier?
+     * @param trader the {@link TraderTO} which is to be checked if it is consuming from a market tier
+     * @return True if the trader is consuming from a market tier. False otherwise.
+     */
+    boolean isTraderConsumingFromMaketTier(TraderTO trader) {
+        return trader.getShoppingListsList().stream().anyMatch(
+                sl -> traderTOOidToMarketTier.containsKey(sl.getSupplier()));
+    }
+
+    /**
+     * Gets the primary market tier(compute tier or database tier) which is a supplier
+     * for the trader.
+     *
+     * @return Optional of the primary market tier
+     */
+    @Nullable
+    MarketTier getPrimaryMarketTier(TraderTO trader) {
+        List<MarketTier> primaryMarketTiers =  trader.getShoppingListsList().stream()
+                .map(sl -> traderTOOidToMarketTier.get(sl.getSupplier()))
+                .filter(Objects::nonNull)
+                .filter(mTier -> TopologyConversionConstants.PRIMARY_TIER_ENTITY_TYPES
+                        .contains(mTier.getTier().getEntityType()))
+                .collect(Collectors.toList());
+        if (primaryMarketTiers.size() != 1) {
+            logger.error("Trader {} is connected to {} primary tiers - {}",
+                    trader.getDebugInfoNeverUseInCode(), primaryMarketTiers.size(),
+                    primaryMarketTiers.stream().map(t ->
+                            t.getDisplayName()).collect(Collectors.joining(",")));
+            return null;
+        }
+        return primaryMarketTiers.get(0);
+    }
+
+    /**
      * Gets the region the entity is placed on. This method will work for any entity placed
      * on an Availability zone like VM / Database.
      *
@@ -250,24 +284,40 @@ public class CloudTopologyConverter {
      * @return the region {@link TopologyEntityDTO}
      */
     @Nullable
-    TopologyEntityDTO getConnectedRegion(@Nonnull TopologyEntityDTO entity) {
+    TopologyEntityDTO getRegionOfCloudConsumer(@Nonnull TopologyEntityDTO entity) {
+        TopologyEntityDTO region = null;
         if (azToRegionMap.isEmpty()) {
             logger.error("azToRegionMap not yet initialized.");
-            return null;
+            return region;
         }
+        TopologyEntityDTO az = getAZOfCloudConsumer(entity);
+        if (az != null) {
+            region = azToRegionMap.get(az);
+        }
+        return region;
+    }
+
+    /**
+     * Gets the AZ connected to a cloud consumer.
+     *
+     * @param entity the {@link TopologyEntityDTO}
+     * @return the Availability Zone
+     */
+    @Nullable
+    TopologyEntityDTO getAZOfCloudConsumer(@Nonnull TopologyEntityDTO entity) {
         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(entity,
                 EntityType.AVAILABILITY_ZONE_VALUE, topology);
         if (AZs.isEmpty()) {
+            logger.error("{} not connected to any AZs", entity.getDisplayName());
             return null;
         }
         if (AZs.size() > 1) {
             logger.error("{} is connected to {} availability zones - {}", entity.getDisplayName(),
                     AZs.size(), AZs.stream().map(TopologyEntityDTO::getDisplayName)
-                    .collect(Collectors.joining(",")));
+                            .collect(Collectors.joining(",")));
             return null;
         }
-        TopologyEntityDTO region = azToRegionMap.get(AZs.get(0));
-        return region;
+        return AZs.get(0);
     }
 
     /**

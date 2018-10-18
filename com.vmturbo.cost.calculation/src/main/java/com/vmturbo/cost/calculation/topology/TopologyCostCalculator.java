@@ -3,6 +3,7 @@ package com.vmturbo.cost.calculation.topology;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -19,8 +20,6 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceA
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-
 /**
  * The {@link TopologyCostCalculator} is responsible for calculating the
  * costs of entities in the realtime topology using the cost calculation library.
@@ -72,4 +71,26 @@ public class TopologyCostCalculator {
         }
     }
 
+    /**
+     * Calculate the costs of the input {@link TopologyEntityDTO}s.
+     *
+     * @param cloudTopology The cloud entities in a topology.
+     * @param cloudEntity The cloud entity for which cost is to be calculated.
+     * @return {@link CostJournal} for the cloudEntity.
+     */
+    @Nonnull
+    public Optional<CostJournal<TopologyEntityDTO>> calculateCostForEntity(
+            final CloudTopology<TopologyEntityDTO> cloudTopology,
+            final TopologyEntityDTO cloudEntity) {
+        final CloudCostCalculator<TopologyEntityDTO> costCalculator;
+        try {
+            costCalculator = cloudCostCalculatorFactory.newCalculator(cloudCostDataProvider,
+                    cloudTopology, topologyEntityInfoExtractor,
+                    discountApplicatorFactory, riApplicatorFactory);
+            return Optional.of(costCalculator.calculateCost(cloudEntity));
+        } catch (CloudCostDataRetrievalException e) {
+            logger.error("Failed to retrieve cloud cost data. Not doing any cloud cost calculation.", e);
+            return Optional.empty();
+        }
+    }
 }

@@ -99,4 +99,11 @@ public class OnDemandMarketTier implements MarketTier {
         }
         return connectedMarketTiers;
     }
+
+    @Override
+    @Nonnull
+    public String getDisplayName() {
+        return EntityType.forNumber(tier.getEntityType()) + "|"
+                + tier.getDisplayName() + "|" + region.getDisplayName();
+    }
 }

@@ -25,4 +25,6 @@ public interface MarketTier {
     TopologyEntityDTO getTier();
 
     TopologyEntityDTO getRegion();
+
+    String getDisplayName();
 }

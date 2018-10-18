@@ -356,7 +356,9 @@ public class Analysis {
             final Map<Long, Integer> entityIdToType = projectedTraderDTO.stream()
                     .collect(Collectors.toMap(TraderTO::getOid, TraderTO::getType));
             results.getActionsList().stream()
-                    .map(action -> converter.interpretAction(action, entityIdToType))
+                    .map(action -> converter.interpretAction(action, entityIdToType,
+                            this.originalCloudTopology, projectedEntityCosts,
+                            topologyCostCalculator))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(actionPlanBuilder::addAction);

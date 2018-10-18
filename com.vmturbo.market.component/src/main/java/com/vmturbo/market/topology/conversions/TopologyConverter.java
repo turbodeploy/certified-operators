@@ -18,9 +18,9 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
@@ -32,20 +32,7 @@ import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -56,10 +43,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
-import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
@@ -67,14 +58,6 @@ import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
@@ -111,7 +94,6 @@ public class TopologyConverter {
         EntityType.CONTAINER_VALUE);
 
     private static final Logger logger = LogManager.getLogger();
-    public static final String COMMODITY_TYPE_KEY_SEPARATOR = "|";
 
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
@@ -150,7 +132,7 @@ public class TopologyConverter {
     private final NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
 
     // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
-    private Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
+    private final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
 
     // Bicliquer created based on datastore
     private final BiCliquer dsBasedBicliquer = new BiCliquer();
@@ -185,13 +167,23 @@ public class TopologyConverter {
 
     private final CommodityConverter commodityConverter;
 
+    private final Map<Long, TopologyEntityDTO> traderTOOidToTopologyEntityDTO = new HashMap<>();
+
+    private final ActionInterpreter actionInterpreter;
+
+    /**
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo Information about the topology.
+     */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo, MarketPriceTable marketPriceTable) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
-                businessAccounts, marketPriceTable);
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts, marketPriceTable);
+        this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
+                cloudTc, unmodifiableEntityOidToDtoMap, oidToTraderTOMap);
     }
 
     /**
@@ -214,6 +206,25 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable);
+        this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
+                cloudTc, unmodifiableEntityOidToDtoMap, oidToTraderTOMap);
+    }
+
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             final boolean includeGuaranteedBuyer,
+                             final float quoteFactor, @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull CommodityConverter commodityConverter) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.includeGuaranteedBuyer = includeGuaranteedBuyer;
+        this.quoteFactor  = quoteFactor;
+        isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
+        this.commodityConverter = commodityConverter;
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
+                marketPriceTable);
+        this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
+                cloudTc, unmodifiableEntityOidToDtoMap, oidToTraderTOMap);
     }
 
     private boolean isPlan() {
@@ -368,8 +379,7 @@ public class TopologyConverter {
             priceIndexMessage.getPayloadList().stream()
                 .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
         logger.info("Converting projectedTraders to topologyEntityDTOs");
-        oidToTraderTOMap = projectedTraders.stream().collect(
-                Collectors.toMap(EconomyDTOs.TraderTO::getOid, Function.identity()));
+        projectedTraders.forEach(t -> oidToTraderTOMap.put(t.getOid(), t));
         // Perform lazy transformation, so do not store all the TopologyEntityDTOs in memory
         return Lists.transform(projectedTraders, projectedTrader -> {
             final TopologyDTO.TopologyEntityDTO projectedEntity =
@@ -389,6 +399,34 @@ public class TopologyConverter {
     }
 
     /**
+     * Interpret the market-specific {@link ActionTO} as a topology-specific {@Action} proto
+     * for use by the rest of the system.
+     *
+     * It is vital to use the same {@link TopologyConverter} that converted
+     * the topology into market-specific objects
+     * to interpret the resulting actions in a way that makes sense.
+     *
+     * @param actionTO An {@link ActionTO} describing an action recommendation
+     *                 generated by the market.
+     * @param entityIdToType A map from entity ID to the type of that entity. The entities involved
+     *                       in the action are expected to be in this map.
+     * @param originalCloudTopology {@link CloudTopology} of the original {@link TopologyEntityDTO}s  received by Analysis
+     * @param projectedCosts  A map of id of projected topologyEntityDTO -> {@link CostJournal} for the entity with that ID.
+     *
+     *
+     * @return The {@link Action} describing the recommendation in a topology-specific way.
+     */
+    @Nonnull
+    public Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
+                                            @Nonnull final Map<Long, Integer> entityIdToType,
+                                            @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                            @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                            @NonNull TopologyCostCalculator topologyCostCalculator) {
+        return actionInterpreter.interpretAction(actionTO, entityIdToType, originalCloudTopology,
+                projectedCosts, topologyCostCalculator);
+    }
+
+    /**
      * Convert a {@link EconomyDTOs.TraderTO} to a {@link TopologyDTO.TopologyEntityDTO}.
      *
      * @param traderTO {@link EconomyDTOs.TraderTO} that is to be converted to a {@link TopologyDTO.TopologyEntityDTO}
@@ -398,6 +436,9 @@ public class TopologyConverter {
      */
     private TopologyDTO.TopologyEntityDTO traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
+        if (cloudTc.isMarketTier(traderTO.getOid())) {
+            return cloudTc.getMarketTier(traderTO.getOid()).getTier();
+        }
         List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping =
             new ArrayList<>();
         long pmOid = 0L;
@@ -441,7 +482,13 @@ public class TopologyConverter {
                     .addAllCommodityBought(commList);
             // if Market still can not find a placement, we should not set provider Id.
             if (sl.hasSupplier()) {
-                commoditiesBoughtFromProviderBuilder.setProviderId(sl.getSupplier());
+                Long supplier = sl.getSupplier();
+                // If the supplier is a market tier, then get the tier TopologyEntityDTO and
+                // make that the supplier
+                if (cloudTc.isMarketTier(sl.getSupplier())) {
+                    supplier = cloudTc.getMarketTier(sl.getSupplier()).getTier().getOid();
+                }
+                commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
             }
             // if can not find the ShoppingListInfo, that means Market generate some wrong shopping
             // list.
@@ -497,7 +544,6 @@ public class TopologyConverter {
                 .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
                        - traderSetting.getMinDesiredUtilization())
             .build();
-
         TopologyDTO.TopologyEntityDTO.Builder entityDTO =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
                     .setEntityType(traderTO.getType())
@@ -506,6 +552,7 @@ public class TopologyConverter {
                     .setDisplayName(displayName)
                     .addAllCommoditySoldList(retrieveCommSoldList(traderTO, originalEntity))
                     .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
+                    .addAllConnectedEntityList(getConnectedEntities(traderTO))
                     .setAnalysisSettings(analysisSetting);
         if (originalEntity == null) {
             // this is a clone trader
@@ -523,6 +570,49 @@ public class TopologyConverter {
                                         .contains(c.getCommodityType().getType()))
                         .collect(Collectors.toSet()))
                         .build();
+    }
+
+    /**
+     * Gets the list of connected entities to a trader. At present, this method returns the
+     * availability zone to be connected to the trader for cloud consumers.
+     *
+     * @param traderTO the traderTO for which connected entity list is desired
+     * @return
+     */
+    @Nonnull
+    private List<ConnectedEntity> getConnectedEntities(TraderTO traderTO) {
+        List<ConnectedEntity> connectedEntities = new ArrayList<>();
+        if (cloudTc.isTraderConsumingFromMaketTier(traderTO)) {
+            // Primary market tier refers to Compute market tier / database market tier
+            MarketTier destinationPrimaryMarketTier = cloudTc.getPrimaryMarketTier(traderTO);
+            if (destinationPrimaryMarketTier == null) {
+                logger.error("Could not fetch primary market tier for {}",
+                        traderTO.getDebugInfoNeverUseInCode());
+                return connectedEntities;
+            }
+            TopologyEntityDTO originalCloudConsumer = traderTOOidToTopologyEntityDTO.get(traderTO.getOid());
+            TopologyEntityDTO sourceRegion = cloudTc.getRegionOfCloudConsumer(originalCloudConsumer);
+            if (sourceRegion == destinationPrimaryMarketTier.getRegion()) {
+                // cloud consumer (VM / DB) did NOT move to a different region
+                TopologyEntityDTO sourceAZ = cloudTc.getAZOfCloudConsumer(originalCloudConsumer);
+                if (sourceAZ != null) {
+                    ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(sourceAZ.getOid())
+                            .setConnectedEntityType(sourceAZ.getEntityType())
+                            .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                    connectedEntities.add(az);
+                }
+            } else {
+                // cloud consumer (VM / DB) has moved to a different region
+                // Pick the first AZ in the destination region
+                TopologyEntityDTO destAZ = TopologyDTOUtil.getConnectedEntitiesOfType(sourceRegion,
+                        EntityType.AVAILABILITY_ZONE_VALUE, unmodifiableEntityOidToDtoMap).get(0);
+                ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(destAZ.getOid())
+                        .setConnectedEntityId(destAZ.getEntityType())
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                connectedEntities.add(az);
+            }
+        }
+        return connectedEntities;
     }
 
     /**
@@ -624,7 +714,7 @@ public class TopologyConverter {
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
             @Nonnull final CommodityBoughtTO commBoughtTO, final TopologyEntityDTO originalEntity) {
 
-        return economyToTopologyCommodity(commBoughtTO.getSpecification())
+        return commodityConverter.economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
                     .setUsed(reverseScaleCommBought(commType, commBoughtTO.getQuantity(), originalEntity))
                     .setCommodityType(commType)
@@ -709,6 +799,7 @@ public class TopologyConverter {
                     .addAllShoppingLists(createAllShoppingLists(topologyDTO))
                     .addAllCliques(allCliques)
                     .build();
+            traderTOOidToTopologyEntityDTO.put(traderDTO.getOid(), topologyDTO);
         } catch (Exception e) {
             logger.error(entityDebugInfo(topologyDTO) + " could not be converted to traderTO:", e);
         }
@@ -909,7 +1000,7 @@ public class TopologyConverter {
         int providerEntityType = marketTier.getTier().getEntityType();
         CommodityBoughtTO dcCommBought = null;
         if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
-            TopologyEntityDTO region = cloudTc.getConnectedRegion(entityOidToDto.get(buyerOid));
+            TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(entityOidToDto.get(buyerOid));
             List<CommoditySoldDTO> dcCommSoldList = region.getCommoditySoldListList().stream()
                     .filter(c -> c.getCommodityType().getType()
                             == CommodityDTO.CommodityType.DATACENTER_VALUE
@@ -1013,7 +1104,7 @@ public class TopologyConverter {
                 .contains(providerTopologyEntity.getEntityType())) {
             // Provider is a compute tier / storage tier / database tier
             // Get the region connected to the topologyEntity
-            TopologyEntityDTO region = cloudTc.getConnectedRegion(topologyEntity);
+            TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyEntity);
             providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
                     providerTopologyEntity, region));
         }
@@ -1146,7 +1237,7 @@ public class TopologyConverter {
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
             @Nonnull final CommoditySoldTO commSoldTO,
             @Nullable final TopologyEntityDTO originalEntity) {
-        return economyToTopologyCommodity(commSoldTO.getSpecification())
+        return commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification())
                 .map(commType -> CommoditySoldDTO.newBuilder()
                         .setCapacity(reverseScaleCommSold(commType, commSoldTO.getCapacity(),
                                 originalEntity))
@@ -1265,492 +1356,6 @@ public class TopologyConverter {
     }
 
     @VisibleForTesting
-    @Nonnull
-    CommodityType commodityIdToCommodityType(final int marketCommodityId) {
-        return stringToCommodityType(commodityTypeAllocator.getName(marketCommodityId));
-    }
-
-    @Nonnull
-    private CommodityType stringToCommodityType(@Nonnull final String commodityTypeString) {
-        int separatorIndex = commodityTypeString.indexOf(COMMODITY_TYPE_KEY_SEPARATOR);
-        if (separatorIndex > 0) {
-            return CommodityType.newBuilder()
-                .setType(Integer.parseInt(commodityTypeString.substring(0, separatorIndex)))
-                .setKey(commodityTypeString.substring(separatorIndex + 1))
-                .build();
-        } else {
-            return CommodityType.newBuilder()
-                .setType(Integer.parseInt(commodityTypeString))
-                .build();
-        }
-    }
-
-    /**
-     * Interpret the market-specific {@link ActionTO} as a topology-specific {@link Action} proto
-     * for use by the rest of the system.
-     *
-     * It is vital to use the same {@link TopologyConverter} that converted
-     * the topology into market-specific objects
-     * to interpret the resulting actions in a way that makes sense.
-     *
-     * @param actionTO An {@link ActionTO} describing an action recommendation
-     *                 generated by the market.
-     * @param entityIdToType A map from entity ID to the type of that entity. The entities involved
-     *                       in the action are expected to be in this map.
-     * @return The {@link Action} describing the recommendation in a topology-specific way.
-     */
-    @Nonnull
-    public Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
-                                            @Nonnull final Map<Long, Integer> entityIdToType) {
-        try {
-            // The action importance should never be infinite, as setImportance() will fail.
-            final Action.Builder action = Action.newBuilder()
-                // Assign a unique ID to each generated action.
-                .setId(IdentityGenerator.next())
-                            .setImportance(actionTO.getImportance())
-                            .setExplanation(interpretExplanation(actionTO))
-                .setExecutable(!actionTO.getIsNotExecutable());
-
-            final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
-
-            switch (actionTO.getActionTypeCase()) {
-                case MOVE:
-                    infoBuilder.setMove(interpretMoveAction(actionTO.getMove(), entityIdToType));
-                    break;
-                case COMPOUND_MOVE:
-                    infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
-                            entityIdToType));
-                    break;
-                case RECONFIGURE:
-                    infoBuilder.setReconfigure(interpretReconfigureAction(
-                            actionTO.getReconfigure(), entityIdToType));
-                    break;
-                case PROVISION_BY_SUPPLY:
-                    infoBuilder.setProvision(interpretProvisionBySupply(
-                            actionTO.getProvisionBySupply(), entityIdToType));
-                    break;
-                case PROVISION_BY_DEMAND:
-                    infoBuilder.setProvision(interpretProvisionByDemand(
-                            actionTO.getProvisionByDemand(), entityIdToType));
-                    break;
-                case RESIZE:
-                    infoBuilder.setResize(interpretResize(
-                            actionTO.getResize(), entityIdToType));
-                    break;
-                case ACTIVATE:
-                    infoBuilder.setActivate(interpretActivate(
-                            actionTO.getActivate(), entityIdToType));
-                    break;
-                case DEACTIVATE:
-                    infoBuilder.setDeactivate(interpretDeactivate(
-                            actionTO.getDeactivate(), entityIdToType));
-                    break;
-                default:
-                    return Optional.empty();
-            }
-
-            action.setInfo(infoBuilder);
-
-            return Optional.of(action.build());
-        } catch (RuntimeException e) {
-            logger.error("Unable to interpret actionTO " + actionTO + " due to: ", e);
-            return Optional.empty();
-        }
-    }
-
-    private ActionDTO.Provision interpretProvisionByDemand(
-                    @Nonnull final ProvisionByDemandTO provisionByDemandTO,
-                    @Nonnull final Map<Long, Integer> entityIdToTypeMap) {
-        return ActionDTO.Provision.newBuilder()
-                .setEntityToClone(createActionEntity(
-                    provisionByDemandTO.getModelSeller(), entityIdToTypeMap))
-                .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller())
-                .build();
-    }
-
-    private Explanation interpretExplanation(ActionTO actionTO) {
-        Explanation.Builder expBuilder = Explanation.newBuilder();
-        switch (actionTO.getActionTypeCase()) {
-            case MOVE:
-                expBuilder.setMove(interpretMoveExplanation(actionTO.getMove()));
-                break;
-            case RECONFIGURE:
-                expBuilder.setReconfigure(
-                    interpretReconfigureExplanation(actionTO.getReconfigure()));
-                break;
-            case PROVISION_BY_SUPPLY:
-                expBuilder.setProvision(
-                    interpretProvisionExplanation(actionTO.getProvisionBySupply()));
-                break;
-            case PROVISION_BY_DEMAND:
-                expBuilder.setProvision(
-                    interpretProvisionExplanation(actionTO.getProvisionByDemand()));
-                break;
-            case RESIZE:
-                expBuilder.setResize(
-                    interpretResizeExplanation(actionTO.getResize()));
-                break;
-            case ACTIVATE:
-                expBuilder.setActivate(
-                    interpretActivateExplanation(actionTO.getActivate()));
-                break;
-            case DEACTIVATE:
-                expBuilder.setDeactivate(
-                    ActionDTO.Explanation.DeactivateExplanation.getDefaultInstance());
-                break;
-            case COMPOUND_MOVE:
-                // TODO(COMPOUND): different moves in a compound move may have different explanations
-                expBuilder.setMove(interpretCompoundMoveExplanation(actionTO.getCompoundMove().getMovesList()));
-                break;
-            default:
-                throw new IllegalArgumentException("Market returned invalid action type "
-                                + actionTO.getActionTypeCase());
-        }
-        return expBuilder.build();
-    }
-
-    private ActivateExplanation interpretActivateExplanation(ActivateTO activateTO) {
-        return ActivateExplanation.newBuilder()
-                .setMostExpensiveCommodity(activateTO.getMostExpensiveCommodity())
-                .build();
-    }
-
-    private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {
-        return ResizeExplanation.newBuilder().setStartUtilization(resizeTO.getStartUtilization())
-                        .setEndUtilization(resizeTO.getEndUtilization()).build();
-    }
-
-    private ProvisionExplanation
-                    interpretProvisionExplanation(ProvisionByDemandTO provisionByDemandTO) {
-        final ShoppingListInfo shoppingList =
-                        shoppingListOidToInfos.get(provisionByDemandTO.getModelBuyer());
-        if (shoppingList == null) {
-            throw new IllegalStateException(
-                            "Market returned invalid shopping list for PROVISION_BY_DEMAND: "
-                                            + provisionByDemandTO);
-        } else {
-            ProvisionExplanation.Builder expBuilder = ProvisionExplanation.newBuilder();
-            List<ProvisionByDemandExplanation.CommodityNewCapacityEntry> capacityPerType =
-                            new ArrayList<>();
-            List<ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry> maxAmountPerType =
-                            new ArrayList<>();
-            provisionByDemandTO.getCommodityNewCapacityEntryList().forEach(newCapacityEntry ->
-                    capacityPerType.add(
-                            ProvisionByDemandExplanation.CommodityNewCapacityEntry.newBuilder()
-                                    .setCommodityBaseType(newCapacityEntry.getCommodityBaseType())
-                                    .setNewCapacity(newCapacityEntry.getNewCapacity()).build()));
-            provisionByDemandTO.getCommodityMaxAmountAvailableList().forEach(maxAmount ->
-                maxAmountPerType.add(
-                    ActionDTO.Explanation.ProvisionExplanation
-                        .ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry.newBuilder()
-                    .setCommodityBaseType(maxAmount.getCommodityBaseType())
-                    .setMaxAmountAvailable(maxAmount.getMaxAmountAvailable())
-                    .setRequestedAmount(maxAmount.getRequestedAmount()).build()));
-            return expBuilder.setProvisionByDemandExplanation(ProvisionByDemandExplanation
-                    .newBuilder().setBuyerId(shoppingList.buyerId)
-                    .addAllCommodityNewCapacityEntry(capacityPerType)
-                    .addAllCommodityMaxAmountAvailable(maxAmountPerType).build()).build();
-        }
-    }
-
-    private ProvisionExplanation
-                    interpretProvisionExplanation(ProvisionBySupplyTO provisionBySupply) {
-        return ProvisionExplanation.newBuilder()
-                    .setProvisionBySupplyExplanation(
-                            ProvisionBySupplyExplanation.newBuilder()
-                                .setMostExpensiveCommodity(provisionBySupply
-                                    .getMostExpensiveCommodity())
-                                .build())
-                    .build();
-    }
-
-    private ReconfigureExplanation
-                    interpretReconfigureExplanation(ReconfigureTO reconfTO) {
-        return ReconfigureExplanation.newBuilder()
-                        .addAllReconfigureCommodity(reconfTO.getCommodityToReconfigureList().stream()
-                            .map(this::commodityIdToCommodityType)
-                            .collect(Collectors.toList()))
-                        .build();
-    }
-
-    private MoveExplanation interpretCompoundMoveExplanation(List<MoveTO> moveTOs) {
-        MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        moveTOs.stream()
-            .map(MoveTO::getMoveExplanation)
-            .map(this::changeExplanation)
-            .forEach(moveExpBuilder::addChangeProviderExplanation);
-        return moveExpBuilder.build();
-    }
-
-    private MoveExplanation interpretMoveExplanation(MoveTO moveTO) {
-        MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        moveExpBuilder.addChangeProviderExplanation(changeExplanation(moveTO.getMoveExplanation()));
-        return moveExpBuilder.build();
-    }
-
-    private ChangeProviderExplanation changeExplanation(
-            com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation moveExplanation) {
-        switch (moveExplanation.getExplanationTypeCase()) {
-            case COMPLIANCE:
-                return ChangeProviderExplanation.newBuilder()
-                        .setCompliance(ChangeProviderExplanation.Compliance.newBuilder()
-                            .addAllMissingCommodities(
-                                moveExplanation.getCompliance()
-                                    .getMissingCommoditiesList().stream()
-                                    .map(this::commodityIdToCommodityType)
-                                    .collect(Collectors.toList())
-                            )
-                            .build())
-                        .build();
-            case CONGESTION:
-                return ChangeProviderExplanation.newBuilder()
-                        .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
-                            .addAllCongestedCommodities(
-                                moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
-                                    .map(this::commodityIdToCommodityType)
-                                    .collect(Collectors.toList()))
-                            .build())
-                        .build();
-            case EVACUATION:
-                return ChangeProviderExplanation.newBuilder()
-                        .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
-                            .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
-                            .build())
-                        .build();
-            case INITIALPLACEMENT:
-                return ChangeProviderExplanation.newBuilder()
-                        .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance())
-                    .build();
-            case PERFORMANCE:
-                return ChangeProviderExplanation.newBuilder()
-                        .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance())
-                    .build();
-            default:
-                logger.error("Unknown explanation case for move action: "
-                    + moveExplanation.getExplanationTypeCase());
-                return ChangeProviderExplanation.getDefaultInstance();
-        }
-    }
-
-    @Nonnull
-    private ActionDTO.Move interpretMoveAction(@Nonnull final MoveTO moveTO,
-                                       @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        final ShoppingListInfo shoppingList =
-                        shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-        if (shoppingList == null) {
-            throw new IllegalStateException(
-                            "Market returned invalid shopping list for MOVE: " + moveTO);
-        } else {
-            return ActionDTO.Move.newBuilder()
-                            .setTarget(
-                                    createActionEntity(shoppingList.buyerId, entityIdToEntityType))
-                            .addChanges(createChangeProvider(moveTO, entityIdToEntityType))
-                            .build();
-        }
-    }
-
-    @Nonnull
-    private ActionDTO.Move interpretCompoundMoveAction(
-                    @Nonnull final CompoundMoveTO compoundMoveTO,
-                    @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        List<MoveTO> moves = compoundMoveTO.getMovesList();
-        if (moves.isEmpty()) {
-            throw new IllegalStateException(
-                "Market returned no moves in a COMPOUND_MOVE: " + compoundMoveTO);
-        }
-        Set<Long> targetIds = moves.stream()
-                        .map(MoveTO::getShoppingListToMove)
-                        .map(shoppingListOidToInfos::get)
-                        .map(ShoppingListInfo::getBuyerId)
-                        .collect(Collectors.toSet());
-        if (targetIds.size() != 1) {
-            throw new IllegalStateException(
-                (targetIds.isEmpty() ? "Empty target ID" : "Non-unique target IDs")
-                    + " in COMPOUND_MOVE:" + compoundMoveTO);
-        }
-
-        return ActionDTO.Move.newBuilder()
-                        .setTarget(createActionEntity(
-                            targetIds.iterator().next(), entityIdToEntityType))
-                        .addAllChanges(moves.stream()
-                            .map(move -> createChangeProvider(move, entityIdToEntityType))
-                            .collect(Collectors.toList()))
-                            .build();
-    }
-
-    @Nonnull
-    private ChangeProvider createChangeProvider(@Nonnull final MoveTO move,
-                                        @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        // move action could have no source id, for example: initial placement action.
-        Preconditions.checkArgument(
-            !move.hasSource() || entityIdToEntityType.containsKey(move.getSource()),
-            "Missing entityType in the map for source entity %s", move.getSource());
-
-        Preconditions.checkArgument(entityIdToEntityType.containsKey(move.getDestination()),
-            "Missing entityType in the map for destination entity %s", move.getDestination());
-
-        final ChangeProvider.Builder changeProviderBuilder = ChangeProvider.newBuilder()
-                    .setDestination(ActionEntity.newBuilder()
-                        .setId(move.getDestination())
-                        .setType(entityIdToEntityType.get(move.getDestination())));
-        if (move.hasSource()) {
-            changeProviderBuilder.setSource(ActionEntity.newBuilder()
-                    .setId(move.getSource())
-                    .setType(entityIdToEntityType.get(move.getSource())));
-        }
-        return changeProviderBuilder.build();
-    }
-
-    @Nonnull
-    private ActionDTO.Reconfigure interpretReconfigureAction(
-                    @Nonnull final ReconfigureTO reconfigureTO,
-                    @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        final ShoppingListInfo shoppingList =
-                        shoppingListOidToInfos.get(reconfigureTO.getShoppingListToReconfigure());
-        if (shoppingList == null) {
-            throw new IllegalStateException(
-                "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
-        } else {
-            final ActionDTO.Reconfigure.Builder builder = ActionDTO.Reconfigure.newBuilder()
-                .setTarget(createActionEntity(shoppingList.buyerId, entityIdToEntityType));
-
-            if (reconfigureTO.hasSource()) {
-                builder.setSource(createActionEntity(reconfigureTO.getSource(), entityIdToEntityType));
-            }
-
-            return builder.build();
-        }
-    }
-
-    @Nonnull
-    private ActionDTO.Provision interpretProvisionBySupply(
-                    @Nonnull final ProvisionBySupplyTO provisionBySupplyTO,
-                    @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        return ActionDTO.Provision.newBuilder()
-                .setEntityToClone(createActionEntity(
-                    provisionBySupplyTO.getModelSeller(), entityIdToEntityType))
-                .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
-                .build();
-    }
-
-    @Nonnull
-    private ActionDTO.Resize interpretResize(@Nonnull final ResizeTO resizeTO,
-                                         @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        final long entityId = resizeTO.getSellingTrader();
-        final CommodityType topologyCommodity =
-                economyToTopologyCommodity(resizeTO.getSpecification())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                        "Resize commodity can't be converted to topology commodity format! "
-                            + resizeTO.getSpecification()));
-        // Determine if this is a remove limit or a regular resize.
-        if (entityIdToEntityType.containsKey(entityId)) {
-            if (EntityType.VIRTUAL_MACHINE.getNumber() == entityIdToEntityType.get(entityId)) {
-                // If this is a VM and has a restricted capacity, we are going to assume it's a limit
-                // removal. This logic seems like it could be fragile, in that limit may not be the
-                // only way VM capacity could be restricted in the future, but this is consistent
-                // with how classic makes the same decision.
-                TraderTO traderTO = oidToTraderTOMap.get(entityId);
-                // find the commodity on the trader and see if there is a limit?
-                for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
-                    if (commoditySold.getSpecification().equals(resizeTO.getSpecification())) {
-                        // We found the commodity sold.  If it has a utilization upper bound < 1.0,
-                        // then the commodity is restricted, and according to our VM-rule, we will
-                        // treat this as a limit removal.
-                        float utilizationPercentage = commoditySold.getSettings().getUtilizationUpperBound();
-                        if (utilizationPercentage < 1.0) {
-                            // The "limit removal" is actually a resize on the commodity's "limit"
-                            // attribute that effectively sets it to zero.
-                            //
-                            // Ideally we would set the "old capacity" to the current limit
-                            // value, but as noted above, we don't have access to the limit here. We
-                            // only have the utilization percentage, which we expect to be based on
-                            // the limit and raw capacity values. Since we do have the utilization %
-                            // and raw capacity here, we can _approximate_ the current limit by
-                            // reversing the math used to determine the utilization %.
-                            //
-                            // We will grudgingly do that here. Note that this may be subject to
-                            // precision and rounding errors. In addition, if in the future we have
-                            // factors other than "limit" that could drive the VM resource
-                            // utilization threshold to below 100%, then this approximation would
-                            // likely be wrong and misleading in those cases.
-                            float approximateLimit = commoditySold.getCapacity() * utilizationPercentage;
-                            logger.debug("The commodity {} has util% of {}, so treating as limit"
-                                    +" removal (approximate limit: {}).",
-                                    topologyCommodity.getKey(), utilizationPercentage, approximateLimit);
-
-                            return ActionDTO.Resize.newBuilder()
-                                    .setTarget(createActionEntity(entityId, entityIdToEntityType))
-                                    .setOldCapacity(approximateLimit)
-                                    .setNewCapacity(0)
-                                    .setCommodityType(topologyCommodity)
-                                    .setCommodityAttribute(CommodityAttribute.LIMIT)
-                                    .build();
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        return ActionDTO.Resize.newBuilder()
-                .setTarget(createActionEntity(entityId, entityIdToEntityType))
-                .setNewCapacity(resizeTO.getNewCapacity())
-                .setOldCapacity(resizeTO.getOldCapacity())
-                .setCommodityType(topologyCommodity)
-                .build();
-    }
-
-    @Nonnull
-    private ActionDTO.Activate interpretActivate(@Nonnull final ActivateTO activateTO,
-                                     @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        final long entityId = activateTO.getTraderToActivate();
-        final List<CommodityType> topologyCommodities =
-                activateTO.getTriggeringBasketList().stream()
-                        .map(this::economyToTopologyCommodity)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .collect(Collectors.toList());
-        return ActionDTO.Activate.newBuilder()
-                .setTarget(createActionEntity(entityId, entityIdToEntityType))
-                .addAllTriggeringCommodities(topologyCommodities)
-                .build();
-    }
-
-    @Nonnull
-    private ActionDTO.Deactivate interpretDeactivate(@Nonnull final DeactivateTO deactivateTO,
-                                     @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        final long entityId = deactivateTO.getTraderToDeactivate();
-        final List<CommodityType> topologyCommodities =
-                deactivateTO.getTriggeringBasketList().stream()
-                        .map(this::economyToTopologyCommodity)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .collect(Collectors.toList());
-        return ActionDTO.Deactivate.newBuilder()
-                .setTarget(createActionEntity(entityId, entityIdToEntityType))
-                .addAllTriggeringCommodities(topologyCommodities)
-                .build();
-    }
-
-    @VisibleForTesting
-    @Nonnull
-    Optional<CommodityType> economyToTopologyCommodity(
-            @Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
-        final CommodityType topologyCommodity =
-                commoditySpecMap.get(new EconomyCommodityId(economyCommodity));
-        if (topologyCommodity == null) {
-            if (commodityTypeAllocator.getName(economyCommodity.getBaseType()).equals(
-                    TopologyConversionConstants.BICLIQUE)) {
-                // this is a biclique commodity
-                return Optional.empty();
-            }
-            throw new IllegalStateException("Market returned invalid commodity specification " +
-                    economyCommodity + "! " +
-                    "Registered ones are " + commoditySpecMap.keySet());
-        }
-        return Optional.of(topologyCommodity);
-    }
-
-    @VisibleForTesting
     CommodityConverter getCommodityConverter() {
         return commodityConverter;
     }
@@ -1768,13 +1373,5 @@ public class TopologyConverter {
         list.forEach(l -> shoppingListOidToInfos.put(l.getNewShoppingList(),
                     new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
                             null, Lists.newArrayList())));
-    }
-
-    private ActionEntity createActionEntity(final long id,
-                                @Nonnull final Map<Long, Integer> entityIdToEntityType) {
-        return ActionEntity.newBuilder()
-                    .setId(id)
-                    .setType(entityIdToEntityType.get(id))
-                    .build();
     }
 }

@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -16,7 +15,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +29,6 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -53,16 +50,10 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.Analysis;
-import com.vmturbo.cost.api.CostClientConfig;
-import com.vmturbo.cost.calculation.DiscountApplicator;
-import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
-import com.vmturbo.market.runner.cost.MarketCloudCostDataProvider;
-import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -83,7 +74,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.Converter;
 
 
@@ -445,15 +435,16 @@ public class TopologyEntitiesHandlerTest {
     public void testMoveToCheaperComputeTier(boolean isVMShopTogether) {
         try {
             // Read file
-            Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readTopologyFromJsonFile();
-            TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(builder -> builder.getEntityType() ==
-                    EntityType.VIRTUAL_MACHINE_VALUE).collect(Collectors.toList()).get(0);
+            Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readCloudTopologyFromJsonFile();
+            TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
+                    builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .collect(Collectors.toList()).get(0);
             // Set the shopTogether flag
             vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
             Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
                     .map(builder -> builder.build()).collect(Collectors.toSet());
-                    TopologyEntityDTO m1Medium = null;
             // Get handle to the templates, region and BA TopologyEntityDTO
+            TopologyEntityDTO m1Medium = null;
             TopologyEntityDTO m1Large = null;
             TopologyEntityDTO m1Small = null;
             TopologyEntityDTO region = null;
@@ -557,7 +548,7 @@ public class TopologyEntitiesHandlerTest {
         return builder.build();
     }
 
-    private Set<TopologyEntityDTO.Builder> readTopologyFromJsonFile()
+    public static Set<TopologyEntityDTO.Builder> readCloudTopologyFromJsonFile()
             throws FileNotFoundException, InvalidProtocolBufferException {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         final URL topologyFileResource = classLoader.getResource(SIMPLE_CLOUD_TOPOLOGY_JSON_FILE);

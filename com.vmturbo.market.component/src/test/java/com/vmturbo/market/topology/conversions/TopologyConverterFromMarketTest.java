@@ -3,6 +3,7 @@ package com.vmturbo.market.topology.conversions;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ENTITY_VALUE;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -62,6 +63,7 @@ public class TopologyConverterFromMarketTest {
     private static final Float MARKET_VM_USED = RAW_VM_USED * SCALING_FACTOR;
     private static final Float MARKET_PM_CAPACITY = RAW_PM_CAPACITY * SCALING_FACTOR;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
 
 
     private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
@@ -115,7 +117,8 @@ public class TopologyConverterFromMarketTest {
     @Test
     public void testTraderWithBicliqueCommodityConversion() throws Exception {
         TopologyConverter converter = Mockito.spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable));
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, false, 0.75f, marketPriceTable,
+                    mockCommodityConverter));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
                     TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -164,8 +167,10 @@ public class TopologyConverterFromMarketTest {
                             .setType(DSPM_TYPE_ID)
                             .build())
                         .build();
-        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(converter)
+        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(mockCommodityConverter)
                         .economyToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
+        Mockito.doReturn(Optional.empty()).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(economyDSPMSold.getSpecification()));
         // create a topology entity DTO with DSPM sold
         TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -224,8 +229,8 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(
                 new TopologyConverter(TopologyInfo.newBuilder()
                         .setTopologyType(TopologyType.PLAN)
-                        .build(),
-                        marketPriceTable));
+                        .build(), false, 0.75f, marketPriceTable,
+                        mockCommodityConverter));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
                 TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -244,10 +249,12 @@ public class TopologyConverterFromMarketTest {
                                 .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE))
                         .build());
 
+        CommodityType cpuCommType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CPU_VALUE).build();
+
         final List<CommodityBoughtDTO> topologyCPUBought =
                 Lists.newArrayList(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(CommodityDTO.CommodityType.CPU_VALUE))
+                        .setCommodityType(cpuCommType)
                         .build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -262,11 +269,13 @@ public class TopologyConverterFromMarketTest {
         shoppingListInfos.setAccessible(true);
         shoppingListInfos.set(converter, shoppingListMap);
 
+        CommoditySpecificationTO cpuCommSpecTO = CommoditySpecificationTO.newBuilder()
+                .setBaseType(BICLIQUE_TYPE_ID)
+                .setType(CPU_TYPE_ID)
+                .build();
+
         final CommodityDTOs.CommoditySoldTO economyCPUSold = CommodityDTOs.CommoditySoldTO.newBuilder()
-                .setSpecification(CommoditySpecificationTO.newBuilder()
-                        .setBaseType(BICLIQUE_TYPE_ID)
-                        .setType(CPU_TYPE_ID)
-                        .build())
+                .setSpecification(cpuCommSpecTO)
                 .build();
         final CommodityDTOs.CommoditySoldTO economyDSPMSold = CommodityDTOs.CommoditySoldTO.newBuilder()
                 .setSpecification(CommoditySpecificationTO.newBuilder()
@@ -274,8 +283,18 @@ public class TopologyConverterFromMarketTest {
                         .setType(DSPM_TYPE_ID)
                         .build())
                 .build();
-        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(converter)
-                .economyToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
+        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(DSPM_TYPE_ID)
+                        .setType(CPU_TYPE_ID)
+                        .build()));
+        Mockito.doReturn(Optional.empty()).when(mockCommodityConverter)
+                .economyToTopologyCommodity(Mockito.eq(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(BICLIQUE_TYPE_ID)
+                        .setType(DSPM_TYPE_ID)
+                        .build()));
+        Mockito.doReturn(cpuCommSpecTO).when(mockCommodityConverter)
+                .commoditySpecification(cpuCommType);
         // create a topology entity DTO with DSPM sold
         TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -362,7 +381,8 @@ public class TopologyConverterFromMarketTest {
 
         // converter under test
         TopologyConverter converter = Mockito.spy(
-                new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable));
+                new TopologyConverter(REALTIME_TOPOLOGY_INFO, false, 0.75f, marketPriceTable,
+                        mockCommodityConverter));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -387,7 +407,7 @@ public class TopologyConverterFromMarketTest {
                 .setCapacity(MARKET_PM_CAPACITY)
                 .build();
 
-        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(converter)
+        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(mockCommodityConverter)
                 .economyToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
 
         // create a PM topology entity DTO that seels CPU (with scalingFactor set)

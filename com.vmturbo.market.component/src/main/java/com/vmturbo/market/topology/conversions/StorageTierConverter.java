@@ -9,6 +9,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.map.UnmodifiableMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
@@ -28,6 +30,7 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StorageTierConverter implements TierConverter {
+    private static final Logger logger = LogManager.getLogger();
     TopologyInfo topologyInfo;
     CommodityConverter commodityConverter;
     CostDTOCreator costDTOCreator;
@@ -56,7 +59,8 @@ public class StorageTierConverter implements TierConverter {
                 storageTier, EntityType.REGION_VALUE, topology);
         for(TopologyEntityDTO region : connectedRegions) {
             MarketTier marketTier = new OnDemandMarketTier(storageTier, region);
-
+            String debugInfo = marketTier.getDisplayName();
+            logger.debug("Creating trader for {}", debugInfo);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
                     createCommonTraderSettingsTOBuilder(storageTier, topology,
                             TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo));
@@ -81,8 +85,7 @@ public class StorageTierConverter implements TierConverter {
                     .setState(TopologyConversionUtils.traderState(storageTier))
                     .setSettings(settings)
                     .setTemplateForHeadroom(false)
-                    .setDebugInfoNeverUseInCode(
-                            TopologyConversionUtils.marketTierEntityDebugInfo(storageTier, region))
+                    .setDebugInfoNeverUseInCode(marketTier.getDisplayName())
                     .addAllCommoditiesSold(commoditiesSoldList(storageTier));
             traderTOs.put(traderTOBuilder, marketTier);
         }

@@ -5,6 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.action";
 
 import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
+import "CloudCostDTO.proto";
 
 message Explanation {
    oneof action_explanation_type {
@@ -258,6 +259,9 @@ message Action {
     // Indicates level of supporting of action by probe or not, depends on action
     // capabilities (policies) of probe.
     optional SupportLevel supportingLevel = 6;
+
+    // Hourly savings if the action is taken.
+    optional common_dto.CurrencyAmount savings_per_hour = 7;
 
     // Levels of supporting action by probe
     enum SupportLevel {

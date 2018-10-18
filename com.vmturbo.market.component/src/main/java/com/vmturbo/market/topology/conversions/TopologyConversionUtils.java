@@ -126,18 +126,4 @@ public class TopologyConversionUtils {
                 "Min: %s must be <= max: %s", min, max);
         return Math.min(max, Math.max(value, min));
     }
-
-    /**
-     * Create entity debug info for market tier.
-     *
-     * @param tier
-     * @param region
-     * @return
-     */
-    @Nonnull
-    static String marketTierEntityDebugInfo(@Nonnull TopologyEntityDTO tier,
-                                   @Nonnull TopologyEntityDTO region) {
-        return EntityType.forNumber(tier.getEntityType()) + "|"
-                + tier.getDisplayName() + "|" + region.getDisplayName();
-    }
 }
