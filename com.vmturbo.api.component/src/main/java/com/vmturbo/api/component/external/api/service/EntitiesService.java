@@ -238,10 +238,11 @@ public class EntitiesService implements IEntitiesService {
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid,
                                                               ActionApiInputDTO inputDto)
             throws Exception {
-        // The search will be on a long value, not a String
-        final long entityId = Long.valueOf(uuid);
 
         try {
+            // The search could be a default Cloud group which is String.
+            // TODO support default Cloud group
+            final long entityId = Long.valueOf(uuid);
             final ActionQueryFilter filter =
                     actionSpecMapper.createActionFilter(inputDto,
                             Optional.of(Collections.singletonList(entityId)));
@@ -257,6 +258,9 @@ public class EntitiesService implements IEntitiesService {
             } else {
                 throw e;
             }
+        } catch (NumberFormatException e) {
+            // TODO Remove it when default Cloud group is supported
+            return Collections.emptyList();
         }
     }
 
