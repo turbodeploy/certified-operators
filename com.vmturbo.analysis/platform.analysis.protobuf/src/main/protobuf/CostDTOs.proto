@@ -21,17 +21,6 @@ message CostDTO {
     // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
     // compute tier service
     message ComputeTierCostDTO {
-        // the cost tuple which will be used to construct cost table for compute tier regarding
-        // business account and license. Market needs all the price for a given compute tier in
-        // a region if given a business account and a license.
-        message CostTuple {
-            // if license does not exist, the license comm type should be -1
-            optional int32 license_commodity_type = 1;
-            optional double price = 2;
-            // some business account can be used for applying discount, id of business account
-            // maps to the discounted price of resource
-            optional int64 business_account_id = 3;
-        }
         // the base commodity and its dependent commodity type. The sum of base and
         // dependent commodity for a given shopping list should be within the capacity
         // of the base commodity sold by a given seller
@@ -42,6 +31,15 @@ message CostDTO {
         repeated CostTuple cost_tuple_list = 1; // a list of cost tuple info
         repeated ComputeResourceDependency compute_resource_depedency = 2;// a list of dependency constraint
         optional int32 license_commodity_base_type = 3; // the base type of license commodity
+    }
+
+    message CostTuple {
+        // if license does not exist, the license comm type should be -1
+        optional int32 license_commodity_type = 1;
+        optional double price = 2;
+        // some business account can be used for applying discount, id of business account
+        // maps to the discounted price of resource
+        optional int64 business_account_id = 3;
     }
 
     message StorageTierCostDTO {

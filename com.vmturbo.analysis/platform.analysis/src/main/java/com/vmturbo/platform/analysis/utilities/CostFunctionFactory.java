@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -29,7 +31,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
@@ -620,7 +622,7 @@ public class CostFunctionFactory {
      * @return map The map has business account id as key and a mapping of license to price as value.
      */
     private static Map<Long, Map<Integer, Double>>
-            translateResourceCostForComputeTier(List<CostTuple> costTupleList) {
+            translateResourceCostForTier(List<CostTuple> costTupleList) {
         Map<Long, Map<Integer, Double>> costMap = new HashMap<>();
         for (CostTuple costTuple: costTupleList) {
             long baId = costTuple.getBusinessAccountId();
@@ -643,7 +645,7 @@ public class CostFunctionFactory {
      */
     public static @NonNull CostFunction createCostFunctionForComputeTier(ComputeTierCostDTO costDTO) {
         Map<Long, Map<Integer, Double>> costMap =
-                translateResourceCostForComputeTier(costDTO.getCostTupleListList());
+                        translateResourceCostForTier(costDTO.getCostTupleListList());
         Map<CommoditySpecification, CommoditySpecification> dependencyMap =
                 translateComputeResourceDependency(costDTO.getComputeResourceDepedencyList());
 
