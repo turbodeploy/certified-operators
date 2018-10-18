@@ -13,6 +13,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.expenses.SqlAccountExpensesStore;
 import com.vmturbo.cost.component.rpc.CostRpcService;
+import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
@@ -47,6 +48,12 @@ public class CostConfig {
     public CostRpcService costRpcService() {
         return new CostRpcService(discountConfig.discountStore(),
                 accountExpensesStore(),
-                entityCostConfig.entityCostStore());
+                entityCostConfig.entityCostStore(),
+                businessAccountHelper());
+    }
+
+    @Bean
+    public BusinessAccountHelper businessAccountHelper() {
+        return new BusinessAccountHelper();
     }
 }

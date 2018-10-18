@@ -20,6 +20,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -40,7 +41,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
         PricingConfig.class,
         EntityCostConfig.class,
         DiscountConfig.class,
-        ReservedInstanceConfig.class})
+        ReservedInstanceConfig.class,
+        CostConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
@@ -64,13 +66,17 @@ public class TopologyListenerConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Autowired
+    private CostConfig costConfig;
+
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
             new LiveTopologyEntitiesListener(realtimeTopologyContextId,
                 computeTierDemandStatsConfig.riDemandStatsWriter(),
                 cloudTopologyFactory(), topologyCostCalculator(), entityCostConfig.entityCostStore(),
-                reservedInstanceConfig.reservedInstanceCoverageUpload());
+                reservedInstanceConfig.reservedInstanceCoverageUpload(),
+                costConfig.businessAccountHelper());
         topologyProcessor().addLiveTopologyListener(entitiesListener);
         return entitiesListener;
     }

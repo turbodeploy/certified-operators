@@ -54,6 +54,7 @@ import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 
@@ -175,11 +176,14 @@ public class RIAndExpenseUploadRpcServiceTest {
 
     public EntityCostStore entityCostStore = mock(EntityCostStore.class);
 
+    public BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
+
     private CostRpcService costRpcService;
 
     @Before
     public void setUp() {
-        costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore);
+        businessAccountHelper.storeTargetMapping(2, 2);
+        costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore, businessAccountHelper);
     }
 
     @Test
@@ -547,6 +551,52 @@ public class RIAndExpenseUploadRpcServiceTest {
                         .build())
                 .build();
         performTest(request, 2);
+    }
+
+    @Test
+    public void testGetAveragedEntityStatsGroupByCSPWithEmptyBusinessAccountHelperMap() throws Exception {
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(CostRpcService.CSP)
+                        .setRelatedEntityType(CostRpcService.CLOUD_SERVICE).build())
+                        .build())
+                .build();
+        final StreamObserver<StatSnapshot> mockObserver =
+                mock(StreamObserver.class);
+        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2l,
+                AccountExpenses.newBuilder()
+                        .setAssociatedAccountId(3l)
+                        .setAccountExpensesInfo(accountExpensesInfo)
+                        .build());
+        final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
+        given(accountExpenseStore.getLatestExpenses()).willReturn(snapshotToAccountExpensesMap);
+        given(accountExpenseStore.getAccountExpenses(any(), any())).willReturn(snapshotToAccountExpensesMap);
+        final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder().setName(CostRpcService.COST_PRICE);
+        final Builder snapshotBuilder = StatSnapshot.newBuilder();
+        snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(1));
+
+        statRecordBuilder.setUnits("$/h");
+
+        // the provider UUID should be missing due to business account id (2) is not in the BusinessAccountHelp map.
+        StatValue.Builder statValueBuilder = StatValue.newBuilder();
+
+        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
+
+        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
+
+        // currentValue
+        statRecordBuilder.setCurrentValue((float) ACCOUNT_EXPENSE1);
+
+        StatValue statValue = statValueBuilder.build();
+
+        statRecordBuilder.setValues(statValue);
+        statRecordBuilder.setUsed(statValue);
+        statRecordBuilder.setPeak(statValue);
+
+        snapshotBuilder.addStatRecords(statRecordBuilder.build());
+        costRpcService.getAveragedEntityStats(request, mockObserver);
+        verify(mockObserver).onNext(snapshotBuilder.build());
+        verify(mockObserver).onCompleted();
     }
 
     @Test

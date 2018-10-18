@@ -46,6 +46,7 @@ import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -109,6 +110,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final EntityCostStore entityCostStore;
 
+    private final BusinessAccountHelper businessAccountHelper;
+
 
     /**
      * Create a new RIAndExpenseUploadRpcService.
@@ -118,10 +121,12 @@ public class CostRpcService extends CostServiceImplBase {
      */
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
-                          @Nonnull final EntityCostStore costStoreHouse) {
+                          @Nonnull final EntityCostStore costStoreHouse,
+                          @Nonnull final BusinessAccountHelper businessAccountHelper) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
+        this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
     }
 
     /**
@@ -417,7 +422,8 @@ public class CostRpcService extends CostServiceImplBase {
                                     // build the record for this stat (commodity type)
                                     final StatRecord statRecord = buildStatRecord(
                                             groupByType.equals(CLOUD_SERVICE) ?
-                                                    serviceExpenses.getAssociatedServiceId() : accountExpenses.getAssociatedAccountId()
+                                                    serviceExpenses.getAssociatedServiceId() : businessAccountHelper
+                                                    .resolveTargetId(accountExpenses.getAssociatedAccountId())
                                             , amount);
                                     // return add this record to the snapshot for this timestamp
                                     snapshotBuilder.addStatRecords(statRecord);
@@ -435,7 +441,7 @@ public class CostRpcService extends CostServiceImplBase {
                                        @Nullable final Float avgValue) {
         final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                 .setName(COST_PRICE);
-        if (producerId != null) {
+        if (producerId != null && producerId != 0) {
             // providerUuid, it's associated accountId except CloudService type which is serviceId
             statRecordBuilder.setProviderUuid(String.valueOf(producerId));
         }
