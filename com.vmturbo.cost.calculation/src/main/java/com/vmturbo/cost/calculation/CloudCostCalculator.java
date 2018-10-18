@@ -119,16 +119,15 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final ReservedInstanceApplicator<ENTITY_CLASS> reservedInstanceApplicator =
                 reservedInstanceApplicatorFactory.newReservedInstanceApplicator(journal, entityInfoExtractor, cloudCostData);
 
-                // Apply the reserved instance coverage, and return the percent of the entity's compute
-                // that's covered by reserved instances.
-                // Note: We do this outside the compute cost computation block so that even if an entity
-                // doesn't have a compute config for some reason, we still take the RI costs into account.
-                final double riComputeCoveragePercent = reservedInstanceApplicator.recordRICoverage();
-                Preconditions.checkArgument(riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
 
                 entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
                     // Calculate on-demand prices for entities that have a compute config.
                     cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
+                        // Apply the reserved instance coverage, and return the percent of the entity's compute
+                        // that's covered by reserved instances.
+                        final double riComputeCoveragePercent = reservedInstanceApplicator.recordRICoverage(computeTier);
+                        Preconditions.checkArgument(riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
+
                         final long regionId = entityInfoExtractor.getId(region);
                         final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
                             .getOnDemandPriceByRegionIdMap().get(regionId);

@@ -20,10 +20,10 @@ import org.mockito.Mockito;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
@@ -421,7 +421,7 @@ public class RIDataUploaderTest {
 
         // verify that RI coverage info was consumed correctly.
         Assert.assertEquals(1, riData.riCoverages.size());
-        EntityReservedInstanceCoverage.Builder riCoverage = riData.riCoverages.get(0);
+        EntityRICoverageUpload.Builder riCoverage = riData.riCoverages.get(0);
         // VM 201 should be covered by 2 coupons
         Assert.assertEquals(201, riCoverage.getEntityId());
         Assert.assertEquals(2, riCoverage.getTotalCouponsRequired(), 0);

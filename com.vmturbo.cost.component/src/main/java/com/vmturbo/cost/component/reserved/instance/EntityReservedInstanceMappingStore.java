@@ -4,9 +4,12 @@ import static org.jooq.impl.DSL.sum;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -19,9 +22,10 @@ import org.jooq.Result;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
@@ -53,14 +57,14 @@ public class EntityReservedInstanceMappingStore {
     }
 
     /**
-     * Input a list of {@link EntityReservedInstanceCoverage}, store them into the database table.
+     * Input a list of {@link EntityRICoverageUpload}, store them into the database table.
      *
      * @param context {@link DSLContext} transactional context.
-     * @param entityReservedInstanceCoverages a list of {@link EntityReservedInstanceCoverage}.
+     * @param entityReservedInstanceCoverages a list of {@link EntityRICoverageUpload}.
      */
     public void updateEntityReservedInstanceMapping(
             @Nonnull final DSLContext context,
-            @Nonnull final List<EntityReservedInstanceCoverage> entityReservedInstanceCoverages) {
+            @Nonnull final List<EntityRICoverageUpload> entityReservedInstanceCoverages) {
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder().build();
         final List<ReservedInstanceBought> reservedInstancesBought =
@@ -105,22 +109,45 @@ public class EntityReservedInstanceMappingStore {
     }
 
     /**
-     * Get the sum count of used coupons for each entity.
+     * Get the RI coverage of all entities.
      *
-     * @param context {@link DSLContext} transactional context.
-     * @return a map which key is entity id, value is the sum of used coupons.
+     * @return A map from entity ID to {@link EntityReservedInstanceCoverage} for that entity.
      */
-    public Map<Long, Double> getEntityUsedCouponsMap(@Nonnull final DSLContext context) {
-        final Result<Record2<Long, Double>> entityUsedCouponsMap =
-                context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID,
-                        (sum(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS))
-                                .cast(Double.class).as(ENTITY_SUM_COUPONS))
-                        .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-                        .groupBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
-                        .fetch();
-        return entityUsedCouponsMap.intoMap(
-                entityUsedCouponsMap.field(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID),
-                entityUsedCouponsMap.field(ENTITY_SUM_COUPONS).cast(Double.class));
+    public Map<Long, EntityReservedInstanceCoverage> getEntityRiCoverage() {
+        final Map<Long, EntityReservedInstanceCoverage> retMap = new HashMap<>();
+
+        final List<EntityToReservedInstanceMapping> riCoverageRows =
+            // There should only be one set of RI coverage in the table at a time, so
+            // we can just get everything from the table.
+            dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                    // This is important - lets us process one entity completely before
+                    // moving on to the next one.
+                    .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
+                    .fetch()
+                    .into(EntityToReservedInstanceMapping.class);
+
+        EntityReservedInstanceCoverage.Builder curEntityCoverageBldr = null;
+        for (final EntityToReservedInstanceMapping reCoverageRow : riCoverageRows) {
+            if (curEntityCoverageBldr == null) {
+                // This should only be true for the first entry.
+                curEntityCoverageBldr = EntityReservedInstanceCoverage.newBuilder()
+                        .setEntityId(reCoverageRow.getEntityId());
+            } else if (curEntityCoverageBldr.getEntityId() != reCoverageRow.getEntityId()) {
+                // Because of the group-by, this means there are no longer any records for the
+                // entity whose coverage we've been building so far. We can "finalize" it by
+                // and put it in the return map.
+                retMap.put(curEntityCoverageBldr.getEntityId(), curEntityCoverageBldr.build());
+                curEntityCoverageBldr = EntityReservedInstanceCoverage.newBuilder()
+                        .setEntityId(reCoverageRow.getEntityId());
+            }
+            curEntityCoverageBldr.putCouponsCoveredByRi(reCoverageRow.getReservedInstanceId(),
+                    reCoverageRow.getUsedCoupons());
+        }
+        // End of results = end of records for the last entity being built.
+        if (curEntityCoverageBldr != null) {
+            retMap.put(curEntityCoverageBldr.getEntityId(), curEntityCoverageBldr.build());
+        }
+        return retMap;
     }
 
     /**
@@ -129,7 +156,7 @@ public class EntityReservedInstanceMappingStore {
      * @param context {@link DSLContext} transactional context.
      * @param currentTime the current time.
      * @param entityId the entity id.
-     * @param riCoverageList a list of {@link Coverage}.
+     * @param riCoverageList a list of {@link EntityRICoverageUpload.Coverage}.
      * @param probeStrIdToIdMap a map which key is probe reserved instance id, value is the real id
      *                          reserved instance.
      * @return a list of {@link EntityToReservedInstanceMappingRecord}.
@@ -138,7 +165,7 @@ public class EntityReservedInstanceMappingStore {
             @Nonnull final DSLContext context,
             @Nonnull final LocalDateTime currentTime,
             final long entityId,
-            @Nonnull final List<Coverage> riCoverageList,
+            @Nonnull final List<EntityRICoverageUpload.Coverage> riCoverageList,
             @Nonnull Map<String, Long> probeStrIdToIdMap) {
         return riCoverageList.stream()
                 .filter(riCoverage -> probeStrIdToIdMap.containsKey(riCoverage.getProbeReservedInstanceId()))

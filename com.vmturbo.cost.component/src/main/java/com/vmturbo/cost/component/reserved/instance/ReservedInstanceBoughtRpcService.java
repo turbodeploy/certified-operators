@@ -17,6 +17,9 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
@@ -32,13 +35,15 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
-    private final DSLContext dsl;
+    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-            @Nonnull final DSLContext dsl) {
-        this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
-        this.dsl = Objects.requireNonNull(dsl);
+            @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore) {
+        this.reservedInstanceBoughtStore =
+                Objects.requireNonNull(reservedInstanceBoughtStore);
+        this.entityReservedInstanceMappingStore =
+                Objects.requireNonNull(entityReservedInstanceMappingStore);
     }
 
     @Override
@@ -100,6 +105,25 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to get reserved instance count map.")
                     .asException());
+        }
+    }
+
+    @Override
+    public void getEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest request,
+              StreamObserver<GetEntityReservedInstanceCoverageResponse> responseObserver) {
+        try {
+            logger.debug("Request for Entity RI coverage: {}", request);
+            final Map<Long, EntityReservedInstanceCoverage> retCoverage =
+                    entityReservedInstanceMappingStore.getEntityRiCoverage();
+            logger.debug("Retrieved and returning RI coverage for {} entities.", retCoverage.size());
+            responseObserver.onNext(GetEntityReservedInstanceCoverageResponse.newBuilder()
+                .putAllCoverageByEntityId(retCoverage)
+                .build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL
+                .withDescription("Failed to retrieve RI coverage from DB: " + e.getLocalizedMessage())
+                .asException());
         }
     }
 

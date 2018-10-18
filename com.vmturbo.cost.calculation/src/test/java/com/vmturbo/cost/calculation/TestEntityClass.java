@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 
@@ -66,6 +67,8 @@ public final class TestEntityClass {
 
         private Optional<NetworkConfig> networkConfig = Optional.empty();
 
+        private Optional<ComputeTierConfig> computeTierConfig = Optional.empty();
+
         private List<BiConsumer<TestEntityClass, EntityInfoExtractor<TestEntityClass>>> extractorConsumers = new ArrayList<>();
 
         @Nonnull
@@ -90,6 +93,13 @@ public final class TestEntityClass {
         }
 
         @Nonnull
+        public Builder setComputeTierConfig(@Nonnull final ComputeTierConfig computeTierConfig) {
+            this.computeTierConfig = Optional.of(computeTierConfig);
+            extractorConsumers.add((entity, infoExtractor) -> when(infoExtractor.getComputeTierConfig(entity)).thenReturn(Optional.of(computeTierConfig)));
+            return this;
+        }
+
+                                            @Nonnull
         public Builder setDatabaseConfig(@Nonnull final DatabaseConfig databaseConfig) {
             this.databaseConfig = Optional.of(databaseConfig);
             extractorConsumers.add((entity, infoExtractor) -> when(infoExtractor.getDatabaseConfig(entity)).thenReturn(Optional.of(databaseConfig)));

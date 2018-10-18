@@ -68,7 +68,8 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ReservedInstanceBoughtRpcService reservedInstanceBoughtRpcService() {
-        return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(), databaseConfig.dsl());
+        return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
+                entityReservedInstanceMappingStore());
     }
 
     @Bean

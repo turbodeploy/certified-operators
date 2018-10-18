@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -10,12 +11,12 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
@@ -65,26 +66,31 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      * Note: There is one {@link ReservedInstanceApplicator}. In the future, if we make the cost
      * journal global instead of per-entity, this method would take in an entity (or an entity ID).
      *
+     * @param computeTier The compute tier from which the entity is buying. This signifies the
+     *                    compute demand of the entity.
      * @return The percentage of the entity's compute demand that's covered by reserved instances.
      *         This should be a number between 0 and 1.
      */
-    public double recordRICoverage() {
+    public double recordRICoverage(@Nonnull final ENTITY_CLASS computeTier) {
         final long entityId = entityInfoExtractor.getId(journal.getEntity());
         return cloudCostData.getRiCoverageForEntity(entityId)
             .map(entityRiCoverage -> {
-                final double totalRequired = entityRiCoverage.getTotalCouponsRequired();
+                final double totalRequired = entityInfoExtractor.getComputeTierConfig(computeTier)
+                    .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
+                    .getNumCoupons();
                 double totalCovered = 0.0;
-                for (final Coverage coverageFromSingleRI : entityRiCoverage.getCoverageList()) {
-                    final long riBoughtId = coverageFromSingleRI.getReservedInstanceId();
+                for (Map.Entry<Long, Double> entry : entityRiCoverage.getCouponsCoveredByRiMap().entrySet()) {
+                    final long riBoughtId = entry.getKey();
+                    final double coveredCoupons = entry.getValue();
                     Optional<ReservedInstanceData> riDataOpt = cloudCostData.getRiBoughtData(riBoughtId);
                     if (riDataOpt.isPresent()) {
                         // Since we can calculate the cost, the coupons covered by this instance
                         // contribute to the RI coverage of the entity.
-                        totalCovered += coverageFromSingleRI.getCoveredCoupons();
+                        totalCovered += coveredCoupons;
                         final ReservedInstanceData riData = riDataOpt.get();
 
                         final double riBoughtPercentage = calculateRiBoughtPercentage(entityId,
-                                coverageFromSingleRI.getCoveredCoupons(), riData);
+                                coveredCoupons, riData);
                         final CurrencyAmount cost = CurrencyAmount.newBuilder()
                             .setCurrency(CostProtoUtil.getRiCurrency(riData.getReservedInstanceBought()))
                             .setAmount(calculateEffectiveHourlyCost(riBoughtPercentage, riData))
@@ -98,9 +104,13 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                     }
                 }
 
-                if (totalCovered > totalRequired) {
+                if (totalCovered == totalRequired) {
+                    // Handle the equality case separately to avoid division by 0 if
+                    // required == 0 and covered == 0.
+                    return 1.0;
+                } else if (totalCovered > totalRequired) {
                     logger.warn("Entity {} has RI coverage > 100%! Required: {} Covered: {}." +
-                        " Trimming back to 100%.", entityId, totalRequired, totalCovered);
+                            " Trimming back to 100%.", entityId, totalRequired, totalCovered);
                     return 1.0;
                 } else {
                     return totalCovered / totalRequired;

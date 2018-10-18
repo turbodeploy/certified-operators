@@ -1,8 +1,11 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.hamcrest.Matchers.is;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -17,10 +20,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
@@ -52,7 +58,7 @@ public class EntityReservedInstanceMappingStoreTest {
 
     private DSLContext dsl;
 
-    final EntityReservedInstanceCoverage coverageOne = EntityReservedInstanceCoverage.newBuilder()
+    final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testOne")
@@ -62,7 +68,7 @@ public class EntityReservedInstanceMappingStoreTest {
                     .setCoveredCoupons(20))
             .build();
 
-    final EntityReservedInstanceCoverage coverageTwo = EntityReservedInstanceCoverage.newBuilder()
+    final EntityRICoverageUpload coverageTwo = EntityRICoverageUpload.newBuilder()
             .setEntityId(124L)
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testOne")
@@ -110,10 +116,45 @@ public class EntityReservedInstanceMappingStoreTest {
     }
 
     @Test
+    public void testUpdateAndGetRIMapping() {
+        final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
+                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
+        final List<EntityRICoverageUpload> entityCoverageLists =
+                Arrays.asList(coverageOne, coverageTwo);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+
+        final Map<String, Long> riProbeIdMap = dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT).fetch()
+                .stream()
+                .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
+                        ReservedInstanceBoughtRecord::getId));
+        final long ri1Id = riProbeIdMap.get(riInfoOne.getProbeReservedInstanceId());
+        final long ri2Id = riProbeIdMap.get(riInfoTwo.getProbeReservedInstanceId());
+        final long ri3Id = riProbeIdMap.get(riInfoThree.getProbeReservedInstanceId());
+
+        final Map<Long, EntityReservedInstanceCoverage> coverageMap =
+                entityReservedInstanceMappingStore.getEntityRiCoverage();
+        final EntityReservedInstanceCoverage retCvg1 = coverageMap.get(coverageOne.getEntityId());
+        assertThat(retCvg1.getEntityId(), is(coverageOne.getEntityId()));
+        assertThat(retCvg1.getCouponsCoveredByRiMap(),
+                is(ImmutableMap.of(ri1Id, 10.0, ri2Id, 20.0)));
+
+        final EntityReservedInstanceCoverage retCvg2 = coverageMap.get(coverageTwo.getEntityId());
+        assertThat(retCvg2.getCouponsCoveredByRiMap(),
+                is(ImmutableMap.of(ri1Id, 30.0, ri3Id, 40.0)));
+    }
+
+    @Test
+    public void testGetRiMappingEmpty() {
+        assertThat(entityReservedInstanceMappingStore.getEntityRiCoverage(),
+                is(Collections.emptyMap()));
+    }
+
+    @Test
     public void testUpdateEntityReservedInstanceMapping() {
         final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
-        final List<EntityReservedInstanceCoverage> entityCoverageLists =
+        final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);

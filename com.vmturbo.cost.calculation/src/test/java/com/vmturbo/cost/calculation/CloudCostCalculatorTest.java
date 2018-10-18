@@ -151,7 +151,7 @@ public class CloudCostCalculatorTest {
         final double riCoverage = 0.2;
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage()).thenReturn(riCoverage);
+        when(riApplicator.recordRICoverage(computeTier)).thenReturn(riCoverage);
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData)))
                 .thenReturn(riApplicator);
 

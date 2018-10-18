@@ -117,7 +117,7 @@ message ReservedInstanceBought {
             optional int32 number_of_coupons = 1;
 
             // The number of coupons has been used by service entity. This number should be calculated
-            // from EntityReservedInstanceCoverage, it should be equal to the sum of its consumers
+            // from the entity's RI coverage, and it should be equal to the sum of its consumers
             // coupons. The SDK probe will not set this field when discovering real time topology.
             optional double number_of_coupons_used = 2;
         }
@@ -155,36 +155,22 @@ message ReservedInstanceSpecInfo {
     optional int64 region_id = 5;
 }
 
-// Contains the relationship about which service entity is covered by what reserved instance and
-// how many coupons are covered by each different reserved instance.
+// The RI coverage of a particular entity.
+// A single entity may be partially covered by multiple RI's from the same family.
 message EntityReservedInstanceCoverage {
-    // The id of entity.
+    // The id of the entity.
     optional int64 entity_id = 1;
 
-    // The total number of coupons this entity needs.
-    // This is mainly used to calculate how much of the entity is being
-    // covered by the various reserved instances.
+    // A map of:
+    // RI ID -> # coupons covered by the RI.
     //
-    // This should be less than or equals to the sum of "coverage.covered_coupons".
-    optional double total_coupons_required = 2;
-
-    // The reserved instance coverage of this entity, which one entity could use a list of reserved
-    // instance.
-    repeated Coverage coverage = 3;
-
-    message Coverage {
-        // The id of reserved instance.
-        optional int64 reserved_instance_id = 1;
-
-        // The reserved instance id of probe send out, we use it to tell if two reserved instance bought
-        // are same or not.
-        optional string probe_reserved_instance_id = 2;
-
-        // The number of coupons covered by the reserve instance.
-        optional double covered_coupons = 3;
-    }
+    // The total amount of coupons the entity requires is stored on the compute tier the
+    // entity is buying from. For example, if VM #1 is buying from m4.nano, and m4.nano has
+    // 1 coupon, VM #1 will require a total of 1 coupon.
+    //
+    // For an explanation of coupons see: TypeSpecificInfo.ComputeTierInfo.
+    map<int64, double> coupons_covered_by_ri = 10;
 }
-
 
 // A message used to retrieve account expenses.
 message ExpenseRequest {
@@ -459,7 +445,40 @@ message UploadRIDataRequest {
     repeated ReservedInstanceBought reserved_instance_bought = 4;
 
     // The entity - RI coverage data
-    repeated EntityReservedInstanceCoverage reserved_instance_coverage = 5;
+    repeated EntityRICoverageUpload reserved_instance_coverage = 5;
+
+    // Contains the relationship about which service entity is covered by what reserved instance and
+    // how many coupons are covered by each different reserved instance.
+    //
+    // This is the message used during the "upload" stage - when the Topology Processor uploads
+    // the billing data it discoveres to the cost component.
+    message EntityRICoverageUpload {
+        // The id of entity.
+        optional int64 entity_id = 1;
+
+        // The total number of coupons this entity needs.
+        // This is mainly used to calculate how much of the entity is being
+        // covered by the various reserved instances.
+        //
+        // This should be less than or equals to the sum of "coverage.covered_coupons".
+        optional double total_coupons_required = 2;
+
+        // The reserved instance coverage of this entity, which one entity could use a list of reserved
+        // instance.
+        repeated Coverage coverage = 3;
+
+        message Coverage {
+            // The id of reserved instance.
+            optional int64 reserved_instance_id = 1;
+
+            // The reserved instance id of probe send out, we use it to tell if two reserved instance bought
+            // are same or not.
+            optional string probe_reserved_instance_id = 2;
+
+            // The number of coupons covered by the reserve instance.
+            optional double covered_coupons = 3;
+        }
+    }
 }
 
 
@@ -474,43 +493,6 @@ message GetRIDataChecksumRequest {
 
 message ChecksumResponse {
     optional int64 checksum = 1;
-}
-
-// A service responsible for getting information about cost information in Cloud.
-service CostService {
-
-    //Get stats filtered by certain options and average over all entities listed in the request
-    rpc GetAveragedEntityStats(stats.GetAveragedEntityStatsRequest) returns (stream stats.StatSnapshot);
-
-    // Get information about account expense
-    rpc GetAccountExpense (ExpenseRequest) returns (ExpenseResponse);
-
-    // Get account discounts by associated account ids
-    rpc GetDiscounts (GetDiscountRequest) returns (stream Discount);
-
-    // Create a discount for given associated account id and info
-    rpc CreateDiscount(CreateDiscountRequest) returns (CreateDiscountResponse);
-
-    // Delete a discount for a given associated account id
-    rpc DeleteDiscount(DeleteDiscountRequest) returns (DeleteDiscountResponse);
-
-    // Update a discount for given discount id and info
-    //
-    // Returns NOT_FOUND if the discount id or discount info is not found
-    rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
-
-    // Get bottom up Cloud cost stats
-    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (GetCloudCostStatsResponse);
-}
-
-service RIAndExpenseUploadService {
-    rpc UploadAccountExpenses (UploadAccountExpensesRequest) returns (UploadAccountExpensesResponse);
-
-    rpc GetAccountExpensesChecksum (GetAccountExpensesChecksumRequest) returns (ChecksumResponse);
-
-    rpc UploadRIData (UploadRIDataRequest) returns (UploadRIDataResponse);
-
-    rpc GetRIDataChecksum (GetRIDataChecksumRequest) returns (ChecksumResponse);
 }
 
 message RegionFilter {
@@ -575,19 +557,6 @@ message GetReservedInstanceBoughtCountResponse {
     map<int64, int64> reserved_instance_count_map = 1;
 }
 
-// A service for getting reserved instance bought
-service ReservedInstanceBoughtService {
-    // Get reserved instance bought by some filter condition, such as filter by region, availability zones
-    // or account.
-    rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
-        (GetReservedInstanceBoughtByFilterResponse);
-
-    // Get the reserved instance bought count map which key is computer tier id, value is the count of
-    // reserved instance bought.
-    rpc GetReservedInstanceBoughtCount(GetReservedInstanceBoughtCountRequest) returns
-        (GetReservedInstanceBoughtCountResponse);
-}
-
 // A request to get reserved instance specs
 message GetReservedInstanceSpecByIdsRequest {
     // A list of reserved instance specs id need to retrieve.
@@ -599,12 +568,6 @@ message GetReservedInstanceSpecByIdsRequest {
 message GetReservedInstanceSpecByIdsResponse {
     // A list of reserved instance spec.
     repeated ReservedInstanceSpec reserved_instance_spec = 1;
-}
-
-// A service for getting reserved instance spec.
-service ReservedInstanceSpecService {
-    // Get the reserved instance spec by a list of spec id.
-    rpc GetReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest) returns (GetReservedInstanceSpecByIdsResponse);
 }
 
 // A request to get reserved instance utilization stats
@@ -740,17 +703,6 @@ message CloudStatRecord {
     }
 }
 
-// A service for reserved instance utilization and coverage stats.
-service ReservedInstanceUtilizationCoverageService {
-    // Get the reserved instance utilization stats.
-    rpc GetReservedInstanceUtilizationStats(GetReservedInstanceUtilizationStatsRequest)
-        returns(GetReservedInstanceUtilizationStatsResponse);
-
-    // Get the reserved instance coverage stats.
-    rpc GetReservedInstanceCoverageStats(GetReservedInstanceCoverageStatsRequest)
-        returns(GetReservedInstanceCoverageStatsResponse);
-}
-
 // A request to set a new interval for buy RI scheduler.
 message SetBuyRIAnalysisScheduleRequest {
     // The new interval in hours.
@@ -763,6 +715,53 @@ message BuyRIAnalysisScheduleResponse {
     optional uint64 interval_hours = 1;
 }
 
+message GetEntityReservedInstanceCoverageRequest {
+    // At the time of this writing we always want
+    // the coverage for all entities. If that changes,
+    // we can add additional filters here.
+}
+
+message GetEntityReservedInstanceCoverageResponse {
+    // A map from entity ID to the reserved instance coverage for that entity.
+    map<int64, EntityReservedInstanceCoverage> coverage_by_entity_id = 1;
+}
+
+// A service for getting reserved instance bought
+service ReservedInstanceBoughtService {
+    // Get reserved instance bought by some filter condition, such as filter by region, availability zones
+    // or account.
+    // TODO (roman, Oct 18 2018): We should have an option in the RIBought request
+    // to include spec definitions.
+    rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
+    (GetReservedInstanceBoughtByFilterResponse);
+
+    // Get the reserved instance bought count map which key is computer tier id, value is the count of
+    // reserved instance bought.
+    rpc GetReservedInstanceBoughtCount(GetReservedInstanceBoughtCountRequest) returns
+    (GetReservedInstanceBoughtCountResponse);
+
+    // Get the per-entity RI coverage information - how much of an entity is covered by which RIs.
+    rpc GetEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest) returns
+        (GetEntityReservedInstanceCoverageResponse);
+}
+
+// A service for getting reserved instance spec.
+service ReservedInstanceSpecService {
+    // Get the reserved instance spec by a list of spec id.
+    rpc GetReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest) returns (GetReservedInstanceSpecByIdsResponse);
+}
+
+// A service for reserved instance utilization and coverage stats.
+service ReservedInstanceUtilizationCoverageService {
+    // Get the reserved instance utilization stats.
+    rpc GetReservedInstanceUtilizationStats(GetReservedInstanceUtilizationStatsRequest)
+        returns(GetReservedInstanceUtilizationStatsResponse);
+
+    // Get the reserved instance coverage stats.
+    rpc GetReservedInstanceCoverageStats(GetReservedInstanceCoverageStatsRequest)
+        returns(GetReservedInstanceCoverageStatsResponse);
+}
+
 // A service for buy reserved instance analysis.
 service BuyRIAnalysisService {
     // Set a new interval for buy RI analysis chedule. Note that after call this function, it will
@@ -771,3 +770,40 @@ service BuyRIAnalysisService {
         returns (BuyRIAnalysisScheduleResponse);
 }
 
+
+// A service responsible for getting information about cost information in Cloud.
+service CostService {
+
+    //Get stats filtered by certain options and average over all entities listed in the request
+    rpc GetAveragedEntityStats(stats.GetAveragedEntityStatsRequest) returns (stream stats.StatSnapshot);
+
+    // Get information about account expense
+    rpc GetAccountExpense(ExpenseRequest) returns (ExpenseResponse);
+
+    // Get account discounts by associated account ids
+    rpc GetDiscounts(GetDiscountRequest) returns (stream Discount);
+
+    // Create a discount for given associated account id and info
+    rpc CreateDiscount(CreateDiscountRequest) returns (CreateDiscountResponse);
+
+    // Delete a discount for a given associated account id
+    rpc DeleteDiscount(DeleteDiscountRequest) returns (DeleteDiscountResponse);
+
+    // Update a discount for given discount id and info
+    //
+    // Returns NOT_FOUND if the discount id or discount info is not found
+    rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
+
+    // Get bottom up Cloud cost stats
+    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (GetCloudCostStatsResponse);
+}
+
+service RIAndExpenseUploadService {
+    rpc UploadAccountExpenses(UploadAccountExpensesRequest) returns (UploadAccountExpensesResponse);
+
+    rpc GetAccountExpensesChecksum(GetAccountExpensesChecksumRequest) returns (ChecksumResponse);
+
+    rpc UploadRIData(UploadRIDataRequest) returns (UploadRIDataResponse);
+
+    rpc GetRIDataChecksum(GetRIDataChecksumRequest) returns (ChecksumResponse);
+}

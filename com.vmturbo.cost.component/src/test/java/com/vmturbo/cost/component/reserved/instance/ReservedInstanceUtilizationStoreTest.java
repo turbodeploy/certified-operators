@@ -19,12 +19,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
@@ -61,7 +61,7 @@ public class ReservedInstanceUtilizationStoreTest {
 
     private DSLContext dsl;
 
-    final EntityReservedInstanceCoverage coverageOne = EntityReservedInstanceCoverage.newBuilder()
+    final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testOne")
@@ -71,7 +71,7 @@ public class ReservedInstanceUtilizationStoreTest {
                     .setCoveredCoupons(20))
             .build();
 
-    final EntityReservedInstanceCoverage coverageTwo = EntityReservedInstanceCoverage.newBuilder()
+    final EntityRICoverageUpload coverageTwo = EntityRICoverageUpload.newBuilder()
             .setEntityId(124L)
             .addCoverage(Coverage.newBuilder()
                     .setProbeReservedInstanceId("testOne")
@@ -132,7 +132,7 @@ public class ReservedInstanceUtilizationStoreTest {
     public void testUpdateReservedInstanceUtilization() {
         final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
-        final List<EntityReservedInstanceCoverage> entityCoverageLists =
+        final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
@@ -171,7 +171,7 @@ public class ReservedInstanceUtilizationStoreTest {
     public void testGetRIUtilizationStatsRecords() throws Exception {
         final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
-        final List<EntityReservedInstanceCoverage> entityCoverageLists =
+        final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);

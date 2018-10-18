@@ -15,8 +15,8 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -95,8 +95,8 @@ public class ReservedInstanceCoverageUpdateTest {
                     .setConnectionType(ConnectionType.NORMAL_CONNECTION))
             .build();
 
-    private final EntityReservedInstanceCoverage entityRICoverageOne =
-            EntityReservedInstanceCoverage.newBuilder()
+    private final EntityRICoverageUpload entityRICoverageOne =
+            EntityRICoverageUpload.newBuilder()
                     .setEntityId(123L)
                     .setTotalCouponsRequired(100)
                     .addCoverage(Coverage.newBuilder()

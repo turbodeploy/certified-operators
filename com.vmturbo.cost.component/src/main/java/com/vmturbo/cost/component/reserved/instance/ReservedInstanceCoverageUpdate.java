@@ -16,8 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -25,8 +24,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class used to handle reserved instance coverage update. Because for reserved instance
- * coverage, it needs to get both {@link EntityReservedInstanceCoverage} data and real time
- * topology data. It used a {@link Cache} to store the received {@link EntityReservedInstanceCoverage}
+ * coverage, it needs to get both {@link EntityRICoverageUpload} data and real time
+ * topology data. It used a {@link Cache} to store the received {@link EntityRICoverageUpload}
  * first, then if it receives the real time topology with same topology id, it will store the data
  * into the database.
  */
@@ -35,7 +34,7 @@ public class ReservedInstanceCoverageUpdate {
 
     private final DSLContext dsl;
 
-    private final Cache<Long, List<EntityReservedInstanceCoverage>> riCoverageEntityCache;
+    private final Cache<Long, List<EntityRICoverageUpload>> riCoverageEntityCache;
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
@@ -59,21 +58,21 @@ public class ReservedInstanceCoverageUpdate {
     }
 
     /**
-     * Store a list {@link EntityReservedInstanceCoverage} into {@link Cache}.
+     * Store a list {@link EntityRICoverageUpload} into {@link Cache}.
      *
      * @param topologyId the id of topology.
-     * @param entityRICoverageList a list {@link EntityReservedInstanceCoverage}.
+     * @param entityRICoverageList a list {@link EntityRICoverageUpload}.
      */
     public void storeEntityRICoverageOnlyIntoCache(
             final long topologyId,
-            @Nonnull final List<EntityReservedInstanceCoverage> entityRICoverageList) {
+            @Nonnull final List<EntityRICoverageUpload> entityRICoverageList) {
         riCoverageEntityCache.put(topologyId, entityRICoverageList);
     }
 
     /**
-     * Input a real time topology map, if there are matched {@link EntityReservedInstanceCoverage}
+     * Input a real time topology map, if there are matched {@link EntityRICoverageUpload}
      * in the cache, it will store them into reserved instance coverage table. It used the topolgy id
-     * to match the input real time topology with cached {@link EntityReservedInstanceCoverage}.
+     * to match the input real time topology with cached {@link EntityRICoverageUpload}.
      *
      * @param topologyId the id of topology.
      * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
@@ -81,7 +80,7 @@ public class ReservedInstanceCoverageUpdate {
     public void updateAllEntityRICoverageIntoDB(
             final long topologyId,
             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
-        final List<EntityReservedInstanceCoverage> entityRICoverageList =
+        final List<EntityRICoverageUpload> entityRICoverageList =
                 riCoverageEntityCache.getIfPresent(topologyId);
         if (entityRICoverageList == null) {
             logger.info("Reserved instance coverage cache doesn't have {} data.", topologyId);
@@ -109,20 +108,20 @@ public class ReservedInstanceCoverageUpdate {
      * Generate a list of {@link ServiceEntityReservedInstanceCoverageRecord}, it will be stored into
      * reserved instance coverage tables.
      *
-     * @param entityRICoverageList a list of {@link EntityReservedInstanceCoverage}.
+     * @param entityRICoverageList a list of {@link EntityRICoverageUpload}.
      * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      * @return a list of {@link ServiceEntityReservedInstanceCoverageRecord}.
      */
     @VisibleForTesting
     List<ServiceEntityReservedInstanceCoverageRecord>
             createServiceEntityReservedInstanceCoverageRecords(
-                    @Nonnull List<EntityReservedInstanceCoverage> entityRICoverageList,
+                    @Nonnull List<EntityRICoverageUpload> entityRICoverageList,
                     @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         final Map<Long, ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecords =
                 entityRICoverageList.stream()
                         .filter(entityRICoverage ->
                                 cloudTopology.getEntity(entityRICoverage.getEntityId()).isPresent())
-                        .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId,
+                        .collect(Collectors.toMap(EntityRICoverageUpload::getEntityId,
                                 entityRICoverage ->
                                         createRecordFromEntityRICoverage(entityRICoverage, cloudTopology)));
         return createAllEntityRICoverageRecord(seRICoverageRecords, cloudTopology);
@@ -130,15 +129,15 @@ public class ReservedInstanceCoverageUpdate {
 
     /**
      * Generate a {@link ServiceEntityReservedInstanceCoverageRecord} based on input
-     * {@link EntityReservedInstanceCoverage} and {@link TopologyEntityCloudTopology}.
+     * {@link EntityRICoverageUpload} and {@link TopologyEntityCloudTopology}.
      *
-     * @param entityRICoverage a {@link EntityReservedInstanceCoverage}.
+     * @param entityRICoverage a {@link EntityRICoverageUpload}.
      * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      * @return a  {@link ServiceEntityReservedInstanceCoverageRecord}.
      */
     private ServiceEntityReservedInstanceCoverageRecord
         createRecordFromEntityRICoverage(
-                @Nonnull final EntityReservedInstanceCoverage entityRICoverage,
+                @Nonnull final EntityRICoverageUpload entityRICoverage,
                 @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         return ServiceEntityReservedInstanceCoverageRecord.newBuilder()
                 .setId(entityRICoverage.getEntityId())
@@ -156,7 +155,7 @@ public class ReservedInstanceCoverageUpdate {
                                 .orElse(0L))
                 .setTotalCoupons(entityRICoverage.getTotalCouponsRequired())
                 .setUsedCoupons(entityRICoverage.getCoverageList().stream()
-                        .mapToDouble(Coverage::getCoveredCoupons)
+                        .mapToDouble(EntityRICoverageUpload.Coverage::getCoveredCoupons)
                         .sum())
                 .build();
     }
@@ -166,7 +165,7 @@ public class ReservedInstanceCoverageUpdate {
      * real time topology, note that, for now, it only consider the VM entity.
      * @param seRICoverageRecords a Map which key is entity id, value is
      *                            {@link ServiceEntityReservedInstanceCoverageRecord} which created
-     *                            by {@link EntityReservedInstanceCoverage}.
+     *                            by {@link EntityRICoverageUpload}.
      * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      * @return a list of {@link ServiceEntityReservedInstanceCoverageRecord}.
      */

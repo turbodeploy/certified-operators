@@ -123,6 +123,7 @@ public class TopologyListenerConfig {
         return new LocalCostDataProvider(pricingConfig.priceTableStore(),
                 discountConfig.discountStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
-                reservedInstanceConfig.reservedInstanceSpecStore());
+                reservedInstanceConfig.reservedInstanceSpecStore(),
+                reservedInstanceConfig.entityReservedInstanceMappingStore());
     }
 }

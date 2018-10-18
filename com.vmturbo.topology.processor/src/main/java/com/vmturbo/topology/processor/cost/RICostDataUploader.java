@@ -21,8 +21,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetRIDataChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -31,6 +29,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -361,7 +360,7 @@ public class RICostDataUploader {
         }
 
         // now comb through the cloud services, and extract the remaining RI-related information from them.
-        List<EntityReservedInstanceCoverage.Builder> riCoverages = new ArrayList<>();
+        List<EntityRICoverageUpload.Builder> riCoverages = new ArrayList<>();
         // we will lazily-populate the map of VM local id -> oid mapping, since we should only need
         // it when RI's are in use.
         Map<String,Long> vmLocalIdToOid = new HashMap<>();
@@ -395,7 +394,7 @@ public class RICostDataUploader {
                         // map RI coverages on any VM's too.
                         billingData.getVirtualMachinesList().forEach(vmEntity -> {
                             // create an EntityRICoverage object if any coupons are traded by this VM
-                            EntityReservedInstanceCoverage.Builder entityRIBought =
+                            EntityRICoverageUpload.Builder entityRIBought =
                                     vmEntity.getCommoditiesSoldList().stream()
                                             .filter(commSold -> CommodityType.COUPON.equals(commSold.getCommodityType()))
                                             .findFirst()
@@ -409,7 +408,7 @@ public class RICostDataUploader {
                                                             });
                                                 }
                                                 if (vmLocalIdToOid.containsKey(vmEntity.getId())) {
-                                                    return EntityReservedInstanceCoverage.newBuilder()
+                                                    return EntityRICoverageUpload.newBuilder()
                                                             .setEntityId(vmLocalIdToOid.get(vmEntity.getId()))
                                                             .setTotalCouponsRequired(commSold.getCapacity());
                                                 }
@@ -438,7 +437,7 @@ public class RICostDataUploader {
                                                 if (riOid == 0) {
                                                     logger.warn("Couldn't find RI oid for local id {}", commBought.getProviderId());
                                                 }
-                                                entityRIBought.addCoverage(Coverage.newBuilder()
+                                                entityRIBought.addCoverage(EntityRICoverageUpload.Coverage.newBuilder()
                                                         .setProbeReservedInstanceId(commBought.getProviderId())
                                                         .setCoveredCoupons(commodityDTO.getUsed()));
                                                 // increment the RI Bought coupons used by the used amount.
@@ -467,7 +466,7 @@ public class RICostDataUploader {
 
         Map<String, ReservedInstanceBought.Builder> riBoughtByLocalId;
 
-        List<EntityReservedInstanceCoverage.Builder> riCoverages;
+        List<EntityRICoverageUpload.Builder> riCoverages;
 
     }
 

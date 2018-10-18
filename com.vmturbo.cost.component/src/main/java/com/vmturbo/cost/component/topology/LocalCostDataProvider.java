@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
+import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
@@ -32,14 +33,18 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
 
     private final ReservedInstanceSpecStore riSpecStore;
 
+    private final EntityReservedInstanceMappingStore entityRiMappingStore;
+
     public LocalCostDataProvider(@Nonnull final PriceTableStore priceTableStore,
-                                 @Nonnull final DiscountStore discountStore,
-                                 @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
-                                 @Nonnull final ReservedInstanceSpecStore riSpecStore) {
+                 @Nonnull final DiscountStore discountStore,
+                 @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
+                 @Nonnull final ReservedInstanceSpecStore riSpecStore,
+                 @Nonnull final EntityReservedInstanceMappingStore entityRiMappingStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.discountStore = Objects.requireNonNull(discountStore);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
+        this.entityRiMappingStore = Objects.requireNonNull(entityRiMappingStore);
     }
 
     @Nonnull
@@ -56,9 +61,7 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                     .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
             return new CloudCostData(priceTableStore.getMergedPriceTable(),
                     discountsByAccountId,
-                    // TODO (roman, Sept 18 2018): Fetch the entity coverage map after Patrick's
-                    // change to upload billing data.
-                    Collections.emptyMap(),
+                    entityRiMappingStore.getEntityRiCoverage(),
                     riBoughtById,
                     riSpecById);
         } catch (DbException e) {

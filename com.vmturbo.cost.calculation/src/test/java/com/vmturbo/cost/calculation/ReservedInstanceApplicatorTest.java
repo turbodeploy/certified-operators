@@ -17,7 +17,6 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
@@ -28,6 +27,7 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceA
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 
@@ -45,6 +45,10 @@ public class ReservedInstanceApplicatorTest {
     private static final long RI_ID = 77;
 
     private static final long RI_SPEC_ID = 777;
+
+    private static final int TOTAL_COUPONS_REQUIRED = 10;
+
+    private TestEntityClass computeTier;
 
     private static final ReservedInstanceBought RI_BOUGHT = ReservedInstanceBought.newBuilder()
             .setId(RI_ID)
@@ -69,7 +73,6 @@ public class ReservedInstanceApplicatorTest {
                             .setTermYears(1)))
             .build();
 
-
     @Test
     public void testApplyRi() {
         final ReservedInstanceApplicator<TestEntityClass> applicator =
@@ -77,21 +80,21 @@ public class ReservedInstanceApplicatorTest {
 
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED))
+                .build(infoExtractor);
 
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getRiCoverageForEntity(entity.getId()))
             .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
-                .setTotalCouponsRequired(10)
-                .addCoverage(Coverage.newBuilder()
-                    .setCoveredCoupons(5.0)
-                    .setReservedInstanceId(RI_ID))
+                .putCouponsCoveredByRi(RI_ID, 5.0)
                 .build()));
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
 
         when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
-        double coveredPercentage = applicator.recordRICoverage();
+        double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, closeTo(0.5, 0.0001));
 
         final ArgumentCaptor<CurrencyAmount> amountCaptor = ArgumentCaptor.forClass(CurrencyAmount.class);
@@ -110,22 +113,22 @@ public class ReservedInstanceApplicatorTest {
 
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(10))
+                .build(infoExtractor);
 
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getRiCoverageForEntity(entity.getId()))
-                .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
-                        .setTotalCouponsRequired(10)
-                        .addCoverage(Coverage.newBuilder()
-                                // More covered coupons than coupons required.
-                                .setCoveredCoupons(100)
-                                .setReservedInstanceId(RI_ID))
-                        .build()));
+            .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
+                // More covered coupons than coupons required.
+                .putCouponsCoveredByRi(RI_ID, 100)
+                .build()));
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
 
         when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
-        double coveredPercentage = applicator.recordRICoverage();
+        double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(1.0));
 
         final ArgumentCaptor<CurrencyAmount> amountCaptor = ArgumentCaptor.forClass(CurrencyAmount.class);
@@ -145,10 +148,32 @@ public class ReservedInstanceApplicatorTest {
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(10))
+                .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getRiCoverageForEntity(entity.getId())).thenReturn(Optional.empty());
 
-        double coveredPercentage = applicator.recordRICoverage();
+        double coveredPercentage = applicator.recordRICoverage(computeTier);
+        assertThat(coveredPercentage, is(0.0));
+        verify(costJournal, never()).recordRiCost(any(), any(), any());
+    }
+
+    @Test
+    public void testApplyRiNoRequiredNoCoverage() {
+        final ReservedInstanceApplicator<TestEntityClass> applicator =
+                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
+        final TestEntityClass entity = TestEntityClass.newBuilder(7)
+                .build(infoExtractor);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                // 0 coupons required - this would mainly happens if the coupon number is not set
+                // in the topology.
+                .setComputeTierConfig(new ComputeTierConfig(0))
+                .build(infoExtractor);
+        when(costJournal.getEntity()).thenReturn(entity);
+        when(cloudCostData.getRiCoverageForEntity(entity.getId())).thenReturn(Optional.empty());
+
+        double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
         verify(costJournal, never()).recordRiCost(any(), any(), any());
     }
@@ -159,18 +184,18 @@ public class ReservedInstanceApplicatorTest {
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
+                .setComputeTierConfig(new ComputeTierConfig(10))
+                .build(infoExtractor);
 
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getRiCoverageForEntity(entity.getId()))
-                .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
-                        .setTotalCouponsRequired(10)
-                        .addCoverage(Coverage.newBuilder()
-                                .setCoveredCoupons(5.0)
-                                .setReservedInstanceId(RI_ID))
-                        .build()));
+            .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
+                    .putCouponsCoveredByRi(RI_ID, 5.0)
+                    .build()));
         when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.empty());
 
-        double coveredPercentage = applicator.recordRICoverage();
+        double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
         verify(costJournal, never()).recordRiCost(any(), any(), any());
     }

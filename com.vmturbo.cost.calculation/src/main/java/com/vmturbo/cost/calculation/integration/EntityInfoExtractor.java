@@ -7,9 +7,9 @@ import javax.annotation.Nonnull;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
-import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -81,6 +81,17 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<NetworkConfig> getNetworkConfig(@Nonnull ENTITY_CLASS entity);
+
+    /**
+     * Get the compute tier configuration of a particular entity.
+     *
+     * @param entity The entity.
+     * @return An optional containing the {@link ComputeTierConfig}. An empty optional if there is
+     *         no compute tier information associated with this entity - for example, if it's not
+     *         a compute tier.
+     */
+    @Nonnull
+    Optional<ComputeTierConfig> getComputeTierConfig(@Nonnull ENTITY_CLASS entity);
 
     /**
      * A wrapper class around the compute configuration of an entity.
@@ -161,6 +172,26 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          */
         public long getNumElasticIps() {
             return ipAddresses.stream().filter(IpAddress::getIsElastic).count();
+        }
+    }
+
+    /**
+     * A wrapper class around the compute tier configuration of an entity.
+     */
+    @Immutable
+    class ComputeTierConfig {
+        /**
+         * The number of coupons sold by this compute tier.
+         * See: {@link ComputeTierInfo#getNumCoupons()}
+         */
+        private final int numCoupons;
+
+        public ComputeTierConfig(final int numCoupons) {
+            this.numCoupons = numCoupons;
+        }
+
+        public int getNumCoupons() {
+            return numCoupons;
         }
     }
 
