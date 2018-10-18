@@ -91,9 +91,8 @@ public class PriceTableUploaderTest {
 
         // call the price table builder
         priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC());
-        ProbePriceTable probePriceTable = priceTableUploader.priceTableToProbePriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
         // check the results.
-        PriceTable priceTable = ((ProbePriceTable) probePriceTable).getPriceTable();
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
         Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(1L));
@@ -129,10 +128,9 @@ public class PriceTableUploaderTest {
 
         // call the price table builder
         priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC());
-        ProbePriceTable probePriceTable = priceTableUploader.priceTableToProbePriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
-        // check the results.
-        PriceTable priceTable = ((ProbePriceTable) probePriceTable).getPriceTable();
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
 
+        // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
         Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(1L));
@@ -165,9 +163,8 @@ public class PriceTableUploaderTest {
                 .build();
         // call the price table builder
         priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC());
-        ProbePriceTable probePriceTable = priceTableUploader.priceTableToProbePriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
         // check the results.
-        PriceTable priceTable = ((ProbePriceTable) probePriceTable).getPriceTable();
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
         Assert.assertTrue(priceTable.getOnDemandPriceByRegionIdMap().containsKey(1L));

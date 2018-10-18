@@ -9,14 +9,18 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.PricingREST.PricingServiceController;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class})
+@Import({SQLDatabaseConfig.class, ReservedInstanceConfig.class})
 public class PricingConfig {
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
+
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
 
     @Bean
     public PriceTableMergeFactory priceTableMergeFactory() {
@@ -32,7 +36,7 @@ public class PricingConfig {
 
     @Bean
     public PricingRpcService pricingRpcService() {
-        return new PricingRpcService(priceTableStore());
+        return new PricingRpcService(priceTableStore(), reservedInstanceConfig.reservedInstanceSpecStore());
     }
 
     @Bean
