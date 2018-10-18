@@ -8,16 +8,20 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetTransactionsCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
@@ -98,7 +102,19 @@ public class PostStitchingOperationLibrary {
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),
-            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore)
+            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore),
+            new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.DATABASE_SERVER,
+                    ProbeCategory.DATABASE_SERVER,
+                    CommodityType.RESPONSE_TIME,
+                    "responseTimeCapacity"),
+            new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.DATABASE_SERVER,
+                    ProbeCategory.DATABASE_SERVER,
+                    CommodityType.SLA_COMMODITY,
+                    "slaCapacity"),
+            new SetTransactionsCapacityPostStitchingOperation(EntityType.DATABASE_SERVER,
+                    ProbeCategory.DATABASE_SERVER,
+                    "transactionsCapacity",
+                    "autoSetTransactionsCapacity")
         );
     }
 

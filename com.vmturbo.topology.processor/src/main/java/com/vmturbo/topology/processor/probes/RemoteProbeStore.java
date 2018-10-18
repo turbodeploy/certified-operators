@@ -256,7 +256,8 @@ public class RemoteProbeStore implements ProbeStore {
 
         synchronized (dataLock) {
             return probeInfos.entrySet().stream()
-                .filter(entry -> entry.getValue().getProbeCategory().equalsIgnoreCase(probeCategory.name()))
+                .filter(entry -> entry.getValue().getProbeCategory()
+                        .equalsIgnoreCase(probeCategory.getCategory()))
                 .map(Entry::getKey)
                 .collect(Collectors.toList());
         }

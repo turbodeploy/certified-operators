@@ -82,6 +82,10 @@
         "usedIncrement_VMEM",
         "usedIncrement_VStorage",
         "usedIncrement_StAmt",
+        "responseTimeCapacity",
+        "slaCapacity",
+        "transactionsCapacity",
+        "autoSetTransactionsCapacity",
         "RATE_OF_RESIZE"
       ]
     },

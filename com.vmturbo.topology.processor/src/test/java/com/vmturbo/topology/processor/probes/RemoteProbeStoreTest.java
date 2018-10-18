@@ -9,6 +9,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Set;
 
 import org.junit.Assert;
@@ -76,6 +77,23 @@ public class RemoteProbeStoreTest {
 
         assertTrue(store.getProbeIdForType(probeInfo.getProbeType()).isPresent());
         assertFalse(store.getProbeIdForType("non-existing-probe").isPresent());
+    }
+
+    @Test
+    public void testGetProbeByCategory() throws Exception {
+        // create a probe with a category that has an underscore in the enum as this is the
+        // case that was previously broken
+        final ProbeInfo probeInfoWithCategory = ProbeInfo.newBuilder(Probes.emptyProbe)
+                .setProbeCategory(ProbeCategory.DATABASE_SERVER.getCategory())
+                .build();
+        final long probeId = 12345L;
+        when(idProvider.getProbeId(probeInfoWithCategory)).thenReturn(probeId);
+        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
+                .thenReturn(true);
+        store.registerNewProbe(probeInfoWithCategory, transport);
+        List<Long> dbServerProbeIds = store.getProbeIdsForCategory(ProbeCategory.DATABASE_SERVER);
+        assertEquals(1, dbServerProbeIds.size());
+        assertEquals(probeId, (long) dbServerProbeIds.get(0));
     }
 
     @Test

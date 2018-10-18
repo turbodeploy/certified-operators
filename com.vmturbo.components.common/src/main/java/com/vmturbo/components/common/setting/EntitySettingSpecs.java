@@ -259,6 +259,49 @@ public enum EntitySettingSpecs {
             string(), true),
 
     /**
+     * Response Time Capacity used by Application and Database.
+     */
+    ResponseTimeCapacity("responseTimeCapacity", "Response Time Capacity [ms]",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            true),
+
+    /**
+     * SLA Capacity used by Application and Database.
+     */
+    SLACapacity("slaCapacity", "SLA Capacity",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            true),
+
+    /**
+     * Transactions Capacity used by Application and Database.
+     */
+    TransactionsCapacity("transactionsCapacity", "Transactions Capacity",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            true),
+
+    /**
+     * Indicates whether to auto set the transaction capacity of an entity's commodity to the value
+     * of the TransactionsCapacity setting or to calculate it as the max of the commodity's capacity,
+     * used value, and the TransactionsCapacity setting.
+     * Used by Application and Database.
+     */
+    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Auto Set Transactions Capacity",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
      * This Action Script action is added as a temporary work-around for a bug in the UI.
      * The UI processes workflows as part of the 'actionScript' case - so at least one
      * 'actionScript' must be included.
