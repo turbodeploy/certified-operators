@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.pricing;
 
 import java.util.Map;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -59,5 +58,40 @@ public interface PriceTableStore {
      *        completely overwrite the existing price tables by probe type, and any
      *        existing probe types that are not found in this map will be deleted.
      */
-    void putProbePriceTables(@Nonnull final Map<String, ProbePriceTable> tablesByProbeType);
+    void putProbePriceTables(@Nonnull final Map<String, PriceTables> tablesByProbeType);
+
+    /**
+     * Holds the {@link PriceTable} and {@link ReservedInstancePriceTable} for a probe type.
+     */
+    class PriceTables {
+        private PriceTable priceTable;
+        private ReservedInstancePriceTable riPriceTable;
+
+        public PriceTables(@Nonnull PriceTable priceTable, @Nonnull ReservedInstancePriceTable riPriceTable) {
+            this.priceTable = priceTable;
+            this.riPriceTable = riPriceTable;
+        }
+
+        public PriceTables(PriceTable priceTable) {
+            this.priceTable = priceTable;
+        }
+        public PriceTables(ReservedInstancePriceTable riPriceTable) {
+            this.riPriceTable = riPriceTable;
+        }
+
+        public PriceTable getPriceTable() {
+            if (priceTable == null) {
+                return PriceTable.getDefaultInstance();
+            }
+            return priceTable;
+        }
+
+        public ReservedInstancePriceTable getRiPriceTable() {
+            if (riPriceTable == null) {
+                return ReservedInstancePriceTable.getDefaultInstance();
+            }
+            return riPriceTable;
+        }
+
+    }
 }

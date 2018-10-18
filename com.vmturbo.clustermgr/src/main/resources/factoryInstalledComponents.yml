@@ -257,6 +257,9 @@ cost:
   initialBuyRIAnalysisIntervalHours: 24
   # The normal interval to trigger buy RI analysis after first time run.
   normalBuyRIAnalysisIntervalHours: 336
+  # the cost component will receive some large messages over grpc, so we will increase the max
+  # message size beyond the 4mb default.
+  server.grpcMaxMessageBytes: 12000000
 
   # START - database-related properties.
   <<: *db_conn_info

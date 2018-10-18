@@ -14,6 +14,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -27,14 +29,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
+import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -102,10 +102,12 @@ public class SQLPriceTableStoreTest {
     @Test
     public void testUpdateAndRetrievePrice() {
         final PriceTable priceTable = mockPriceTable(1L);
+        /*
         final ProbePriceTable probePriceTable = ProbePriceTable.newBuilder()
                 .setPriceTable(priceTable)
                 .build();
-        store.putProbePriceTables(ImmutableMap.of("foo", probePriceTable));
+                */
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(priceTable, null)));
 
         final PriceTable resultPriceTable = store.getMergedPriceTable();
         assertThat(resultPriceTable, is(MERGED_PRICE_TABLE));
@@ -119,10 +121,7 @@ public class SQLPriceTableStoreTest {
     @Test
     public void testUpdateAndRetrieveRiPrice() {
         final ReservedInstancePriceTable riPriceTable = mockRiPriceTable(1L);
-        final ProbePriceTable probePriceTable = ProbePriceTable.newBuilder()
-                .setRiPriceTable(riPriceTable)
-                .build();
-        store.putProbePriceTables(ImmutableMap.of("foo", probePriceTable));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(null, riPriceTable)));
 
         final ReservedInstancePriceTable resultRiPriceTable = store.getMergedRiPriceTable();
         assertThat(resultRiPriceTable, is(MERGED_RI_PRICE_TABLE));
@@ -137,12 +136,8 @@ public class SQLPriceTableStoreTest {
     public void testUpdateOverwritesPrevious() {
         final PriceTable fooPriceTable = mockPriceTable(1L);
         final PriceTable barPriceTable = mockPriceTable(2L);
-        store.putProbePriceTables(ImmutableMap.of("foo", ProbePriceTable.newBuilder()
-                .setPriceTable(fooPriceTable)
-                .build()));
-        store.putProbePriceTables(ImmutableMap.of("foo", ProbePriceTable.newBuilder()
-                .setPriceTable(barPriceTable)
-                .build()));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(fooPriceTable, null)));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(barPriceTable, null)));
 
         final PriceTable resultPriceTable = store.getMergedPriceTable();
         assertThat(resultPriceTable, is(MERGED_PRICE_TABLE));
@@ -157,12 +152,8 @@ public class SQLPriceTableStoreTest {
     public void testUpdateRiOverwritesPrevious() {
         final ReservedInstancePriceTable fooPriceTable = mockRiPriceTable(1L);
         final ReservedInstancePriceTable barPriceTable = mockRiPriceTable(2L);
-        store.putProbePriceTables(ImmutableMap.of("foo", ProbePriceTable.newBuilder()
-                .setRiPriceTable(fooPriceTable)
-                .build()));
-        store.putProbePriceTables(ImmutableMap.of("foo", ProbePriceTable.newBuilder()
-                .setRiPriceTable(barPriceTable)
-                .build()));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(null, fooPriceTable)));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(null, barPriceTable)));
 
         final ReservedInstancePriceTable resultPriceTable = store.getMergedRiPriceTable();
         assertThat(resultPriceTable, is(MERGED_RI_PRICE_TABLE));
@@ -177,15 +168,11 @@ public class SQLPriceTableStoreTest {
     public void testUpdateRemovesOld() {
         final PriceTable fooPriceTable = mockPriceTable(1L);
         final PriceTable barPriceTable = mockPriceTable(2L);
-        store.putProbePriceTables(ImmutableMap.of("foo", ProbePriceTable.newBuilder()
-                .setPriceTable(fooPriceTable)
-                .build()));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(fooPriceTable, null)));
         // IMPORTANT - Note that the probe type of the second update is different.
         // This is different from the update test, where the probe type of the second
         // update is the same. We still expect the "foo" price table to be removed.
-        store.putProbePriceTables(ImmutableMap.of("bar", ProbePriceTable.newBuilder()
-                .setPriceTable(barPriceTable)
-                .build()));
+        store.putProbePriceTables(ImmutableMap.of("bar", new PriceTables(barPriceTable, null)));
 
         final PriceTable resultPriceTable = store.getMergedPriceTable();
         assertThat(resultPriceTable, is(MERGED_PRICE_TABLE));
@@ -202,15 +189,11 @@ public class SQLPriceTableStoreTest {
     public void testUpdateRiRemovesOld() {
         final ReservedInstancePriceTable fooPriceTable = mockRiPriceTable(1L);
         final ReservedInstancePriceTable barPriceTable = mockRiPriceTable(2L);
-        store.putProbePriceTables(ImmutableMap.of("foo", ProbePriceTable.newBuilder()
-                .setRiPriceTable(fooPriceTable)
-                .build()));
+        store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(null, fooPriceTable)));
         // IMPORTANT - Note that the probe type of the second update is different.
         // This is different from the update test, where the probe type of the second
         // update is the same. We still expect the "foo" price table to be removed.
-        store.putProbePriceTables(ImmutableMap.of("bar", ProbePriceTable.newBuilder()
-                .setRiPriceTable(barPriceTable)
-                .build()));
+        store.putProbePriceTables(ImmutableMap.of("bar", new PriceTables(null, barPriceTable)));
 
         final ReservedInstancePriceTable resultPriceTable = store.getMergedRiPriceTable();
         assertThat(resultPriceTable, is(MERGED_RI_PRICE_TABLE));

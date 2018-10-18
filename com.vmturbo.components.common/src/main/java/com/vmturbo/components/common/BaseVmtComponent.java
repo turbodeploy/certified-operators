@@ -133,6 +133,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${server.grpcPort}")
     private int grpcPort;
 
+    // the max message size (in bytes) that the GRPC server for this component will accept. Default
+    // value is 4194304 bytes (or 4 MB) which is the GRPC default behavior.
+    @Value("${server.grpcMaxMessageBytes:4194304}")
+    private int grpcMaxMessageBytes;
+
+
     @GuardedBy("grpcServerLock")
     private Server grpcServer;
 
@@ -406,7 +412,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                     // Allow keepalives even when there are no existing calls, because we want
                     // to send intermittent keepalives to keep the http2 connections open.
                     .permitKeepAliveWithoutCalls(true)
-                    .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES);
+                    .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
+                    .maxMessageSize(grpcMaxMessageBytes);
             final Optional<Server> builtServer = buildGrpcServer(serverBuilder);
             if (builtServer.isPresent()) {
                 grpcServer = builtServer.get();
