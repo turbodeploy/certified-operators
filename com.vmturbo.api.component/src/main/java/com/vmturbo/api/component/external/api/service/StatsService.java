@@ -72,7 +72,10 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
@@ -378,13 +381,14 @@ public class StatsService implements IStatsService {
                 }
             }
 
+            final boolean isCostStats = isCostStats(uuid, inputDto);
             // OM-37484: give the startTime a +/- 60 second window for delineating between "current"
             // and "projected" stats requests. Without this window, the stats retrieval is too
             // sensitive to clock skew issues between the browser and the server, leading to incorrect
             // results in the UI.
             long currentStatsTimeWindowStart = clockTimeNow - liveStatsRetrievalWindow.toMillis();
             long currentStatsTimeWindowEnd = clockTimeNow + liveStatsRetrievalWindow.toMillis();
-            if (inputDto.getEndDate() != null
+            if (!isCostStats && inputDto.getEndDate() != null
                     && DateTimeUtil.parseTime(inputDto.getEndDate()) > currentStatsTimeWindowEnd) {
                 ProjectedStatsResponse response =
                         statsServiceRpc.getProjectedStats(statsMapper.toProjectedStatsRequest(entityStatOids,
@@ -446,7 +450,6 @@ public class StatsService implements IStatsService {
                 final GetAveragedEntityStatsRequest request =
                         statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
 
-                final boolean isCostStats = isCostStats(uuid, inputDto);
                 final Iterable<StatSnapshot> statsIterator = isCostStats
                         ? () -> costServiceRpc.getAveragedEntityStats(request)
                         : () -> statsServiceRpc.getAveragedEntityStats(request);
@@ -478,9 +481,12 @@ public class StatsService implements IStatsService {
                                         cloudServiceDTOs))
                                 .collect(Collectors.toList()));
                     } else if (isDefaultCloudGroupUuid || fullMarketRequest) {
-                        stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
+                        final List<CloudStatRecord> cloudStatRecords = getCloudStatRecordList(inputDto);
+                        stats.addAll(cloudStatRecords.stream()
                                 .map(statsMapper::toCloudStatSnapshotApiDTO)
                                 .collect(Collectors.toList()));
+                    } else {
+                        ApiUtils.notImplementedInXL();
                     }
                 } else {
                     stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
@@ -492,6 +498,31 @@ public class StatsService implements IStatsService {
 
         // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
+    }
+
+    private List<CloudStatRecord> getCloudStatRecordList(final StatPeriodApiInputDTO inputDto) {
+        final GetCloudCostStatsRequest.Builder builder = GetCloudCostStatsRequest.newBuilder();
+        if (isRelatedEntityTypeVM(inputDto)) {
+            builder.setEntityTypeFilter(EntityTypeFilter.newBuilder().addFilterId(EntityType.VIRTUAL_MACHINE_VALUE).build());
+        }
+        if (inputDto.getStartDate() != null && inputDto.getEndDate() != null) {
+            builder.setStartDate(Long.valueOf(inputDto.getStartDate()));
+            builder.setEndDate(Long.valueOf(inputDto.getEndDate()));
+
+        }
+        return costServiceRpc.getCloudCostStats(
+                builder.build()).getCloudStatRecordList();
+    }
+
+    private boolean isRelatedEntityTypeVM(final StatPeriodApiInputDTO inputDto) {
+        if (inputDto != null && inputDto.getStatistics() != null) {
+            final List<StatApiInputDTO> statApiInputDTOS = inputDto.getStatistics();
+            return statApiInputDTOS.stream()
+                    .filter(statApiInputDTO -> statApiInputDTO.getRelatedEntityType() != null)
+                    .anyMatch(statApiInputDTO -> statApiInputDTO.getRelatedEntityType()
+                            .equals(StringConstants.VIRTUAL_MACHINE));
+        }
+        return false;
     }
 
     // It seems there is no easy way to distinguish top down (expense) or bottom up (cost) requests.

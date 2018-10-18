@@ -22,7 +22,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -34,6 +33,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
@@ -648,7 +648,7 @@ public class StatsMapper {
      * @param statSnapshot stat snap shot
      * @return StatSnapshotApiDTO
      */
-    public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final StatSnapshot statSnapshot) {
+    public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(statSnapshot.getSnapshotDate());
@@ -659,14 +659,38 @@ public class StatsMapper {
                     statApiDTO.setName(statRecord.getName());
                     statApiDTO.setUnits(statRecord.getUnits());
 
-                    // The "values" should be equivalent to "used".
-                    statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
-                    statApiDTO.setValue(statRecord.getUsed().getAvg());
+                    final StatValueApiDTO converted = new StatValueApiDTO();
+                    converted.setAvg(statRecord.getValues().getAvg());
+                    converted.setMax(statRecord.getValues().getMax());
+                    converted.setMin(statRecord.getValues().getMin());
+                    converted.setTotal(statRecord.getValues().getTotal());
 
+                    statApiDTO.setValues(converted);
+                    statApiDTO.setValue(statRecord.getValues().getAvg());
+
+                    if (statRecord.hasCategory()) {
+                        // Build filters
+                        final List<StatFilterApiDTO> filters = new ArrayList<>();
+                        final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
+                        resultsTypeFilter.setType(COST_COMPONENT);
+                        if (statRecord.getCategory() == CostCategory.COMPUTE) {
+                            resultsTypeFilter.setValue(CostCategory.COMPUTE.name());
+                        } else if (statRecord.getCategory() == CostCategory.IP) {
+                            resultsTypeFilter.setValue(CostCategory.IP.name());
+                        } else if (statRecord.getCategory() == CostCategory.STORAGE) {
+                            resultsTypeFilter.setValue(CostCategory.STORAGE.name());
+                        } else if (statRecord.getCategory() == CostCategory.LICENSE) {
+                            resultsTypeFilter.setValue(CostCategory.LICENSE.name());
+                        }
+                        filters.add(resultsTypeFilter);
+
+                        if (filters.size() > 0) {
+                            statApiDTO.setFilters(filters);
+                        }
+                    }
                     return statApiDTO;
                 })
                 .collect(Collectors.toList()));
         return dto;
-
     }
 }

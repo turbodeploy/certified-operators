@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -44,6 +45,17 @@ public interface EntityCostStore {
      */
     Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final LocalDateTime startDate,
                                                     @Nonnull final LocalDateTime endDate) throws DbException;
+
+    /**
+     * Get entity costs based on the the entity cost filter .
+     * It returns Map with entry (timestamp -> (entityId -> entity costs)).
+     * In a timestamp/snapshot, the entity costs with same ids will be combined to one entity cost.
+     *
+     * @param filter entityCostFilter which has resolved start and end dates and appropriated tables
+     * @return Map with entry (timestamp -> (entityId -> entity costs))
+     * @throws DbException if anything goes wrong in the database
+     */
+    Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final EntityCostFilter filter) throws DbException;
 
     /**
      * Get entity costs for the provided entity ids and between the start (minValue) and end (maxValue) dates.

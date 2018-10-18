@@ -12,6 +12,7 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.expenses.SqlAccountExpensesStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.rpc.CostRpcService;
 import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -20,7 +21,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({SQLDatabaseConfig.class,
         IdentityProviderConfig.class,
         DiscountConfig.class,
-        EntityCostConfig.class})
+        EntityCostConfig.class,
+        ReservedInstanceConfig.class})
 public class CostConfig {
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -33,6 +35,9 @@ public class CostConfig {
 
     @Autowired
     private EntityCostConfig entityCostConfig;
+
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
 
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
@@ -49,6 +54,7 @@ public class CostConfig {
         return new CostRpcService(discountConfig.discountStore(),
                 accountExpensesStore(),
                 entityCostConfig.entityCostStore(),
+                reservedInstanceConfig.timeFrameCalculator(),
                 businessAccountHelper());
     }
 

@@ -2,13 +2,16 @@ package com.vmturbo.cost.component.rpc;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -18,12 +21,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
@@ -31,6 +37,8 @@ import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
@@ -46,7 +54,11 @@ import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.utils.BusinessAccountHelper;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -55,7 +67,7 @@ import com.vmturbo.sql.utils.DbException;
 public class CostRpcService extends CostServiceImplBase {
 
     /**
-     *  Cloud service constant to match UI request, also used in test cases
+     * Cloud service constant to match UI request, also used in test cases
      */
     public static final String CLOUD_SERVICE = "cloudService";
 
@@ -112,6 +124,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final BusinessAccountHelper businessAccountHelper;
 
+    private final TimeFrameCalculator timeFrameCalculator;
+
 
     /**
      * Create a new RIAndExpenseUploadRpcService.
@@ -122,11 +136,14 @@ public class CostRpcService extends CostServiceImplBase {
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
                           @Nonnull final EntityCostStore costStoreHouse,
+                          @Nonnull final TimeFrameCalculator timeFrameCalculator,
                           @Nonnull final BusinessAccountHelper businessAccountHelper) {
+
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
+        this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
     }
 
     /**
@@ -301,44 +318,89 @@ public class CostRpcService extends CostServiceImplBase {
         if (CLOUD_SERVICE.equals(relatedEntityType.orElse(null))) {
             final Optional<String> groupByOptional = getGroupByType(filter);
             processCloudServiceStats(request, responseObserver, filter, groupByOptional);
-        } else if (WORKLOAD.equals(relatedEntityType.orElse(null))
-                || VIRTUAL_MACHINE.equals(relatedEntityType.orElse(null))) {
-            processBottomUpCostStats(request, responseObserver, filter);
         } else {
             responseOnError(request, responseObserver);
         }
     }
 
-    // perform bottom up cost stats retrieval.
-    private void processBottomUpCostStats(@Nonnull final GetAveragedEntityStatsRequest request,
-                                          @Nonnull final StreamObserver<StatSnapshot> responseObserver,
-                                          @Nonnull final StatsFilter filter) {
+    @Override
+    public void getCloudCostStats(GetCloudCostStatsRequest request,
+                                  StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         try {
-            final Map<Long, Map<Long, EntityCost>> snapshoptToEntityCostMap =
-                    (filter.hasStartDate() && filter.hasEndDate()) ?
-                            entityCostStore.getEntityCosts(getLocalDateTime(filter.getStartDate())
-                                    , getLocalDateTime(filter.getEndDate())) :
-                            entityCostStore.getLatestEntityCost();
+            if (!request.hasCostCategoryFilter() && !request.hasEntityFilter()) {
+                final boolean isVMEntityType = request.hasEntityTypeFilter() ?
+                        request.getEntityTypeFilter()
+                                .getFilterIdList()
+                                .stream()
+                                .anyMatch(typeId -> typeId == EntityType.VIRTUAL_MACHINE_VALUE) : false;
+                final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+                final Set<Long> filterIds = request.getEntityFilter().getFilterIdList().stream().collect(Collectors.toSet());
+                final EntityCostFilter entityCostFilter = new EntityCostFilter(filterIds, request.getStartDate(), request.getEndDate(), timeFrame);
+                final Map<Long, Map<Long, EntityCost>> snapshoptToEntityCostMap =
+                        (request.hasStartDate() && request.hasEndDate()) ?
+                                entityCostStore.getEntityCosts(entityCostFilter) :
+                                entityCostStore.getLatestEntityCost();
+                final List<CloudStatRecord> cloudStatRecords = Lists.newArrayList();
+                snapshoptToEntityCostMap.forEach((time, costsByEntity) -> {
+                            final List<CloudStatRecord.StatRecord> statRecords = Lists.newArrayList();
+                            // populate aggregated entity cost for VM.
+                            if (isVMEntityType) {
+                                final CloudStatRecord.StatRecord.Builder builder = CloudStatRecord.StatRecord.newBuilder();
+                                aggregateEntityCostByCostType(costsByEntity.values())
+                                        .forEach(componentCost -> {
+                                            builder.setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+                                            builder.setCategory(componentCost.costCategory);
+                                            builder.setName(COST_PRICE);
+                                            builder.setUnits("$/h");
+                                            builder.setValues(CloudStatRecord.StatRecord.StatValue.newBuilder()
+                                                    .setAvg((float) componentCost.geAvg().orElse(0))
+                                                    .setMax((float) componentCost.getMax().orElse(0))
+                                                    .setMin((float) componentCost.getMin().orElse(0))
+                                                    .setTotal((float) componentCost.getTotal())
+                                                    .build());
+                                            statRecords.add(builder.build());
+                                        });
+                            } else {  // populate cost per entity
+                                costsByEntity.values().forEach(entityCost -> {
+                                    entityCost.getComponentCostList().forEach(componentCost -> {
+                                                final CloudStatRecord.StatRecord.Builder builder = CloudStatRecord.StatRecord.newBuilder();
+                                                final float amount = (float) componentCost.getAmount().getAmount();
+                                                builder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
+                                                builder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
+                                                builder.setCategory(componentCost.getCategory());
+                                                builder.setName(COST_PRICE);
+                                                builder.setUnits("$/h");
+                                                builder.setValues(CloudStatRecord.StatRecord.StatValue.newBuilder()
+                                                        .setAvg(amount)
+                                                        .setMax(amount)
+                                                        .setMin(amount)
+                                                        .setTotal(amount)
+                                                        .build());
+                                                statRecords.add(builder.build());
+                                            }
+                                    );
+                                });
+                            }
+                            final CloudStatRecord cloudStatRecord = CloudStatRecord.newBuilder()
+                                    .setSnapshotDate(DateTimeUtil.toString(time))
+                                    .addAllStatRecords(statRecords)
+                                    .build();
+                            cloudStatRecords.add(cloudStatRecord);
 
-            snapshoptToEntityCostMap.forEach((time, costsByEntity) -> {
-                        final Builder snapshotBuilder = StatSnapshot.newBuilder();
-                        snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(time));
-                        costsByEntity.values().forEach(entityCost -> {
-                            entityCost.getComponentCostList().forEach(serviceExpenses -> {
-                                        final float amount = (float) serviceExpenses.getAmount().getAmount();
-                                        // build the record for this stat (commodity type)
-                                        final StatRecord statRecord = buildStatRecord(
-                                                entityCost.getAssociatedEntityId()
-                                                , amount);
-                                        // return add this record to the snapshot for this timestamp
-                                        snapshotBuilder.addStatRecords(statRecord);
-                                    }
-                            );
-                        });
-                        responseObserver.onNext(snapshotBuilder.build());
-                    }
-            );
-            responseObserver.onCompleted();
+                        }
+                );
+                GetCloudCostStatsResponse response =
+                        GetCloudCostStatsResponse.newBuilder()
+                                .addAllCloudStatRecord(cloudStatRecords)
+                                .build();
+                responseObserver.onNext(response);
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("The request includes unsupported filter type: " + request
+                                + ", currently only workload type is supported")
+                        .asException());
+            }
         } catch (Exception e) {
             logger.error("Error getting stats snapshots for {}", request);
             logger.error("    ", e);
@@ -347,7 +409,30 @@ public class CostRpcService extends CostServiceImplBase {
                             + e.getMessage())
                     .asException());
         }
+    }
 
+    //TODO move them to helper class
+    // aggregate all the value per cost type, e.g. IP, Compute, License
+    private Set<AggregatedEntityCost> aggregateEntityCostByCostType(final Collection<EntityCost> values) {
+           final AggregatedEntityCost costIP = new AggregatedEntityCost(CostCategory.IP);
+        final AggregatedEntityCost costLicense = new AggregatedEntityCost(CostCategory.LICENSE);
+        final AggregatedEntityCost costCompute = new AggregatedEntityCost(CostCategory.COMPUTE);
+        final AggregatedEntityCost costStorage = new AggregatedEntityCost(CostCategory.STORAGE);
+        values.forEach(entityCost -> {
+            entityCost.getComponentCostList().forEach( componentCost -> {
+                if (componentCost.getCategory().equals(CostCategory.IP)) {
+                    costIP.addCost(componentCost.getAmount().getAmount());
+                } else if (componentCost.getCategory().equals(CostCategory.LICENSE)){
+                    costLicense.addCost(componentCost.getAmount().getAmount());
+                }else if (componentCost.getCategory().equals(CostCategory.COMPUTE)){
+                    costCompute.addCost(componentCost.getAmount().getAmount());
+                }else if (componentCost.getCategory().equals(CostCategory.STORAGE)){
+                    costStorage.addCost(componentCost.getAmount().getAmount());
+                }
+            });
+
+        });
+        return ImmutableSet.of(costIP, costCompute, costLicense, costStorage);
     }
 
     // perform top down account expense stat retrieval
@@ -490,5 +575,43 @@ public class CostRpcService extends CostServiceImplBase {
     private LocalDateTime getLocalDateTime(long dateTime) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime),
                 TimeZone.getDefault().toZoneId());
+    }
+}
+
+// helper class to do entity cost aggregation calculation per timestamp
+class AggregatedEntityCost {
+    final CostCategory costCategory;
+    final List<Double> costList = Lists.newArrayList();
+
+    AggregatedEntityCost(CostCategory costCategory) {
+        this.costCategory = costCategory;
+    }
+
+    void addCost(double amount) {
+        costList.add(amount);
+    }
+
+    OptionalDouble getMin() {
+        return costList.stream()
+                .mapToDouble(v -> v)
+                .min();
+    }
+
+    OptionalDouble getMax() {
+        return costList.stream()
+                .mapToDouble(v -> v)
+                .max();
+    }
+
+    OptionalDouble geAvg() {
+        return costList.stream()
+                .mapToDouble(v -> v)
+                .average();
+    }
+
+    double getTotal() {
+        return costList.stream()
+                .mapToDouble(v -> v)
+                .sum();
     }
 }

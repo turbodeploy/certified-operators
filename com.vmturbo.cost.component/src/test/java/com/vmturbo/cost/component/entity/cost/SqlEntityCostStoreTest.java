@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Map;
 
 import org.flywaydb.core.Flyway;
@@ -34,6 +36,8 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -104,6 +108,86 @@ public class SqlEntityCostStoreTest {
         final LocalDateTime now = LocalDateTime.now(clock);
         Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(now.minusHours(1l), now);
         validateResults(results, 1, 2, 2);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetCostWithEntityCostFilter() throws DbException, InvalidEntityCostsException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
+
+        // insert
+        saveCosts();
+
+        // get by date
+
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+        validateResults(results, 1, 2, 2);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetCostWithEntityCostFilterHourEmpty() throws DbException, InvalidEntityCostsException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.HOUR);
+
+        // insert
+        saveCosts();
+
+        // get by date
+
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+        validateResults(results, 0, 0, 0);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetCostWithEntityCostFilterMonthEmpty() throws DbException, InvalidEntityCostsException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.MONTH);
+
+        // insert
+        saveCosts();
+
+        // get by date
+
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+        validateResults(results, 0, 0, 0);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetCostWithEntityCostFilterDayEmpty() throws DbException, InvalidEntityCostsException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.DAY);
+
+        // insert
+        saveCosts();
+
+        // get by date
+
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+        validateResults(results, 0, 0, 0);
 
         // clean up
         store.cleanEntityCosts(now);

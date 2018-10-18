@@ -70,6 +70,9 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -344,9 +347,18 @@ public class StatsServiceTest {
 
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        final CloudStatRecord cloudStatRecord = CloudStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE))
+                .addStatRecords(getStatRecordBuilder(CostCategory.IP))
+                .build();
 
-        when(costServiceSpy.getAveragedEntityStats(any()))
-                .thenReturn(ImmutableList.of(STAT_SNAPSHOT));
+        builder.addCloudStatRecord(cloudStatRecord);
+
+        when(costServiceSpy.getCloudCostStats(any()))
+                .thenReturn(builder.build());
 
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
@@ -358,11 +370,30 @@ public class StatsServiceTest {
                 .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
 
         verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
-        verify(costServiceSpy).getAveragedEntityStats(any());
+        verify(costServiceSpy).getCloudCostStats(any());
         verify(statsMapper).toCloudStatSnapshotApiDTO(any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
         assertEquals(1, resp.size());
+    }
+
+    private CloudStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory) {
+        final CloudStatRecord.StatRecord.Builder statRecordBuilder = CloudStatRecord.StatRecord.newBuilder();
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
+        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setAssociatedEntityId(4l);
+        statRecordBuilder.setAssociatedEntityType(1);
+        statRecordBuilder.setCategory(costCategory);
+        CloudStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudStatRecord.StatRecord.StatValue.newBuilder();
+
+        statValueBuilder.setAvg(1);
+
+        statValueBuilder.setTotal(1);
+        statValueBuilder.setMax(1);
+        statValueBuilder.setMin(1);
+
+        statRecordBuilder.setValues(statValueBuilder.build());
+        return statRecordBuilder;
     }
 
     public void verifyCall(final GetAveragedEntityStatsRequest request, final StatPeriodApiInputDTO inputDto) throws Exception {

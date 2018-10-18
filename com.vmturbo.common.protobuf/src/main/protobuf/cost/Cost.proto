@@ -498,6 +498,9 @@ service CostService {
     //
     // Returns NOT_FOUND if the discount id or discount info is not found
     rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
+
+    // Get bottom up Cloud cost stats
+    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (GetCloudCostStatsResponse);
 }
 
 service RIAndExpenseUploadService {
@@ -527,6 +530,11 @@ message AccountFilter {
 
 message EntityFilter {
     // A list of entity ids need to filter by.
+    repeated int64 filter_id = 1;
+}
+
+message EntityTypeFilter {
+    // A list of entity type need to filter by. E.g. App or VM
     repeated int64 filter_id = 1;
 }
 
@@ -667,6 +675,68 @@ message ReservedInstanceStatsRecord {
         optional float min = 2;
         optional float avg = 3;
         optional float total = 4;
+    }
+}
+
+// A request to get bottom up Cloud cost stats
+message GetCloudCostStatsRequest {
+    // The start date of the request
+    optional uint64 start_date = 1;
+
+    // The end date of the request
+    optional uint64 end_date = 2;
+
+    // Entity ids filter, return all entities if not set
+    optional EntityFilter entity_filter = 3;
+
+    // Cost category filter, return all entities if not set
+    optional CostCategory cost_category_filter = 4;
+
+    // Entity type filter, could be VM or APP, return all entities if not set
+    optional EntityTypeFilter entity_type_filter = 5;
+}
+
+// Bottom up Cloud cost stats reponse
+message GetCloudCostStatsResponse {
+    repeated CloudStatRecord cloud_stat_record = 1;
+}
+
+// Bottom up Cloud cost stat record
+message CloudStatRecord {
+    // the actual snapshot_date for this response
+    optional string snapshot_date = 1;
+
+    // the individual stat_records collected
+    repeated StatRecord stat_records = 2;
+
+    // an individual stats value.
+    message StatRecord {
+
+        // name of the stat, e.g. costPrice
+        optional string name = 1;
+
+        // units suffix for this commodity
+        optional string units = 2;
+
+        // The associated entity oid for the Cloud entity.
+        optional int64 associated_entity_id = 3;
+
+        // The associated entity type, e.g. vm, app
+        optional int32 associated_entity_type = 4;
+
+        // Cost category, E.g. Computer, IP,
+        optional CostCategory category = 5;
+
+        // Stat value
+        optional StatValue values = 7;
+
+        // Contains the detail value of stats record, such as, max, min, avg, total value.
+        message StatValue {
+            optional float max = 1;
+            optional float min = 2;
+            optional float avg = 3;
+            optional float total = 4;
+        }
     }
 }
 

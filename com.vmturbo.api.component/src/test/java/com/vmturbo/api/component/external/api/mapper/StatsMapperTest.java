@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.service.StatsService.COST_PRICE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -20,6 +21,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -38,7 +41,10 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
@@ -66,6 +72,7 @@ public class StatsMapperTest {
     public static final String PUID = "puid-";
     public static final String CSP = "CSP";
     public static final String AWS = "AWS";
+    public static final String COST_COMPONENT = "costComponent";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -595,35 +602,60 @@ public class StatsMapperTest {
 
     @Test
     public void testToCloudStatSnapshotApiDTO() throws Exception{
-        String[] postfixes = {"A", "B", "C"};
-        String[] relations = {RelationType.COMMODITIES.getLiteral(),
-                RelationType.COMMODITIESBOUGHT.getLiteral(),
-                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
-
-        // Arrange
-        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate("date-value")
-                .setStartDate(1234L)
-                .setEndDate(5678L)
-                .addAllStatRecords(buildStatRecords(postfixes, relations))
+        final CloudStatRecord cloudStatRecord = CloudStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1l))
+                .addStatRecords(getStatRecordBuilder(CostCategory.IP, 2l))
+                .addStatRecords(getStatRecordBuilder(CostCategory.LICENSE, 3l))
+                .addStatRecords(getStatRecordBuilder(CostCategory.STORAGE, 4l))
                 .build();
+        final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
+        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(4, cloudStatRecord.getStatRecordsCount());
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() != null ));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.COMPUTE.name())
+                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.IP.name())
+                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.LICENSE.name())
+                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.STORAGE.name())
+                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
+    }
 
-        TargetApiDTO targetApiDTO1 = new TargetApiDTO();
-        targetApiDTO1.setUuid(PUID+"A");
-        TargetApiDTO targetApiDTO2 = new TargetApiDTO();
-        targetApiDTO2.setUuid(PUID+"B");
-
-        TargetApiDTO targetApiDTO3 = new TargetApiDTO();
-        targetApiDTO3.setUuid(PUID+"C");
-        // ImmutableList.of(targetApiDTO1, targetApiDTO2, targetApiDTO3);
-
-        // Act
-        StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(testSnapshot);
-        // Assert
-        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, testSnapshot.getStatRecordsCount());
+    @Test
+    public void testToCloudStatSnapshotApiDTOWithEmptyCostCategory() throws Exception{
+        final CloudStatRecord cloudStatRecord = CloudStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(getStatRecordBuilder(null, 1l))
+                .build();
+        final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
+        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(1, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() == null ));
+    }
+
+    private CloudStatRecord.StatRecord.Builder getStatRecordBuilder(@Nullable CostCategory costCategory, float value) {
+        final CloudStatRecord.StatRecord.Builder statRecordBuilder = CloudStatRecord.StatRecord.newBuilder();
+        statRecordBuilder.setName(COST_PRICE);
+        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setAssociatedEntityId(4l);
+        statRecordBuilder.setAssociatedEntityType(1);
+        if (costCategory != null) {
+            statRecordBuilder.setCategory(costCategory);
+        }
+        CloudStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudStatRecord.StatRecord.StatValue.newBuilder();
+
+        statValueBuilder.setAvg(value);
+
+        statValueBuilder.setTotal(value);
+        statValueBuilder.setMax(value);
+        statValueBuilder.setMin(value);
+
+        statRecordBuilder.setValues(statValueBuilder.build());
+        return statRecordBuilder;
     }
 
     private void verifyMappedStatRecord(StatRecord test,
