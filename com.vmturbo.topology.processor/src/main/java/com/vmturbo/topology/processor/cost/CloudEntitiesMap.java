@@ -29,6 +29,7 @@ public class CloudEntitiesMap implements Map<String, Long> {
             EntityType.COMPUTE_TIER,
             EntityType.STORAGE_TIER,
             EntityType.DATABASE_TIER,
+            EntityType.DATABASE_SERVER_TIER,
             EntityType.REGION,
             EntityType.AVAILABILITY_ZONE,
             EntityType.RESERVED_INSTANCE,

@@ -235,6 +235,10 @@ public class AccountExpensesUploader {
                     TierExpenses.Builder tierExpensesBuilder = TierExpenses.newBuilder();
                     // find the compute tier matching our cost id
                     Long tierOid = cloudEntitiesMap.get(costData.getId());
+                    if (tierOid == null) {
+                        logger.warn("Oid not found for tier {} -- will not add expenses for it.", costData.getId());
+                        return;
+                    }
                     tierExpensesBuilder.setAssociatedTierId(tierOid);
                     tierExpensesBuilder.setExpenses(CurrencyAmount.newBuilder()
                             .setAmount(costData.getCost()).build());
