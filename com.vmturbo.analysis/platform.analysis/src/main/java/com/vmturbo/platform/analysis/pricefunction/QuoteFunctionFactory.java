@@ -83,7 +83,7 @@ public class QuoteFunctionFactory {
         QuoteFunction qf = (buyer, seller, bestQuoteSoFar, forTraderIncomeStmt, economy) -> {
             MutableQuote costOnNewSeller = computeCost(buyer, seller, true, economy);
             MutableQuote costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier(), false, economy);
-            BalanceAccount ba = seller.getSettings().getBalanceAccount();
+            BalanceAccount ba = buyer.getBuyer().getSettings().getBalanceAccount();
             // TODO: if the buyer is on the wrong supplier, costOnSupplier may be infinity
             // now I added this to workaround such a case
             if (Double.isInfinite(costOnCurrentSupplier.getQuoteValue())) {
