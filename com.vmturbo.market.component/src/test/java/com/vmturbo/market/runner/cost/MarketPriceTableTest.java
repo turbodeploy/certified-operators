@@ -2,21 +2,27 @@ package com.vmturbo.market.runner.cost;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -27,6 +33,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -72,9 +79,37 @@ public class MarketPriceTableTest {
         .setOid(COMPUTE_TIER_ID)
         .build();
 
+    private static final CommodityType FOO_STORAGE_ACCESS_COMM = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
+            .setKey("foo")
+            .build();
+
+    private static final CommodityType BAR_STORAGE_ACCESS_COMM = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
+            .setKey("bar")
+            .build();
+
+    private static final CommodityType FOO_STORAGE_AMOUNT_COMM = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .setKey("foo")
+            .build();
+
+    private static final CommodityType BAR_STORAGE_AMOUNT_COMM = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .setKey("bar")
+            .build();
+
     private static final TopologyEntityDTO STORAGE_TIER = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.STORAGE_TIER_VALUE)
             .setOid(STORAGE_TIER_ID)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(FOO_STORAGE_ACCESS_COMM))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(BAR_STORAGE_ACCESS_COMM))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(FOO_STORAGE_AMOUNT_COMM))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(BAR_STORAGE_AMOUNT_COMM))
             .build();
 
     private static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
@@ -170,7 +205,7 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
-        assertThat(storagePriceBundle.getPrices(), contains(
+        final StorageTierPriceData[] expectedData = new StorageTierPriceData[]{
                 StorageTierPriceData.newBuilder()
                     .setBusinessAccountId(baId)
                     // Unit price true because it's priced per GB-month
@@ -181,14 +216,14 @@ public class MarketPriceTableTest {
                     .setPrice(10)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Unit price true because it's priced per GB-month
-                        .setIsUnitPrice(true)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
-                        .setUpperBound(10)
-                        .setPrice(5)
-                        .build(),
+                    .setBusinessAccountId(baId)
+                    // Unit price true because it's priced per GB-month
+                    .setIsUnitPrice(true)
+                    // Accumulative price true because we have ranges
+                    .setIsAccumulativeCost(true)
+                    .setUpperBound(10)
+                    .setPrice(5)
+                    .build(),
                 StorageTierPriceData.newBuilder()
                     .setBusinessAccountId(baId)
                     // Unit price true because it's priced per GB-month
@@ -197,7 +232,14 @@ public class MarketPriceTableTest {
                     .setIsAccumulativeCost(true)
                     .setUpperBound(Double.POSITIVE_INFINITY)
                     .setPrice(4)
-                    .build()));
+                    .build()};
+
+        // The prices for all storage amount commodities should be the same, because the price
+        // tables don't distinguish by commodity key.
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), contains(expectedData));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), contains(expectedData));
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
     @Test
@@ -228,16 +270,16 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
-        assertThat(storagePriceBundle.getPrices(), contains(
-                StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Unit price true because it's priced per million-iops.
-                        .setIsUnitPrice(true)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
-                        .setUpperBound(7)
-                        .setPrice(10)
-                        .build(),
+
+        final List<StorageTierPriceData> expectedData = Lists.newArrayList(StorageTierPriceData.newBuilder()
+                .setBusinessAccountId(baId)
+                // Unit price true because it's priced per million-iops.
+                .setIsUnitPrice(true)
+                // Accumulative price true because we have ranges
+                .setIsAccumulativeCost(true)
+                .setUpperBound(7)
+                .setPrice(10)
+                .build(),
                 StorageTierPriceData.newBuilder()
                         .setBusinessAccountId(baId)
                         // Unit price true because it's priced per million-iops.
@@ -246,7 +288,14 @@ public class MarketPriceTableTest {
                         .setIsAccumulativeCost(true)
                         .setUpperBound(Double.POSITIVE_INFINITY)
                         .setPrice(5)
-                        .build()));
+                        .build());
+
+        // The prices for all storage amount commodities should be the same, because the price
+        // tables don't distinguish by commodity key.
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM), contains(expectedData.toArray()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), contains(expectedData.toArray()));
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), is(Collections.emptyList()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), is(Collections.emptyList()));
     }
 
     @Test
@@ -272,16 +321,21 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
-        assertThat(storagePriceBundle.getPrices(), contains(
-                StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Not unit price, because it's a flat cost.
-                        .setIsUnitPrice(false)
-                        // Not accumulative because we don't have ranges.
-                        .setIsAccumulativeCost(false)
-                        .setUpperBound(Double.POSITIVE_INFINITY)
-                        .setPrice(10)
-                        .build()));
+
+        final StorageTierPriceData expectedData = StorageTierPriceData.newBuilder()
+                .setBusinessAccountId(baId)
+                // Not unit price, because it's a flat cost.
+                .setIsUnitPrice(false)
+                // Not accumulative because we don't have ranges.
+                .setIsAccumulativeCost(false)
+                .setUpperBound(Double.POSITIVE_INFINITY)
+                .setPrice(10)
+                .build();
+
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), contains(expectedData));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), contains(expectedData));
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
     @Test
@@ -312,25 +366,33 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
-        assertThat(storagePriceBundle.getPrices(), contains(
-                StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Not unit price, because it's a flat cost for each range.
-                        .setIsUnitPrice(false)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
-                        .setUpperBound(7)
-                        .setPrice(10)
-                        .build(),
-                StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Not unit price, because it's a flat cost for each range.
-                        .setIsUnitPrice(false)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
-                        .setUpperBound(Double.POSITIVE_INFINITY)
-                        .setPrice(5)
-                        .build()));
+
+        final List<StorageTierPriceData> expectedData = Lists.newArrayList(
+            StorageTierPriceData.newBuilder()
+                .setBusinessAccountId(baId)
+                // Not unit price, because it's a flat cost for each range.
+                .setIsUnitPrice(false)
+                // Accumulative price true because we have ranges
+                .setIsAccumulativeCost(true)
+                .setUpperBound(7)
+                .setPrice(10)
+                .build(),
+            StorageTierPriceData.newBuilder()
+                .setBusinessAccountId(baId)
+                // Not unit price, because it's a flat cost for each range.
+                .setIsUnitPrice(false)
+                // Accumulative price true because we have ranges
+                .setIsAccumulativeCost(true)
+                .setUpperBound(Double.POSITIVE_INFINITY)
+                .setPrice(5)
+                .build());
+
+        // The prices for all storage amount commodities should be the same, because the price
+        // tables don't distinguish by commodity key.
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), contains(expectedData.toArray()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), contains(expectedData.toArray()));
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
     @Test
@@ -365,27 +427,34 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
-        assertThat(storagePriceBundle.getPrices(), contains(
+        final List<StorageTierPriceData> expectedData = Lists.newArrayList(
                 StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Unit price true because it's priced per GB-month
-                        .setIsUnitPrice(true)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
-                        .setUpperBound(7)
-                        // 20% off $10
-                        .setPrice(8)
-                        .build(),
+                    .setBusinessAccountId(baId)
+                    // Unit price true because it's priced per GB-month
+                    .setIsUnitPrice(true)
+                    // Accumulative price true because we have ranges
+                    .setIsAccumulativeCost(true)
+                    .setUpperBound(7)
+                    // 20% off $10
+                    .setPrice(8)
+                    .build(),
                 StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
-                        // Unit price true because it's priced per GB-month
-                        .setIsUnitPrice(true)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
-                        .setUpperBound(Double.POSITIVE_INFINITY)
-                        // 20% off $5
-                        .setPrice(4)
-                        .build()));
+                    .setBusinessAccountId(baId)
+                    // Unit price true because it's priced per GB-month
+                    .setIsUnitPrice(true)
+                    // Accumulative price true because we have ranges
+                    .setIsAccumulativeCost(true)
+                    .setUpperBound(Double.POSITIVE_INFINITY)
+                    // 20% off $5
+                    .setPrice(4)
+                    .build());
+
+        // The prices for all storage amount commodities should be the same, because the price
+        // tables don't distinguish by commodity key.
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), contains(expectedData.toArray()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), contains(expectedData.toArray()));
+        assertThat(storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
+        assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
     private TopologyEntityDTO makeBusinessAccount(final long id,

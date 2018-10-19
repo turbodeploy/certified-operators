@@ -1,9 +1,13 @@
 package com.vmturbo.market.runner.cost;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -13,9 +17,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -23,6 +30,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -140,12 +148,35 @@ public class MarketPriceTable {
     @Nonnull
     public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
-        if (!cloudTopology.getEntity(tierId).isPresent()) {
+        final Optional<TopologyEntityDTO> storageTierOpt = cloudTopology.getEntity(tierId);
+        if (!storageTierOpt.isPresent()) {
             logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
             return priceBuilder.build();
         } else if (!cloudTopology.getEntity(regionId).isPresent()) {
             logger.error("Region {} not found in topology. Returning empty price bundle.", regionId);
             return priceBuilder.build();
+        }
+
+        // For storage, the storage tier sells access (IOPS) and amount (GB) commodities.
+        // We first find the commodity types and collect them so we can provide prices for them.
+        final Set<TopologyDTO.CommodityType> soldAccessTypes = Sets.newHashSet();
+        final Set<TopologyDTO.CommodityType> soldAmountTypes = Sets.newHashSet();
+        final TopologyEntityDTO storageTier = storageTierOpt.get();
+        for (final CommoditySoldDTO commSold : storageTier.getCommoditySoldListList()) {
+            if (commSold.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
+                soldAccessTypes.add(commSold.getCommodityType());
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                soldAmountTypes.add(commSold.getCommodityType());
+            }
+        }
+
+        if (soldAccessTypes.isEmpty()) {
+            logger.warn("Storage tier {} (id: {}) not selling any storage access commodities. " +
+                "Not able to provide IOPS price bundles.", storageTier.getDisplayName(), tierId);
+        }
+        if (soldAmountTypes.isEmpty()) {
+            logger.warn("Storage tier {} (id: {}) not selling any storage amount commodities. " +
+                    "Not able to provide GB price bundles.", storageTier.getDisplayName(), tierId);
         }
 
         final OnDemandPriceTable regionPriceTable =
@@ -167,40 +198,54 @@ public class MarketPriceTable {
 
         discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
             tierPriceList.getCloudStoragePriceList().forEach(storagePrice -> {
-                // Each price in the price list is considered "accumulative" if the price list
-                // contains different costs for different ranges. It's called "accumulative"
-                // because to get the total price we need to "accumulate" the prices for the
-                // individual ranges.
-                final boolean isAccumulativePrice = storagePrice.getPricesList().stream()
-                    .anyMatch(price -> price.getEndRangeInUnits() > 0 &&
-                        price.getEndRangeInUnits() < Long.MAX_VALUE);
-                storagePrice.getPricesList().forEach(price -> {
+                // Group the prices by unit. The unit will determine whether a price is for the
+                // "access" (IOPS) or "amount" (GB) commodities sold by the storage tier.
+                final Map<Price.Unit, List<Price>> pricesByUnit =
+                    storagePrice.getPricesList().stream()
+                        .collect(Collectors.groupingBy(Price::getUnit));
+                pricesByUnit.forEach((unit, priceList) -> {
+                    // Each price in the price list is considered "accumulative" if the price list
+                    // contains different costs for different ranges. It's called "accumulative"
+                    // because to get the total price we need to "accumulate" the prices for the
+                    // individual ranges.
+                    final boolean isAccumulativePrice = priceList.stream()
+                            .anyMatch(price -> price.getEndRangeInUnits() > 0 &&
+                                    price.getEndRangeInUnits() < Long.MAX_VALUE);
+
                     // A price is considered a "unit" price if the amount of units consumed
                     // affects the price.
-                    final boolean isUnitPrice =
-                        price.getUnit() == Unit.GB_MONTH ||
-                        price.getUnit() == Unit.MILLION_IOPS;
+                    final boolean isUnitPrice = unit == Unit.GB_MONTH || unit == Unit.MILLION_IOPS;
 
-                    final double discountPercentage = discountApplicator.getDiscountPercentage(tierId);
+                    // Based on the unit, determine the commodity types the prices are for.
+                    // The same prices apply to all commodities of the same type - the price table
+                    // does not make any distinction based on commodity key.
+                    final Set<TopologyDTO.CommodityType> soldCommTypes =
+                            unit == Unit.MILLION_IOPS ? soldAccessTypes : soldAmountTypes;
+                    priceList.forEach(price -> {
+                        final double discountPercentage = discountApplicator.getDiscountPercentage(tierId);
 
-                    // Note: We probably don't need to normalize to hours in month because currently
-                    // storage prices are monthly. But it's technically possible to get hourly
-                    // storage price, so we do this to be safe.
-                    final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
+                        // Note: We probably don't need to normalize to hours in month because currently
+                        // storage prices are monthly. But it's technically possible to get hourly
+                        // storage price, so we do this to be safe.
+                        final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
 
-                    final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(accountId)
-                        .setPrice(hourlyPriceAmount * (1 - discountPercentage))
-                        .setIsUnitPrice(isUnitPrice)
-                        .setIsAccumulativeCost(isAccumulativePrice);
+                        final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
+                                .setBusinessAccountId(accountId)
+                                .setPrice(hourlyPriceAmount * (1 - discountPercentage))
+                                .setIsUnitPrice(isUnitPrice)
+                                .setIsAccumulativeCost(isAccumulativePrice);
 
-                    // Even in an accumulative price, the last price will have no valid end range.
-                    if (price.getEndRangeInUnits() > 0 && price.getEndRangeInUnits() < Long.MAX_VALUE) {
-                        priceDataBuilder.setUpperBound(price.getEndRangeInUnits());
-                    } else {
-                        priceDataBuilder.setUpperBound(Double.POSITIVE_INFINITY);
-                    }
-                    priceBuilder.addPrice(priceDataBuilder.build());
+                        // Even in an accumulative price, the last price will have no valid end range.
+                        if (price.getEndRangeInUnits() > 0 && price.getEndRangeInUnits() < Long.MAX_VALUE) {
+                            priceDataBuilder.setUpperBound(price.getEndRangeInUnits());
+                        } else {
+                            priceDataBuilder.setUpperBound(Double.POSITIVE_INFINITY);
+                        }
+
+                        final StorageTierPriceData priceData = priceDataBuilder.build();
+                        soldCommTypes.forEach(soldCommType ->
+                            priceBuilder.addPrice(soldCommType, priceData));
+                    });
                 });
             });
         });
@@ -215,10 +260,11 @@ public class MarketPriceTable {
      */
     public static class StoragePriceBundle {
 
-        private final List<StorageTierPriceData> prices;
+        private final Map<TopologyDTO.CommodityType, List<StorageTierPriceData>> pricesByCommType;
 
-        private StoragePriceBundle(@Nonnull final List<StorageTierPriceData> prices) {
-            this.prices = Objects.requireNonNull(prices);
+        private StoragePriceBundle(
+                @Nonnull final Map<TopologyDTO.CommodityType, List<StorageTierPriceData>> pricesByCommType) {
+            this.pricesByCommType = Objects.requireNonNull(pricesByCommType);
         }
 
         /**
@@ -227,8 +273,8 @@ public class MarketPriceTable {
          * @return The list of {@link StorageTierPriceData}.
          */
         @Nonnull
-        public List<StorageTierPriceData> getPrices() {
-            return prices;
+        public List<StorageTierPriceData> getPrices(TopologyDTO.CommodityType commType) {
+            return pricesByCommType.getOrDefault(commType, Collections.emptyList());
         }
 
         @Nonnull
@@ -237,20 +283,28 @@ public class MarketPriceTable {
         }
 
         public static class Builder {
-            private final ImmutableList.Builder<StorageTierPriceData> priceBuilder =
-                    ImmutableList.builder();
+            private final Map<TopologyDTO.CommodityType, List<StorageTierPriceData>> pricesByCommType
+                    = new HashMap<>();
 
             private Builder() {}
 
             @Nonnull
-            public Builder addPrice(final StorageTierPriceData price) {
-                this.priceBuilder.add(price);
+            public Builder addPrice(@Nonnull final TopologyDTO.CommodityType commType,
+                                    @Nonnull final StorageTierPriceData price) {
+                pricesByCommType.compute(commType, (k, existingPrices) -> {
+                    final List<StorageTierPriceData> updatedList = existingPrices == null ?
+                            new ArrayList<>() : existingPrices;
+                    updatedList.add(price);
+                    return updatedList;
+                });
                 return this;
             }
 
             @Nonnull
             public StoragePriceBundle build() {
-                return new StoragePriceBundle(priceBuilder.build());
+                // The individual lists will still be modifiable, but it's not worth the effort
+                // make them unmodifiable. No one cares anyway.
+                return new StoragePriceBundle(Collections.unmodifiableMap(pricesByCommType));
             }
         }
     }
