@@ -3,7 +3,6 @@ package com.vmturbo.cost.calculation.topology;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -61,16 +60,6 @@ public class TopologyEntityCloudTopologyTest {
                     .setConnectionType(ConnectionType.NORMAL_CONNECTION))
             .build();
 
-    private final TopologyEntityDTO STORAGE_TIER = TopologyEntityDTO.newBuilder()
-            .setOid(EntityType.STORAGE_TIER_VALUE)
-            .setDisplayName("StorageTier")
-            .setEntityType(EntityType.STORAGE_TIER_VALUE)
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityType(REGION.getEntityType())
-                    .setConnectedEntityId(REGION.getOid())
-                    .setConnectionType(ConnectionType.NORMAL_CONNECTION))
-            .build();
-
     private final TopologyEntityDTO SERVICE = TopologyEntityDTO.newBuilder()
             .setOid(123L)
             .setDisplayName("service")
@@ -81,18 +70,6 @@ public class TopologyEntityCloudTopologyTest {
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .build();
 
-    private final TopologyEntityDTO VOLUME = TopologyEntityDTO.newBuilder()
-            .setOid(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setDisplayName("VirtualVolume")
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityType(AZ.getEntityType())
-                    .setConnectedEntityId(AZ.getOid()))
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityId(STORAGE_TIER.getOid())
-                    .setConnectedEntityType(STORAGE_TIER.getEntityType()))
-            .build();
-
     private final TopologyEntityDTO VM = TopologyEntityDTO.newBuilder()
             .setOid(7L)
             .setDisplayName("foo")
@@ -100,10 +77,6 @@ public class TopologyEntityCloudTopologyTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(COMPUTE_TIER.getOid())
                     .setProviderEntityType(COMPUTE_TIER.getEntityType()))
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(STORAGE_TIER.getOid())
-                    .setProviderEntityType(STORAGE_TIER.getEntityType())
-                    .setVolumeId(VOLUME.getOid()))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualMachine(VirtualMachineInfo.newBuilder()
                             .setGuestOsType(OSType.LINUX)
@@ -111,9 +84,6 @@ public class TopologyEntityCloudTopologyTest {
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(AZ.getEntityType())
                     .setConnectedEntityId(AZ.getOid()))
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityType(VOLUME.getEntityType())
-                    .setConnectedEntityId(VOLUME.getOid()))
             .build();
 
     private final TopologyEntityDTO DATABASE = TopologyEntityDTO.newBuilder()
@@ -143,8 +113,7 @@ public class TopologyEntityCloudTopologyTest {
             .build();
 
     private final Stream<TopologyEntityDTO> topologyStream =
-            Stream.of(VM, DATABASE, AZ, COMPUTE_TIER, DATABASE_TIER,
-                    STORAGE_TIER, VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
+            Stream.of(VM, DATABASE, AZ, COMPUTE_TIER, DATABASE_TIER, REGION, BUSINESS_ACCOUNT, SERVICE);
 
     @Test
     public void testGetEntityOid() {
@@ -198,23 +167,5 @@ public class TopologyEntityCloudTopologyTest {
     public void testGetServiceWithService() {
         final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getConnectedService(SERVICE.getOid()), is(Optional.of(SERVICE)));
-    }
-
-    @Test
-    public void testGetConnectedVolumes() {
-        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
-        assertThat(cloudTopology.getConnectedVolumes(VM.getOid()), is(Collections.singletonList(VOLUME)));
-    }
-
-    @Test
-    public void testGetVmStorageTier() {
-        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
-        assertThat(cloudTopology.getStorageTier(VM.getOid()), is(Optional.of(STORAGE_TIER)));
-    }
-
-    @Test
-    public void testGetVolumeStorageTier() {
-        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
-        assertThat(cloudTopology.getStorageTier(VOLUME.getOid()), is(Optional.of(STORAGE_TIER)));
     }
 }

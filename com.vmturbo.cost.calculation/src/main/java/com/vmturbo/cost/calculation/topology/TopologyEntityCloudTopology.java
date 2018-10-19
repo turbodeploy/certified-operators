@@ -1,6 +1,5 @@
 package com.vmturbo.cost.calculation.topology;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -17,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -89,57 +87,49 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     @Override
     @Nonnull
     public Optional<TopologyEntityDTO> getComputeTier(final long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.COMPUTE_TIER_VALUE);
-        if (providers.size() > 1) {
-            logger.warn("Entity {} buying from multiple compute tiers. Choosing the first.",
-                    entityId);
-        } else if (providers.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(providers.get(0));
+        return getEntity(entityId)
+            .flatMap(entity -> {
+                final List<CommoditiesBoughtFromProvider> boughtFromComputeTier =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                                .filter(commBought -> commBought.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                                .collect(Collectors.toList());
+
+                if (boughtFromComputeTier.size() == 0) {
+                    // This shouldn't happen with a cloud VM.
+                    return Optional.empty();
+                } else if (boughtFromComputeTier.size() > 1) {
+                    logger.warn("Buying from multiple compute tiers. Wut?");
+                }
+
+                final CommoditiesBoughtFromProvider computeTierBought = boughtFromComputeTier.get(0);
+                return getEntity(computeTierBought.getProviderId());
+            });
 
     }
 
-    @Nonnull
     @Override
     public Optional<TopologyEntityDTO> getDatabaseTier(long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.DATABASE_TIER_VALUE);
-        if (providers.size() > 1) {
-            logger.warn("Entity {} buying from multiple database tiers. Choosing the first.",
-                    entityId);
-        } else if (providers.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(providers.get(0));
-    }
+        return getEntity(entityId)
+            .flatMap(entity -> {
+                final List<CommoditiesBoughtFromProvider> boughtFromDatabaseTier =
+                    entity.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                        // for the provider to be a DATABASE_TIER, the consumer can be a
+                        // Database or a DatabaseServer
+                        .filter(commBought -> commBought.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE)
+                        .collect(Collectors.toList());
 
-    @Nonnull
-    @Override
-    public Optional<TopologyEntityDTO> getStorageTier(final long entityId) {
-        final List<TopologyEntityDTO> providers = getProvidersOfType(entityId, EntityType.STORAGE_TIER_VALUE);
-        if (providers.size() > 1) {
-            logger.warn("Entity {} buying from multiple storage tiers. Choosing the first.",
-                    entityId);
-        } else if (providers.isEmpty()) {
-            final List<TopologyEntityDTO> connections =
-                    getConnectionsOfType(entityId, EntityType.STORAGE_TIER_VALUE);
-            if (connections.isEmpty()) {
-                return Optional.empty();
-            } else {
-                if (connections.size() > 1) {
-                    logger.warn("Entity {} connected to multiple storage tiers. Choosing the first.",
-                            entityId);
+                if (boughtFromDatabaseTier.size() == 0) {
+                    // This shouldn't happen with a cloud VM.
+                    return Optional.empty();
+                } else if (boughtFromDatabaseTier.size() > 1) {
+                    logger.warn("Buying from multiple database tiers. Wut?");
                 }
-                return Optional.of(connections.get(0));
-            }
-        }
-        return Optional.of(providers.get(0));
-    }
 
-    @Nonnull
-    @Override
-    public Collection<TopologyEntityDTO> getConnectedVolumes(final long entityId) {
-        return getConnectionsOfType(entityId, EntityType.VIRTUAL_VOLUME_VALUE);
+                final CommoditiesBoughtFromProvider databaseTierBought = boughtFromDatabaseTier.get(0);
+                return getEntity(databaseTierBought.getProviderId());
+            });
     }
 
     /**
@@ -195,8 +185,12 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     @Nonnull
     public Optional<TopologyEntityDTO> getConnectedAvailabilityZone(final long entityId) {
         return getEntity(entityId).flatMap(entity -> {
-            final List<TopologyEntityDTO> connectedAZs =
-                    getConnectionsOfType(entityId, EntityType.AVAILABILITY_ZONE_VALUE);
+            final Set<TopologyEntityDTO> connectedAZs = entity.getConnectedEntityListList().stream()
+                    .filter(connEntity -> connEntity.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                    .map(az -> getEntity(az.getConnectedEntityId()))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
 
             if (connectedAZs.size() == 0) {
                 logger.warn("Entity {} not connected to any availability zone!", entity.getOid());
@@ -236,55 +230,5 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                         .flatMap(this::getEntity);
                 }
             });
-    }
-
-    @Override
-    public int size() {
-        return topologyEntitiesById.size();
-    }
-
-    @Nonnull
-    private List<TopologyEntityDTO> getProvidersOfType(final long entityId, final int type) {
-        return getEntity(entityId)
-            .map(entity -> entity.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == type)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .distinct()
-                .map(providerId -> {
-                    final Optional<TopologyEntityDTO> providerEntity = getEntity(providerId);
-                    if (!providerEntity.isPresent()) {
-                        logger.warn("Unable to find provider {} (type: {}) for entity {} in topology.",
-                                providerId, type, entityId);
-                    }
-                    return providerEntity;
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()))
-            .orElse(Collections.emptyList());
-    }
-
-    @Nonnull
-    private List<TopologyEntityDTO> getConnectionsOfType(final long entityId, final int type) {
-        return getEntity(entityId)
-            .map(entity -> entity.getConnectedEntityListList().stream()
-                .filter(ConnectedEntity::hasConnectedEntityType)
-                .filter(connection -> connection.getConnectedEntityType() == type)
-                .map(ConnectedEntity::getConnectedEntityId)
-                .distinct()
-                .map(connectedId -> {
-                    final Optional<TopologyEntityDTO> connectedEntity =
-                            getEntity(connectedId);
-                    if (!connectedEntity.isPresent()) {
-                        logger.warn("Unable to find connection {} (type: {}) for entity {} in topology.",
-                                connectedId, type, entityId);
-                    }
-                    return connectedEntity;
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()))
-            .orElse(Collections.emptyList());
     }
 }

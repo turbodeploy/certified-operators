@@ -13,8 +13,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -41,8 +39,6 @@ import com.vmturbo.sql.utils.DbException;
  * {@inheritDoc}
  */
 public class SqlEntityCostStore implements EntityCostStore {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
 
@@ -72,7 +68,6 @@ public class SqlEntityCostStore implements EntityCostStore {
         }
 
         try {
-            logger.info("Persisting {} entity costs", entityCosts.size());
             // We chunk the transactions for speed, and to avoid overloading the DB buffers
             // on large topologies. Ideally this should be one transaction.
             //
@@ -103,11 +98,8 @@ public class SqlEntityCostStore implements EntityCostStore {
                                             entityCost.getTotalAmount().getCurrency(),
                                             BigDecimal.valueOf(componentCost.getAmount().getAmount()))));
 
-                    if (batch.size() > 0) {
-                        logger.info("Persisting batch of size: {}", batch.size());
-                        // Actually execute the batch insert.
-                        batch.execute();
-                    }
+                    // Actually execute the batch insert.
+                    batch.execute();
                 });
             });
         } catch (DataAccessException e) {
@@ -123,8 +115,6 @@ public class SqlEntityCostStore implements EntityCostStore {
         final LocalDateTime curTime = LocalDateTime.now(clock);
         Objects.requireNonNull(costJournals);
         try {
-            logger.info("Persisting {} entity cost journals", costJournals.size());
-
             // We chunk the transactions for speed, and to avoid overloading the DB buffers
             // on large topologies. Ideally this should be one transaction.
             //
@@ -158,11 +148,8 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     BigDecimal.valueOf(categoryCost));
                         }));
 
-                        if (batch.size() > 0) {
-                            logger.info("Persisting batch of size: {}", batch.size());
-                            // Actually execute the batch insert.
-                            batch.execute();
-                        }
+                        // Actually execute the batch insert.
+                        batch.execute();
                     }));
 
         } catch (DataAccessException e) {

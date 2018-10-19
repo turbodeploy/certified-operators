@@ -1,6 +1,5 @@
 package com.vmturbo.cost.calculation.integration;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
@@ -66,32 +65,6 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getDatabaseTier(final long entityId);
 
     /**
-     * Get the storage tier associated with an entity.
-     *
-     * Only finds the immediately connected storage tier. For example, suppose a VIRTUAL_MACHINE is
-     * connected to a STORAGE TIER. Calling this method with the VIRTUAL_MACHINE's
-     * ID will return the associated databaseTier.
-     *
-     * @param entityId The ID of the entity.
-     * @return An optional containing the storage tier entity, or an empty optional if the ID is
-     *  not found, or if there is no storage tier directly associated with the entity.
-     */
-    @Nonnull
-    Optional<ENTITY_CLASS> getStorageTier(final long entityId);
-
-    /**
-     * Get the volumes connected to an entity.
-     *
-     * Only finds the immediately connected volumes.
-     *
-     * @param entityId The ID of the entity.
-     * @return A collection of volumes connected to the entity, or an empty collection if there
-     *    are none.
-     */
-    @Nonnull
-    Collection<ENTITY_CLASS> getConnectedVolumes(final long entityId);
-
-    /**
      * Get the region associated with an entity.
      *
      * This method should "pass through" availability zones. For example, suppose a VM is
@@ -150,11 +123,4 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<ENTITY_CLASS> getConnectedService(final long entityId);
-
-    /**
-     * Get the size of the topology.
-     *
-     * @return The size of the topology.
-     */
-    int size();
 }

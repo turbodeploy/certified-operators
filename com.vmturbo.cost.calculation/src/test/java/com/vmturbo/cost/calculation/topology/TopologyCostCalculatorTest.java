@@ -2,8 +2,6 @@ package com.vmturbo.cost.calculation.topology;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,13 +54,8 @@ public class TopologyCostCalculatorTest {
         final CloudCostCalculator<TopologyEntityDTO> costCalculator = mock(CloudCostCalculator.class);
         final CostJournal<TopologyEntityDTO> journal = mock(CostJournal.class);
         when(costCalculator.calculateCost(ENTITY)).thenReturn(journal);
-        when(cloudCostCalculatorFactory.newCalculator(
-                eq(localCostDataProvider),
-                eq(cloudTopology),
-                eq(topologyEntityInfoExtractor),
-                eq(discountApplicatorFactory),
-                eq(reservedInstanceApplicatorFactory),
-                any()))
+        when(cloudCostCalculatorFactory.newCalculator(localCostDataProvider, cloudTopology,
+                topologyEntityInfoExtractor, discountApplicatorFactory, reservedInstanceApplicatorFactory))
             .thenReturn(costCalculator);
 
 
