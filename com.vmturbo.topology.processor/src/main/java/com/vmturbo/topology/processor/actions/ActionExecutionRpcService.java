@@ -279,16 +279,17 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     private Optional<EntityDTO> getHost(final long targetId, final PerTargetInfo entityInfo)
                     throws ActionExecutionException {
-        // Right now hosted by only gets set for VM -> PM and Container -> Pod relationships.
-        // TODO (roman, May 16 2017): Generalize to all entities where this is necessary, tracked in OM-40025
-        if (entityInfo.getEntityInfo().getEntityType().equals(EntityType.VIRTUAL_MACHINE) ||
-                entityInfo.getEntityInfo().getEntityType().equals(EntityType.CONTAINER)) {
+        // Right now hosted by only gets set for VM -> PM relationships.
+        // This is most notably required by the HyperV probe.
+        // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.
+        if (entityInfo.getEntityInfo().getEntityType().equals(EntityType.VIRTUAL_MACHINE)) {
             final PerTargetInfo hostOfTarget = getPerTargetInfo(targetId,
                 entityInfo.getHost(), "host of target");
             return Optional.of(hostOfTarget.getEntityInfo());
         }
         return Optional.empty();
     }
+
 
     private CommodityDTO.Builder commodityBuilderFromType(@Nonnull final CommodityType commodityType) {
         return CommodityDTO.newBuilder()

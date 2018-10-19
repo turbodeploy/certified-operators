@@ -340,7 +340,6 @@ public class EntityStore {
 
             final Map<String, EntityType> localIdToType = new HashMap<>();
             final Map<Long, List<String>> vmToProviderLocalIds = new HashMap<>();
-            final Map<Long, List<String>> containerToProviderLocalIds = new HashMap<>();
 
             // Assemble the new list of entities associated with this target.
             entitiesById.entrySet().forEach(entry -> {
@@ -370,11 +369,6 @@ public class EntityStore {
                             .map(CommodityBought::getProviderId)
                             .collect(Collectors.toList()));
                 }
-                if (entry.getValue().getEntityType() == EntityType.CONTAINER) {
-                    containerToProviderLocalIds.put(entry.getKey(), entry.getValue().getCommoditiesBoughtList().stream()
-                            .map(CommodityBought::getProviderId)
-                            .collect(Collectors.toList()));
-                }
             });
 
             final TargetEntityIdInfo targetIdInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
@@ -392,17 +386,6 @@ public class EntityStore {
                         long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
                         Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
                     })
-            );
-            containerToProviderLocalIds.forEach((entityId, localIds) ->
-                    localIds.stream()
-                            .filter(localId -> localIdToType.get(localId) == EntityType.CONTAINER_POD)
-                            .findFirst()
-                            .ifPresent(localId -> {
-                                // If this is null then the probe's entity information is invalid,
-                                // since the Container is buying commodities from a Pod that doesn't exist.
-                                long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
-                                Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
-                            })
             );
         }
     }
