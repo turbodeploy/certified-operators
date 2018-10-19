@@ -395,11 +395,12 @@ public class EntityStore {
             );
             containerToProviderLocalIds.forEach((entityId, localIds) ->
                     localIds.stream()
-                            .filter(localId -> localIdToType.get(localId) == EntityType.CONTAINER_POD)
+                            .filter(localId -> localIdToType.get(localId) == EntityType.CONTAINER_POD ||
+                                    localIdToType.get(localId)==EntityType.VIRTUAL_MACHINE)
                             .findFirst()
                             .ifPresent(localId -> {
                                 // If this is null then the probe's entity information is invalid,
-                                // since the Container is buying commodities from a Pod that doesn't exist.
+                                // since the Container is buying commodities from a Pod or VM that doesn't exist.
                                 long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
                                 Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
                             })
