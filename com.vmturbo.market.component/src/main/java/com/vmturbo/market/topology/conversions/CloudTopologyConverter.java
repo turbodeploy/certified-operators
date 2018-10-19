@@ -56,6 +56,7 @@ public class CloudTopologyConverter {
     // Each type of tier has its own converter which will convert the tier to market tiers.
     private final ComputeTierConverter computeTierConverter;
     private final StorageTierConverter storageTierConverter;
+    private final DatabaseTierConverter dbTierConverter;
     private final Map<Integer, TierConverter> converterMap;
     private TopologyInfo topologyInfo;
     private final BiCliquer pmBasedBicliquer;
@@ -84,6 +85,7 @@ public class CloudTopologyConverter {
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.dbTierConverter = new DatabaseTierConverter(topologyInfo);
          this.businessAccounts = businessAccounts;
          converterMap = Collections.unmodifiableMap(createConverterMap());
      }
@@ -170,7 +172,7 @@ public class CloudTopologyConverter {
         Map<Integer, TierConverter> tierConverterMap = new HashMap<>();
         tierConverterMap.put(EntityType.COMPUTE_TIER_VALUE, computeTierConverter);
         tierConverterMap.put(EntityType.STORAGE_TIER_VALUE, storageTierConverter);
-        tierConverterMap.put(EntityType.DATABASE_TIER_VALUE, computeTierConverter);
+        tierConverterMap.put(EntityType.DATABASE_TIER_VALUE, dbTierConverter);
         return tierConverterMap;
     }
 

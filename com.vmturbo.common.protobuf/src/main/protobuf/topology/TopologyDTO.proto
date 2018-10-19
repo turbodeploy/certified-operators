@@ -68,12 +68,6 @@ message TypeSpecificInfo {
 
         // Engine
         optional .common_dto.DatabaseEngine engine = 2;
-
-        // LicenseModel
-        optional .common_dto.LicenseModel license_model = 3;
-
-        // DeploymentType
-        optional .common_dto.DeploymentType deployment_type = 4;
     }
 
     // specific data for virtual volume

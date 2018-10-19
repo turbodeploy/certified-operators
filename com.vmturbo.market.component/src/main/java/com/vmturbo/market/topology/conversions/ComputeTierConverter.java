@@ -76,14 +76,14 @@ public class ComputeTierConverter implements TierConverter {
                     .setIsEligibleForResizeDown(false)
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setRiskBased(RiskBased.newBuilder()
-                                    .setCloudCost(costDTOCreator.createCostDTO(computeTier, region, businessAccounts)).build()))
+                                    .setCloudCost(costDTOCreator.createComputeTierCostDTO(computeTier, region, businessAccounts)).build()))
                     .setQuoteFactor(1)
                     .build();
 
             TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
                     // Type and Oid are the same in the topology DTOs and economy DTOs
                     .setOid(IdentityGenerator.next())
-                    .setType(computeTier.getEntityType())
+                    .setType(EntityType.COMPUTE_TIER_VALUE)
                     .setState(TopologyConversionUtils.traderState(computeTier))
                     .setSettings(settings)
                     .setTemplateForHeadroom(false)

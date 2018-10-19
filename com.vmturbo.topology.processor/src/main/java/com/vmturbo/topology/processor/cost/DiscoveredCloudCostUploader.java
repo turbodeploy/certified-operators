@@ -62,6 +62,11 @@ public class DiscoveredCloudCostUploader {
 
     private final PriceTableUploader priceTableUploader;
 
+    // the minimum time between uploads. In addition, we will avoid doing uploads twice within the
+    // same hour of the day.
+    protected static final int MIN_UPLOAD_INTERVAL_MINS = 45;
+
+
     // a cache of all the cloud service non-market entities and cost dto's discovered by cloud
     // probes. The concurrent map is probably overkill, but the idea is to support concurrent writes.
     // When we read during the upload stage, we will make a defensive copy anyways.

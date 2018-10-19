@@ -6,7 +6,6 @@ import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UP
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_UPLOAD_STAGE;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,21 +20,15 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
-import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceTableByRegionEntry;
-import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -134,15 +127,8 @@ public class PriceTableUploader {
         UploadPriceTablesRequest.Builder uploadRequestBuilder = UploadPriceTablesRequest.newBuilder();
         synchronized (sourcePriceTableByProbeType) {
             sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
-                ProbePriceTable.Builder probePriceTableBuilder = ProbePriceTable.newBuilder();
-
-                // add the price table for this probe type
-                probePriceTableBuilder.setPriceTable(priceTableToCostPriceTable(priceTable, cloudEntitiesMap, probeType));
-                // add the RI price table for this probe type
-                probePriceTableBuilder.addAllReservedInstanceSpecPrices(getRISpecPrices(priceTable, cloudEntitiesMap));
-
                 uploadRequestBuilder.putProbePriceTables(probeType.getProbeType(),
-                        probePriceTableBuilder.build());
+                        priceTableToProbePriceTable(priceTable, cloudEntitiesMap, probeType));
             });
         }
         buildTimer.observe();
@@ -197,12 +183,14 @@ public class PriceTableUploader {
      * @param probeType the probe type that discovered this price table
      */
     @VisibleForTesting
-    PriceTable priceTableToCostPriceTable(@Nonnull PricingDTO.PriceTable sourcePriceTable,
-                                          @Nonnull final Map<String, Long>  cloudEntitiesMap,
-                                          SDKProbeType probeType) {
+    ProbePriceTable priceTableToProbePriceTable(@Nonnull PricingDTO.PriceTable sourcePriceTable,
+                                                         @Nonnull final Map<String, Long>  cloudEntitiesMap,
+                                                         SDKProbeType probeType) {
         logger.debug("Processing price table for probe type {}", probeType);
 
-        PriceTable.Builder priceTableBuilder = PriceTable.newBuilder();
+        ProbePriceTable.Builder probePriceTableBuilder = ProbePriceTable.newBuilder();
+
+        PriceTable.Builder priceTableBuilder = probePriceTableBuilder.getPriceTableBuilder();
         // we only knows on-demand prices for now.
         // TODO: reckon the spot instance prices
         // TODO: savvy the license prices
@@ -266,7 +254,7 @@ public class PriceTableUploader {
             // add the on demand prices
             priceTableBuilder.putOnDemandPriceByRegionId(regionOid, onDemandPricesBuilder.build());
         }
-        return priceTableBuilder.build();
+        return probePriceTableBuilder.build();
     }
 
     /**
@@ -309,86 +297,6 @@ public class PriceTableUploader {
                 }
             }
         }
-    }
-
-
-    /**
-     * Create the collection of {@link com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec} prices
-     * based on the RI Price table for a given probe.
-     *
-     * @param sourcePriceTable The source price table to read.
-     * @param cloudEntitiesMap The probe local id -> oid map
-     * @return a list of {@link ReservedInstanceSpecPrice} based on the source price table
-     */
-    private static List<ReservedInstanceSpecPrice> getRISpecPrices(@Nonnull PricingDTO.PriceTable sourcePriceTable,
-                                                                    @Nonnull final Map<String, Long>  cloudEntitiesMap) {
-
-        // keep a map of spec info's to prices we've visited so far
-        Map<ReservedInstanceSpecInfo, ReservedInstancePrice> riPricesBySpec = new HashMap<>();
-
-        // we are seeing a lot of conflicting RI prices in the price data -- enough that logging
-        // each occurrence spams the log. Instead, we'll keep a count and log something at the end
-        // if any were detected.
-        int numConflictingPrices = 0;
-
-        List<ReservedInstanceSpecPrice> retVal = new ArrayList<>();
-
-        for (ReservedInstancePriceTableByRegionEntry riPriceTableForRegion
-                : sourcePriceTable.getReservedInstancePriceTableList()) {
-            // look up the region for this set of prices
-            String regionId = riPriceTableForRegion.getRelatedRegion().getId();
-            Long regionOid = cloudEntitiesMap.get(regionId);
-            if (regionOid == null) {
-                logger.warn("RI Spec Prices: Region oid not found for region id {} - will not add RI Spec prices for this region.",
-                        regionId);
-                continue;
-            }
-            // construct/find an RISpecInfo for each set of prices
-            for (ReservedInstancePriceEntry riPriceEntry : riPriceTableForRegion.getReservedInstancePriceMapList()) {
-                CloudCostDTO.ReservedInstanceSpec sourceRiSpec = riPriceEntry.getReservedInstanceSpec();
-                // verify region id matches, just in case.
-                if (! regionId.equals(sourceRiSpec.getRegion().getId())) {
-                    // if the RI Spec has a different region, it's not clear which is correct, so
-                    // skip this entry and log an error.
-                    logger.warn("cost probe RISpec region {} doesn't match RI Price entry region {}",
-                            sourceRiSpec.getRegion().getId(), regionId);
-                    continue;
-                }
-                Long tierOid = cloudEntitiesMap.get(sourceRiSpec.getTier().getId());
-                if (tierOid == null) {
-                    logger.warn("could find compute tier oid for RI Spec tier id {}",
-                            sourceRiSpec.getTier().getId());
-                    continue;
-
-                }
-                // we'll start off by constructing an RISpecInfo based on the price table entry data
-                ReservedInstanceSpecInfo riSpecInfo = ReservedInstanceSpecInfo.newBuilder()
-                        .setRegionId(regionOid)
-                        .setTierId(tierOid)
-                        .setOs(sourceRiSpec.getOs())
-                        .setTenancy(sourceRiSpec.getTenancy())
-                        .setType(sourceRiSpec.getType())
-                        .build();
-                // does this already exist? If so, log a warning
-                if (riPricesBySpec.containsKey(riSpecInfo)) {
-                    // increase the "conflicting prices" counter and move on to the next.
-                    numConflictingPrices += 1;
-                    continue;
-                }
-                // add to the map of already priced RI specs
-                riPricesBySpec.put( riSpecInfo, riPriceEntry.getReservedInstancePrice());
-                // add to the return list
-                retVal.add(ReservedInstanceSpecPrice.newBuilder()
-                        .setRiSpecInfo(riSpecInfo)
-                        .setPrice(riPriceEntry.getReservedInstancePrice())
-                        .build());
-            }
-        }
-        if (numConflictingPrices > 0) {
-            logger.warn("{} conflicting RI Prices were skipped. Only the first price found was "
-                            +"kept for each RI Spec.", numConflictingPrices);
-        }
-        return retVal;
     }
 
 }

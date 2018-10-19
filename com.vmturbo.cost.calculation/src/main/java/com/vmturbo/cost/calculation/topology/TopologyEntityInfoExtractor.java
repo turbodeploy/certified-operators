@@ -76,9 +76,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         if (entity.getTypeSpecificInfo().hasDatabase()) {
             DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
             return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
-                                                  dbConfig.getEngine(),
-                                                  dbConfig.getLicenseModel(),
-                                                  dbConfig.getDeploymentType()));
+                                                  dbConfig.getEngine()));
         }
 
         return Optional.empty();

@@ -6,18 +6,12 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import com.google.common.collect.ImmutableMap;
 
-import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
@@ -25,13 +19,10 @@ import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesRequest;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 
 public class PricingRpcServiceTest {
 
@@ -43,9 +34,7 @@ public class PricingRpcServiceTest {
 
     private PriceTableStore priceTableStore = mock(PriceTableStore.class);
 
-    private ReservedInstanceSpecStore riSpecStore = mock(ReservedInstanceSpecStore.class);
-
-    private PricingRpcService backend = new PricingRpcService(priceTableStore, riSpecStore);
+    private PricingRpcService backend = new PricingRpcService(priceTableStore);
 
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(backend);
@@ -69,10 +58,7 @@ public class PricingRpcServiceTest {
                 .putProbePriceTables(PROBE_TYPE, probePriceTable)
                 .build());
 
-        ArgumentCaptor<Map> argCaptor = ArgumentCaptor.forClass(Map.class);
-        Mockito.verify(priceTableStore).putProbePriceTables(argCaptor.capture());
-        Map<String,PriceTables> argument = argCaptor.getValue();
-        Assert.assertEquals(PRICE_TABLE, argument.get(PROBE_TYPE).getPriceTable());
+        Mockito.verify(priceTableStore).putProbePriceTables(ImmutableMap.of(PROBE_TYPE, probePriceTable));
     }
 
     @Test

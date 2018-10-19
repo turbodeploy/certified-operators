@@ -9,14 +9,15 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
@@ -74,7 +75,7 @@ public class SQLPriceTableStore implements PriceTableStore {
      * {@inheritDoc}
      */
     @Override
-    public void putProbePriceTables(@Nonnull final Map<String, PriceTables> tablesByProbeType) {
+    public void putProbePriceTables(@Nonnull final Map<String, ProbePriceTable> tablesByProbeType) {
         dsl.transaction(context -> {
             final DSLContext transactionContext = DSL.using(context);
             final LocalDateTime curTime = LocalDateTime.now(clock);
@@ -93,11 +94,9 @@ public class SQLPriceTableStore implements PriceTableStore {
                 }
             }
 
-            tablesByProbeType.forEach((probeType, tables) -> {
-                final PriceTable priceTable = tables.getPriceTable();
-
-                final ReservedInstancePriceTable riPriceTable = tables.getRiPriceTable();
-
+            tablesByProbeType.forEach((probeType, table) -> {
+                final PriceTable priceTable = table.getPriceTable();
+                final ReservedInstancePriceTable riPriceTable = table.getRiPriceTable();
                 final int modifiedRows = transactionContext.insertInto(Tables.PRICE_TABLE)
                         .set(Tables.PRICE_TABLE.ASSOCIATED_PROBE_TYPE, probeType)
                         .set(Tables.PRICE_TABLE.LAST_UPDATE_TIME, curTime)

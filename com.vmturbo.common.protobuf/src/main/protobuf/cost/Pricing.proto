@@ -4,7 +4,6 @@ package cost;
 option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "PricingDTO.proto";
-import "cost/Cost.proto";
 
 // The price table is used to help calculate costs for entities in the
 // topology that use cloud services, or to evaluate the effects of cloud-related moves/provisions
@@ -129,25 +128,14 @@ message UploadPriceTablesRequest {
 message ProbePriceTable {
 
     // The price table discovered for the probe.
-
     // This price table will completely overwrite the previously-uploaded price table for the
     // probe.
     optional PriceTable price_table = 10;
 
-    // We will receive RI prices as a map of RI Spec -> prices. (they are modeled as a list in the
-    // protobuf because the protobuf map doesn't support messages as keys. The
-    // ReservedIntanceSpecInfo objects on the ReservedInstanceSpecPrice message should be seen as
-    // the "key" field of the map, so RISpecInfo objects should be unique per list).
-    // We'll use this data to build a reserved instance price table for the probe that we will
-    // persist. This price table will completely overwrite the previously-uploaded price table for
-    // the probe.
-    repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 20;
-
-    message ReservedInstanceSpecPrice {
-        optional ReservedInstanceSpecInfo ri_spec_info = 1;
-
-        optional common_dto.ReservedInstancePrice price = 2;
-    }
+    // The reserved instance price table discovered for the probe.
+    // This price table will completely overwrite the previously-uploaded price table for the
+    // probe.
+    optional ReservedInstancePriceTable ri_price_table = 20;
 }
 
 message UploadPriceTablesResponse {

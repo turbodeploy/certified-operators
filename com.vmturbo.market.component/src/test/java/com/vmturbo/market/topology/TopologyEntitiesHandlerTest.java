@@ -17,7 +17,6 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,7 +54,6 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
-import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -75,8 +73,6 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.topology.processor.conversions.Converter;
 
@@ -443,31 +439,26 @@ public class TopologyEntitiesHandlerTest {
             TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
                     builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                     .collect(Collectors.toList()).get(0);
-            final Set<Integer> entityTypesToSkip = new HashSet<>();
-            entityTypesToSkip.add(EntityType.DATABASE_SERVER_VALUE);
-            entityTypesToSkip.add(EntityType.DATABASE_TIER_VALUE);
-            entityTypesToSkip.add(EntityType.DATABASE_VALUE);
             // Set the shopTogether flag
             vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
             Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
                     .map(builder -> builder.build()).collect(Collectors.toSet());
-
-            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto -> 
-            (!entityTypesToSkip.contains(dto.getEntityType())))
-                .collect(Collectors.toSet());
-
             // Get handle to the templates, region and BA TopologyEntityDTO
             TopologyEntityDTO m1Medium = null;
             TopologyEntityDTO m1Large = null;
+            TopologyEntityDTO m1Small = null;
             TopologyEntityDTO region = null;
             TopologyEntityDTO ba = null;
-            for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
+            for (TopologyEntityDTO topologyEntityDTO : topologyEntityDTOs) {
                 if (topologyEntityDTO.getDisplayName().contains("m1.large")
                         && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
                     m1Large = topologyEntityDTO;
                 } else if (topologyEntityDTO.getDisplayName().contains("m1.medium")
                         && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
                     m1Medium = topologyEntityDTO;
+                } else if (topologyEntityDTO.getDisplayName().contains("m1.small")
+                            && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                    m1Small = topologyEntityDTO;
                 } else if (topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE) {
                     region = topologyEntityDTO;
                 } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
@@ -481,14 +472,21 @@ public class TopologyEntitiesHandlerTest {
             Map<OSType, Double> m1MediumPrices = new HashMap<>();
             m1MediumPrices.put(OSType.LINUX, 4d);
             m1MediumPrices.put(OSType.RHEL, 2d);
+            Map<OSType, Double> m1SmallPrices = new HashMap<>();
+            m1SmallPrices.put(OSType.LINUX, 0.5d);
+            m1SmallPrices.put(OSType.RHEL, 0.25d);
             when(marketPriceTable.getComputePriceBundle(m1Large.getOid(), region.getOid()))
                     .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
             when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
                     .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+            when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+            when(marketPriceTable.getComputePriceBundle(m1Small.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1SmallPrices));
             final TopologyConverter converter =
                     new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
             final Set<EconomyDTOs.TraderTO> traderTOs =
-                    converter.convertToMarket(dtosToProcess.stream()
+                    converter.convertToMarket(topologyEntityDTOs.stream()
                             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
             traderTOs.forEach(t -> System.out.println(t));
             // Get handle to the traders which will be used in asserting
@@ -541,122 +539,11 @@ public class TopologyEntitiesHandlerTest {
         }
     }
 
-    @Test
-    public void testMoveToCheaperDatabaseTier() {
-        try {
-            // Read file
-            Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readCloudTopologyFromJsonFile();
-            TopologyEntityDTO.Builder db = topologyEntityDTOBuilders.stream().filter(builder -> builder.getEntityType() ==
-                    EntityType.DATABASE_VALUE).collect(Collectors.toList()).get(0);
-            final Set<Integer> entityTypesToSkip = new HashSet<>();
-            entityTypesToSkip.add(EntityType.COMPUTE_TIER_VALUE);
-            entityTypesToSkip.add(EntityType.STORAGE_TIER_VALUE);
-            entityTypesToSkip.add(EntityType.VIRTUAL_MACHINE_VALUE);
-            // Set the shopTogether flag
-            db.getAnalysisSettingsBuilder().setShopTogether(false);
-            Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
-                    .map(builder -> builder.build()).collect(Collectors.toSet());
-            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto -> 
-                        (!entityTypesToSkip.contains(dto.getEntityType())))
-                            .collect(Collectors.toSet());
-            // Get handle to the templates, region and BA TopologyEntityDTO
-            TopologyEntityDTO dbm3Large = null;
-            TopologyEntityDTO dbm3Medium = null;
-            TopologyEntityDTO region = null;
-            TopologyEntityDTO ba = null;
-            for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
-                if (topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE) {
-                    region = topologyEntityDTO;
-                } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                    ba = topologyEntityDTO;
-                } else if (topologyEntityDTO.getDisplayName().contains("db.m3.medium")
-                        && topologyEntityDTO.getEntityType() == EntityType.DATABASE_TIER_VALUE) {
-                    dbm3Medium = topologyEntityDTO;
-                } else if (topologyEntityDTO.getDisplayName().contains("db.m3.large")
-                        && topologyEntityDTO.getEntityType() == EntityType.DATABASE_TIER_VALUE) {
-                    dbm3Large = topologyEntityDTO;
-                }
-            }
-            // Mock the costs for the tiers
-            // the prices are DatabaseEdition based, have made other attributes to NULL
-            Map<DatabaseEngine, Double> dbm3LargePrices = new HashMap<>();
-            dbm3LargePrices.put(DatabaseEngine.POSTGRESQL, 5d);
-            dbm3LargePrices.put(DatabaseEngine.MARIADB, 3d);
-            Map<DatabaseEngine, Double> dbm3MediumPrices = new HashMap<>();
-            dbm3MediumPrices.put(DatabaseEngine.POSTGRESQL, 4d);
-            dbm3MediumPrices.put(DatabaseEngine.MARIADB, 2d);
-
-            // calculateCost
-            when(marketPriceTable.getDatabasePriceBundle(dbm3Medium.getOid(), region.getOid()))
-                .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3MediumPrices));
-            when(marketPriceTable.getDatabasePriceBundle(dbm3Large.getOid(), region.getOid()))
-                .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3LargePrices));
-            final TopologyConverter converter =
-                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
-            final Set<EconomyDTOs.TraderTO> traderTOs =
-            converter.convertToMarket(dtosToProcess.stream()
-                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
-            traderTOs.forEach(t -> System.out.println(t));
-            // Get handle to the traders which will be used in asserting
-            TraderTO m3MediumTrader = null;
-            TraderTO m3LargeTrader = null;
-            TraderTO testDBTrader = null;
-            ShoppingListTO slToMove = null;
-            for (TraderTO traderTO : traderTOs) {
-                if (traderTO.getType() == EntityType.DATABASE_TIER_VALUE &&
-                        traderTO.getDebugInfoNeverUseInCode().contains("db.m3.medium")) {
-                    m3MediumTrader = traderTO;
-                } else if (traderTO.getType() == EntityType.DATABASE_TIER_VALUE &&
-                        traderTO.getDebugInfoNeverUseInCode().contains("db.m3.large")) {
-                    m3LargeTrader = traderTO;
-                } else if (traderTO.getType() == EntityType.DATABASE_VALUE) {
-                    testDBTrader = traderTO;
-                }
-            }
-            long m3LargeOid = m3LargeTrader.getOid();
-            slToMove = testDBTrader.getShoppingListsList().stream().filter(
-                    sl -> sl.getSupplier() == m3LargeOid).collect(Collectors.toList()).get(0);
-            Analysis analysis = mock(Analysis.class);
-
-            final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
-                    .setRightsizeLowerWatermark(rightsizeLowerWatermark)
-                    .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                    .setMaxPlacementsOverride(maxPlacementIterations)
-                    .build();
-            // Call analysis
-            AnalysisResults results =
-                    TopologyEntitiesHandler.performAnalysis(
-                            traderTOs, REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
-            System.out.println(results.getActionsList());
-
-            // Asserts
-            assertEquals(1, results.getActionsCount());
-            List<ActionTO> actions = results.getActionsList();
-            MoveTO move = actions.get(0).getMove();
-            assertEquals(slToMove.getOid(), move.getShoppingListToMove());
-            assertEquals(m3LargeOid, move.getSource());
-            assertEquals(m3MediumTrader.getOid(), move.getDestination());
-        } catch(Exception e) {
-            Assert.fail(e.getMessage());
-        }
-    }
-
     private ComputePriceBundle mockComputePriceBundle(
             Long businessAccountId, Map<OSType, Double> osPriceMapping) {
         Builder builder = ComputePriceBundle.newBuilder();
         for (Map.Entry<OSType, Double> e : osPriceMapping.entrySet()) {
             builder.addPrice(businessAccountId, e.getKey(), e.getValue());
-        }
-        return builder.build();
-    }
-
-    private DatabasePriceBundle mockDatabasePriceBundle(
-            Long businessAccountId, Map<DatabaseEngine, Double> engineBasedPriceMapping) {
-        DatabasePriceBundle.Builder builder = DatabasePriceBundle.newBuilder();
-        for (Map.Entry<DatabaseEngine, Double> e : engineBasedPriceMapping.entrySet()) {
-            // price entry for Valid Engine and NULL Edition, DeploymentType and LicenseModel
-            builder.addPrice(businessAccountId, e.getKey(), null, null, null, e.getValue());
         }
         return builder.build();
     }
