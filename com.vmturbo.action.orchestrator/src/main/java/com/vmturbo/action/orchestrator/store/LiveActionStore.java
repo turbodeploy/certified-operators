@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -57,7 +59,14 @@ public class LiveActionStore implements ActionStore {
     /**
      * Wrap with {@link Collections#synchronizedMap} to ensure correct concurrent access.
      */
+    @GuardedBy("actionsLock")
     private final Map<Long, Action> actions = Collections.synchronizedMap(new LinkedHashMap<>());
+
+    @GuardedBy("actionsLock")
+    private final Map<Long, Action> riActions = Collections.synchronizedMap(new LinkedHashMap<>());
+
+    // shared lock protecting access to actions and riActions maps.
+    private static Object actionsLock = new Object();
 
     private final IActionFactory actionFactory;
 
@@ -261,6 +270,11 @@ public class LiveActionStore implements ActionStore {
      */
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
+
+        if (actionPlan.hasActionPlanType() && actionPlan.getActionPlanType() == ActionPlanType.BUY_RI) {
+            return populateBuyRIActions(actionPlan);
+        }
+
         // RecommendationTracker to accelerate lookups of recommendations.
         RecommendationTracker recommendations = new RecommendationTracker();
 
@@ -268,7 +282,7 @@ public class LiveActionStore implements ActionStore {
         // It is generally not safe to call synchronized on a complex object not dedicated
         // to the purpose of locking because of the possibility of deadlock, but
         // SynchronizedCollections are an exception to this rule.
-        synchronized (actions) {
+        synchronized (actionsLock) {
 
             // Only retain IN-PROGRESS, QUEUED and READY actions which are re-recommended.
             List<Long> actionsToRemove = new ArrayList<>();
@@ -339,6 +353,21 @@ public class LiveActionStore implements ActionStore {
         return true;
     }
 
+    private boolean populateBuyRIActions(@Nonnull ActionPlan actionPlan) {
+
+        synchronized (actionsLock) {
+            final long planId = actionPlan.getId();
+            riActions.clear();
+            for (ActionDTO.Action recommendedAction : actionPlan.getActionList() ) {
+                ActionInfo actionInfo = recommendedAction.getInfo();
+                final Action action = actionFactory.newAction(recommendedAction, planId);
+                riActions.put(action.getId(), action);
+            }
+            logger.info("Number of buy RI actions={}", actionPlan.getActionCount());
+        }
+        return true;
+    }
+
     private void filterActionsByCapabilityForUiDisplaying() {
         try {
             // This method is called within a synchronized block in method populateRecommendedActions.
@@ -356,8 +385,8 @@ public class LiveActionStore implements ActionStore {
      */
     @Override
     public int size() {
-        synchronized (actions) {
-            return actions.size();
+        synchronized (actionsLock) {
+            return actions.size() + riActions.size();
         }
     }
 
@@ -375,16 +404,22 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {
-        synchronized (actions) {
-            return Optional.ofNullable(actions.get(actionId));
+        synchronized (actionsLock) {
+            Action result = actions.get(actionId);
+            if (result == null) {
+               return Optional.ofNullable(riActions.get(actionId));
+            }
+            return Optional.of(result);
         }
     }
 
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
-        synchronized (actions) {
-            return Collections.unmodifiableMap(new HashMap<>(actions));
+        synchronized (actionsLock) {
+            Map<Long, Action> actionMap = new HashMap<>(actions);
+            actionMap.putAll(riActions);
+            return Collections.unmodifiableMap(actionMap);
         }
     }
 
@@ -414,7 +449,7 @@ public class LiveActionStore implements ActionStore {
         // since we have to hand-roll the code to join the two in any case.
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
         List<ActionView> otherActionList;
-        synchronized (actions) {
+        synchronized (actionsLock) {
             otherActionList = actions.values().stream()
                     .filter(action -> !isSucceededorFailed(action))
                     .collect(Collectors.toList());
@@ -436,7 +471,7 @@ public class LiveActionStore implements ActionStore {
                                                       @Nonnull final LocalDateTime endDate) {
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
         List<ActionView> otherActionList;
-        synchronized (actions) {
+        synchronized (actionsLock) {
             otherActionList = actions.values().stream()
                     .filter(action -> !isSucceededorFailed(action))
                     .filter(action -> isEndDateAfterRecommendationTime(action, endDate))
@@ -455,7 +490,7 @@ public class LiveActionStore implements ActionStore {
 
     @Override
     public boolean overwriteActions(@Nonnull final List<Action> newActions) {
-        synchronized (actions) {
+        synchronized (actionsLock) {
             actions.clear();
             newActions.forEach(action -> actions.put(action.getId(), action));
         }

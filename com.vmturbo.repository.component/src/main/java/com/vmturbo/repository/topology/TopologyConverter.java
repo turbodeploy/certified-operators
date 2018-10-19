@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -30,6 +31,7 @@ import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
+import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -109,6 +111,20 @@ public class TopologyConverter {
 
                     });
 
+            Optional.ofNullable(serviceEntityDTO.getComputeTierInfo()).ifPresent(
+                    computeTierInfoRepoDTO -> {
+                        ComputeTierInfo.Builder computeTierBuilder = ComputeTierInfo.newBuilder();
+                        TypeSpecificInfo.Builder typeSpecificInfoBuilder =
+                                TypeSpecificInfo.newBuilder();
+                        if (computeTierInfoRepoDTO.getFamily() != null) {
+                            computeTierBuilder.setFamily(computeTierInfoRepoDTO.getFamily());
+                        }
+                        computeTierBuilder.setNumCoupons(computeTierInfoRepoDTO.getNumCoupons());
+                        topologyEntityBuilder
+                                .setTypeSpecificInfo(typeSpecificInfoBuilder
+                                        .setComputeTier(computeTierBuilder));
+
+                    });
             // set DiscoveryOrigin if any
             Optional.ofNullable(serviceEntityDTO.getTargetIds()).ifPresent(targetIds ->
                     topologyEntityBuilder.setOrigin(Origin.newBuilder()
@@ -170,15 +186,22 @@ public class TopologyConverter {
             }
 
             // save VirtualMachineInfo
-            if (t.hasTypeSpecificInfo() && t.getTypeSpecificInfo().hasVirtualMachine()) {
-                VirtualMachineInfo vmInfo = t.getTypeSpecificInfo().getVirtualMachine();
-                se.setVirtualMachineInfo(new VirtualMachineInfoRepoDTO(
-                        vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null,
-                        vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null,
-                        vmInfo.getIpAddressesList().stream()
-                        .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
-                                ipAddrInfo.getIsElastic()))
-                        .collect(Collectors.toList())));
+            if (t.hasTypeSpecificInfo()) {
+                if (t.getTypeSpecificInfo().hasVirtualMachine()) {
+                    VirtualMachineInfo vmInfo = t.getTypeSpecificInfo().getVirtualMachine();
+                    se.setVirtualMachineInfo(new VirtualMachineInfoRepoDTO(
+                            vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null,
+                            vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null,
+                            vmInfo.getIpAddressesList().stream()
+                                    .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
+                                            ipAddrInfo.getIsElastic()))
+                                    .collect(Collectors.toList())));
+                } else if (t.getTypeSpecificInfo().hasComputeTier()) {
+                    ComputeTierInfo computeTierInfo = t.getTypeSpecificInfo().getComputeTier();
+                    se.setComputeTierInfo(new ComputeTierInfoRepoDTO(
+                            computeTierInfo.hasFamily() ? computeTierInfo.getFamily() : null,
+                            computeTierInfo.hasNumCoupons() ? computeTierInfo.getNumCoupons() : 0));
+                }
             }
             return se;
         }

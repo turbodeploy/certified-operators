@@ -246,6 +246,9 @@ auth:
 cost:
   <<: *baseVmtComponentSettings
   <<: *topologyProcessorClient
+  <<: *repository_conn_info
+  groupHost: 'group'
+  marketHost: 'market'
   grpcPingIntervalSeconds: 300
   realtimeTopologyContextId: 777777
   persistEntityCostChunkSize: 1000
@@ -269,8 +272,6 @@ cost:
   identityGeneratorPrefix: 9
   # END - database-related properties
   <<: *auth_conn_info
-
-  marketHost: 'market'
 
   # CurrentWeight for calculating the weighted_value in
   # instance_type_hourly_by_week table.

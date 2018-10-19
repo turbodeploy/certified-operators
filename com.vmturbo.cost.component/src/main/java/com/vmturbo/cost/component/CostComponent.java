@@ -23,6 +23,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -31,13 +32,15 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * The main cost component.
  */
 @Configuration("theComponent")
-@Import({TopologyListenerConfig.class,
-        SpringSecurityConfig.class,
-        SQLDatabaseConfig.class,
+@Import({
+        BuyRIAnalysisConfig.class,
+        CostConfig.class,
+        CostServiceConfig.class,
         PricingConfig.class,
         ReservedInstanceConfig.class,
-        CostConfig.class,
-        CostServiceConfig.class})
+        SQLDatabaseConfig.class,
+        SpringSecurityConfig.class,
+        TopologyListenerConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.

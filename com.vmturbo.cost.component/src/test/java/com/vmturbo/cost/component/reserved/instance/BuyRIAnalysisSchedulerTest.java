@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.buy.reserved.instance;
+package com.vmturbo.cost.component.reserved.instance;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -19,6 +19,7 @@ import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisScheduler;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 
 public class BuyRIAnalysisSchedulerTest {

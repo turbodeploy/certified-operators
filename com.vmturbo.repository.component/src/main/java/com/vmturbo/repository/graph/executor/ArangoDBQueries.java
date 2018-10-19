@@ -122,6 +122,12 @@ public class ArangoDBQueries {
             "RETURN { oid: se.oid, displayName: se.displayName, entityType: se.entityType, state: se.state }";
 
     /**
+     *
+     */
+    static final String GET_ALL_ENTITIES =
+            "FOR se IN ${collection} RETURN se";
+
+    /**
      * Part of the global supply chain query.
      */
     static final String INSTANCES_OF_TYPES_QUERY_STRING =

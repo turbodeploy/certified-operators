@@ -147,6 +147,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         logger.debug("Deleting topology with id:{} and contextId:{} ",
                 request.getTopologyId(), request.getTopologyContextId());
         try {
+            topologyLifecycleManager.getRealtimeTopologyId();
             topologyLifecycleManager.deleteTopology(
                     new TopologyID(request.getTopologyContextId(),
                             request.getTopologyId(),
@@ -168,12 +169,13 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
     public void retrieveTopology(final RepositoryDTO.RetrieveTopologyRequest topologyRequest,
                                  final StreamObserver<RepositoryDTO.RetrieveTopologyResponse> responseObserver) {
         final long topologyID = topologyRequest.getTopologyId();
+
         try {
             logger.debug("Retrieving topology for {} with filter {}", topologyID,
                     topologyRequest.getEntityFilter());
             final TopologyProtobufReader reader =
                     topologyProtobufsManager.createTopologyProtobufReader(
-                        topologyRequest.getTopologyId(),
+                        topologyID,
                         topologyRequest.hasEntityFilter() ?
                                 Optional.of(topologyRequest.getEntityFilter()) : Optional.empty());
             while (reader.hasNext()) {
@@ -205,13 +207,6 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
             logger.error("Missing parameters for retrieve topology entities: " + request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Missing parameters for retrieve topology entities")
-                    .asException());
-            return;
-        }
-        if (request.getEntityOidsList().isEmpty()) {
-            logger.error("Topology entities ids can not be empty: " + request);
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Topology entities ids can not be empty.")
                     .asException());
             return;
         }

@@ -241,6 +241,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>topology-processor-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.repository.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
 
             <!-- test dependencies -->
         <dependency>
@@ -256,6 +264,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>cost-calculation</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

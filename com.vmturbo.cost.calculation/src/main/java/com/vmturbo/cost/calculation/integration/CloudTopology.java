@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -123,4 +124,10 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<ENTITY_CLASS> getConnectedService(final long entityId);
+
+    /**
+     * Get all regions in the topology.
+     */
+    @Nonnull
+    List<ENTITY_CLASS> getAllRegions();
 }

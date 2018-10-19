@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.buy.reserved.instance;
+package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.concurrent.Executors;
 
@@ -9,10 +9,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
-import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
 
 @Configuration
-@Import(ComputeTierDemandStatsConfig.class)
+@Import({ComputeTierDemandStatsConfig.class,
+        ReservedInstanceAnalysisConfig.class})
 public class BuyRIAnalysisConfig {
 
     @Value("${initialBuyRIAnalysisIntervalHours}")
@@ -24,6 +25,9 @@ public class BuyRIAnalysisConfig {
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
+    @Autowired
+    private ReservedInstanceAnalysisConfig reservedInstanceAnalysisConfig;
+
     @Bean
     public BuyRIAnalysisScheduler buyReservedInstanceScheduler() {
         return new BuyRIAnalysisScheduler(Executors.newSingleThreadScheduledExecutor(),
@@ -33,7 +37,8 @@ public class BuyRIAnalysisConfig {
 
     @Bean
     public BuyRIAnalysisRpcService buyReservedInstanceScheduleRpcService() {
-        return new BuyRIAnalysisRpcService(buyReservedInstanceScheduler());
+        return new BuyRIAnalysisRpcService(buyReservedInstanceScheduler(),
+                reservedInstanceAnalysisConfig.reservedInstanceAnalyzer());
     }
 
     @Bean

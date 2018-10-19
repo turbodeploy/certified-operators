@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.buy.reserved.instance;
+package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;

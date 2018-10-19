@@ -231,4 +231,16 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 }
             });
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public List<TopologyEntityDTO> getAllRegions() {
+        return getEntities().values()
+                .stream()
+                .filter(entity -> entity.getEntityType() == EntityType.REGION_VALUE)
+                .collect(Collectors.toList());
+    }
 }

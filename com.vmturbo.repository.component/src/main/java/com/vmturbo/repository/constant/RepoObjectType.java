@@ -52,6 +52,7 @@ public class RepoObjectType {
         DATABASE_SERVER_TIER("DatabaseServerTier"),
         AVAILABILITY_ZONE("AvailabilityZone"),
         REGION("Region"),
+        VIRTUAL_VOLUME("VirtualVolume"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -118,6 +119,8 @@ public class RepoObjectType {
             .put(EntityType.DATABASE_SERVER_TIER,   RepoEntityType.DATABASE_SERVER_TIER)
             .put(EntityType.AVAILABILITY_ZONE,      RepoEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION,                 RepoEntityType.REGION)
+            .put(EntityType.VIRTUAL_VOLUME,         RepoEntityType.VIRTUAL_VOLUME)
+
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)
             .build();
 
@@ -182,6 +185,7 @@ public class RepoObjectType {
         VMEMALLOCATION("VMemAllocation"),
         TRANSACTION("Transaction"),
         SLACOMMODITY("SLACommodity"),
+
         UNKNOWN("Unknown");
 
 

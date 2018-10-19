@@ -223,15 +223,25 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             @Nonnull final ServiceEntityMultiGet serviceEntityMultiGet) {
 
         final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        final StrSubstitutor querySubstitutor = new StrSubstitutor(ImmutableMap.of(
-                "collection",
-                serviceEntityMultiGet.getCollection(),
-                "commaSepLongs",
-                serviceEntityMultiGet.getEntityIds().stream()
-                        .map(id -> Long.toString(id))
-                        .collect(Collectors.joining(","))));
+        final StrSubstitutor querySubstitutor;
+        final String searchQuery;
 
-        final String searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
+        // if entityIDs is empty, return all entities.
+        if (serviceEntityMultiGet.getEntityIds().size()==0) {
+            querySubstitutor = new StrSubstitutor(ImmutableMap.of(
+                    "collection",
+                    serviceEntityMultiGet.getCollection()));
+            searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ALL_ENTITIES);
+        } else {
+            querySubstitutor = new StrSubstitutor(ImmutableMap.of(
+                    "collection",
+                    serviceEntityMultiGet.getCollection(),
+                    "commaSepLongs",
+                    serviceEntityMultiGet.getEntityIds().stream()
+                            .map(id -> Long.toString(id))
+                            .collect(Collectors.joining(","))));
+            searchQuery = querySubstitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
+        }
         final String databaseName = TopologyDatabases.getDbName(serviceEntityMultiGet.getTopologyDatabase());
         final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
 
