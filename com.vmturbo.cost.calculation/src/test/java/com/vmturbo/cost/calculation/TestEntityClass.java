@@ -88,6 +88,12 @@ public final class TestEntityClass {
         }
 
         @Nonnull
+        public Builder setComputeTierConfig(@Nonnull final ComputeTierConfig computeTierConfig) {
+            this.computeTierConfig = Optional.of(computeTierConfig);
+            return this;
+        }
+
+        @Nonnull
         public Builder setDatabaseConfig(@Nonnull final DatabaseConfig databaseConfig) {
             this.databaseConfig = Optional.of(databaseConfig);
             return this;

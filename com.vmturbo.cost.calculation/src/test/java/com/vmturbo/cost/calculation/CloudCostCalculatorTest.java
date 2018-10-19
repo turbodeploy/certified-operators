@@ -202,8 +202,11 @@ public class CloudCostCalculatorTest {
                 .build(infoExtractor);
         final TestEntityClass storageTier = TestEntityClass.newBuilder(storageTierId)
                 .build(infoExtractor);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(storageTierId + 777)
+                .build(infoExtractor);
         when(topology.getConnectedRegion(vmId)).thenReturn(Optional.of(region));
         when(topology.getStorageTier(vmId)).thenReturn(Optional.of(storageTier));
+        when(topology.getComputeTier(vmId)).thenReturn(Optional.of(computeTier));
 
         // Set up the discount applicator (no discount)
         final DiscountApplicator<TestEntityClass> discountApplicator =
@@ -215,7 +218,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage()).thenReturn(0.0);
+        when(riApplicator.recordRICoverage(computeTier)).thenReturn(0.0);
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData)))
                 .thenReturn(riApplicator);
 
