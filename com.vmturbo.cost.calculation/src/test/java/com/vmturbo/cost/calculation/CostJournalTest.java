@@ -8,10 +8,12 @@ import static org.mockito.Mockito.when;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.CostJournal.JournalEntry;
 import com.vmturbo.cost.calculation.CostJournal.OnDemandJournalEntry;
 import com.vmturbo.cost.calculation.CostJournal.RIJournalEntry;
@@ -32,6 +34,57 @@ public class CostJournalTest {
                 .setUnit(Unit.HOURS)
                 .setPriceAmount(CurrencyAmount.newBuilder()
                         .setAmount(100))
+                .build();
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L)
+                .build(infoExtractor);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
+        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getAmount(), closeTo(50, 0.001));
+        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+    }
+
+    @Test
+    public void testOnDemandJournalMonthlyEntryCostWithDiscount() {
+        final Price price = Price.newBuilder()
+                .setUnit(Unit.MONTH)
+                .setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(100 * CostProtoUtil.HOURS_IN_MONTH))
+                .build();
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L)
+                .build(infoExtractor);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
+        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getAmount(), closeTo(50, 0.001));
+        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+    }
+
+    @Test
+    public void testOnDemandJournalGBMonthEntryCostWithDiscount() {
+        final Price price = Price.newBuilder()
+                .setUnit(Unit.GB_MONTH)
+                .setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(100 * CostProtoUtil.HOURS_IN_MONTH))
+                .build();
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L)
+                .build(infoExtractor);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
+        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getAmount(), closeTo(50, 0.001));
+        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+    }
+
+    @Test
+    public void testOnDemandJournalMillionIopsEntryCostWithDiscount() {
+        final Price price = Price.newBuilder()
+                .setUnit(Unit.MILLION_IOPS)
+                .setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(100 * CostProtoUtil.HOURS_IN_MONTH))
                 .build();
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
                 .build(infoExtractor);
@@ -130,7 +183,7 @@ public class CostJournalTest {
                         .build());
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
         final CostJournal<TestEntityClass> journal =
-            CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator)
+            CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                 .recordOnDemandCost(CostCategory.COMPUTE, payee, computePrice, 1)
                 .recordOnDemandCost(CostCategory.LICENSE, payee, licensePrice, 1)
                 .recordRiCost(CostCategory.COMPUTE, riData, CurrencyAmount.newBuilder()
@@ -142,5 +195,42 @@ public class CostJournalTest {
         assertThat(journal.getEntity(), is(entity));
         assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(125.0));
         assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(10.0));
+    }
+
+    @Test
+    public void testCostJournalEntryInheritance() {
+        final TestEntityClass entity = TestEntityClass.newBuilder(7).build(infoExtractor);
+        final TestEntityClass region = TestEntityClass.newBuilder(77).build(infoExtractor);
+        final Price price = Price.newBuilder()
+                .setUnit(Unit.HOURS)
+                .setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(100))
+                .build();
+        final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
+        final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+
+        final TestEntityClass childCostProvider = TestEntityClass.newBuilder(123).build(infoExtractor);
+        final CostJournal<TestEntityClass> childCostJournal =
+                CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
+                        // One cost category that is also present in the test entity.
+                        .recordOnDemandCost(CostCategory.COMPUTE, payee, price, 1)
+                        // One cost category that is NOT present in the test entity.
+                        .recordOnDemandCost(CostCategory.STORAGE, payee, price, 1)
+                        .build();
+        final DependentCostLookup<TestEntityClass> dependentCostLookup = e -> {
+            assertThat(e, is(childCostProvider));
+            return childCostJournal;
+        };
+
+        final CostJournal<TestEntityClass> journal =
+                CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, dependentCostLookup)
+                        .recordOnDemandCost(CostCategory.COMPUTE, payee, price, 1)
+                        .inheritCost(childCostProvider)
+                        .build();
+
+        assertThat(journal.getTotalHourlyCost(), is(300.0));
+        assertThat(journal.getEntity(), is(entity));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(200.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE), is(100.0));
     }
 }

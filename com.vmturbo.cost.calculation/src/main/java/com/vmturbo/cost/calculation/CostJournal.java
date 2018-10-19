@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -17,15 +18,16 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
-import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 
 /**
  * The {@link CostJournal} collects the elements that contribute to the cost of a particular entity.
@@ -50,38 +52,86 @@ public class CostJournal<ENTITY_CLASS> {
 
     private final DiscountApplicator<ENTITY_CLASS> discountApplicator;
 
-    private final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> onDemandPriceEntries;
+    private final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> costEntries;
 
-    private final Map<CostCategory, Double> finalPricesByCategory;
+    private final Map<CostCategory, Double> finalCostsByCategory = Collections.synchronizedMap(new HashMap<>());
+
+    /**
+     * We calculate the costs from the journal entries the first time costs are actually requested.
+     * However, we want to avoid calculating multiple times, so we use an atomic boolean to make
+     * sure the calculation is only ever done once.
+     */
+    private final AtomicBoolean calculationStarted = new AtomicBoolean(false);
+
+    /**
+     * These are the entities whose costs should be factored into the cost of this journal.
+     */
+    private final List<ENTITY_CLASS> childCostEntities;
+
+    private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
     private CostJournal(@Nonnull final ENTITY_CLASS entity,
                         @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
                         @Nonnull final DiscountApplicator<ENTITY_CLASS> discountApplicator,
-                        @Nonnull final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> priceEntries) {
+                        @Nonnull final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> costEntries,
+                        @Nonnull final List<ENTITY_CLASS> childCostEntities,
+                        @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup) {
         this.entity = entity;
         this.infoExtractor = infoExtractor;
         this.discountApplicator = discountApplicator;
-        this.onDemandPriceEntries = Collections.unmodifiableMap(priceEntries);
-        this.finalPricesByCategory = sumPriceEntries();
+        this.costEntries = Collections.unmodifiableMap(costEntries);
+        this.childCostEntities = childCostEntities;
+        this.dependentCostLookup = dependentCostLookup;
     }
 
-    @Nonnull
-    private Map<CostCategory, Double> sumPriceEntries() {
-        final Map<CostCategory, Double> summedMap = new HashMap<>();
-        onDemandPriceEntries.forEach((category, priceEntries) -> {
-            double aggregateHourly = 0.0;
-            logger.trace("Aggregating hourly costs for category {}", category);
-            for (JournalEntry<ENTITY_CLASS> journalEntry : priceEntries) {
-                aggregateHourly += journalEntry.calculateHourlyCost(infoExtractor, discountApplicator)
-                    // TODO (roman, Sept 22 2018): Handle currency conversion when aggregating
-                    // hourly costs - or accept the desired currency as a parameter in this function,
-                    // and convert all currencies to that.
-                    .getAmount();
+    private void calculateCosts() {
+        if (calculationStarted.compareAndSet(false, true)) {
+            // Note - this should "block" other operations on the map until the calculation is done.
+            synchronized (finalCostsByCategory) {
+                logger.trace("Summing price entries.");
+                costEntries.forEach((category, priceEntries) -> {
+                    double aggregateHourly = 0.0;
+                    logger.trace("Aggregating hourly costs for category {}", category);
+                    for (JournalEntry<ENTITY_CLASS> journalEntry : priceEntries) {
+                        aggregateHourly += journalEntry.calculateHourlyCost(infoExtractor, discountApplicator)
+                            // TODO (roman, Sept 22 2018): Handle currency conversion when aggregating
+                            // hourly costs - or accept the desired currency as a parameter in this function,
+                            // and convert all currencies to that.
+                            .getAmount();
+                    }
+                    logger.trace("Aggregated hourly cost for category {} is {}", category, aggregateHourly);
+                    finalCostsByCategory.put(category, aggregateHourly);
+                });
+                logger.trace("Inheriting costs...");
+                // Go through the child cost entities, and add their costs to the
+                // costs calculated so far.
+                childCostEntities.forEach(childCostEntity -> {
+                    final CostJournal<ENTITY_CLASS> journal =
+                            dependentCostLookup.getCostJournal(childCostEntity);
+                    if (journal == null) {
+                        logger.error("Could not find costs for child entity {} (id: {})",
+                            infoExtractor.getName(childCostEntity),
+                            infoExtractor.getId(childCostEntity));
+                    } else {
+                        logger.trace(() -> "Inheriting costs from " + infoExtractor.getName(childCostEntity)
+                                + " id: " + infoExtractor.getId(childCostEntity));
+                        // Make sure the child journal's prices have already been calculated.
+                        // Hope there are no circular dependencies, fingers crossed!
+                        journal.calculateCosts();
+                        journal.getCategories().forEach(category ->
+                            finalCostsByCategory.compute(category, (k, curPrice) -> {
+                                final double inheritedCost =
+                                        journal.getHourlyCostForCategory(category);
+                                final double newCost = inheritedCost + (curPrice == null ? 0 : curPrice);
+                                logger.trace("Inheriting {} for category {}. New cost is: {}",
+                                        inheritedCost, category, newCost);
+                                return newCost;
+                            }));
+                    }
+                });
+                logger.trace("Finished inheriting cost.");
             }
-            logger.trace("Aggregated hourly cost for category {} is {}", category, aggregateHourly);
-            summedMap.put(category, aggregateHourly);
-        });
-        return Collections.unmodifiableMap(summedMap);
+        }
     }
 
     @Nonnull
@@ -96,6 +146,7 @@ public class CostJournal<ENTITY_CLASS> {
      */
     @Nonnull
     public EntityCost toEntityCostProto() {
+        calculateCosts();
         final EntityCost.Builder costBuilder = EntityCost.newBuilder()
             .setAssociatedEntityId(infoExtractor.getId(entity))
             .setAssociatedEntityType(infoExtractor.getEntityType(entity))
@@ -117,7 +168,8 @@ public class CostJournal<ENTITY_CLASS> {
      * @return The hourly cost for the category.
      */
     public double getHourlyCostForCategory(@Nonnull final CostCategory category) {
-        return finalPricesByCategory.getOrDefault(category, 0.0);
+        calculateCosts();
+        return finalCostsByCategory.getOrDefault(category, 0.0);
     }
 
     /**
@@ -127,7 +179,8 @@ public class CostJournal<ENTITY_CLASS> {
      */
     @Nonnull
     public Set<CostCategory> getCategories() {
-        return Collections.unmodifiableSet(finalPricesByCategory.keySet());
+        calculateCosts();
+        return Collections.unmodifiableSet(finalCostsByCategory.keySet());
     }
 
     /**
@@ -136,7 +189,8 @@ public class CostJournal<ENTITY_CLASS> {
      * @return The total (hourly) cost for the entity.
      */
     public double getTotalHourlyCost() {
-        return finalPricesByCategory.values().stream().mapToDouble(d -> d).sum();
+        calculateCosts();
+        return finalCostsByCategory.values().stream().mapToDouble(d -> d).sum();
     }
 
     /**
@@ -148,7 +202,11 @@ public class CostJournal<ENTITY_CLASS> {
     public static <ENTITY_CLASS> CostJournal<ENTITY_CLASS> empty(
             @Nonnull final ENTITY_CLASS entity,
             @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor) {
-        return new CostJournal<>(entity, infoExtractor, DiscountApplicator.noDiscount(), Collections.emptyMap());
+        return new CostJournal<>(entity, infoExtractor,
+                DiscountApplicator.noDiscount(),
+                Collections.emptyMap(),
+                Collections.emptyList(),
+                e -> null);
     }
 
     /**
@@ -161,8 +219,9 @@ public class CostJournal<ENTITY_CLASS> {
             @Nonnull final ENTITY_CLASS entity,
             @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
             @Nonnull final ENTITY_CLASS region,
-            @Nonnull final DiscountApplicator<ENTITY_CLASS> discountApplicator) {
-        return new Builder<>(entity, infoExtractor, region, discountApplicator);
+            @Nonnull final DiscountApplicator<ENTITY_CLASS> discountApplicator,
+            @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup) {
+        return new Builder<>(entity, infoExtractor, region, discountApplicator, dependentCostLookup);
     }
 
     /**
@@ -280,19 +339,39 @@ public class CostJournal<ENTITY_CLASS> {
             logger.trace("Calculating hourly cost for purchase from entity {} of type {}",
                     infoExtractor.getId(payee), infoExtractor.getEntityType(payee));
             final CurrencyAmount cost;
-            if (price.getUnit() == Unit.HOURS) {
-                final CurrencyAmount unitPrice = price.getPriceAmount();
-                final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
-                final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
-                logger.trace("Buying {} units at unit price {} with discount percentage {}",
-                        unitsBought, unitPrice.getAmount(), discountPercentage);
-                cost = unitPrice.toBuilder()
-                    .setAmount(unitsBought * discountedUnitPrice)
-                    // Currency inherited from unit price.
-                    .build();
-            } else {
-                logger.warn("Unsupported unit: {}", price.getUnit());
-                cost = CurrencyAmount.getDefaultInstance();
+            switch (price.getUnit()) {
+                case HOURS: {
+                    final CurrencyAmount unitPrice = price.getPriceAmount();
+                    final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
+                    final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
+                    logger.trace("Buying {} units at unit price {} with discount percentage {}",
+                            unitsBought, unitPrice.getAmount(), discountPercentage);
+                    cost = unitPrice.toBuilder()
+                            .setAmount(unitsBought * discountedUnitPrice)
+                            // Currency inherited from unit price.
+                            .build();
+                    break;
+                }
+                case MONTH:
+                case MILLION_IOPS:
+                case GB_MONTH: {
+                    // In all of these cases, the key distinction is that the price is monthly,
+                    // so to get the hourly price we need to divide.
+                    final CurrencyAmount unitPrice = price.getPriceAmount();
+                    final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
+                    final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
+                    logger.trace("Buying {} units at monthly unit price {} with discount percentage {}",
+                            unitsBought, unitPrice.getAmount(), discountPercentage);
+                    cost = unitPrice.toBuilder()
+                            .setAmount((unitsBought * discountedUnitPrice) / CostProtoUtil.HOURS_IN_MONTH)
+                            // Currency inherited from unit price.
+                            .build();
+                    break;
+                }
+                default:
+                    logger.warn("Unsupported unit: {}", price.getUnit());
+                    cost = CurrencyAmount.getDefaultInstance();
+                    break;
             }
             logger.trace("Purchase from entity {} of type {} has cost: {}",
                     infoExtractor.getId(payee), infoExtractor.getEntityType(payee), cost);
@@ -328,17 +407,23 @@ public class CostJournal<ENTITY_CLASS> {
 
         private final DiscountApplicator<ENTITY_CLASS_> discountApplicator;
 
-        private final Map<CostCategory, List<JournalEntry<ENTITY_CLASS_>>> priceEntries =
+        private final Map<CostCategory, List<JournalEntry<ENTITY_CLASS_>>> costEntries =
                 new EnumMap<>(CostCategory.class);
+
+        private final List<ENTITY_CLASS_> childCosts = new ArrayList<>();
+
+        private final DependentCostLookup<ENTITY_CLASS_> dependentCostLookup;
 
         private Builder(@Nonnull final ENTITY_CLASS_ entity,
                         @Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
                         @Nonnull final ENTITY_CLASS_ region,
-                        @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator) {
+                        @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator,
+                        @Nonnull final DependentCostLookup<ENTITY_CLASS_> dependentCostLookup) {
             this.entity = Objects.requireNonNull(entity);
             this.infoExtractor = Objects.requireNonNull(infoExtractor);
             this.region = Objects.requireNonNull(region);
             this.discountApplicator = Objects.requireNonNull(discountApplicator);
+            this.dependentCostLookup = Objects.requireNonNull(dependentCostLookup);
         }
 
         /**
@@ -366,8 +451,22 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final ENTITY_CLASS_ payee,
                 @Nonnull final Price price,
                 final double amount) {
-            final List<JournalEntry<ENTITY_CLASS_>> prices = priceEntries.computeIfAbsent(category, k -> new ArrayList<>());
+            if (logger.isTraceEnabled()) {
+                logger.trace("On-demand {} purchase of {} from payee {} (id: {}) at price {}",
+                        category, amount, infoExtractor.getName(payee), infoExtractor.getId(payee), price);
+            }
+            final List<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new ArrayList<>());
             prices.add(new OnDemandJournalEntry<>(payee, price, amount));
+            return this;
+        }
+
+        @Nonnull
+        public Builder<ENTITY_CLASS_> inheritCost(@Nonnull final ENTITY_CLASS_ entity) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Inheriting costs of entity {} (id: {})",
+                        infoExtractor.getName(entity), infoExtractor.getId(entity));
+            }
+            childCosts.add(entity);
             return this;
         }
 
@@ -385,7 +484,11 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final CostCategory category,
                 @Nonnull final ReservedInstanceData payee,
                 @Nonnull final CurrencyAmount hourlyCost) {
-            final List<JournalEntry<ENTITY_CLASS_>> prices = priceEntries.computeIfAbsent(category, k -> new ArrayList<>());
+            if (logger.isTraceEnabled()) {
+                logger.trace("RI {} coverage by {} at cost {}", category,
+                        payee.getReservedInstanceBought().getId(), hourlyCost);
+            }
+            final List<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new ArrayList<>());
             prices.add(new RIJournalEntry<>(payee, hourlyCost));
             return this;
         }
@@ -393,7 +496,12 @@ public class CostJournal<ENTITY_CLASS> {
 
         @Nonnull
         public CostJournal<ENTITY_CLASS_> build() {
-            return new CostJournal<>(entity, infoExtractor, discountApplicator, priceEntries);
+            return new CostJournal<>(entity,
+                    infoExtractor,
+                    discountApplicator,
+                    costEntries,
+                    childCosts,
+                    dependentCostLookup);
         }
     }
 }
