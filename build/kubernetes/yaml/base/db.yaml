@@ -90,7 +90,7 @@ spec:
       - name: turbocred
       restartPolicy: Always
       securityContext:
-        fsGroup: 2000
+        runAsUser: 0
       volumes:
       - name: mysql-data
         persistentVolumeClaim:
