@@ -5,8 +5,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -47,4 +48,25 @@ public class TopologyConversionConstants {
     public static final float CAPACITY_FACTOR = 0.999999f;
 
     public static final String BICLIQUE = "BICLIQUE";
+
+    // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
+    // the resizable commodity sold
+    public static ImmutableMap<Integer, Integer> commDependancyMapForCloudResize = ImmutableMap.<Integer, Integer>builder()
+                    .put(CommodityType.MEM_PROVISIONED_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.VCPU_VALUE)
+                    .put(CommodityType.MEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.CPU_VALUE, CommodityType.VCPU_VALUE)
+                    // mapping for AWS DatabaseServer commodities
+                    .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE)
+                    // mapping for Azure Database commodities
+                    .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE).build();
+    // TODO: the following constants will be from user settings once UI supports it
+    public static final float RESIZE_AVG_WEIGHT =  0.1f;
+    public static final float RESIZE_MAX_WEIGHT =  0.9f;
+    public static final float RESIZE_PEAK_WEIGHT =  0.0f;
+    public static final float RESIZE_TARGET_UTILIZATION_VM_VCPU = 0.7f;
+    public static final float RESIZE_TARGET_UTILIZATION_VM_VMEM = 0.9f;
+
 }

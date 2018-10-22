@@ -690,4 +690,34 @@ public class TopologyConverterToMarketTest {
             }
         }
     }
+
+    @Test
+    public void testGetResizedCapacityForCloud() {
+        CommodityBoughtDTO memBought = CommodityBoughtDTO.newBuilder()
+        .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.MEM_VALUE))
+        .setUsed(20).setPeak(20).build();
+        TopologyEntityDTO vmEntityDTO = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setOid(100)
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.VMEM_VALUE).build())
+                                .setUsed(90)
+                                .setPeak(90)
+                                .setMaxQuantity(90)
+                                .setCapacity(200)
+                                .build())
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setMovable(true)
+                                .setProviderId(1)
+                                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                .addCommodityBought(memBought))
+                        .build();
+        final TopologyConverter converter =
+                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+        float[] quantities = converter.getResizedCapacityForCloud(vmEntityDTO, memBought);
+        assertEquals(100, quantities[0] , 0.0f);
+        assertEquals(100, quantities[1], 0.0f);
+    }
 }

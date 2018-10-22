@@ -35,7 +35,6 @@ import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -699,6 +698,86 @@ public class TopologyConverter {
     }
 
     /**
+     * Gets the resized capacity of cloud entity based on the used, weighted used and resize target
+     * utilization.
+     *
+     * @param topologyDTO topology entity DTO as resize target
+     * @param commBought commodity bought to be resized
+     * @return an array of two elements, the first element is new used value, the second is the new peak value
+     */
+    protected float[] getResizedCapacityForCloud(@Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO,
+                                               @Nonnull final TopologyDTO.CommodityBoughtDTO commBought) {
+        float[] newQuantity = {(float)commBought.getUsed(), (float)commBought.getPeak()};
+        Integer drivingCommSoldType = TopologyConversionConstants.commDependancyMapForCloudResize
+                .get(commBought.getCommodityType().getType());
+        if (drivingCommSoldType == null) {
+            return newQuantity;
+        }
+        List<TopologyDTO.CommoditySoldDTO> drivingCommSold = topologyDTO.getCommoditySoldListList().stream()
+                .filter(c -> c.getCommodityType().getType() == drivingCommSoldType).collect(Collectors.toList());
+        // TODO: we only take care for VM resize for now
+        if (drivingCommSold.size() == 1 && topologyDTO.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && TopologyConversionUtils.isEntityConsumingCloud(topologyDTO)) {
+            float targetUtil = 1f;
+            CommoditySoldDTO commSold = drivingCommSold.get(0);
+            if (drivingCommSoldType == CommodityDTO.CommodityType.VMEM_VALUE) {
+                targetUtil = TopologyConversionConstants.RESIZE_TARGET_UTILIZATION_VM_VMEM;
+            } else if (drivingCommSoldType == CommodityDTO.CommodityType.VCPU_VALUE) {
+                targetUtil = TopologyConversionConstants.RESIZE_TARGET_UTILIZATION_VM_VCPU;
+            }
+            float resizeUpDemand = (float)commSold.getUsed();
+            // For cloud resize down where instead of using the max we use weighted average
+            float resizeDownDemand = getWeightedUsed(commSold);
+            float newCapacity;
+            if (Math.ceil(resizeUpDemand / targetUtil) > commSold.getCapacity()) {
+                newCapacity = resizeUpDemand / targetUtil;
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Using resizeUpDemand value {} for Driving commodity type {} for "
+                            + "entity {}. CommBoughtUsed = {} and targetUtil = {}", resizeUpDemand,
+                            commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
+                            newCapacity, targetUtil);
+                }
+            } else if (resizeDownDemand > 0 && Math.ceil(resizeDownDemand / targetUtil)
+                    < commSold.getCapacity()) {
+                newCapacity = resizeDownDemand / targetUtil;
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Using resizeDownDemand value {} for Driving commodity type {} for "
+                            + "entity {}. CommBoughtUsed = {} and  targetUtil = {}", resizeDownDemand,
+                            commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
+                            newCapacity, targetUtil);
+                }
+            } else {
+                // do not resize
+                newCapacity = (float)commSold.getCapacity();
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Using capacity of Driving commodity type {} for entity {}. "
+                            + "CommBoughtUsed = {} ", commSold.getCommodityType().getType(),
+                            topologyDTO.getDisplayName(), newCapacity);
+                }
+            }
+            newQuantity[0] = newCapacity;
+            // For cloud entities / cloud migration plans, we do not use the peakQuantity.
+            // We only use the quantity values inside M2
+            newQuantity[1] = Math.max((float)commSold.getPeak(), (float)commSold.getUsed()) / targetUtil;
+            if (logger.isDebugEnabled()) {
+                logger.debug("Driving commodity type {} used value is {} targetUtil is {}",
+                             commSold.getCommodityType().getType(), commSold.getUsed(), targetUtil);
+            }
+        }
+        return newQuantity;
+    }
+
+    /**
+     * Calculates the weighted usage which will be used for resize down for cloud resource.
+     */
+    private float getWeightedUsed(@Nonnull final TopologyDTO.CommoditySoldDTO commodity) {
+        return (float)(commodity.getMaxQuantity() <= 0 ? commodity.getMaxQuantity()
+                : TopologyConversionConstants.RESIZE_AVG_WEIGHT * commodity.getUsed()
+                + TopologyConversionConstants.RESIZE_MAX_WEIGHT * commodity.getMaxQuantity()
+                + TopologyConversionConstants.RESIZE_PEAK_WEIGHT * commodity.getPeak());
+    }
+
+    /**
      * Convert {@link CommodityDTOs.CommodityBoughtTO} of a trader to its corresponding
      * {@link TopologyDTO.CommodityBoughtDTO}.
      * <p/>
@@ -874,7 +953,7 @@ public class TopologyConverter {
                 .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType())
                         && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE)
                 .map(commBoughtGrouping -> createShoppingList(
-                        topologyEntity.getOid(),
+                        topologyEntity,
                         topologyEntity.getEntityType(),
                         topologyEntity.getAnalysisSettings().getShopTogether(),
                         getProviderId(commBoughtGrouping, topologyEntity),
@@ -935,12 +1014,13 @@ public class TopologyConverter {
      */
     @Nonnull
     private EconomyDTOs.ShoppingListTO createShoppingList(
-            final long buyerOid,
+            final TopologyDTO.TopologyEntityDTO buyer,
             final int entityType,
             final boolean shopTogether,
             @Nullable final Long providerOid,
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
             final Map<Long, Long> providers) {
+        long buyerOid = buyer.getOid();
         TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
         float moveCost = !isPlan() && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
                 && provider != null // this check is for testing purposes
@@ -950,7 +1030,7 @@ public class TopologyConverter {
         Set<CommodityDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
             .stream()
             .filter(CommodityBoughtDTO::getActive)
-            .map(topoCommBought -> convertCommodityBought(buyerOid, topoCommBought, providerOid,
+            .map(topoCommBought -> convertCommodityBought(buyer, topoCommBought, providerOid,
                     shopTogether, providers))
             .filter(Objects::nonNull) // Null for DSPMAccess/Datastore and shop-together
             .collect(Collectors.toSet());
@@ -1126,7 +1206,7 @@ public class TopologyConverter {
     }
 
     private CommodityDTOs.CommodityBoughtTO convertCommodityBought(
-            long buyerOid, @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
+            final TopologyDTO.TopologyEntityDTO buyer, @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
             @Nullable final Long providerOid,
             final boolean shopTogether,
             final Map<Long, Long> providers) {
@@ -1140,13 +1220,15 @@ public class TopologyConverter {
                 : generateBcCommodityBoughtTO(
                     providers.getOrDefault(providerOid, providerOid), type)
             // all other commodities - convert to DTO regardless of shop-together
-            : createAndValidateCommBoughtTO(topologyCommBought);
+            : createAndValidateCommBoughtTO(buyer, topologyCommBought);
     }
 
     private CommodityDTOs.CommodityBoughtTO createAndValidateCommBoughtTO(
+                    final TopologyDTO.TopologyEntityDTO buyer,
                     TopologyDTO.CommodityBoughtDTO topologyCommBought) {
-        float peakQuantity = (float)topologyCommBought.getPeak();
-        float usedQuantity = (float)topologyCommBought.getUsed();
+        float[] newQuantity = getResizedCapacityForCloud(buyer, topologyCommBought);
+        float peakQuantity = newQuantity[1];
+        float usedQuantity = newQuantity[0];
 
         if (usedQuantity < 0) {
             // We don't want to log every time we get used = -1 because mediation
