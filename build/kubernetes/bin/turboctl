@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # turbo script to get kubernetes information
 db_username="root"
 db_password="vmturbo"
@@ -155,7 +156,7 @@ case "$args" in
       component_yaml_file=$(find ${xlYamlDir} -name "${component}.yaml")
     popd
     [ -z $component_yaml_file ] && echo "Coluldn't find yaml for ${component}" && exit 1
-    ${kubeCommand} create -f ${xlYamlDir}/${component_yaml_file}
+    ${kubeCommand} create -f ${component_yaml_file}
     ;;
   stop)
   # TODO: Allow multiple components to stop
@@ -174,14 +175,14 @@ case "$args" in
       component_yaml_file=$(find ${xlYamlDir} -name "${component}.yaml")
     popd
     [ -z $component_yaml_file ] && echo "Coluldn't find yaml for ${component}" && exit 1
-    ${kubeCommand} create -f ${xlYamlDir}/${component_yaml_file}
+    ${kubeCommand} create -f ${component_yaml_file}
     ;;
   shell)
   # TODO: Allow executing shell command using this option
   #      shell topology-processor ls -l
     pod=$1; shift
     [ -z $pod ] && echo "Invalid Option: 'shell' requires an argument" 1>&2 && usage && exit -1
-    pod_name=$(kubectl get pods -o name --field-selector=status.phase=Running | grep ^pods/${pod} | cut -f2 -d '/')
+    pod_name=$(kubectl get pods -o name --field-selector=status.phase=Running | grep ^pod/${pod} | cut -f2 -d '/')
     if [ -z "${pod_name}" ]
     then
       echo "Couldn't find '${pod}' pod or pod is not runnning" 1>&2
@@ -255,7 +256,7 @@ case "$args" in
           ;;
       esac
     done
-    db_pod_name=$(kubectl get pods -o name --field-selector=status.phase=Running | grep '^pods/db-' | cut -f2 -d '/')
+    db_pod_name=$(kubectl get pods -o name --field-selector=status.phase=Running | grep '^pod/db-' | cut -f2 -d '/')
     if [ -z "${db_pod_name}" ]
     then
       echo "Couldn't find 'db' pod or 'db' pod is not runnning" 1>&2
