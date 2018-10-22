@@ -138,7 +138,8 @@ public class CommodityConverter {
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable && !AnalysisUtil.PROVISIONED_COMMODITIES.contains(type))
+                        .setResizable(resizable && !AnalysisUtil.PROVISIONED_COMMODITIES.contains(type)
+                                && !TopologyConversionUtils.isEntityConsumingCloud(dto))
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(

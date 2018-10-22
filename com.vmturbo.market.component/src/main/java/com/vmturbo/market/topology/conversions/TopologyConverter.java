@@ -164,6 +164,7 @@ public class TopologyConverter {
     // Add a cost of moving from source to destination.
     public static final float MOVE_COST_FACTOR = 0.005f;
     public static final float PLAN_MOVE_COST_FACTOR = 0.0f;
+    public static final float CLOUD_QUOTE_FACTOR = 1;
 
     private final CommodityConverter commodityConverter;
 
@@ -756,6 +757,7 @@ public class TopologyConverter {
             suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
                             ? topologyDTO.getAnalysisSettings().getSuspendable()
                                             : suspendable;
+            boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
                     createCommonTraderSettingsTOBuilder(
                             topologyDTO, unmodifiableEntityOidToDtoMap, isAlleviatePressurePlan);
@@ -767,8 +769,8 @@ public class TopologyConverter {
                             topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
-                    .setQuoteFactor(quoteFactor)
-                    .setMoveCostFactor(isPlan() ? PLAN_MOVE_COST_FACTOR : MOVE_COST_FACTOR);
+                    .setQuoteFactor(isEntityFromCloud ? CLOUD_QUOTE_FACTOR :quoteFactor)
+                    .setMoveCostFactor((isPlan() || isEntityFromCloud) ? PLAN_MOVE_COST_FACTOR : MOVE_COST_FACTOR);
             if (cloudEntityToBusinessAccount.get(topologyDTO) != null) {
                 settingsBuilder.setBalanceAccount(createBalanceAccountDTO(topologyDTO));
             }
@@ -868,7 +870,9 @@ public class TopologyConverter {
         Map<Long, Long> providers = oldProviders(topologyEntity);
         return topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
                 // skip converting shoppinglist that buys from VDC
-                .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType()))
+                // TODO: we also skip the sl that consumes AZ which contains Zone commodity because zonal RI is not yet supported
+                .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType())
+                        && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE)
                 .map(commBoughtGrouping -> createShoppingList(
                         topologyEntity.getOid(),
                         topologyEntity.getEntityType(),

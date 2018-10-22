@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.settings.EntitySettings;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -61,6 +62,13 @@ public class TopologyConversionUtils {
         return settingsBuilder;
     }
 
+    /**
+     * Check if the entity is consuming providers that are from cloud.
+     */
+    public static boolean isEntityConsumingCloud(TopologyEntityDTO entity) {
+        return entity.getCommoditiesBoughtFromProvidersList().stream()
+                .anyMatch(g -> TopologyConversionConstants.TIER_ENTITY_TYPES.contains(g.getProviderEntityType()));
+    }
     /**
      * An entity is a guaranteed buyer if it is a VDC that consumes (directly) from
      * storage or PM, or if it is a DPod.
