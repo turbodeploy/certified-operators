@@ -4,8 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
+import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -44,6 +43,8 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
      * @return The ID of the entity.
      */
     long getId(@Nonnull final ENTITY_CLASS entity);
+
+    String getName(@Nonnull final ENTITY_CLASS entity);
 
     /**
      * Get the compute configuration of a particular entity.
@@ -85,6 +86,17 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     Optional<NetworkConfig> getNetworkConfig(@Nonnull ENTITY_CLASS entity);
 
     /**
+     * Get the volume configuration of a particular entity.
+     *
+     * @param entity The entity.
+     * @return An optional containing the {@link VirtualVolumeConfig}. An empty optional if there is
+     *         no volume configuration associated with this entity - e.g. if the entity is not a
+     *         virtual volume.
+     */
+    @Nonnull
+    Optional<VirtualVolumeConfig> getVolumeConfig(@Nonnull ENTITY_CLASS entity);
+
+    /*
      * Get the compute tier configuration of a particular entity.
      *
      * @param entity The entity.
@@ -214,4 +226,25 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         }
     }
 
+    /**
+     * A wrapper class around the volume configuration of an entity.
+     */
+    @Immutable
+    class VirtualVolumeConfig {
+        private final float accesCapacityMillionIops;
+        private final float amountCapacityMb;
+
+        public VirtualVolumeConfig(final float accesCapacityMillionIops, final float amountCapacityMb) {
+            this.accesCapacityMillionIops = accesCapacityMillionIops;
+            this.amountCapacityMb = amountCapacityMb;
+        }
+
+        public float getAccessCapacityMillionIops() {
+            return accesCapacityMillionIops;
+        }
+
+        public float getAmountCapacityGb() {
+            return amountCapacityMb / 1024;
+        }
+    }
 }
