@@ -27,8 +27,8 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 public class ResizerTest {
 
     TestCommon testEconomy;
-    Trader app;
-    Trader vm;
+    Trader app, app1, app2;
+    Trader vm, vm1, vm2;
     Trader pm;
     Ledger ledger;
     public final static Set<CommoditySpecification> EXPECTED_COMM_SPECS_TO_BE_RESIZED =
@@ -293,41 +293,55 @@ public class ResizerTest {
         assertTrue(memUsedOnCommSoldBeforeResize < memUsedOnCommSoldAfterResize);
     }
 
-    // TODO: The following test is ignored, it should be fixed in the future
     /**
-     * Setup economy with one PM, one VM and one application.
-     * PM CPU capacity = 100, VM buys 80 from it. App buys 98 of VM's VCPU.
-     * PM MEM capacity = 100, VM buys 80 from it. App buys 98 of VM's VMEM.
+     * Setup economy with 1 PM, 2 VMs and 2 applications.
+     * PM CPU capacity = 100, each VM has capacity 50 and buys 40 from it. Each app buys 49 of VM's VCPU.
+     * PM MEM capacity = 100, each VM has capacity 50 and buys 40 from it. Each app buys 49 of VM's VMEM.
      * So, the VM's VCPU and VMEM have high ROI.
-     * The desired capacity increase is 21 units - result of calling calculateDesiredCapacity.
+     * The desired capacity increase is 71 units - result of calling calculateDesiredCapacity.
      * But, the increase in memory and CPU will be limited to oldCapacity + 20.
      * (20 is the remaining capacity => PM MEM capacity - PM MEM quantity. Same for CPU.).
      */
-    @Ignore
     @Test
     public void testResizeDecisions_resizeUpGreaterThanUnderlyingProviderAllows() {
-        Economy economy = setupTopologyForResizeTest(100, 100,
-                        100, 100, 80, 80, 98, 98, 0.65, 0.75,
+        Economy economy = setupTopologyForResizeTestAlternative(100, 100,
+                        50, 50, 50, 50, 40, 40, 40, 40, 49, 49, 49,49, 0.65, 0.75,
                         RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, false);
-        vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
+        vm1.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(40));
+        vm2.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(40));
+
+        vm1.getCommoditiesSold().stream().forEach(c -> c.getSettings().setUtilizationUpperBound(0.5));
+        vm2.getCommoditiesSold().stream().forEach(c -> c.getSettings().setUtilizationUpperBound(0.5));
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         //Assert that VCPU and VMEM of VM were resized up
         //and limited to the remaining capacity of underlying PM.
-        assertEquals(2, actions.size());
+        assertEquals(4, actions.size());
         assertEquals(ActionType.RESIZE, actions.get(0).getType());
         Resize resize1 = (Resize)actions.get(0);
-        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(resize1.getActionTarget(), vm1);
         assertTrue(resize1.getOldCapacity() < resize1.getNewCapacity());
         double estimatedNewCapacity = resize1.getOldCapacity() + 20;
         assertEquals(resize1.getNewCapacity(), estimatedNewCapacity, TestUtils.FLOATING_POINT_DELTA);
         assertEquals(ActionType.RESIZE, actions.get(1).getType());
         Resize resize2 = (Resize)actions.get(1);
-        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(resize2.getActionTarget(), vm1);
         assertTrue(resize2.getOldCapacity() < resize2.getNewCapacity());
         estimatedNewCapacity = resize2.getOldCapacity() + 20;
         assertEquals(resize2.getNewCapacity(), estimatedNewCapacity, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(2).getType());
+        Resize resize3 = (Resize)actions.get(2);
+        assertEquals(resize3.getActionTarget(), vm2);
+        assertTrue(resize3.getOldCapacity() < resize2.getNewCapacity());
+        estimatedNewCapacity = resize3.getOldCapacity() + 20;
+        assertEquals(resize3.getNewCapacity(), estimatedNewCapacity, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(3).getType());
+        Resize resize4 = (Resize)actions.get(3);
+        assertEquals(resize4.getActionTarget(), vm2);
+        assertTrue(resize4.getOldCapacity() < resize2.getNewCapacity());
+        estimatedNewCapacity = resize4.getOldCapacity() + 20;
+        assertEquals(resize4.getNewCapacity(), estimatedNewCapacity, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -502,6 +516,93 @@ public class ResizerTest {
                         new double[]{vcpuUsedByApp, vmemUsedByApp}, vm);
         vm.getSettings().setMinDesiredUtil(vmMinDesiredUtil);
         vm.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil);
+        economy.getSettings().setRightSizeLower(economyRightSizeLower);
+        economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
+        TestUtils.setupRawCommodityMap(economy);
+        if(shouldSetupCommodityResizeDependencyMap){
+            TestUtils.setupCommodityResizeDependencyMap(economy);
+        }
+        economy.populateMarketsWithSellers();
+        ledger = new Ledger(economy);
+        return economy;
+    }
+
+    /**
+     * Sets up topology with one PM, two VMs placed on the PM, and two apps placed on the VMs.
+     * @param pmCpuCapacity - The PM's CPU capacity
+     * @param pmMemCapacity - The PM's Memory capacity
+     * @param vm1VcpuCapacity - The VM's VCPU capacity
+     * @param vm1VmemCapacity - The VM's VMEM capacity
+     * @param vm2VcpuCapacity - The VM's VCPU capacity
+     * @param vm2VmemCapacity - The VM's VMEM capacity
+     * @param cpuUsedByVm1 - The quantity of CPU used by the VM
+     * @param memUsedByVm1 - The quantity of MEM used by the VM
+     * @param cpuUsedByVm2 - The quantity of CPU used by the VM
+     * @param memUsedByVm2 - The quantity of MEM used by the VM
+     * @param vcpuUsedByApp1 - The quantity of VCPU used by the app.
+     * @param vmemUsedByApp1 - The quantity of the VMEM used by the app.
+     * @param vcpuUsedByApp2 - The quantity of VCPU used by the app.
+     * @param vmemUsedByApp2 - The quantity of the VMEM used by the app.
+     * @param vmMinDesiredUtil - The VM's minimum desired utilization.
+     * @param vmMaxDesiredUtil - The VM's maximum desired utilization.
+     * @param economyRightSizeLower - Economy's right size lower limit
+     * @param economyRightSizeUpper - Economy's right size upper limit
+     * @param shouldSetupCommodityResizeDependencyMap -
+     *        should the commodity resize dependency map
+     *        be setup for the economy passed in.
+     * @return Economy with the topology setup.
+     */
+    private Economy setupTopologyForResizeTestAlternative(
+            double pmCpuCapacity, double pmMemCapacity,
+            double vm1VcpuCapacity, double vm1VmemCapacity,
+            double vm2VcpuCapacity, double vm2VmemCapacity,
+            double cpuUsedByVm1, double memUsedByVm1,
+            double cpuUsedByVm2, double memUsedByVm2,
+            double vcpuUsedByApp1, double vmemUsedByApp1,
+            double vcpuUsedByApp2, double vmemUsedByApp2,
+            double vmMinDesiredUtil, double vmMaxDesiredUtil,
+            double economyRightSizeLower, double economyRightSizeUpper,
+            boolean shouldSetupCommodityResizeDependencyMap) {
+        Economy economy = new Economy();
+        pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM),
+                new double[]{pmCpuCapacity, pmMemCapacity}, true, false);
+        pm.setDebugInfoNeverUseInCode("PM1");
+
+        // Create VMs and place on PM
+        vm1 = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
+                Arrays.asList(0L), Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{vm1VcpuCapacity, vm1VmemCapacity}, false, false);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1,
+                new double[]{cpuUsedByVm1, memUsedByVm1}, pm);
+        vm2 = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
+                Arrays.asList(0L), Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{vm2VcpuCapacity, vm2VmemCapacity}, false, false);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2,
+                new double[]{cpuUsedByVm2, memUsedByVm2}, pm);
+
+        //Create apps and place on VMs
+        app1 = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
+                Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
+        app1.setDebugInfoNeverUseInCode("APP1");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), app1,
+                new double[]{vcpuUsedByApp1, vmemUsedByApp1}, vm1);
+        app2 = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
+                Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
+        app2.setDebugInfoNeverUseInCode("APP2");
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), app2,
+                new double[]{vcpuUsedByApp2, vmemUsedByApp2}, vm2);
+
+        vm1.getSettings().setMinDesiredUtil(vmMinDesiredUtil);
+        vm1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil);
+        vm2.getSettings().setMinDesiredUtil(vmMinDesiredUtil);
+        vm2.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil);
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
