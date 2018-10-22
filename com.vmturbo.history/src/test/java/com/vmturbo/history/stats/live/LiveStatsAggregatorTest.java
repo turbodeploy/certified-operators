@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
+
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
 import org.junit.BeforeClass;
@@ -11,13 +13,13 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.history.stats.live.LiveStatsAggregator;
 import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
@@ -54,15 +56,24 @@ public class LiveStatsAggregatorTest {
         aggregator = new LiveStatsAggregator(historydbIO, topologyOrganizer, exclude, 3);
 
         // includes a forward reference: vm processed before the pm it is buying from
-        aggregator.aggregateEntity(vm1);
-        aggregator.aggregateEntity(pm1);
+        Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(
+                vm1.getOid(), vm1,
+                pm1.getOid(), pm1
+        );
+        aggregator.aggregateEntity(vm1, entityByOid);
+        aggregator.aggregateEntity(pm1, entityByOid);
 
         assertEquals(0, aggregator.numPendingBought());
-        aggregator.aggregateEntity(vm2);
-        aggregator.aggregateEntity(pm3);
+        entityByOid = ImmutableMap.of(
+                vm2.getOid(), vm2,
+                pm3.getOid(), pm3
+        );
+        aggregator.aggregateEntity(vm2, entityByOid);
+        aggregator.aggregateEntity(pm3, entityByOid);
         // vm2 is buying from pm2, but pm2 is not yet processed, so the commodities bought by vm2 are pending
         assertEquals(1, aggregator.numPendingBought());
-        aggregator.aggregateEntity(pm2);
+        entityByOid = ImmutableMap.of(pm2.getOid(), pm2);
+        aggregator.aggregateEntity(pm2, entityByOid);
 
         // pm2 added so vm2 can be processed so no pending commodities bought
         assertEquals(0, aggregator.numPendingBought());

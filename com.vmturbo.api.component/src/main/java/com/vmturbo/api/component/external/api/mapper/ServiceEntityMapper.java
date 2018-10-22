@@ -47,6 +47,7 @@ public class ServiceEntityMapper {
         DATABASE_SERVER_TIER("DatabaseServerTier"),
         AVAILABILITY_ZONE("AvailabilityZone"),
         REGION("Region"),
+        VIRTUAL_VOLUME("VirtualVolume"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -112,6 +113,7 @@ public class ServiceEntityMapper {
             .put(EntityType.DATABASE_SERVER_TIER.getNumber(),   UIEntityType.DATABASE_SERVER_TIER)
             .put(EntityType.AVAILABILITY_ZONE.getNumber(),      UIEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION.getNumber(),                 UIEntityType.REGION)
+            .put(EntityType.VIRTUAL_VOLUME.getNumber(),         UIEntityType.VIRTUAL_VOLUME)
             .put(EntityType.UNKNOWN.getNumber(),                UIEntityType.UNKNOWN)
             .build();
 

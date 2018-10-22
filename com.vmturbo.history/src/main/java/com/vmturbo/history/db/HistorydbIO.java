@@ -28,6 +28,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 import static org.jooq.impl.DSL.row;
 
 import java.sql.Connection;
@@ -495,7 +496,12 @@ public class HistorydbIO extends BasedbIO {
      * Get the list of {@link Timestamp} objects describing the stat snapshot times in a
      * requested time range.
      *
-     * Note: This currently assumes each topology has at least one physical machine.
+     * Note: This currently assumes each topology has at least one virtual machine.
+     * Todo: We assume at least one PM before, but for new cloud model there is no PM, if user only
+     * adds cloud target, it will not be able to get correct timestamp. Thus we change it to VM.
+     * We should considering handling this better, when serverless is down the road. One possible
+     * solution is keep a separate table which just has the updated timestamps. Opened OM-40052 for
+     * future improvement.
      *
      * @param timeFrame The {@link TimeFrame} to look in.
      * @param startTime The start time, in epoch millis.
@@ -510,7 +516,7 @@ public class HistorydbIO extends BasedbIO {
     public List<Timestamp> getTimestampsInRange(@Nonnull final TimeFrame timeFrame,
                                                 final long startTime,
                                                 final long endTime) throws VmtDbException {
-        final Table<?> table = statsTableByTimeFrame(EntityType.PHYSICAL_MACHINE, timeFrame);
+        final Table<?> table = statsTableByTimeFrame(EntityType.VIRTUAL_MACHINE, timeFrame);
         final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)dField(table, SNAPSHOT_TIME);
         final Condition condition =
                 HistoryStatsUtils.betweenStartEndTimestampCond(snapshotTimeField, timeFrame, startTime, endTime);
@@ -525,14 +531,20 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Return a long epoch date representing the most recent timestamp of snapshot data.
      *
-     * Currently only looks for the most recent item in the PM_STATS_LATEST table; assuming any
-     * topology will include a PM.
+     * Currently only looks for the most recent item in the VM_STATS_LATEST table; assuming any
+     * topology will include a VM.
+     *
+     * Todo: We assume at least one PM before, but for new cloud model there is no PM, if user only
+     * adds cloud target, it will not be able to get correct timestamp. Thus we change it to VM.
+     * We should considering handling this better, when serverless is down the road. One possible
+     * solution is keep a separate table which just has the most recent timestamp. Opened OM-40052
+     * for future improvement.
      *
      * @return a {@link Timestamp} for the most recent snapshot recorded in the xxx_stats_latest
      * tables.
      */
     public Optional<Timestamp> getMostRecentTimestamp() {
-        PmStatsLatest statsLatestTable = PM_STATS_LATEST;
+        VmStatsLatest statsLatestTable = VM_STATS_LATEST;
         try (Connection conn = connection()) {
             final Field<?> snapshotTimeField = dField(statsLatestTable, SNAPSHOT_TIME);
             Record1<Timestamp> snapshotTimeRecord = using(conn)

@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
@@ -195,11 +196,12 @@ public class MarketStatsAccumulatorTest {
                 CommoditySoldDTO::getCapacity
         ));
         capacities.put(testVm.getOid(), vmCommoditiesSoldMap);
+        Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
 
         // act
         for (int i=0; i < 10; i++) {
             marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testApp,
-                    capacities, delayedCommoditiesBought);
+                    capacities, delayedCommoditiesBought, entityByOid);
         }
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
@@ -221,11 +223,13 @@ public class MarketStatsAccumulatorTest {
 
         Map<Long, Map<Integer, Double>> capacities = Mockito.mock(Map.class);
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
+        Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testAppWithoutProvider.getOid(),
+                testAppWithoutProvider);
 
         // act
         for (int i=0; i < 10; i++) {
             marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testAppWithoutProvider,
-                capacities, delayedCommoditiesBought);
+                capacities, delayedCommoditiesBought, entityByOid);
         }
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
@@ -251,10 +255,11 @@ public class MarketStatsAccumulatorTest {
                 historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         Map<Long, Map<Integer, Double>> capacities = Maps.newHashMap();
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
+        Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testApp.getOid(), testApp);
 
         // act
         marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testApp,
-                capacities, delayedCommoditiesBought);
+                capacities, delayedCommoditiesBought, entityByOid);
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
 
@@ -280,10 +285,11 @@ public class MarketStatsAccumulatorTest {
                 historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         Map<Long, Map<Integer, Double>> capacities = Maps.newHashMap();
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
+        Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testApp.getOid(), testApp);
 
         // accumulate commodities bought from a seller who is not yet known
         marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testApp,
-                capacities, delayedCommoditiesBought);
+                capacities, delayedCommoditiesBought, entityByOid);
         // save capacities from vm
         Map<Integer, Double> capacityMap = testVm.getCommoditySoldListList().stream().collect(Collectors.toMap(
                 commodityDTO -> commodityDTO.getCommodityType().getType(),

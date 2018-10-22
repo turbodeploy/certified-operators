@@ -2,6 +2,7 @@ package com.vmturbo.history.stats.live;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -18,13 +19,14 @@ import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
@@ -101,12 +103,29 @@ public class LiveStatsAggregator {
 
     /**
      * Cache commodity sold capacities of an entity.
+     *
      * @param entityDTO the entity which sold commodities capacities are added to the cache.
      */
     private void cacheCapacities(TopologyEntityDTO entityDTO) {
-        Map<Integer, Double> map = entityDTO.getCommoditySoldListList().stream()
-            .collect(Collectors.toMap(commSold -> (commSold.getCommodityType().getType()),
-                    CommoditySoldDTO::getCapacity, (k1, k2) -> k1));
+        final Map<Integer, Double> map;
+        if (entityDTO.getEntityType() == EntityDTO.EntityType.VIRTUAL_VOLUME.getNumber()) {
+            // todo: currently volume doesn't sell any commodities, the capacity is stored as
+            // properties, we should remove this logic once volume starts selling commodities
+            map = new HashMap<>();
+            if (entityDTO.hasTypeSpecificInfo() && entityDTO.getTypeSpecificInfo().hasVirtualVolume()) {
+                VirtualVolumeInfo volume = entityDTO.getTypeSpecificInfo().getVirtualVolume();
+                map.put(CommodityType.STORAGE_AMOUNT.getNumber(),
+                        Double.valueOf(volume.getStorageAmountCapacity()));
+                map.put(CommodityType.STORAGE_ACCESS.getNumber(),
+                        Double.valueOf(volume.getStorageAccessCapacity()));
+            } else {
+                logger.warn("Capacity info is missing for volume {}", entityDTO.getOid());
+            }
+        } else {
+             map = entityDTO.getCommoditySoldListList().stream()
+                    .collect(Collectors.toMap(commSold -> (commSold.getCommodityType().getType()),
+                            CommoditySoldDTO::getCapacity, (k1, k2) -> k1));
+        }
 
         if (!map.isEmpty()) {
             // If such a map already exists then reuse it, otherwise put it in the map.
@@ -140,8 +159,8 @@ public class LiveStatsAggregator {
      * @param entityDTO a topology entity DTO
      * @throws VmtDbException if writing to the DB fails.
      */
-    private void aggregateEntityStats(TopologyEntityDTO entityDTO)
-                    throws VmtDbException {
+    private void aggregateEntityStats(TopologyEntityDTO entityDTO,
+            Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
         int sdkEntityType = entityDTO.getEntityType();
         // determine the DB Entity Type for this SDK Entity Type
         Optional<EntityType> entityDBInfo =
@@ -167,7 +186,7 @@ public class LiveStatsAggregator {
 
         long snapshotTime = topologyOrganizer.getSnapshotTime();
         marketStatsAccumulator.persistCommoditiesBought(snapshotTime, entityDTO, capacities,
-                delayedCommoditiesBought);
+                delayedCommoditiesBought, entityByOid);
         marketStatsAccumulator.persistCommoditiesSold(snapshotTime, entityDTO.getOid(),
             entityDTO.getCommoditySoldListList());
         marketStatsAccumulator.persistEntityAttributes(snapshotTime, entityDTO);
@@ -217,13 +236,14 @@ public class LiveStatsAggregator {
      * @param entityDTO the {@link EntityDTO} to records the stats from
      * @throws VmtDbException if there is an error persisting to the database
      */
-    public void aggregateEntity(TopologyEntityDTO entityDTO) throws VmtDbException {
+    public void aggregateEntity(TopologyEntityDTO entityDTO,
+            Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
         // save commodity sold capacities for filling other commodity bought capacities
         cacheCapacities(entityDTO);
         // provide commodity sold capacitites for previously unsatisfied commodity bought
         handleDelayedCommoditiesBought(entityDTO.getOid());
         // schedule the stats for the entity for persisting to db
-        aggregateEntityStats(entityDTO);
+        aggregateEntityStats(entityDTO, entityByOid);
     }
 
     /**

@@ -120,7 +120,6 @@ public class RepoObjectType {
             .put(EntityType.AVAILABILITY_ZONE,      RepoEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION,                 RepoEntityType.REGION)
             .put(EntityType.VIRTUAL_VOLUME,         RepoEntityType.VIRTUAL_VOLUME)
-
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)
             .build();
 

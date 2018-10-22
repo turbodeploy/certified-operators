@@ -3,11 +3,11 @@ package com.vmturbo.history.stats.live;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -102,10 +102,14 @@ public class LiveStatsWriter {
                 commoditiesToExclude, writeTopologyChunkSize);
         // look up existing entity information
         chunkTimer.reset().start();
-        List<String> chunkOIDs = allTopologyDTOs.stream()
-                .map(TopologyEntityDTO::getOid)
-                .map(String::valueOf)
-                .collect(Collectors.toList());
+        // collect entity oids, and put entities into a map indexed by oid
+        final List<String> chunkOIDs = new ArrayList<>();
+        final Map<Long, TopologyEntityDTO> entityByOid = new HashMap<>();
+        for (TopologyEntityDTO entity : allTopologyDTOs) {
+            chunkOIDs.add(String.valueOf(entity.getOid()));
+            entityByOid.put(entity.getOid(), entity);
+        }
+
         Map<Long, EntitiesRecord> knownChunkEntities = historydbIO.getEntities(chunkOIDs);
         logger.debug("time to look up entities: {}", chunkTimer);
 
@@ -120,7 +124,7 @@ public class LiveStatsWriter {
             record.ifPresent(entityRecordsToPersist::add);
             // save the type information for processing priceIndex message
             topologyOrganizer.addEntityType(entityDTO);
-            aggregator.aggregateEntity(entityDTO);
+            aggregator.aggregateEntity(entityDTO, entityByOid);
         }
         historydbIO.persistEntities(entityRecordsToPersist);
         logger.debug("time to persist entities: {} number of entities: {}", chunkTimer,

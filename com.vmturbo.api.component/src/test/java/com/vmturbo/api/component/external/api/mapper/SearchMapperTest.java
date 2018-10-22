@@ -114,7 +114,7 @@ public class SearchMapperTest {
             "Container", "ContainerPod", "StorageController", "IOModule", "Switch", "Chassis",
             "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
             "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
-            "DatabaseServerTier", "AvailabilityZone", "Region");
+            "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume");
         assertEquals(EXPECTED_TYPES, SearchMapper.SEARCH_ALL_TYPES);
     }
 

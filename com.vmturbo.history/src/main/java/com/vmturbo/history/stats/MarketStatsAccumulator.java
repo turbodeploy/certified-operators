@@ -30,6 +30,7 @@ import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.SharedMetrics;
@@ -333,24 +334,25 @@ public class MarketStatsAccumulator {
      * @param entityDTO the buyer DTO
      * @param capacities map from seller entityId and commodity type to capacity
      * @param delayedCommoditiesBought a map of commodities-bought where seller entity is not yet known
+     * @param entityByOid mapping from oid of the entity to the entity object
      * @throws VmtDbException when cannot insert to the DB
      */
     public void persistCommoditiesBought(
             long snapshotTime,
             @Nonnull TopologyDTO.TopologyEntityDTO entityDTO,
             @Nonnull Map<Long, Map<Integer, Double>> capacities,
-            @Nonnull Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought)
-            throws VmtDbException {
+            @Nonnull Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
+            @Nonnull Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
         for (CommoditiesBoughtFromProvider commodityBoughtGrouping : entityDTO.getCommoditiesBoughtFromProvidersList()) {
             Long providerId = commodityBoughtGrouping.hasProviderId() ?
                     commodityBoughtGrouping.getProviderId() : null;
             DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(snapshotTime,
-                    entityDTO.getOid(), providerId, commodityBoughtGrouping.getCommodityBoughtList(), capacities);
+                    entityDTO.getOid(), providerId, commodityBoughtGrouping,
+                    capacities, entityByOid);
 
             if (providerId != null && capacities.get(providerId) == null) {
                 delayedCommoditiesBought.put(providerId, queueCommoditiesBlock);
-            }
-            else {
+            } else {
                 queueCommoditiesBlock.queCommoditiesNow();
             }
         }
@@ -365,24 +367,27 @@ public class MarketStatsAccumulator {
         private final long snapshotTime;
         private final long entityOid;
         private final Long providerId;
-        private final List<CommodityBoughtDTO> value;
+        private final CommoditiesBoughtFromProvider commoditiesBought;
         private final Map<Long, Map<Integer, Double>> capacities;
+        private final Map<Long, TopologyEntityDTO> entityByOid;
 
         public DelayedCommodityBoughtWriter(long snapshotTime,
                                             long entityOid,
                                             @Nullable Long providerId,
-                                            @Nonnull List<CommodityBoughtDTO> value,
-                                            @Nonnull Map<Long, Map<Integer, Double>> capacities) {
+                                            @Nonnull CommoditiesBoughtFromProvider commoditiesBought,
+                                            @Nonnull Map<Long, Map<Integer, Double>> capacities,
+                                            @Nonnull Map<Long, TopologyEntityDTO> entityByOid) {
             this.snapshotTime = snapshotTime;
             this.entityOid = entityOid;
             this.providerId = providerId;
-            this.value = value;
+            this.commoditiesBought = commoditiesBought;
             this.capacities = capacities;
+            this.entityByOid = entityByOid;
         }
 
         public void queCommoditiesNow() throws VmtDbException {
             queueCommoditiesBought(snapshotTime,
-                entityOid, providerId, value, capacities);
+                entityOid, providerId, commoditiesBought, capacities, entityByOid);
         }
     }
 
@@ -464,18 +469,17 @@ public class MarketStatsAccumulator {
      * Append commodities bought to the current DB statement, and write to the DB when the number
      * of rows exceeds the writeTopologyChunkSize.
      *
-     *
      * @param snapshotTime timestamp for the topology being persisted
-     * @param buyerId the byer OID
+     * @param buyerId the buyer OID
      * @param providerId the provider OID
-     * @param commodityBoughtList the list of commodities bought
+     * @param commoditiesBought the commodity bought from provider
      * @param capacities a map seller ID -> (map commodity type -> capacity for that commodity)
+     * @param entityByOid map of TopologyEntityDTO indexed by oid
      */
     private void queueCommoditiesBought(long snapshotTime, Long buyerId, @Nullable Long providerId,
-                                        List<CommodityBoughtDTO> commodityBoughtList,
-                                           Map<Long, Map<Integer, Double>> capacities)
-            throws VmtDbException {
-        for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtList) {
+            CommoditiesBoughtFromProvider commoditiesBought, Map<Long, Map<Integer, Double>> capacities,
+            Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
+        for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBought.getCommodityBoughtList()) {
             // do not persist commodity if it is not active
             if (!commodityBoughtDTO.getActive()) {
                 logger.debug("Skipping inactive bought commodity type {}",
@@ -497,9 +501,15 @@ public class MarketStatsAccumulator {
             // set default value to -1, it will be adjust to null when commodity bought has no provider id.
             Double capacity = -1.0;
             if (providerId != null) {
-                Map<Integer, Double> soldCapacities = capacities.get(providerId);
+                final Map<Integer, Double> soldCapacities;
+                if (commoditiesBought.hasVolumeId()) {
+                    // use capacity from volume if it is available
+                    soldCapacities = capacities.get(commoditiesBought.getVolumeId());
+                } else {
+                    soldCapacities = capacities.get(providerId);
+                }
                 if (soldCapacities == null || !soldCapacities.containsKey(commType)) {
-                    logger.debug("Missing commodity sold {} of entity {}, seller entity {}",
+                    logger.warn("Missing commodity sold {} of entity {}, seller entity {}",
                             mixedCaseCommodityName, buyerId, providerId);
                     continue;
                 }
@@ -510,7 +520,16 @@ public class MarketStatsAccumulator {
 
             // set the values specific to each row and persist each
             double used = commodityBoughtDTO.getUsed();
-            String key = commodityBoughtDTO.getCommodityType().getKey();
+
+            // for commodity bought with associated volume, use the volume display name as key
+            // otherwise, use normal key from this bought commodity
+            final String key;
+            if (commoditiesBought.hasVolumeId() && entityByOid.containsKey(commoditiesBought.getVolumeId())) {
+                key = entityByOid.get(commoditiesBought.getVolumeId()).getDisplayName();
+            } else {
+                key = commodityBoughtDTO.getCommodityType().getKey();
+            }
+
             historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime,
                     buyerId, RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
                     key, insertStmt, dbTable);
