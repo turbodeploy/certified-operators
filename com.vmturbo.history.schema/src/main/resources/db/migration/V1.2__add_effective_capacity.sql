@@ -1,85 +1,104 @@
--- Add "effective_capacity" to all stats tables
-alter table app_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table app_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table app_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table app_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+-- Add "effective_capacity" to stats tables where the column isn't already created
 
-alter table ch_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ch_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ch_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ch_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+DROP PROCEDURE IF EXISTS `addEffectiveCapacity`;
+DELIMITER //
+CREATE PROCEDURE `addEffectiveCapacity`(IN tablename CHAR(100))
+BEGIN
+    SET @currentdb = database();
+    SET @preparedStatement = (select if(((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE (table_name = tablename  COLLATE utf8_general_ci) AND (table_schema = @currentdb) AND (column_name = 'effective_capacity')) > 0),
+        "SELECT 1",
+        concat("ALTER TABLE ", tablename, " ADD effective_capacity decimal(15,3) DEFAULT NULL;")));
+    PREPARE alterIfNotExists FROM @preparedStatement;
+    EXECUTE alterIfNotExists ;
+    DEALLOCATE PREPARE alterIfNotExists;
+END //
+DELIMITER ;
 
-alter table cnt_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table cnt_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table cnt_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table cnt_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+-- run it on our tables
+CALL addEffectiveCapacity('app_stats_latest');
+CALL addEffectiveCapacity('app_stats_by_day');
+CALL addEffectiveCapacity('app_stats_by_hour');
+CALL addEffectiveCapacity('app_stats_by_month');
 
-alter table cpod_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table cpod_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table cpod_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table cpod_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('ch_stats_latest');
+CALL addEffectiveCapacity('ch_stats_by_day');
+CALL addEffectiveCapacity('ch_stats_by_hour');
+CALL addEffectiveCapacity('ch_stats_by_month');
 
-alter table da_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table da_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table da_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table da_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('cnt_stats_latest');
+CALL addEffectiveCapacity('cnt_stats_by_day');
+CALL addEffectiveCapacity('cnt_stats_by_hour');
+CALL addEffectiveCapacity('cnt_stats_by_month');
 
-alter table dpod_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table dpod_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table dpod_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table dpod_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('cpod_stats_latest');
+CALL addEffectiveCapacity('cpod_stats_by_day');
+CALL addEffectiveCapacity('cpod_stats_by_hour');
+CALL addEffectiveCapacity('cpod_stats_by_month');
 
-alter table ds_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ds_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ds_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ds_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('da_stats_latest');
+CALL addEffectiveCapacity('da_stats_by_day');
+CALL addEffectiveCapacity('da_stats_by_hour');
+CALL addEffectiveCapacity('da_stats_by_month');
 
-alter table iom_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table iom_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table iom_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table iom_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('dpod_stats_latest');
+CALL addEffectiveCapacity('dpod_stats_by_day');
+CALL addEffectiveCapacity('dpod_stats_by_hour');
+CALL addEffectiveCapacity('dpod_stats_by_month');
 
-alter table lp_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table lp_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table lp_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table lp_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('ds_stats_latest');
+CALL addEffectiveCapacity('ds_stats_by_day');
+CALL addEffectiveCapacity('ds_stats_by_hour');
+CALL addEffectiveCapacity('ds_stats_by_month');
 
-alter table market_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table market_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table market_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table market_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('iom_stats_latest');
+CALL addEffectiveCapacity('iom_stats_by_day');
+CALL addEffectiveCapacity('iom_stats_by_hour');
+CALL addEffectiveCapacity('iom_stats_by_month');
 
-alter table pm_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table pm_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table pm_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table pm_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('lp_stats_latest');
+CALL addEffectiveCapacity('lp_stats_by_day');
+CALL addEffectiveCapacity('lp_stats_by_hour');
+CALL addEffectiveCapacity('lp_stats_by_month');
 
-alter table ri_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ri_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ri_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table ri_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('market_stats_latest');
+CALL addEffectiveCapacity('market_stats_by_day');
+CALL addEffectiveCapacity('market_stats_by_hour');
+CALL addEffectiveCapacity('market_stats_by_month');
 
-alter table sc_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table sc_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table sc_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table sc_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('pm_stats_latest');
+CALL addEffectiveCapacity('pm_stats_by_day');
+CALL addEffectiveCapacity('pm_stats_by_hour');
+CALL addEffectiveCapacity('pm_stats_by_month');
 
-alter table sw_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table sw_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table sw_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table sw_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('ri_stats_latest');
+CALL addEffectiveCapacity('ri_stats_by_day');
+CALL addEffectiveCapacity('ri_stats_by_hour');
+CALL addEffectiveCapacity('ri_stats_by_month');
 
-alter table vdc_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vdc_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vdc_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vdc_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('sc_stats_latest');
+CALL addEffectiveCapacity('sc_stats_by_day');
+CALL addEffectiveCapacity('sc_stats_by_hour');
+CALL addEffectiveCapacity('sc_stats_by_month');
 
-alter table vm_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vm_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vm_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vm_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('sw_stats_latest');
+CALL addEffectiveCapacity('sw_stats_by_day');
+CALL addEffectiveCapacity('sw_stats_by_hour');
+CALL addEffectiveCapacity('sw_stats_by_month');
 
-alter table vpod_stats_latest add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vpod_stats_by_hour add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vpod_stats_by_day add effective_capacity decimal(15,3) DEFAULT NULL;
-alter table vpod_stats_by_month add effective_capacity decimal(15,3) DEFAULT NULL;
+CALL addEffectiveCapacity('vdc_stats_latest');
+CALL addEffectiveCapacity('vdc_stats_by_day');
+CALL addEffectiveCapacity('vdc_stats_by_hour');
+CALL addEffectiveCapacity('vdc_stats_by_month');
+
+CALL addEffectiveCapacity('vm_stats_latest');
+CALL addEffectiveCapacity('vm_stats_by_day');
+CALL addEffectiveCapacity('vm_stats_by_hour');
+CALL addEffectiveCapacity('vm_stats_by_month');
+
+CALL addEffectiveCapacity('vpod_stats_latest');
+CALL addEffectiveCapacity('vpod_stats_by_day');
+CALL addEffectiveCapacity('vpod_stats_by_hour');
+CALL addEffectiveCapacity('vpod_stats_by_month');
+
+-- done with the procedure
+DROP PROCEDURE `addEffectiveCapacity`;
