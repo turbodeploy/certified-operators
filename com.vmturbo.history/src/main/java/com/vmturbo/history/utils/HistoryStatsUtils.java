@@ -46,6 +46,7 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class HistoryStatsUtils {
 
@@ -137,6 +138,7 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER, VDC)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
                     .put(CommonDTO.EntityDTO.EntityType.VPOD, EntityType.VPOD)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
                     .build();
 
     /**
@@ -160,6 +162,7 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINERPOD)
                     .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
                     .build();
 
     /**

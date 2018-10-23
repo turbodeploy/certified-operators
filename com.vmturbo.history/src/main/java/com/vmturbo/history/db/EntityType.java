@@ -170,6 +170,9 @@ public enum EntityType {
 
     LOAD_BALANCER
             (22, "LoadBalancer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+
+    DATABASE_SERVER
+            (23, "DatabaseServer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH)
     ;
 
     private final int value;
@@ -260,7 +263,7 @@ public enum EntityType {
             .put(StringConstants.PHYSICAL_MACHINE, PHYSICAL_MACHINE)
             .put(StringConstants.STORAGE, STORAGE)
             .put(StringConstants.APPSRV, APPLICATION)
-            .put(StringConstants.DATABASE_SERVER, APPLICATION)
+            .put(StringConstants.DATABASE_SERVER, DATABASE_SERVER)
             .put(StringConstants.APPLICATION, APPLICATION)
             .put(StringConstants.VIRTUAL_APPLICATION, APPLICATION) //TODO: do vApps need a table?
             .put(StringConstants.CHASSIS, CHASSIS)
