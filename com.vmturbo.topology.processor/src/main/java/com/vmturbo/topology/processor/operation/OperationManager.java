@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.operation;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -20,7 +21,11 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
+
+import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -199,7 +204,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public synchronized Action requestActions(final long actionId,
                                               final long targetId,
+                                              @Nonnull final ActionType actionType,
                                               @Nonnull final List<ActionItemDTO> actionDtos,
+                                              @Nonnull Set<Long> affectedEntities,
                                               @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfoOpt)
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
@@ -213,10 +220,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final Action action = new Action(actionId, target.getProbeId(),
                 targetId, identityProvider);
         final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
-                .setActionType(actionDtos.size() > 1
-                        // We assume that with multiple actions, they are all MOVE/CHANGE actions
-                        ? ActionType.MOVE_TOGETHER
-                        : actionDtos.get(0).getActionType())
+                .setActionType(actionType)
                 .addAllActionItem(actionDtos);
         // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
         // and include it in the ActionExecution to be sent to the target
@@ -232,11 +236,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 remoteMediationServer.getMessageHandlerExpirationClock(),
                 actionTimeoutMs);
 
+        // Update the controllable table in preparation for executing the action
+        insertControllableState(actionId, actionType, affectedEntities);
+
         remoteMediationServer.sendActionRequest(target.getProbeId(),
                 request, messageHandler);
 
-
         logger.info("Beginning " + action);
+        logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
         operationStart(action);
         return action;
     }
@@ -854,6 +861,25 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         return opBuilder.build();
     }
 
+    /**
+     * TODO: Consider moving into
+     * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
+     */
+    private void insertControllableState(final long actionId,
+                                         @Nonnull final ActionItemDTO.ActionType actionType,
+                                         @Nonnull final Set<Long> entities) {
+        try {
+            entityActionDao.insertAction(actionId, actionType, entities);
+        } catch (DataAccessException | IllegalArgumentException e) {
+            logger.error("Failed to create queued activate action records for action: {}",
+                    actionId);
+        }
+    }
+
+    /**
+     * TODO: Consider moving into
+     * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
+     */
     private void updateControllableState(@Nonnull final Action action) {
         try {
             final Optional<ActionState> actionState = getActionState(action.getStatus());

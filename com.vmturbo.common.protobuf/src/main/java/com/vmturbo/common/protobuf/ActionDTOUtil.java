@@ -265,31 +265,7 @@ public class ActionDTOUtil {
         }
     }
 
-    /**
-     * Get a set of provider entity ids for the input Move action.
-     *
-     * @param moveAction a {@link Move} action.
-     * @return a set of provider entity ids.
-     */
-    public static Set<Long> getProviderEntityIdsFromMoveAction(@Nonnull final Move moveAction) {
-        // right now, only support controllable flag for VM move actions.
-        if (moveAction.getTarget().hasType()
-                && moveAction.getTarget().getType() != EntityType.VIRTUAL_MACHINE_VALUE) {
-            logger.warn("Ignore controllable logic for Move action with type: " +
-                    moveAction.getTarget().getType());
-            return Collections.emptySet();
-        }
-        final Set<Long> entityIds = new HashSet<>();
-        for (ChangeProvider changeProvider : moveAction.getChangesList()) {
-            if (changeProvider.hasSource()) {
-                entityIds.add(changeProvider.getSource().getId());
-            }
-            if (changeProvider.hasDestination()) {
-                entityIds.add(changeProvider.getDestination().getId());
-            }
-        }
-        return entityIds;
-    }
+
 
     /**
      * Gets the display name of the commodity from the {@link CommodityType}.

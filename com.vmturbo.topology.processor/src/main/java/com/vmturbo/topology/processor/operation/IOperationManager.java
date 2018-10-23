@@ -2,12 +2,14 @@ package com.vmturbo.topology.processor.operation;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -189,7 +191,9 @@ public interface IOperationManager {
      * @param actionId The id of the overarching action. This is the ID that gets
      * assigned by the Action Orchestrator.
      * @param targetId The id of the target containing the entities for the action.
+     * @param actionType The type of the overarching action
      * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
+     * @param affectedEntities A set of entities directly affected by this action
      * @param workflowInfo the Workflow that will override the handling of this action, if one is
      *                     specified in a Setting
      * @return The {@link Action} requested for the target.
@@ -199,8 +203,11 @@ public interface IOperationManager {
      * @throws InterruptedException If there is an interrupt while sending the request to the
      * probe.
      */
-    Action requestActions(long actionId, long targetId,
+    Action requestActions(long actionId,
+                          long targetId,
+                          @Nonnull final ActionType actionType,
                           @Nonnull List<ActionExecution.ActionItemDTO> actionDtos,
+                          @Nonnull Set<Long> affectedEntities,
                           @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfo)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;

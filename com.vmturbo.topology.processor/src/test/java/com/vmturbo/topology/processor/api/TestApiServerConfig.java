@@ -29,6 +29,7 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
+import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -237,8 +238,15 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public ActionDataManager actionDataManager() {
+        return new ActionDataManager();
+    }
+
+    @Bean
     public ActionExecutionRpcService actionExecutionRpcService() {
-        return new ActionExecutionRpcService(entityRepository(), operationManager(), controllableDao());
+        return new ActionExecutionRpcService(entityRepository(),
+                operationManager(),
+                actionDataManager());
     }
 
 }

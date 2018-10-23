@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.NotSupportedActionStateException;
 
@@ -31,7 +32,9 @@ public interface EntityActionDao {
      * @param actionType action type
      * @param entityIds a set of entity ids.
      */
-    void insertAction(final long actionId, final ActionType actionType, @Nonnull final Set<Long> entityIds)
+    void insertAction(final long actionId,
+                      @Nonnull final ActionItemDTO.ActionType actionType,
+                      @Nonnull final Set<Long> entityIds)
             throws IllegalArgumentException;
 
     /**
