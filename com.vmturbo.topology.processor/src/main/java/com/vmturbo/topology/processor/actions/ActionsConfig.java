@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
-import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
@@ -24,16 +23,14 @@ public class ActionsConfig {
     @Autowired
     private OperationConfig operationConfig;
 
-    @Bean
-    public ActionDataManager actionDataManager() {
-        return new ActionDataManager();
-    }
+    @Autowired
+    private ControllableConfig controllableConfig;
 
     @Bean
     public ActionExecutionRpcService actionExecutionService() {
         return new ActionExecutionRpcService(entityConfig.entityStore(),
                 operationConfig.operationManager(),
-                actionDataManager());
+                controllableConfig.entityActionDaoImp());
     }
 
     @Bean

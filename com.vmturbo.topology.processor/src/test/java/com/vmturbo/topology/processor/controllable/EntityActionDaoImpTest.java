@@ -29,7 +29,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
@@ -76,7 +75,7 @@ public class EntityActionDaoImpTest {
 
     @Test
     public void testInsertQueuedControllable() {
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
         final Result<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION).fetch();
         final Set<Long> resultEntityIds = records.stream()
                 .map(EntityActionRecord::getEntityId)
@@ -91,8 +90,8 @@ public class EntityActionDaoImpTest {
     public void testUpdateInProgressControllable() throws ControllableRecordNotFoundException {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L);
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        controllableDaoImp.insertAction(newActionId, ActionItemDTO.ActionType.MOVE, newEntityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(newActionId, ActionDTO.ActionType.MOVE, newEntityIds);
         controllableDaoImp.updateActionState(actionId, ActionState.IN_PROGRESS);
         final List<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION).fetch().stream()
                 .filter(record -> record.getActionId() == actionId)
@@ -105,7 +104,7 @@ public class EntityActionDaoImpTest {
     @Test
     public void testUpdateInProgressControllableNotFoundException() throws ControllableRecordNotFoundException {
         final long newActionId = 456L;
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
         expectedException.expect(ControllableRecordNotFoundException.class);
         controllableDaoImp.updateActionState(newActionId, ActionState.IN_PROGRESS);
     }
@@ -114,8 +113,8 @@ public class EntityActionDaoImpTest {
     public void testUpdateSucceedControllable() throws ControllableRecordNotFoundException {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L);
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        controllableDaoImp.insertAction(newActionId, ActionItemDTO.ActionType.MOVE, newEntityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(newActionId, ActionDTO.ActionType.MOVE, newEntityIds);
         controllableDaoImp.updateActionState(actionId, ActionState.SUCCEEDED);
         final List<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION).fetch().stream()
                 .filter(record -> record.getActionId() == actionId)
@@ -128,7 +127,7 @@ public class EntityActionDaoImpTest {
     @Test
     public void testUpdatedSucceedControllableNotFoundException() throws ControllableRecordNotFoundException {
         final long newActionId = 456L;
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
         expectedException.expect(ControllableRecordNotFoundException.class);
         controllableDaoImp.updateActionState(newActionId, ActionState.SUCCEEDED);
     }
@@ -137,8 +136,8 @@ public class EntityActionDaoImpTest {
     public void testUpdateFailedControllable() throws ControllableRecordNotFoundException {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L);
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        controllableDaoImp.insertAction(newActionId, ActionItemDTO.ActionType.MOVE, newEntityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(newActionId, ActionDTO.ActionType.MOVE, newEntityIds);
         controllableDaoImp.updateActionState(actionId, ActionState.FAILED);
         final List<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION).fetch().stream()
                 .filter(record -> record.getActionId() == actionId)
@@ -151,7 +150,7 @@ public class EntityActionDaoImpTest {
     @Test
     public void testUpdatedFailedControllableNotFoundException() throws ControllableRecordNotFoundException {
         final long newActionId = 456L;
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
         expectedException.expect(ControllableRecordNotFoundException.class);
         controllableDaoImp.updateActionState(newActionId, ActionState.FAILED);
     }
@@ -160,8 +159,8 @@ public class EntityActionDaoImpTest {
     public void testGetEntityIdsAfterDeleteExpired() {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L, 4L, 5L);
-        controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        controllableDaoImp.insertAction(newActionId, ActionItemDTO.ActionType.MOVE, newEntityIds);
+        controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
+        controllableDaoImp.insertAction(newActionId, ActionDTO.ActionType.MOVE, newEntityIds);
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         final LocalDateTime expiredTimeInProgress = currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS * 2);
         final LocalDateTime expiredTimeSucceed = currentTime.minusSeconds(SUCCEED_EXPIRED_SECONDS * 2);
@@ -202,12 +201,8 @@ public class EntityActionDaoImpTest {
 
     @Test
     public void testGetNonSuspendableEntityIdsAfterActionSucceed() {
-        controllableDaoImp.insertAction(100l,
-                ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(200l)));
-        controllableDaoImp.insertAction(101l,
-                ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(201l)));
+        controllableDaoImp.insertAction(100l, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(200l)));
+        controllableDaoImp.insertAction(101l, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(201l)));
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         // update the status of the activate action for entity with id 100l to succeed and make sure
         // the timstamp is within the period of ACTIVATE_SUCCEED_SECONDS
@@ -231,15 +226,9 @@ public class EntityActionDaoImpTest {
 
     @Test
     public void testGetNonSuspendableEntityIdsAfterRecordExpired() {
-        controllableDaoImp.insertAction(100l,
-                ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(200l)));
-        controllableDaoImp.insertAction(101l,
-                ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(201l)));
-        controllableDaoImp.insertAction(102l,
-                ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(202l)));
+        controllableDaoImp.insertAction(100l, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(200l)));
+        controllableDaoImp.insertAction(101l, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(201l)));
+        controllableDaoImp.insertAction(102l, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(202l)));
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         // update the status of the activate action for entity with id 100l to in_progress and make sure
         // the timstamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS

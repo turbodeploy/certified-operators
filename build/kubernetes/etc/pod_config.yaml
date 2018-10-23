@@ -24,7 +24,7 @@ dev:
     zookeeper:
       requests_memory: "100Mi"
       limits_memory: "256Mi"
-  optional-probes:
+  non-prod-probes:
     mediation-aws:
       java_option: "-Xmx384M"
       requests_memory: "250Mi"
@@ -161,7 +161,7 @@ prod:
     zookeeper:
       requests_memory: "100Mi"
       limits_memory: "256Mi"
-  optional-probes:
+  non-prod-probes:
     mediation-aws:
       java_option: "-Xmx384M"
       requests_memory: "250Mi"

@@ -16,10 +16,8 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
@@ -55,9 +53,7 @@ public class EntityActionDaoImp implements EntityActionDao {
     }
 
     @Override
-    public void insertAction(final long actionId,
-                             @Nonnull final ActionItemDTO.ActionType actionType,
-                             @Nonnull final Set<Long> entityIds)
+    public void insertAction(final long actionId, final ActionType actionType, @Nonnull final Set<Long> entityIds) 
             throws IllegalArgumentException {
         if (entityIds.isEmpty()) {
             return;
@@ -80,7 +76,6 @@ public class EntityActionDaoImp implements EntityActionDao {
 
     /**
      * Get EntityActionActionType from action DTO's action type
-     *
      * @param actionType action type from action DTO
      * @return EntityActionActionType
      */
@@ -91,27 +86,6 @@ public class EntityActionDaoImp implements EntityActionDao {
             return EntityActionActionType.move;
         } else {
             throw new IllegalArgumentException("Inserting an action with type " + actionType);
-        }
-    }
-
-    /**
-     * Get EntityActionActionType from actionItemDTO's action type
-     *
-     * @param actionType action type from actionItemDTO
-     * @return EntityActionActionType
-     */
-    private EntityActionActionType getActionType(final ActionItemDTO.ActionType actionType) {
-        switch (actionType) {
-            case START:
-            case PROVISION:
-                return EntityActionActionType.activate;
-            case MOVE:
-            case MOVE_TOGETHER:
-            case CROSS_TARGET_MOVE:
-            case CHANGE:
-                return EntityActionActionType.move;
-            default:
-                throw new IllegalArgumentException("Inserting an action with type " + actionType);
         }
     }
 
