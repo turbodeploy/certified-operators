@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Result;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -71,6 +72,11 @@ public class EntityActionDaoImpTest {
         flyway.migrate();
         controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
                 IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS);
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     @Test

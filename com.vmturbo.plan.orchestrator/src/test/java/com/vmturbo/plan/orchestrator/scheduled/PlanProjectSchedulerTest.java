@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.flywaydb.core.Flyway;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -99,6 +100,11 @@ public class PlanProjectSchedulerTest {
         systemPlanProjectLoader = new SystemPlanProjectLoader(planProjectDao,
                 planProjectScheduler,
                 defaultHeadroomPlanProjectJsonFile);
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     private void prepareDatabase() throws Exception {

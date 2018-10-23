@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -126,6 +127,11 @@ public class ReservedInstanceUtilizationStoreTest {
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);
         insertDefaultReservedInstanceSpec();
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     @Test

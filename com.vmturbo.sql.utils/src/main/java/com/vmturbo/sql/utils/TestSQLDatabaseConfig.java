@@ -1,5 +1,7 @@
 package com.vmturbo.sql.utils;
 
+import java.time.Instant;
+
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
@@ -175,7 +177,7 @@ public class TestSQLDatabaseConfig {
      */
     @Bean
     protected String testSchemaName() {
-        return originalSchemaName + "_test";
+        return String.join("_", originalSchemaName, "test", String.valueOf(Instant.now().toEpochMilli()));
     }
 
     @Nonnull
