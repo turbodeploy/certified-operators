@@ -4,9 +4,12 @@ import static com.vmturbo.common.protobuf.ActionDTOUtil.TRANSLATION_PATTERN;
 import static com.vmturbo.common.protobuf.ActionDTOUtil.TRANSLATION_PREFIX;
 
 import java.beans.PropertyDescriptor;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +19,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -40,6 +45,7 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
@@ -69,12 +75,25 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.reports.db.StringConstants;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
  * returned from the API.
  */
 public class ActionSpecMapper {
+    // Currencies by numeric code map will is a map of numeric code to the Currency.
+    // TODO: But the numeric code is not unique. As of writing this, there are a few currencies
+    // which share numeric code. They are:
+    // Currency code = 946 -> Romanian Leu (RON), Romanian Leu (1952-2006) (ROL)
+    // Currency code = 891 -> Serbian Dinar (2002-2006) (CSD), Yugoslavian New Dinar (1994-2002) (YUM)
+    // Currency code = 0   -> French UIC-Franc (XFU), French Gold Franc (XFO)
+    private static final Map<Integer, Currency> CURRENCIES_BY_NUMERIC_CODE =
+            Collections.unmodifiableMap(
+                    Currency.getAvailableCurrencies().stream()
+                        .collect(Collectors.toMap(Currency::getNumericCode, Function.identity(),
+                                (c1, c2) -> c1)));
 
     // START - Strings representing action categories in the API.
     // These should be synchronized with the strings in stringUtils.js
@@ -315,6 +334,7 @@ public class ActionSpecMapper {
         actionApiDTO.setTarget(new ServiceEntityApiDTO());
         actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
         actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+        actionApiDTO.setStats(createStats(actionSpec));
 
         final ActionDTO.ActionInfo info = recommendation.getInfo();
         // handle different action types
@@ -369,6 +389,71 @@ public class ActionSpecMapper {
         }
 
         return actionApiDTO;
+    }
+
+    /**
+     * Creates the stats for the given actionSpec
+     *
+     * @param source the actionSpec for which stats are to be created
+     * @return a list of stats to be added to the ActionApiDto
+     */
+    private List<StatApiDTO> createStats(final ActionSpec source) {
+        List<StatApiDTO> stats = Lists.newArrayList();
+        if (source.hasRecommendation() && source.getRecommendation().hasSavingsPerHour()) {
+            createSavingsStat(source.getRecommendation().getSavingsPerHour()).ifPresent(stats::add);
+        }
+        return stats;
+    }
+
+    /**
+     * Creates the savings stats
+     *
+     * @param savingsPerHour the savings per hour
+     * @return the savings stats
+     */
+    private Optional<StatApiDTO> createSavingsStat(CloudCostDTO.CurrencyAmount savingsPerHour) {
+        if (savingsPerHour.getAmount() != 0) {
+            // Get the currency
+            Currency currency = CURRENCIES_BY_NUMERIC_CODE.get(savingsPerHour.getCurrency());
+            if (currency == null) {
+                currency = Currency.getInstance("USD");
+                logger.warn("Cannot find currency code {}. Defaulting to {}.",
+                        savingsPerHour.getCurrency(), currency.getDisplayName());
+            }
+            // Get the amount rounded to 7 decimal places. We round to 7 decimal places because we
+            // convert this to a monthly savings number, and if we round to less than 7 decimal
+            // places, then we might lose a few tens of dollars in savings
+            Optional<Float> savingsAmount = roundToFloat(savingsPerHour.getAmount(), 7);
+            if (savingsAmount.isPresent()) {
+                StatApiDTO dto = new StatApiDTO();
+                dto.setName(StringConstants.COST_PRICE);
+                dto.setValue(savingsAmount.get());
+                // The savings
+                dto.setUnits(currency.getSymbol() + "/h");
+                // Classic has 2 types of savings - savings and super savings. XL currently just has
+                // one type of savings - savings
+                dto.addFilter(StringConstants.SAVINGS_TYPE, StringConstants.SAVINGS);
+                return Optional.of(dto);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * This method rounds the given number a specified number of decimal places and converts
+     * to float.
+     *
+     * @param d the double to be rounded
+     * @param precision the number of digits to the right of decimal point desired
+     * @return the rounded number in float
+     */
+    private Optional<Float> roundToFloat(double d, int precision) {
+        if (Double.isNaN(d) || Double.isInfinite(d)) {
+            return Optional.empty();
+        }
+        BigDecimal bd = new BigDecimal(Double.toString(d));
+        bd = bd.setScale(precision, RoundingMode.HALF_UP);
+        return Optional.of(Float.valueOf(bd.floatValue()));
     }
 
     /**

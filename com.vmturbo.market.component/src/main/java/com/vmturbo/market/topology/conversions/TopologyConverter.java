@@ -553,6 +553,7 @@ public class TopologyConverter {
                     .setOid(traderTO.getOid())
                     .setEntityState(entityState)
                     .setDisplayName(displayName)
+                    .setEnvironmentType(originalEntity.getEnvironmentType())
                     .addAllCommoditySoldList(retrieveCommSoldList(traderTO, originalEntity))
                     .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
                     .addAllConnectedEntityList(getConnectedEntities(traderTO))
