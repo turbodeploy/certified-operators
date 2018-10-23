@@ -2,16 +2,17 @@ package com.vmturbo.topology.processor.actions;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -20,12 +21,9 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.Sets;
-
 import io.grpc.Status.Code;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
@@ -35,11 +33,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
@@ -49,10 +48,13 @@ public class ActionExecutionRpcServiceTest {
 
     private OperationManager operationManager = Mockito.mock(OperationManager.class);
 
-    private EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
+
+    private ActionDataManager actionDataManager = Mockito.mock(ActionDataManager.class);
 
     private ActionExecutionRpcService actionExecutionBackend =
-            new ActionExecutionRpcService(entityStore, operationManager, entityActionDao);
+            new ActionExecutionRpcService(entityStore,
+                    operationManager,
+                    actionDataManager);
 
     @Captor
     private ArgumentCaptor<List<ActionItemDTO>> actionItemDTOCaptor;
@@ -87,14 +89,14 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(2))
-                    .setDestination(createActionEntity((3)))
+                    .setSource(ActionExecutionTestUtils.createActionEntity(2))
+                    .setDestination(ActionExecutionTestUtils.createActionEntity(3))
                     .build())
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(4))
-                    .setDestination(createActionEntity((5)))
+                    .setSource(ActionExecutionTestUtils.createActionEntity(4))
+                    .setDestination(ActionExecutionTestUtils.createActionEntity(5))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -116,9 +118,12 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
-        Mockito.verify(entityActionDao).insertAction(0, ActionDTO.ActionType.MOVE,
-                Sets.newHashSet(2L,3L,4L,5L));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.MOVE_TOGETHER),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Stream.of(1L, 2L, 3L, 4L, 5L)
+                        .collect(Collectors.toSet())),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -153,10 +158,10 @@ public class ActionExecutionRpcServiceTest {
 
         final long targetId = targetIdCounter.getAndIncrement();
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(2))
-                    .setDestination(createActionEntity((3)))
+                    .setSource(ActionExecutionTestUtils.createActionEntity(2))
+                    .setDestination(ActionExecutionTestUtils.createActionEntity(3))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -177,56 +182,15 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
     }
 
-    /**
-     * Check that there is no call to the {@link OperationManager} if all three entities
-     * are not on the same target.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    @Ignore("This test depends on the 'all entities on same target' rule - todo: fix in OM-39135")
-    public void testMoveIncompatibleTargets() throws Exception {
-        final long targetId1 = targetIdCounter.getAndIncrement();
-
-        final ActionDTO.Move move = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(1))
-                .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(2))
-                    .setDestination(createActionEntity((3)))
-                    .build())
-                .build();
-        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
-                .setTargetId(targetId1)
-                .setActionId(0L)
-                .setActionInfo(ActionInfo.newBuilder()
-                        .setMove(move))
-                .build();
-
-        // Target and source are on the same target
-        initializeTopology(targetId1,
-                NewEntityRequest.virtualMachine(move.getTarget().getId(), move.getChanges(0).getSource().getId()),
-                NewEntityRequest.physicalMachine(move.getChanges(0).getSource().getId()));
-
-        // Destination is on a different target
-        initializeTopology(
-                targetIdCounter.getAndIncrement(),
-                NewEntityRequest.physicalMachine(move.getChanges(0).getDestination().getId()));
-
-        expectedException.expect(GrpcRuntimeExceptionMatcher
-                .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing target info"));
-        actionExecutionStub.executeAction(request);
-    }
-
     @Test
     public void testStorageMove() throws Exception {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(2))
-                    .setDestination(createActionEntity((3)))
+                    .setSource(ActionExecutionTestUtils.createActionEntity(2))
+                    .setDestination(ActionExecutionTestUtils.createActionEntity(3))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -245,7 +209,12 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.MOVE),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Stream.of(1L, 2L, 3L)
+                        .collect(Collectors.toSet())),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -274,10 +243,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(2))
-                    .setDestination(createActionEntity((3)))
+                    .setSource(ActionExecutionTestUtils.createActionEntity(2))
+                    .setDestination(ActionExecutionTestUtils.createActionEntity(3))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -295,7 +264,12 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.MOVE),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Stream.of(1L, 2L, 3L)
+                        .collect(Collectors.toSet())),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -321,10 +295,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId1 = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSource(createActionEntity(2))
-                    .setDestination(createActionEntity((3)))
+                    .setSource(ActionExecutionTestUtils.createActionEntity(2))
+                    .setDestination(ActionExecutionTestUtils.createActionEntity(3))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -351,7 +325,7 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Resize resizeSpec = ActionDTO.Resize.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.MEM_VALUE)
                     .setKey("key"))
@@ -374,7 +348,11 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.RIGHT_SIZE),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Collections.singleton(1L)),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -402,7 +380,7 @@ public class ActionExecutionRpcServiceTest {
 
         final long targetId = targetIdCounter.getAndIncrement();
         final ActionDTO.Resize resizeSpec = ActionDTO.Resize.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.MEM_VALUE)
                         .setKey("key"))
@@ -422,7 +400,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing target"));
+                .descriptionContains("Missing"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -431,7 +409,7 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Resize resizeSpec = ActionDTO.Resize.newBuilder()
-                .setTarget(createActionEntity(1))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(1))
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.MEM_VALUE)
                         .setKey("key"))
@@ -461,7 +439,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -478,7 +456,11 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.START),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Collections.singleton(1L)),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -499,7 +481,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -515,7 +497,11 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.START),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Collections.singleton(1L)),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -533,7 +519,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -548,7 +534,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing target"));
+                .descriptionContains("Missing"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -558,7 +544,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -584,7 +570,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -601,7 +587,11 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.SUSPEND),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Collections.singleton(entityId)),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -623,7 +613,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -639,7 +629,11 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeAction(request);
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
-                Mockito.eq(targetId), actionItemDTOCaptor.capture(), Mockito.eq(Optional.empty()));
+                Mockito.eq(targetId),
+                Mockito.eq(ActionType.SUSPEND),
+                actionItemDTOCaptor.capture(),
+                Mockito.eq(Collections.singleton(entityId)),
+                Mockito.eq(Optional.empty()));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -659,7 +653,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -674,7 +668,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing target"));
+                .descriptionContains("Missing"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -684,7 +678,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTarget(createActionEntity(entityId))
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -759,11 +753,4 @@ public class ActionExecutionRpcServiceTest {
         }
     }
 
-    public static ActionEntity createActionEntity(long id) {
-        final int defaultEntityType = EntityType.VIRTUAL_MACHINE_VALUE;
-        return ActionEntity.newBuilder()
-                    .setId(id)
-                    .setType(defaultEntityType)
-                    .build();
-    }
 }
