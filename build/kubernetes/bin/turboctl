@@ -24,7 +24,7 @@ usage:
         logs -c <component_name>                    -> To get logs for particular component
         logs -n <number>                            -> Number of lines from latest logs
 `basename $0` create component                      -> Create various pods to bring up the system.
-        create <namespace, registry, base, services, probes, non-prod or individual component>
+        create <namespace, registry, base, services, probes, optional-probes or individual component>
 `basename $0` shell  <pod_name>                     -> SSH to a pod
 `basename $0` sql                                   -> To run sql into database
         sql  -u <username> -p <password> -d <database> -s <sql>
@@ -98,8 +98,8 @@ case "$args" in
        probes)
             ${kubeCommand} create -f ${xlYamlDir}/probes/
             ;;
-       non-prod)
-            ${kubeCommand} create -f ${xlYamlDir}/non-prod/
+       optional-probes)
+            ${kubeCommand} create -f ${xlYamlDir}/optional-probes/
             ;;
        *)
             individual=$(find ${xlYamlDir} -name ${component}.yaml)
