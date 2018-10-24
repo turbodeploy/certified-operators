@@ -23,8 +23,10 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
 import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
+import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -56,6 +58,13 @@ public class Target {
     private final TargetInfo noSecretDto;
 
     private final TargetInfo noSecretAnonymousDto;
+
+    private List<com.vmturbo.platform.common.dto.Discovery.AccountDefEntry> accountDefEntryList;
+
+    /**
+     * Flag to indicate whether this target has a group scope defined.
+     */
+    private boolean hasGroupScope = false;
 
     /**
      * Create a target from a string as returned by {@link Target#toJsonString()}.
@@ -129,8 +138,11 @@ public class Target {
 
         final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
 
+        final ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+                new InvalidTargetException("No probe found in store for probe ID " + probeId));
+        accountDefEntryList = probeInfo.getAccountDefinitionList();
+        hasGroupScope = checkForGroupScope(accountDefEntryList);
         if (validateAccountValues) {
-            final ProbeInfo probeInfo = probeStore.getProbe(probeId).get();
             probeInfo.getAccountDefinitionList()
                             .stream()
                             .map(AccountValueAdaptor::wrap)
@@ -144,6 +156,27 @@ public class Target {
         noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
 
         info = new InternalTargetInfo(targetInfo, secretFields);
+    }
+
+    /**
+     * Check if there is a group scope defined in the probe's list of account definition entries.
+     *
+     * @param accountDefs {@link List} of
+     * {@link com.vmturbo.platform.common.dto.Discovery.AccountDefEntry} for the probe that will
+     *                                discover this target.
+     * @return true if there is a group scope defined among the account definitions; otherwise,
+     * false.
+     */
+    private boolean checkForGroupScope(List<Discovery.AccountDefEntry> accountDefs) {
+        return accountDefs.stream()
+                .filter(Discovery.AccountDefEntry::hasCustomDefinition)
+                .map(Discovery.AccountDefEntry::getCustomDefinition)
+                .anyMatch(CustomAccountDefEntry::hasGroupScope);
+    }
+
+    public void setAccountDefEntryList(final List<Discovery.AccountDefEntry> accountDefEntryList) {
+        this.accountDefEntryList = accountDefEntryList;
+        hasGroupScope = checkForGroupScope(accountDefEntryList);
     }
 
     /**
@@ -276,15 +309,18 @@ public class Target {
     }
 
     /**
-     * Retrieve the account values used to connect
-     * to the target. These account values are necessary
-     * for all operations on the target (discovery,
-     * action execution, validation).
+     * Retrieve the account values used to connect to the target. These account values are necessary
+     * for all operations on the target (discovery, action execution, validation).  If there is a
+     * group scope defined, return the list of account values with the group scope parameters
+     * populated.  We wait until this method is called to populate the group scope, since the
+     * group contents may be dynamic and change from one discovery to the next.
      *
      * @return The list of {@link AccountValue} objects.
      */
-    public List<AccountValue> getMediationAccountVals() {
-        return mediationAccountVals;
+    public List<AccountValue> getMediationAccountVals(GroupScopeResolver groupScopeResolver) {
+        return hasGroupScope ?
+                groupScopeResolver.processGroupScope(mediationAccountVals, accountDefEntryList)
+                : mediationAccountVals;
     }
 
     @Nonnull

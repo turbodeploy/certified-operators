@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
+import static org.mockito.Matchers.any;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +27,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -63,6 +66,7 @@ import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
@@ -76,6 +80,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private TargetStore targetStore;
     private EntityStore entityStore;
     private IdentityProvider identityProviderSpy;
+    private GroupScopeResolver groupScopeResolver;
 
     private static final String FIELD_NAME = FakeRemoteMediation.TGT_ID;
 
@@ -92,6 +97,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         targetStore = integrationTestServer.getBean(TargetStore.class);
         entityStore = integrationTestServer.getBean(EntityStore.class);
         identityProviderSpy = integrationTestServer.getBean(IdentityProvider.class);
+        groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                .then(AdditionalAnswers.returnsFirstArg());
     }
 
     /**
@@ -297,7 +305,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         getTopologyProcessor().modifyTarget(targetId, targetData);
         final Target resultTarge = targetStore.getTarget(targetId).get();
         Assert.assertEquals("2",
-                        resultTarge.getMediationAccountVals().iterator().next().getStringValue());
+                        resultTarge.getMediationAccountVals(groupScopeResolver)
+                                .iterator().next().getStringValue());
     }
 
     /**

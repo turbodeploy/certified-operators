@@ -9,7 +9,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,12 +31,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
+import com.vmturbo.platform.common.dto.Discovery.AccountValue;
+import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopeProperty;
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue.PropertyValueList;
 
 /**
  * Utility class for extracting group scope information from a probe's account definition list
@@ -81,9 +80,10 @@ public class GroupScopeResolver {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
-    private Map<String, CustomAccountDefEntry> generateGroupScopeMap(@Nonnull ProbeInfo probeInfo) {
-        Objects.requireNonNull(probeInfo);
-        return probeInfo.getAccountDefinitionList().stream()
+    private Map<String, CustomAccountDefEntry> generateGroupScopeMap(
+            @Nonnull List<AccountDefEntry> accountDefList) {
+        Objects.requireNonNull(accountDefList);
+        return accountDefList.stream()
                 .filter(AccountDefEntry::hasCustomDefinition)
                 .map(AccountDefEntry::getCustomDefinition)
                 .filter(CustomAccountDefEntry::hasGroupScope)
@@ -97,15 +97,17 @@ public class GroupScopeResolver {
      *
      * @param newAccountValues a collection of {@link AccountValue} that needs to have its group
      *                         scope account values populated.
-     * @param probe the {@link ProbeInfo} that contains the group scope definitions for the probe
-     *              associated with newAccountValues.
-     * @return {@link Collection} of {@link AccountValue} where group scopes have been populated
-     * with values.
+     * @param accountDefinitionList the list of {@link AccountDefEntry} that contains the account
+     *                             value definitions for the probe associated with newAccountValues.
+     * @return {@link List} of {@link AccountValue} where group scopes have been populated
+     * with values for any AccountValues whose corresponding {@link AccountDefEntry} has a group
+     * scope.
      */
-    public Collection<AccountValue> processGroupScope(
-            @Nonnull Collection<AccountValue> newAccountValues,
-            @Nonnull ProbeInfo probe) {
-        Map<String, CustomAccountDefEntry> keyToGroupScopeMap = generateGroupScopeMap(probe);
+    public List<AccountValue> processGroupScope(
+            @Nonnull List<AccountValue> newAccountValues,
+            @Nonnull List<AccountDefEntry> accountDefinitionList) {
+        Map<String, CustomAccountDefEntry> keyToGroupScopeMap =
+                generateGroupScopeMap(accountDefinitionList);
         return newAccountValues.stream()
                 .map(accountValue -> keyToGroupScopeMap.keySet().contains(accountValue.getKey()) ?
                         populatePropertyValueList(keyToGroupScopeMap.get(accountValue.getKey()),

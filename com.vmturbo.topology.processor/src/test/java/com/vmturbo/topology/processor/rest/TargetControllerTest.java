@@ -148,7 +148,7 @@ public class TargetControllerTest {
             Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
                     .then(AdditionalAnswers.returnsFirstArg());
             return new KVBackedTargetStore(keyValueStore(), probeStore(),
-                    targetIdentityStore(), groupScopeResolver);
+                    targetIdentityStore());
         }
 
         @Override

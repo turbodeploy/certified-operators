@@ -91,7 +91,7 @@ public class TestMediationCommonConfig {
     @Bean
     public TargetStore targetStore() {
         return new KVBackedTargetStore(keyValueStore(), probeStore(),
-                Mockito.mock(IdentityStore.class), Mockito.mock(GroupScopeResolver.class));
+                Mockito.mock(IdentityStore.class));
     }
 
     @Bean

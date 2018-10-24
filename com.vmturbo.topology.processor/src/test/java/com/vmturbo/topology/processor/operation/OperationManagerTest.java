@@ -89,10 +89,10 @@ public class OperationManagerTest {
 
     private final KeyValueStore kvStore = new MapKeyValueStore();
 
-    private final GroupScopeResolver grpScopeResolver = Mockito.mock(GroupScopeResolver.class);
+    private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
     private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
-            targetIdentityStore, grpScopeResolver);
+            targetIdentityStore);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 
@@ -115,7 +115,7 @@ public class OperationManagerTest {
             mockRemoteMediationServer, operationListener,
             entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
             discoveredCloudCostUploader, discoveredTemplatesUploader, entityActionDao,
-            derivedTargetParser,10, 10, 10);
+            derivedTargetParser, groupScopeResolver, 10, 10, 10);
 
     private long probeId;
     private long targetId;

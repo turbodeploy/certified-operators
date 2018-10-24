@@ -38,6 +38,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
@@ -138,6 +139,7 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetDeserializationException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.util.Probes;
 
 /**
  * Tests for {@link TopologyProcessorDiagnosticsHandler}.
@@ -473,18 +475,17 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TargetStore simpleTargetStore =
                 new KVBackedTargetStore(
                         new MapKeyValueStore(),
-                        mock(ProbeStore.class),
-                        new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)),
-                        mock(GroupScopeResolver.class));
+                        probeStore,
+                        new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(simpleTargetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                         identityProvider, new DiagnosticsWriter());
-
+        when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
+        when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
         handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
         List<Target> targets = simpleTargetStore.getAll();
         assertTrue(!targets.isEmpty());
-
         for (Target target : simpleTargetStore.getAll()) {
             verify(scheduler, times(1))
                 .setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
+import static org.mockito.Matchers.any;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -17,9 +19,12 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.mockito.AdditionalAnswers;
+import org.mockito.Mockito;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
@@ -36,6 +41,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 
 /**
@@ -112,7 +118,11 @@ public abstract class AbstractApiCallsTest {
     }
 
     protected static TargetInfo wrapTarget(@Nonnull final Target target) {
-        final List<InputField> fields = target.getMediationAccountVals().stream()
+        final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                .then(AdditionalAnswers.returnsFirstArg());
+
+        final List<InputField> fields = target.getMediationAccountVals(groupScopeResolver).stream()
                         .map(AbstractApiCallsTest::convertToRest).collect(Collectors.toList());
         final TargetSpec spec =
                         new TargetSpec(target.getProbeId(), fields);

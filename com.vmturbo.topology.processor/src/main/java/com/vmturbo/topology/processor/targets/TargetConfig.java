@@ -51,8 +51,7 @@ public class TargetConfig {
         return new KVBackedTargetStore(
                 kvConfig.keyValueStore(),
                 probeConfig.probeStore(),
-                identityStore(),
-                groupScopeResolver());
+                identityStore());
     }
 
     @Bean

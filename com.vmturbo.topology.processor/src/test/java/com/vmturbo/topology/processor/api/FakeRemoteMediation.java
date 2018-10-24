@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
+import static org.mockito.Matchers.any;
+
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +13,8 @@ import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.mockito.AdditionalAnswers;
+import org.mockito.Mockito;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -29,6 +33,7 @@ import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -125,8 +130,11 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     private String getAvId(long targetId) {
+        final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                .then(AdditionalAnswers.returnsFirstArg());
         final Target target = targetStore.getTarget(targetId).get();
-        final String tgtId = target.getMediationAccountVals().stream()
+        final String tgtId = target.getMediationAccountVals(groupScopeResolver).stream()
                         .filter(av -> av.getKey().equals(TGT_ID)).findFirst().get()
                         .getStringValue();
         return tgtId;

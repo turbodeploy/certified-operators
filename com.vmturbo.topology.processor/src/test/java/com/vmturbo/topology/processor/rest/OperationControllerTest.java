@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.rest;
 
+import static org.mockito.Matchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -18,6 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.mockito.AdditionalAnswers;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -130,7 +132,7 @@ public class OperationControllerTest {
         TargetStore targetStore() {
             GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
             return new KVBackedTargetStore(new MapKeyValueStore(), probeStore(),
-                    targetIdentityStore(), groupScopeResolver);
+                    targetIdentityStore());
         }
 
         /**
@@ -189,6 +191,14 @@ public class OperationControllerTest {
             return Mockito.mock(DerivedTargetParser.class);
         }
 
+        @Bean
+        GroupScopeResolver groupScopeResolver() {
+            GroupScopeResolver grpScopeResolver = Mockito.mock(GroupScopeResolver.class);
+            Mockito.when(grpScopeResolver.processGroupScope(any(), any()))
+                    .then(AdditionalAnswers.returnsFirstArg());
+            return grpScopeResolver;
+        }
+
         @SuppressWarnings("unchecked")
         OperationListener operationListener() {
             return Mockito.mock(OperationListener.class);
@@ -208,6 +218,7 @@ public class OperationControllerTest {
                 discoveredTemplatesUploader(),
                 controllableDao(),
                 derivedTargetParser(),
+                groupScopeResolver(),
                 10, 10, 10
             );
         }

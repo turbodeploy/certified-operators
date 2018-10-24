@@ -31,8 +31,6 @@ public class DerivedTargetParserTest {
 
     private ProbeStore probeStore;
 
-    private GroupScopeResolver groupScopeResolver;
-
     private TargetStore targetStore;
 
     private IdentityStore<TargetSpec> identityStore;
@@ -45,10 +43,8 @@ public class DerivedTargetParserTest {
     public void setup() throws Exception{
         keyValueStore = Mockito.mock(KeyValueStore.class);
         probeStore = Mockito.mock(ProbeStore.class);
-        groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
         identityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, identityStore,
-                groupScopeResolver);
+        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, identityStore);
         derivedTargetParser = new DerivedTargetParser(probeStore, targetStore);
         nextTargetId = 10086L;
     }

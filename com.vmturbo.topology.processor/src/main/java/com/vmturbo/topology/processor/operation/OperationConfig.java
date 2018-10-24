@@ -94,6 +94,7 @@ public class OperationConfig {
             discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
             controllableConfig.entityActionDaoImp(),
             targetConfig.derivedTargetParser(),
+            targetConfig.groupScopeResolver(),
             discoveryTimeoutSeconds,
             validationTimeoutSeconds,
             actionTimeoutSeconds

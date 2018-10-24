@@ -71,6 +71,7 @@ import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -134,6 +135,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier;
 
+    private final GroupScopeResolver groupScopeResolver;
+
     private final long discoveryTimeoutMs;
 
     private final long validationTimeoutMs;
@@ -174,6 +177,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
                             @Nonnull final DerivedTargetParser derivedTargetParser,
+                            @Nonnull final GroupScopeResolver groupScopeResolver,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds) {
@@ -187,6 +191,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveredWorkflowUploader = Objects.requireNonNull(discoveredWorkflowUploader);
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
         this.derivedTargetParser = Objects.requireNonNull(derivedTargetParser);
+        this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
@@ -228,7 +233,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 actionExecutionBuilder.setWorkflow(buildWorkflowNonMarketEntity(workflowInfo)));
         final ActionRequest request = ActionRequest.newBuilder()
                 .setProbeType(probeType)
-                .addAllAccountValue(target.getMediationAccountVals())
+                .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
                 .setActionExecutionDTO(actionExecutionBuilder)
                 .build();
         final ActionMessageHandler messageHandler = new ActionMessageHandler(this,
@@ -324,7 +329,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 target.getId(), identityProvider);
         final ValidationRequest validationRequest = ValidationRequest.newBuilder()
                 .setProbeType(probeType)
-                .addAllAccountValue(target.getMediationAccountVals()).build();
+                .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver)).build();
         final ValidationMessageHandler validationMessageHandler =
                 new ValidationMessageHandler(this,
                         validation,
@@ -424,7 +429,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final DiscoveryRequest discoveryRequest = DiscoveryRequest.newBuilder()
                 .setProbeType(probeType)
                 .setDiscoveryType(DiscoveryType.FULL)
-                .addAllAccountValue(target.getMediationAccountVals()).build();
+                .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver)).build();
 
         final DiscoveryMessageHandler discoveryMessageHandler =
                 new DiscoveryMessageHandler(this,

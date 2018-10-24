@@ -88,8 +88,7 @@ public class KVBackedTargetStoreTest {
         Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
                 .then(AdditionalAnswers.returnsFirstArg());
         targetIdentityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore,
-                groupScopeResolver);
+        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
     }
 
     /**
@@ -169,7 +168,7 @@ public class KVBackedTargetStoreTest {
         Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(
                 Collections.singletonMap(String.valueOf(targetId), target.toJsonString()));
         final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, probeStore,
-                targetIdentityStore, groupScopeResolver);
+                targetIdentityStore);
         verify(kvStore).getByPrefix(Mockito.eq("targets/"));
         newTargetStore.getTarget(0L).get();
     }
@@ -298,15 +297,15 @@ public class KVBackedTargetStoreTest {
         final KeyValueStore kvStore = prepareKvStoreWithTarget(target);
 
         final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, probeStore,
-                targetIdentityStore, groupScopeResolver);
+                targetIdentityStore);
         verify(kvStore).getByPrefix(Mockito.eq("targets/"));
 
         final Target retTarget = newTargetStore.getTarget(0L).get();
         Assert.assertEquals(target.getId(), retTarget.getId());
         Assert.assertEquals(target.getProbeId(), retTarget.getProbeId());
-        Assert.assertEquals(1, target.getMediationAccountVals().size());
+        Assert.assertEquals(1, target.getMediationAccountVals(groupScopeResolver).size());
 
-        final AccountValue accountVal = target.getMediationAccountVals().get(0);
+        final AccountValue accountVal = target.getMediationAccountVals(groupScopeResolver).get(0);
         Assert.assertEquals("name", accountVal.getKey());
         Assert.assertEquals("value", accountVal.getStringValue());
         Assert.assertEquals(1, accountVal.getGroupScopePropertyValuesCount());
@@ -319,7 +318,7 @@ public class KVBackedTargetStoreTest {
                 .thenReturn(Collections.singletonMap("targets/0", "aoishtioa"));
 
         // Instantiating a KVBackedStore should work.
-        new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore, groupScopeResolver);
+        new KVBackedTargetStore(keyValueStore, probeStore, targetIdentityStore);
     }
 
     @Test
@@ -396,15 +395,16 @@ public class KVBackedTargetStoreTest {
         final TargetSpec targetSpec = createTargetSpec(0, 1);
         Target target = targetStore.createTarget(targetSpec);
         Assert.assertEquals("1",
-                        target.getMediationAccountVals().iterator().next().getStringValue());
+                        target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
         target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList());
         Assert.assertEquals("1",
-                        target.getMediationAccountVals().iterator().next().getStringValue());
+                        target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
 
         final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(2);
         target = targetStore.updateTarget(target.getId(), targetFieldsNew);
         Assert.assertEquals("2",
-                        target.getMediationAccountVals().iterator().next().getStringValue());
+                        target.getMediationAccountVals(groupScopeResolver)
+                                .iterator().next().getStringValue());
     }
 
     @Test
@@ -452,11 +452,12 @@ public class KVBackedTargetStoreTest {
     private void assertAccountValueEquals(@Nonnull final Target target,
                                           @Nonnull final String keyName,
                                           @Nonnull final String expectedValueName) {
-        Assert.assertEquals(expectedValueName, target.getMediationAccountVals().stream()
-            .filter(val -> val.getKey().equals(keyName))
-            .findFirst()
-            .get()
-            .getStringValue());
+        Assert.assertEquals(expectedValueName, target.getMediationAccountVals(groupScopeResolver)
+                .stream()
+                .filter(val -> val.getKey().equals(keyName))
+                .findFirst()
+                .get()
+                .getStringValue());
     }
 
     /**
@@ -488,7 +489,8 @@ public class KVBackedTargetStoreTest {
         final Target target = targetStore.createTarget(targetSpec);
         targetStore.addListener(targetListener);
         Assert.assertEquals("1",
-                target.getMediationAccountVals().iterator().next().getStringValue());
+                target.getMediationAccountVals(groupScopeResolver).iterator().next()
+                        .getStringValue());
         Assert.assertEquals(1, targetStore.getAll().size());
 
         targetStore.removeTargetAndBroadcastTopology(target.getId(), topologyHandler, scheduler);

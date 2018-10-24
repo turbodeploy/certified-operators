@@ -150,11 +150,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TargetStore targetStore() {
-        GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
-        return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore(),
-                groupScopeResolver);
+        return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore());
     }
 
     @Override
@@ -219,12 +215,21 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public GroupScopeResolver groupScopeResolver() {
+        GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+                .then(AdditionalAnswers.returnsFirstArg());
+        return groupScopeResolver;
+    }
+
+    @Bean
     public OperationManager operationManager() {
+
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
                 remoteMediation(), topologyProcessorNotificationSender(),
                 entityRepository(), groupRecorder(), workflowRecorder(), cloudCostUploadRecorder(),
                 discoveredTemplatesUploader(), controllableDao(), derivedTargetParser(),
-            1L, 1L, 1L);
+                groupScopeResolver(),1L, 1L, 1L);
     }
 
     @Bean
