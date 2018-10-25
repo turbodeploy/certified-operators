@@ -76,6 +76,8 @@ else
   echo
   echo
 fi
+echo "++++++++++++"
+echo
 
 # List the kubelet nodes
 echo "Worker Nodes"
@@ -84,9 +86,11 @@ for ((i=0,j=1; i<${#node[*]}; i++,j++));
 do
     echo node${j} ${node[i]}
 done
+echo "++++++++++++"
+echo
 
 # Run kubespray
-pushd ${kubesprayPath}
+pushd ${kubesprayPath} > /dev/null
 
 # Clear old host.ini file
 rm -rf ${kubesprayPath}/inventory/turbocluster
@@ -103,27 +107,47 @@ sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/a
 
 # Run ansible kubespray install
 ansible-playbook -i inventory/turbocluster/hosts.ini -b --become-user=root cluster.yml
-popd
+# Check on ansible status and exit out if there are any failures.
+ansibleStatus=$?
+if [ "X${ansibleStatus}" == "X0" ]
+then
+  echo ""
+  echo ""
+  echo "######################################################################"
+  echo "                   Kubespray Completed successfully                   "
+  echo "######################################################################"
+  echo ""
+else
+  echo ""
+  echo ""
+  echo "######################################################################"
+  echo "                   Kubespray Failed:                                  "
+  echo "       Please check the /opt/local/etc/turbo.conf settings            "
+  echo "######################################################################"
+  echo ""
+  exit 0
+fi
+popd > /dev/null
 
-# Setup storage
+# Setup storage with heketi/gluster
 # These need to be done on each node
 for ((i=0,j=1; i<(${#node[*]}-1); i++,j++));
 do
-   ssh root@${node[$i]} modprobe dm_thin_pool
-   ssh root@${node[$i]} modprobe dm_snapshot
-   ssh root@${node[$i]} setsebool -P virt_sandbox_use_fusefs on
+   ssh turbo@${node[$i]} sudo /usr/sbin/modprobe dm_thin_pool
+   ssh turbo@${node[$i]} sudo /usr/sbin/modprobe dm_snapshot
+   ssh turbo@${node[$i]} sudo /usr/sbin/setsebool -P virt_sandbox_use_fusefs on
 done
 
 # For new installs, make sure disk is clean
-vgroup=$(vgdisplay | grep "VG Name" | awk '{print $3}')
+vgroup=$(sudo /usr/sbin/vgdisplay | grep "VG Name" | awk '{print $3}')
 for i in ${vgroup[@]}
 do
   if [ $i != turbo ]
   then
-    vgremove -f ${i}
+    sudo /usr/sbin/vgremove -f ${i}
   fi
 done
-wipefs -a /dev/sdb
+sudo /usr/sbin/wipefs -a /dev/sdb
 
 # Setup GlusterFS Native Storage Service for Kubernetes
 if (( ${tLen} > 1 ))
@@ -176,21 +200,121 @@ sed -i '/nodes/r /tmp/topology.json' "${glusterStorageJson}"
 rm -rf /tmp/topology.json
 
 # Run the heketi/gluster setup
-pushd ${glusterStorage}/deploy
+pushd ${glusterStorage}/deploy > /dev/null
 if (( ${tLen} >= 1 ))
 then
+  # This is for a single node setup.
   /opt/gluster-kubernetes/deploy/gk-deploy --single-node -gyv
+  heketiStatus=$?
+  if [ "X${heketiStatus}" == "X0" ]
+  then
+    echo ""
+    echo ""
+    echo "######################################################################"
+    echo "             Gluster-Heketi Completed Successfully                    "
+    echo "######################################################################"
+    echo ""
+    echo ""
+  else
+    echo ""
+    echo ""
+    echo "######################################################################"
+    echo "                 Gluster-Heketi Failed                                "
+    echo "       Please check the /opt/local/etc/turbo.conf settings            "
+    echo "######################################################################"
+    echo ""
+    echo ""
+    exit 0
+  fi
 else
   /opt/gluster-kubernetes/deploy/gk-deploy -gyv
+  heketiStatus=$?
+  if [ "X${heketiStatus}" == "X0" ]
+  then
+    echo ""
+    echo ""
+    echo "######################################################################"
+    echo "             Gluster-Heketi  Completed successfully                   "
+    echo "######################################################################"
+    echo ""
+    echo ""
+  else
+    echo ""
+    echo ""
+    echo "######################################################################"
+    echo "                 Gluster-Heketi Failed                                "
+    echo "       Please check the /opt/local/etc/turbo.conf settings            "
+    echo "######################################################################"
+    echo ""
+    echo ""
+    exit 0
+  fi
 fi
-popd
+popd > /dev/null
+
+# Start Turbonomic installation
+if [ "x${node[0]}" != "x10.0.2.15" ]
+then
+  # Install pre-turbonomic environmental requirementes
+  echo
+  echo
+  echo
+  echo "######################################################################"
+  echo "                 Prepare Turbonomic Appliance                         "
+  echo "######################################################################"
+  /opt/local/bin/turboEnv.sh
+  envStatus=$?
+  if [ "X${envStatus}" == "X0" ]
+  then
+    echo ""
+    echo "==========================================="
+    echo "Turbonomic Environment Applied Successfully"
+    echo "==========================================="
+    echo ""
+  else
+    echo ""
+    echo "============================="
+    echo "Turbonomic Environment Failed"
+    echo "============================="
+    echo ""
+    exit 0
+  fi
+  echo
+  echo
+  echo
+
+  # Install turbo components
+  echo "######################################################################"
+  echo "                 Start Turbonomic Deployment                          "
+  echo "######################################################################"
+  /opt/local/bin/turboServices.sh
+  depStatus=$?
+  if [ "X${depStatus}" == "X0" ]
+  then
+    echo ""
+    echo "=========================================="
+    echo "Turbonomic Deployment Applied Successfully"
+    echo "=========================================="
+    echo ""
+  else
+    echo ""
+    echo "============================="
+    echo "Turbonomic Deployment Failed"
+    echo "============================="
+    echo ""
+    exit 0
+  fi
+fi
+
+sleep 30
 
 # Installation Complete
 echo
 echo
 echo "######################################################################"
-echo "                   Kubernetes  Installation Complete                         "
+echo "           Turbonomic Kubernetes Installation Complete                "
 echo "######################################################################"
+echo
 # Nodes
 echo
 echo STATUS
@@ -199,10 +323,6 @@ echo "****************************** Nodes ******************************"
 kubectl get nodes
 echo "*******************************************************************"
 echo
-echo
-echo "************************** Storage Class **************************"
-kubectl get sc
-echo "*******************************************************************"
 echo
 echo
 echo "*************************** Service *******************************"
@@ -214,32 +334,3 @@ echo "************************* Deployments *****************************"
 kubectl get deployments
 echo "*******************************************************************"
 
-if [ "x${node[0]}" != "x10.0.2.15" ]
-then
-  # Install pre-turbonomic environmental requirementes
-  echo
-  echo
-  echo
-  echo "######################################################################"
-  echo "                 Prepare Turbonomic Appliance                         "
-  echo "######################################################################"
-  /opt/local/bin/turboEnv.sh
-  echo
-  echo
-  echo
-
-  # Install local registry if needed
-  echo "######################################################################"
-  echo "                 Setup Registry ${registry}                           "
-  echo "######################################################################"
-  /opt/local/bin/turboRegistry.sh
-  echo
-  echo
-  echo
-
-  # Install turbo components
-  echo "######################################################################"
-  echo "                 Start Turbonomic Deployment                          "
-  echo "######################################################################"
-  /opt/local/bin/turboServices.sh
-fi

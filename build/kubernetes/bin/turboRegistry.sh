@@ -16,6 +16,7 @@ then
 
   # Test for local registry running
   echo "Wait for local registry to be ready"
+  echo "-----------------------------------"
   while [ ! ${completedRegistry} ]
   do
     completedRegistry=$(kubectl get pod | egrep -v "proxy|NAME" | awk '{print $3}' | grep Running)

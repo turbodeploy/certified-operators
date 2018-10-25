@@ -8,6 +8,7 @@ source /opt/local/etc/turbo.conf
 
 # Set basepath for xl yaml
 yamlBasePath="/opt/xl/kubernetes/yaml"
+logBasePath="/opt/local/logs"
 
 # Get current image (this will have to be adjusted if we move to individual versioning
 if [ x$registry == xlocalhost ]
@@ -25,7 +26,13 @@ fi
 # Entry Point
 find ${yamlBasePath}/ -name *.yaml | xargs sed -i "s/10.0.2.15/${node}/"
 
+# Make log dir
+mkdir -p ${logBasePath}
+
 # Production
-/opt/local/bin/turboctl create base
-/opt/local/bin/turboctl create services
-/opt/local/bin/turboctl create probes
+echo ""
+echo "Create Turbonomic 7 Cluster"
+echo "==========================="
+/opt/local/bin/turboctl create base 2>&1 ${logBasePath}/base.log
+/opt/local/bin/turboctl create services 2>&1 ${logBasePath}/services.log
+/opt/local/bin/turboctl create probes 2>&1 ${logBasePath}/probes.log

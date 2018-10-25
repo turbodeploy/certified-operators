@@ -48,8 +48,8 @@ if [ "${step}" == "tag" ]
 then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
-  tagImage=$(docker images  | grep -w ${image} | grep ${version} | grep registry.turbonomic | awk '{print $3}')
-  docker tag ${tagImage} localhost:5000/turbonomic/${image}:${version}
+  tagImage=$(sudo /usr/bin/docker images  | grep -w ${image} | grep ${version} | grep registry.turbonomic | awk '{print $3}')
+  sudo /usr/bin/docker tag ${tagImage} localhost:5000/turbonomic/${image}:${version}
 fi
 
 # Load docker image tgz file
@@ -58,7 +58,7 @@ then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
 	tgz=$(ls ${imageBasePath} | grep "${image}")
-  docker load --input ${imageBasePath}/${tgz}
+  sudo /usr/bin/docker load --input ${imageBasePath}/${tgz}
 fi
 
 # Push to the private registry
@@ -66,7 +66,7 @@ if [ "${step}" == "push" ]
 then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
-  docker push localhost:5000/turbonomic/${image}:${version}
+  sudo /usr/bin/docker push localhost:5000/turbonomic/${image}:${version}
 fi
 
 # Push to the private registry
@@ -74,10 +74,10 @@ if [ "${step}" == "bulk" ]
 then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
-  bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
+  bulkImages=( $(sudo /usr/bin/docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
   for dockerImage in "${bulkImages[@]}"
   do
-    docker push localhost:5000/turbonomic/${dockerImage}:${version}
+    sudo /usr/bin/docker push localhost:5000/turbonomic/${dockerImage}:${version}
   done
 fi
 
@@ -86,10 +86,10 @@ if [ "${step}" == "upgrade" ] && [ "${image}" != "all" ]
 then
   [ -z "${version}" ] && usage
   tgz=$(ls ${imageBasePath} | grep "${image}")
-  docker load --input ${imageBasePath}/${tgz}
-  bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
-  tagImage=$(docker images  | grep -w ${image} | grep ${version} | grep localhost | awk '{print $3}')
-  docker push localhost:5000/turbonomic/${image}:${version}
+  sudo /usr/bin/docker load --input ${imageBasePath}/${tgz}
+  bulkImages=( $(sudo /usr/bin/docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
+  tagImage=$(sudo /usr/bin/docker images  | grep -w ${image} | grep ${version} | grep localhost | awk '{print $3}')
+  sudo /usr/bin/docker push localhost:5000/turbonomic/${image}:${version}
 fi
 
 # Upgrade images in the private registry
@@ -98,11 +98,11 @@ then
   [ -z "${version}" ] && usage
   for tgz in $(ls ${imageBasePath})
   do
-    docker load --input ${imageBasePath}/${tgz}
+    sudo /usr/bin/docker load --input ${imageBasePath}/${tgz}
   done
-  bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
+  bulkImages=( $(sudo /usr/bin/docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
   for dockerImage in "${bulkImages[@]}"
   do
-    docker push localhost:5000/turbonomic/${dockerImage}:${version}
+    sudo /usr/bin/docker push localhost:5000/turbonomic/${dockerImage}:${version}
   done
 fi
