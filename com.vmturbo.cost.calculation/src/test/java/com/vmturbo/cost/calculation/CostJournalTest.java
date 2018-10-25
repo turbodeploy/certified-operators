@@ -125,6 +125,7 @@ public class CostJournalTest {
                         .setTierId(tierId))
                 .build());
         final JournalEntry<TestEntityClass> entry = new RIJournalEntry<>(riData,
+                1,
                 CurrencyAmount.newBuilder()
                     .setAmount(hourlyCost)
                     .setCurrency(currency)
@@ -148,6 +149,7 @@ public class CostJournalTest {
                                 .setTierId(tierId))
                         .build());
         final JournalEntry<TestEntityClass> entry = new RIJournalEntry<>(riData,
+                1,
                 CurrencyAmount.newBuilder()
                         .setAmount(hourlyCost)
                         .setCurrency(currency)
@@ -186,7 +188,7 @@ public class CostJournalTest {
             CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                 .recordOnDemandCost(CostCategory.COMPUTE, payee, computePrice, 1)
                 .recordOnDemandCost(CostCategory.LICENSE, payee, licensePrice, 1)
-                .recordRiCost(CostCategory.COMPUTE, riData, CurrencyAmount.newBuilder()
+                .recordRiCost(CostCategory.COMPUTE, riData, 1, CurrencyAmount.newBuilder()
                     .setAmount(25.0)
                     .build())
                 .build();
@@ -232,5 +234,7 @@ public class CostJournalTest {
         assertThat(journal.getEntity(), is(entity));
         assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(200.0));
         assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE), is(100.0));
+
+        System.out.println(journal.toString());
     }
 }

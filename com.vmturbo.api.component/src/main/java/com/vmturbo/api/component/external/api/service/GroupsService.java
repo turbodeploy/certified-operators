@@ -35,6 +35,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntit
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -634,6 +635,13 @@ public class GroupsService implements IGroupsService {
     Optional<Collection<Long>> getMemberIds(@Nonnull final String groupUuid)
             throws UnknownObjectException {
         Collection<Long> memberIds = null;
+
+        // These magic UI strings currently have no associated group in XL, so they are not valid.
+        if (groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
+                groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID)) {
+            return Optional.empty();
+        }
+
         // If the uuid is not for the global, get the group membership from Group component.
         if (!GLOBAL_SCOPE_SUPPLY_CHAIN.contains(groupUuid)) {
             final long id = Long.parseLong(groupUuid);

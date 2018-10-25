@@ -6,17 +6,28 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.stringtemplate.v4.ST;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
+
+import de.vandermeer.asciitable.AsciiTable;
+import de.vandermeer.asciitable.CWC_LongestLine;
+import de.vandermeer.asciithemes.a7.A7_Grids;
+import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -26,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
@@ -42,6 +54,27 @@ import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 public class CostJournal<ENTITY_CLASS> {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Template for logging the cost journal.
+     */
+    private static final String JOURNAL_TEMPLATE =
+            "\n================= NEW JOURNAL ====================\n" +
+            "| Entity: <entityName>\n" +
+            "| ID:     <entityId>\n" +
+            "| Type:   <entityType>\n" +
+            "================= FINAL COSTS ====================\n" +
+            "<finalCosts>\n" +
+            "================== DISCOUNT ======================\n" +
+            "<discount>\n" +
+            "================= DEPENDENCIES ===================\n" +
+            "<dependencies>\n" +
+            "================= RI COVERAGE ====================\n" +
+            "<riEntries>\n" +
+            "============== ON DEMAND ENTRIES =================\n" +
+            "<onDemandEntries>\n" +
+            "==================================================\n";
+
 
     /**
      * The entity for which the cost is calculated.
@@ -140,6 +173,19 @@ public class CostJournal<ENTITY_CLASS> {
     }
 
     /**
+     * Get the journals this journal depends on. For example, a VM "inherits" the cost journals
+     * of the volumes it's attached to.
+     *
+     * @return A stream of {@link CostJournal}s..
+     */
+    @Nonnull
+    public Stream<CostJournal<ENTITY_CLASS>> getDependentJournals() {
+        return childCostEntities.stream()
+            .map(dependentCostLookup::getCostJournal)
+            .filter(Objects::nonNull);
+    }
+
+    /**
      * Convert this entry to an {@link EntityCost} protobuf that can be sent over the wire.
      *
      * @return The {@link EntityCost} protobuf message representing this entry.
@@ -191,6 +237,55 @@ public class CostJournal<ENTITY_CLASS> {
     public double getTotalHourlyCost() {
         calculateCosts();
         return finalCostsByCategory.values().stream().mapToDouble(d -> d).sum();
+    }
+
+    /**
+     * Return whether this journal is empty or not. The cost of an empty journal is always 0.
+     *
+     * @return True if the journal is empty.
+     */
+    public boolean isEmpty() {
+        // The journal is empty if there are no entries and no dependent costs.
+        return costEntries.isEmpty() && childCostEntities.isEmpty();
+    }
+
+    @Override
+    public String toString() {
+        calculateCosts();
+        final StringBuilder stringBuilder = new StringBuilder();
+        final OnDemandEntryTabulator<ENTITY_CLASS> onDemandTabulator =
+                new OnDemandEntryTabulator<>();
+        final RIEntryTabulator<ENTITY_CLASS> riTabulator =
+                new RIEntryTabulator<>();
+        synchronized (finalCostsByCategory) {
+            stringBuilder.append(new ST(JOURNAL_TEMPLATE)
+                .add("entityName", infoExtractor.getName(entity))
+                .add("entityId", infoExtractor.getId(entity))
+                .add("entityType", infoExtractor.getEntityType(entity))
+                .add("dependencies", childCostEntities.stream()
+                    .map(entity -> {
+                        final int type = infoExtractor.getEntityType(entity);
+                        final StringBuilder descBuilder = new StringBuilder();
+                        descBuilder.append("Name: ").append(infoExtractor.getName(entity))
+                            .append(" Type: ").append((EntityType.forNumber(type) == null ? type : EntityType.forNumber(type)))
+                            .append(" ID: ").append(infoExtractor.getId(entity));
+                        CostJournal<ENTITY_CLASS> dependencyJournal = dependentCostLookup.getCostJournal(entity);
+                        if (dependencyJournal != null) {
+                            descBuilder.append("\n");
+                            dependencyJournal.finalCostsByCategory.forEach((category, cost) -> descBuilder.append("    ").append(category).append(" : ").append(cost).append("\n"));
+                        }
+                        return descBuilder.toString();
+                    })
+                    .collect(Collectors.joining("\n")))
+                .add("finalCosts", finalCostsByCategory.entrySet().stream()
+                    .map(categoryEntry -> categoryEntry.getKey() + " : " + categoryEntry.getValue())
+                    .collect(Collectors.joining("\n")))
+                .add("discount", discountApplicator.toString())
+                .add("riEntries", riTabulator.tabulateEntries(infoExtractor, costEntries))
+                .add("onDemandEntries", onDemandTabulator.tabulateEntries(infoExtractor, costEntries))
+                .render());
+        }
+        return stringBuilder.toString();
     }
 
     /**
@@ -261,13 +356,20 @@ public class CostJournal<ENTITY_CLASS> {
         private final ReservedInstanceData riData;
 
         /**
+         * The number of coupons covered by this RI.
+         */
+        private final double couponsCovered;
+
+        /**
          * The cost of the reserved instance for this entity.
          */
         private final CurrencyAmount hourlyCost;
 
         RIJournalEntry(@Nonnull final ReservedInstanceData riData,
+                       final double couponsCovered,
                        @Nonnull final CurrencyAmount hourlyCost) {
             this.riData = riData;
+            this.couponsCovered = couponsCovered;
             this.hourlyCost = hourlyCost;
         }
 
@@ -302,6 +404,7 @@ public class CostJournal<ENTITY_CLASS> {
      */
     @Immutable
     public static class OnDemandJournalEntry<ENTITY_CLASS_> implements JournalEntry<ENTITY_CLASS_> {
+
         /**
          * The payee - i.e. the entity that's selling the item to the buyer.
          */
@@ -483,13 +586,14 @@ public class CostJournal<ENTITY_CLASS> {
         public Builder<ENTITY_CLASS_> recordRiCost(
                 @Nonnull final CostCategory category,
                 @Nonnull final ReservedInstanceData payee,
+                final double couponsCovered,
                 @Nonnull final CurrencyAmount hourlyCost) {
             if (logger.isTraceEnabled()) {
                 logger.trace("RI {} coverage by {} at cost {}", category,
                         payee.getReservedInstanceBought().getId(), hourlyCost);
             }
             final List<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new ArrayList<>());
-            prices.add(new RIJournalEntry<>(payee, hourlyCost));
+            prices.add(new RIJournalEntry<>(payee, couponsCovered, hourlyCost));
             return this;
         }
 
@@ -502,6 +606,207 @@ public class CostJournal<ENTITY_CLASS> {
                     costEntries,
                     childCosts,
                     dependentCostLookup);
+        }
+    }
+
+    /**
+     * A helper class to tabulate a list of {@link JournalEntry}s in an ASCII table.
+     * The logic of tabulation is closely tied to the entry, but we split it off for readability.
+     *
+     * @param <ENTITY_CLASS> See {@link JournalEntry}.
+     */
+    private abstract static class JournalEntryTabulator<ENTITY_CLASS> {
+
+        private Class<? extends JournalEntry> entryClass;
+
+        private JournalEntryTabulator(Class<? extends JournalEntry> entryClass) {
+            this.entryClass = entryClass;
+        }
+
+        /**
+         * Tabulate the entries of this tabulator's entry class into an ASCII table.
+         *
+         * @param infoExtractor The extractor to use to get information out of the entity.
+         * @param entries The journal entries to tabulate. A single {@link JournalEntryTabulator}
+         *               subclass will only tabulate a subset of the entries (matching the class).
+         * @return The string of an ASCII table for the entry class of this tabulator.
+         */
+        @Nonnull
+        String tabulateEntries(@Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
+                               @Nonnull final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> entries) {
+            final List<ColumnInfo> columnInfos = columnInfo();
+            final CWC_LongestLine columnWidthCalculator = new CWC_LongestLine();
+            columnInfos.forEach(colInfo -> columnWidthCalculator.add(colInfo.minWidth, colInfo.maxWidth));
+
+            final AsciiTable table = new AsciiTable();
+            table.getContext().setGrid(A7_Grids.minusBarPlusEquals());
+            table.getRenderer().setCWC(columnWidthCalculator);
+            table.addRule();
+            table.addRow(Collections2.transform(columnInfos, colInfo -> colInfo.heading));
+            boolean empty = true;
+            for (Entry<CostCategory, List<JournalEntry<ENTITY_CLASS>>> categoryEntry : entries.entrySet()) {
+                final List<JournalEntry<ENTITY_CLASS>> typeSpecificEntriesForCategory =
+                        categoryEntry.getValue().stream()
+                                .filter(journalEntry -> entryClass.isInstance(journalEntry))
+                                .collect(Collectors.toList());
+                empty = typeSpecificEntriesForCategory.isEmpty();
+                if (!empty) {
+                    table.addRule();
+                    table.addRow(Stream.concat(
+                            columnInfos.stream()
+                                    .limit(columnInfos.size() - 1)
+                                    .map(heading -> null),
+                            Stream.of(categoryEntry.getKey().name())).collect(Collectors.toList()));
+                    typeSpecificEntriesForCategory.forEach(entry -> {
+                        table.addRule();
+                        addToTable(entry, table, infoExtractor);
+                    });
+                }
+            }
+
+            if (empty) {
+                return "None";
+            }
+
+            table.addRule();
+
+            // Text alignment for the table must be set AFTER rows are added to it.
+            table.setTextAlignment(TextAlignment.LEFT);
+            return table.render();
+        }
+
+        /**
+         * Add an entry of this tabulator's type to the ascii table being constructed.
+         *
+         * @param entry The entry to add. This entry will be of the proper subclass (although
+         *              I haven't been able to get the generic parameters to work properly
+         *              to guarantee it).
+         * @param asciiTable The ascii table to add the row to.
+         * @param infoExtractor The entity extractor to use.
+         */
+        abstract void addToTable(@Nonnull final JournalEntry<ENTITY_CLASS> entry,
+                                 @Nonnull final AsciiTable asciiTable,
+                                 @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor);
+
+        /**
+         * Return information about the columns for the table. Each tabulator will have
+         * different columns (because we tabulate different information).
+         *
+         * @return The ordered list of {@link ColumnInfo}.
+         */
+        abstract List<ColumnInfo> columnInfo();
+    }
+
+    /**
+     * Utility class to capture information about columns in the ASCII table for
+     * {@link JournalEntryTabulator}s.
+     */
+    private static class ColumnInfo {
+        private final String heading;
+        private final int maxWidth;
+        private final int minWidth;
+
+        private ColumnInfo(final String heading, final int minWidth, final int maxWidth) {
+            this.heading = heading;
+            this.minWidth = minWidth;
+            this.maxWidth = maxWidth;
+        }
+    }
+
+    /**
+     * A {@link JournalEntryTabulator} for {@link OnDemandJournalEntry}.
+     *
+     * @param <ENTITY_CLASS> See {@link JournalEntry}.
+     */
+    private static class OnDemandEntryTabulator<ENTITY_CLASS> extends JournalEntryTabulator<ENTITY_CLASS> {
+
+        private static final List<ColumnInfo> COLUMN_INFOS = ImmutableList.<ColumnInfo>builder()
+                .add(new ColumnInfo("Payee Name", 21, 31))
+                .add(new ColumnInfo("Payee ID", 14, 18))
+                .add(new ColumnInfo("Payee Type", 10, 20))
+                .add(new ColumnInfo("Price Unit", 5, 12))
+                .add(new ColumnInfo("End Range", 5, 10))
+                .add(new ColumnInfo("Price", 10, 10))
+                .add(new ColumnInfo("Amt Bought", 10, 10))
+                .build();
+
+        private OnDemandEntryTabulator() {
+            super(OnDemandJournalEntry.class);
+        }
+
+        @Override
+        public void addToTable(
+                @Nonnull final JournalEntry<ENTITY_CLASS> entry,
+                @Nonnull final AsciiTable asciiTable,
+                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor) {
+            // We only care about on-demand journal entries, because this tabulator only
+            // tabulates the on-demand entries.
+            // This is an extra safeguard - the JournalEntryTabulator should already filter out
+            // other types of entries.
+            if (entry instanceof OnDemandJournalEntry) {
+                OnDemandJournalEntry<ENTITY_CLASS> onDemandEntry = (OnDemandJournalEntry<ENTITY_CLASS>)entry;
+                final int entityTypeInt = infoExtractor.getEntityType(onDemandEntry.payee);
+                final EntityType entityType = EntityType.forNumber(entityTypeInt);
+
+                asciiTable.addRow(
+                    infoExtractor.getName(onDemandEntry.payee),
+                    infoExtractor.getId(onDemandEntry.payee),
+                    entityType == null ? Integer.toString(entityTypeInt) : entityType.name(),
+                    onDemandEntry.price.getUnit().name(),
+                    onDemandEntry.price.getEndRangeInUnits() == 0 ? "Inf" : Long.toString(onDemandEntry.price.getEndRangeInUnits()),
+                    Double.toString(onDemandEntry.price.getPriceAmount().getAmount()),
+                    Double.toString(onDemandEntry.unitsBought));
+            }
+        }
+
+        @Nonnull
+        @Override
+        List<ColumnInfo> columnInfo() {
+            return COLUMN_INFOS;
+        }
+    }
+
+    /**
+     * A {@link JournalEntryTabulator} for {@link RIJournalEntry}.
+     *
+     * @param <ENTITY_CLASS> See {@link JournalEntry}.
+     */
+    private static class RIEntryTabulator<ENTITY_CLASS> extends JournalEntryTabulator<ENTITY_CLASS> {
+
+        private static final List<ColumnInfo> COLUMN_INFOS = ImmutableList.<ColumnInfo>builder()
+                .add(new ColumnInfo("RI Tier ID", 14, 18))
+                .add(new ColumnInfo("RI ID", 14, 18))
+                .add(new ColumnInfo("RI Spec ID", 14, 18))
+                .add(new ColumnInfo("Coupons", 10, 10))
+                .add(new ColumnInfo("Cost", 10, 10))
+                .build();
+
+        private RIEntryTabulator() {
+            super(RIJournalEntry.class);
+        }
+
+        @Override
+        void addToTable(@Nonnull final JournalEntry<ENTITY_CLASS> entry,
+                        @Nonnull final AsciiTable asciiTable,
+                        @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor) {
+            if (entry instanceof RIJournalEntry) {
+                RIJournalEntry<ENTITY_CLASS> riEntry = (RIJournalEntry<ENTITY_CLASS>) entry;
+                asciiTable.addRow(
+                        // It would be nice to get the name of the tier here, if we can do it without
+                        // too much overhead.
+                        riEntry.riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId(),
+                        riEntry.riData.getReservedInstanceBought().getId(),
+                        riEntry.riData.getReservedInstanceSpec().getId(),
+                        riEntry.couponsCovered,
+                        riEntry.hourlyCost.getAmount());
+            }
+
+        }
+
+        @Override
+        @Nonnull
+        List<ColumnInfo> columnInfo() {
+            return COLUMN_INFOS;
         }
     }
 }

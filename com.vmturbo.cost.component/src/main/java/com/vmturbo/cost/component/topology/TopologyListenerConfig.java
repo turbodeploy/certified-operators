@@ -76,7 +76,8 @@ public class TopologyListenerConfig {
                 computeTierDemandStatsConfig.riDemandStatsWriter(),
                 cloudTopologyFactory(), topologyCostCalculator(), entityCostConfig.entityCostStore(),
                 reservedInstanceConfig.reservedInstanceCoverageUpload(),
-                costConfig.businessAccountHelper());
+                costConfig.businessAccountHelper(),
+                costJournalRecorder());
         topologyProcessor().addLiveTopologyListener(entitiesListener);
         return entitiesListener;
     }
@@ -125,5 +126,15 @@ public class TopologyListenerConfig {
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
                 reservedInstanceConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.entityReservedInstanceMappingStore());
+    }
+
+    @Bean
+    public CostJournalRecorder costJournalRecorder() {
+        return new CostJournalRecorder();
+    }
+
+    @Bean
+    public CostJournalRecorderController costJournalRecorderController() {
+        return new CostJournalRecorderController(costJournalRecorder());
     }
 }

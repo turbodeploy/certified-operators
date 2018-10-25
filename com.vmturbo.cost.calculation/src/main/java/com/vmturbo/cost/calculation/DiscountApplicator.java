@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.TextFormat;
 
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
@@ -146,6 +147,14 @@ public class DiscountApplicator<ENTITY_CLASS> {
         } else {
             return NO_DISCOUNT;
         }
+    }
+
+    @Override
+    public String toString() {
+        if (this == EMPTY_APPLICATOR || discount == null) {
+            return "No Discount";
+        }
+        return TextFormat.printToString(discount);
     }
 
     /**

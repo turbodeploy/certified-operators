@@ -45,13 +45,16 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final BusinessAccountHelper businessAccountHelper;
 
+    private final CostJournalRecorder journalRecorder;
+
     public LiveTopologyEntitiesListener(long realtimeTopologyContextId,
                                         @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
                                         @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                         @Nonnull final TopologyCostCalculator topologyCostCalculator,
                                         @Nonnull final EntityCostStore entityCostStore,
                                         @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
-                                        @Nonnull final BusinessAccountHelper businessAccountHelper) {
+                                        @Nonnull final BusinessAccountHelper businessAccountHelper,
+                                        @Nonnull final CostJournalRecorder journalRecorder) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.cloudTopologyFactory = cloudTopologyFactory;
@@ -59,6 +62,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         this.entityCostStore = Objects.requireNonNull(entityCostStore);
         this.reservedInstanceCoverageUpdate = Objects.requireNonNull(reservedInstanceCoverageUpdate);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
+        this.journalRecorder = Objects.requireNonNull(journalRecorder);
     }
 
     @Override
@@ -82,6 +86,9 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
         final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);
+
+        journalRecorder.recordCostJournals(costs);
+
         try {
             entityCostStore.persistEntityCost(costs);
         } catch (DbException e) {

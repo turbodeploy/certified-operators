@@ -129,7 +129,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         if (!ENTITY_TYPES_WITH_COST.contains(entityInfoExtractor.getEntityType(entity))) {
             logger.debug("Skipping cost calculation for entity {} due to unsupported entity type {}",
                 entityId, entityInfoExtractor.getEntityType(entity));
-            // Not supporting cost calculation for anything other than VMs for now.
             return CostJournal.empty(entity, entityInfoExtractor);
         }
 

@@ -104,7 +104,8 @@ public class CostComponent extends BaseVmtComponent {
                 .addService(ServerInterceptors.intercept(costConfig.costRpcService(), monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(
                         reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(), monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(costServiceConfig.riAndExpenseUploadRpcService(), monitoringInterceptor));
+                .addService(ServerInterceptors.intercept(costServiceConfig.riAndExpenseUploadRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(costServiceConfig.costDebugRpcService(), monitoringInterceptor));
         return Optional.of(builder.build());
     }
 }

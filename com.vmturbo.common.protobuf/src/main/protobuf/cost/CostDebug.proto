@@ -1,0 +1,85 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+message EnableCostRecordingRequest {
+    message EntityFilter {
+        // Cannot be empty - empty will be a no op.
+        repeated int64 entity_ids = 1;
+    }
+
+    message CountFilter {
+        // Must be a positive number.
+        optional int32 count = 1;
+    }
+
+    oneof filter {
+        // Enable cost journal recording for specific entities.
+        // The journals of dependent entities will also be recorded, whether or not
+        // they are part of the selection.
+        EntityFilter entity = 1;
+
+        // Enable cost journal for a certain number of randomly selected entities.
+        // The journals of dependent entities will also be recorded, whether or not
+        // they are part of the selection.
+        CountFilter count = 2;
+
+        // Enable cost journal recording for ALL entities.
+        // This is very powerful for debugging, but with great power comes great responsibility.
+        // Because performance will suck.
+        bool record_all = 3;
+    }
+
+    // How many broadcasts to enable the request for.
+    optional int32 num_broadcasts = 10 [default = 2];
+}
+
+message EnableCostRecordingResponse {
+}
+
+message DisableCostRecordingRequest {
+    // Resets to the default behaviour.
+}
+
+message DisableCostRecordingResponse {
+}
+
+message GetRecordedCostsRequest {
+    // Get costs for a specific entity.
+    // If not present, return costs for all entities.
+    optional int64 entity_id = 1;
+}
+
+message RecordedCost {
+    // The string serialization/visualization of the cost journal.
+    optional string cost_journal_description = 1;
+}
+
+// A service for debugging-related information in the cost component.
+// This shouldn't be called from the core "application" code - it's helper
+// methods to help diagnose errors.
+service CostDebugService {
+
+    // Enable custom cost journal recording.
+    // This will cause the cost component to save the cost journals of entities matching the
+    // criteria in the request for a certain number of broadcasts. These cost journals can
+    // then be retrieved via:
+    //    - GetRecordedCosts
+    //    - POST <containerIp>/costJournal
+    // Use this if you want to figure out why a certain cost is the way it is.
+    // Using this method - especially if selecting a lot of entities - can dramatically slow
+    // the performance of the cost component. Use with caution, and don't forget to disable
+    // recording.
+    rpc EnableCostRecording(EnableCostRecordingRequest) returns (EnableCostRecordingResponse);
+
+    // Disable cost journal recording.
+    // This reverses the effects of EnableCostRecording.
+    rpc DisableCostRecording(DisableCostRecordingRequest) returns (DisableCostRecordingResponse);
+
+    // Get the cost journals.
+    // This is an alternative to POST <containerIp>/costJournal.
+    // TODO (roman, Oct 25 2018): Extend the gRPC REST plugin to allow this call to be mapped
+    // directly to the POST.
+    rpc GetRecordedCosts(GetRecordedCostsRequest) returns (stream RecordedCost);
+}

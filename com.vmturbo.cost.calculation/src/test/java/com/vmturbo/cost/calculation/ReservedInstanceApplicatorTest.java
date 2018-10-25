@@ -4,6 +4,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyDouble;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -98,7 +100,7 @@ public class ReservedInstanceApplicatorTest {
         assertThat(coveredPercentage, closeTo(0.5, 0.0001));
 
         final ArgumentCaptor<CurrencyAmount> amountCaptor = ArgumentCaptor.forClass(CurrencyAmount.class);
-        verify(costJournal).recordRiCost(eq(CostCategory.COMPUTE), eq(riData), amountCaptor.capture());
+        verify(costJournal).recordRiCost(eq(CostCategory.COMPUTE), eq(riData), eq(5.0), amountCaptor.capture());
         CurrencyAmount amount = amountCaptor.getValue();
         // 10 + 10 + (3650 / (1 * 365 * 24)) = 30 <- hourly cost per instance
         // 30 / 10 = 3 <- hourly cost per coupon
@@ -132,7 +134,7 @@ public class ReservedInstanceApplicatorTest {
         assertThat(coveredPercentage, is(1.0));
 
         final ArgumentCaptor<CurrencyAmount> amountCaptor = ArgumentCaptor.forClass(CurrencyAmount.class);
-        verify(costJournal).recordRiCost(eq(CostCategory.COMPUTE), eq(riData), amountCaptor.capture());
+        verify(costJournal).recordRiCost(eq(CostCategory.COMPUTE), eq(riData), eq(100.0), amountCaptor.capture());
         CurrencyAmount amount = amountCaptor.getValue();
         // 10 + 10 + (3650 / (1 * 365 * 24)) = 30 <- hourly cost per instance
         // 30 / 10 = 3 <- hourly cost per coupon
@@ -156,7 +158,7 @@ public class ReservedInstanceApplicatorTest {
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
-        verify(costJournal, never()).recordRiCost(any(), any(), any());
+        verify(costJournal, never()).recordRiCost(any(), any(), anyLong(), any());
     }
 
     @Test
@@ -175,7 +177,7 @@ public class ReservedInstanceApplicatorTest {
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
-        verify(costJournal, never()).recordRiCost(any(), any(), any());
+        verify(costJournal, never()).recordRiCost(any(), any(), anyLong(), any());
     }
 
     @Test
@@ -197,6 +199,6 @@ public class ReservedInstanceApplicatorTest {
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
-        verify(costJournal, never()).recordRiCost(any(), any(), any());
+        verify(costJournal, never()).recordRiCost(any(), any(), anyLong(), any());
     }
 }
