@@ -45,6 +45,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
@@ -171,13 +172,13 @@ public class TopologyRpcServiceTest {
 
         @Nonnull
         @Override
-        public TopologyGraph execute(@Nonnull EntityStore entityStore)
+        public StageResult<TopologyGraph> execute(@Nonnull EntityStore entityStore)
             throws PipelineStageException, InterruptedException {
             final TopologyGraph mockGraph = mock(TopologyGraph.class);
             when(mockGraph.entities()).thenReturn(
                 Stream.of(TopologyEntity.newBuilder(entityDTO).build()));
 
-            return mockGraph;
+            return StageResult.withResult(mockGraph).andStatus(TopologyPipeline.Status.success());
         }
     }
 }

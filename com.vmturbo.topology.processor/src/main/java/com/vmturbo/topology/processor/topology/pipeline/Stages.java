@@ -6,44 +6,39 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
@@ -71,6 +66,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
@@ -80,6 +76,8 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
@@ -108,9 +106,13 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final StitchingContext input) throws PipelineStageException {
+        public Status passthrough(final StitchingContext input) throws PipelineStageException {
             // upload the cloud-related cost data to the cost component
             cloudCostUploader.uploadCostData(getContext().getTopologyInfo(), input);
+            // TODO (roman, Oct 23 2018): Provide some additional information regarding
+            // the cost upload - e.g. how many things got uploaded, did anything get skipped,
+            // and so on.
+            return Status.success();
         }
     }
 
@@ -128,8 +130,12 @@ public class Stages {
 
         @Nonnull
         @Override
-        public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
+        public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
             discoveredGroupUploader.uploadDiscoveredGroups(input);
+            // TODO (roman, Oct 23 2018): Provide some additional information regarding
+            // the group upload - e.g. how many groups got uploaded, did anything get skipped,
+            // and so on.
+            return Status.success();
         }
     }
 
@@ -148,8 +154,12 @@ public class Stages {
 
         @Nonnull
         @Override
-        public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
+        public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
             discoveredWorkflowUploader.uploadDiscoveredWorkflows();
+            // TODO (roman, Oct 23 2018): Provide some additional information regarding
+            // the workflow upload - e.g. how many workflows got uploaded, did anything get skipped,
+            // and so on.
+            return Status.success();
         }
     }
 
@@ -166,11 +176,12 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final Map<Long, TopologyEntity.Builder> input) throws PipelineStageException {
+        public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
             try {
                 notifier.sendTemplateDeploymentProfileData();
+                return Status.success();
             } catch (CommunicationException e) {
-                throw new PipelineStageException(e);
+                return Status.failed("Failed to send data: " + e.getLocalizedMessage());
             }
         }
     }
@@ -205,7 +216,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StitchingContext execute(@Nonnull final EntityStore entityStore) {
+        public StageResult<StitchingContext> execute(@Nonnull final EntityStore entityStore) {
             final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
             final StitchingContext stitchingContext = entityStore.constructStitchingContext();
             preparationTimer.observe();
@@ -219,7 +230,19 @@ public class Stages {
             }
 
             getContext().getStitchingJournalContainer().setMainStitchingJournal(journal);
-            return stitchingManager.stitch(stitchingContext, journal);
+            final StitchingContext context = stitchingManager.stitch(stitchingContext, journal);
+
+            final StitchingMetrics metrics = journal.getMetrics();
+            final String status = new StringBuilder()
+                    .append(metrics.getTotalChangesetsGenerated())
+                    .append(" changesets generated\n")
+                    .append(metrics.getTotalChangesetsIncluded())
+                    .append(" changesets included\n")
+                    .append(metrics.getTotalEmptyChangests())
+                    .append(" empty changesets\n")
+                    .toString();
+            return StageResult.withResult(context)
+                .andStatus(Status.success(status));
         }
     }
 
@@ -243,9 +266,10 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(StitchingContext input) throws PipelineStageException {
-            stitchingGroupFixer.fixupGroups(input.getStitchingGraph(),
+        public Status passthrough(StitchingContext input) throws PipelineStageException {
+            final int fixedUpGroups = stitchingGroupFixer.fixupGroups(input.getStitchingGraph(),
                 discoveredGroupUploader.buildMemberCache());
+            return Status.success("Fixed up " + fixedUpGroups + " groups.");
         }
     }
 
@@ -275,18 +299,22 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final StitchingContext stitchingContext) {
+        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@Nonnull final StitchingContext stitchingContext) {
+            Status status;
             try {
                 settingPolicyScanner.scanForDiscoveredSettingPolicies(stitchingContext,
                     discoveredGroupUploader);
+                // TODO (roman, Oct 23 2018): Record the number of discovered groups and setting
+                // policies in the status.
+                status = Status.success();
             } catch (RuntimeException e) {
                 // This stage is not required, but it's not quite a passthrough either. If an
                 // exception occurs, log a warning and continue.
-                logger.warn("Non-required pipeline stage {} failed with error: {}",
-                    getClass().getSimpleName(), e.getMessage());
+                status = Status.withWarnings(e.getMessage());
             }
 
-            return stitchingContext.constructTopology();
+            return StageResult.withResult(stitchingContext.constructTopology())
+                .andStatus(status);
         }
     }
 
@@ -305,8 +333,9 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final TopologyGraph topologyGraph) {
-            applicationCommodityKeyChanger.execute(topologyGraph);
+        public Status passthrough(final TopologyGraph topologyGraph) {
+            final int keysChanged = applicationCommodityKeyChanger.execute(topologyGraph);
+            return Status.success(keysChanged + " commodity keys changed.");
         }
     }
 
@@ -323,8 +352,10 @@ public class Stages {
 
         @Nonnull
         @Override
-        public void passthrough(@Nonnull final TopologyGraph topologyGraph) {
+        public Status passthrough(@Nonnull final TopologyGraph topologyGraph) {
             discoveredClusterConstraintCache.applyClusterCommodity(topologyGraph);
+            // TODO (roman, Oct 23 2018): Provide some information about modified commodities.
+            return Status.success();
         }
     }
 
@@ -340,8 +371,11 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final StitchingContext stitchingContext) {
-            return stitchingContext.constructTopology();
+        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@Nonnull final StitchingContext stitchingContext) {
+            final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+            return StageResult.withResult(topology)
+                .andStatus(Status.success("Constructed topology of size " + topology.size() +
+                    " from context of size " + stitchingContext.size()));
         }
     }
 
@@ -361,17 +395,20 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final Long topologyId) {
+        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@Nonnull final Long topologyId) {
             // we need to gather the entire topology in order to perform editing below
             Iterable<RepositoryDTO.RetrieveTopologyResponse> dtos =
                 () -> repository.retrieveTopology(topologyId);
-            return StreamSupport.stream(dtos.spliterator(), false)
-                .map(RepositoryDTO.RetrieveTopologyResponse::getEntitiesList)
-                .flatMap(List::stream)
-                .map(TopologyEntityDTO::toBuilder)
-                .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
-                    // TODO: Persist and pass through discovery information for this entity.
-                    TopologyEntity::newBuilder));
+            final Map<Long, TopologyEntity.Builder> topology =
+                StreamSupport.stream(dtos.spliterator(), false)
+                    .map(RepositoryDTO.RetrieveTopologyResponse::getEntitiesList)
+                    .flatMap(List::stream)
+                    .map(TopologyEntityDTO::toBuilder)
+                    .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
+                        // TODO: Persist and pass through discovery information for this entity.
+                        TopologyEntity::newBuilder));
+            return StageResult.withResult(topology)
+                .andStatus(Status.success("Retrieved topology of size " + topology.size()));
         }
     }
 
@@ -392,13 +429,16 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             // Topology editing should use a group resolver distinct from the rest of the pipeline.
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
             // added or removed during editing.
             final GroupResolver groupResolver = new GroupResolver(new TopologyFilterFactory());
             topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
+            // TODO (roman, Oct 23 2018): Add some information about the number/type of
+            // modifications made.
+            return Status.success();
         }
 
         @Override
@@ -416,8 +456,9 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            reservationManager.applyReservation(input);
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            final int numAdded = reservationManager.applyReservation(input);
+            return Status.success("Added " + numAdded + " reserved entities to the topology.");
         }
     }
 
@@ -432,9 +473,12 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            controllableManager.applyControllable(input);
-            controllableManager.applySuspendable(input);
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            final int controllableModified = controllableManager.applyControllable(input);
+            final int suspendableModified = controllableManager.applySuspendable(input);
+            return Status.success("Marked " + controllableModified +
+                    " entities as non-controllable and " + suspendableModified +
+                    " entities as non-suspendable.");
         }
     }
 
@@ -467,10 +511,10 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final TopologyGraph input) throws PipelineStageException {
+        public Status passthrough(final TopologyGraph input) throws PipelineStageException {
             // if no scope to apply, this function does nothing.
             if (planScope.getScopeEntriesCount() == 0) {
-                return;
+                return Status.success("No scope to apply.");
             }
             // translate the set of groups and entities in the plan scope into a list of "seed"
             // entities for the market to focus on. The list of "seeds" should include all seeds
@@ -518,6 +562,9 @@ public class Stages {
                 topologyInfoBuilder.clearScopeSeedOids();
                 topologyInfoBuilder.addAllScopeSeedOids(seedEntities);
             });
+
+            return Status.success("Added " + seedEntities.size() +
+                    " seed entities to topology info.");
         }
     }
 
@@ -528,8 +575,10 @@ public class Stages {
 
         @Nonnull
         @Override
-        public TopologyGraph execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            return TopologyGraph.newGraph(input);
+        public StageResult<TopologyGraph> execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            final TopologyGraph graph = TopologyGraph.newGraph(input);
+            return StageResult.withResult(graph)
+                .andStatus(Status.success());
         }
     }
 
@@ -553,8 +602,10 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
+        public Status passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
             commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(), scope);
+            // TODO (roman, 23 Oct 2018): Add some information about number/type of modified commodities?
+            return Status.success();
         }
     }
 
@@ -580,9 +631,11 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(TopologyGraph input) throws PipelineStageException {
+        public Status passthrough(TopologyGraph input) throws PipelineStageException {
             boolean isPressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(getContext().getTopologyInfo());
             constraintsEditor.editConstraints(input, changes, isPressurePlan);
+            // TODO (roman, 23 Oct 2018): Add some high-level information about modifications made.
+            return Status.success();
         }
     }
 
@@ -606,8 +659,17 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(@Nonnull final TopologyGraph input) {
-            policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
+        public Status passthrough(@Nonnull final TopologyGraph input) {
+            final Map<PolicyDetailCase, Integer> policyTypeCount =
+                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
+            if (policyTypeCount.isEmpty()) {
+                return Status.success("No policies to apply.");
+            } else {
+                return Status.success("(policy type) : (num applied)\n" +
+                        policyTypeCount.entrySet().stream()
+                                .map(entry -> entry.getKey() + " : " + entry.getValue())
+                                .collect(Collectors.joining("\n")));
+            }
         }
     }
 
@@ -642,14 +704,21 @@ public class Stages {
 
         @Nonnull
         @Override
-        public GraphWithSettings execute(@Nonnull final TopologyGraph topologyGraph) {
+        public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph topologyGraph) {
             try {
-                return entitySettingsResolver.resolveSettings(getContext().getGroupResolver(),
-                    topologyGraph, settingOverrides, getContext().getTopologyInfo());
+                final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
+                    getContext().getGroupResolver(), topologyGraph,
+                    settingOverrides, getContext().getTopologyInfo());
+                return StageResult.withResult(graphWithSettings)
+                    // TODO (roman, Oct 23 2018): Provide some information about number of
+                    // setting policies applied.
+                    .andStatus(Status.success());
             } catch (RuntimeException e) {
                 logger.error("Error resolving settings for graph", e);
-                return new GraphWithSettings(topologyGraph,
+                final GraphWithSettings graphWithSettings = new GraphWithSettings(topologyGraph,
                     Collections.emptyMap(), Collections.emptyMap());
+                return StageResult.withResult(graphWithSettings)
+                    .andStatus(Status.failed("Failed settings resolution: " + e.getLocalizedMessage()));
             }
         }
     }
@@ -666,11 +735,12 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             // This method does a sync call to Group Component.
             // If GC has trouble, the topology broadcast would be delayed.
             entitySettingsResolver.sendEntitySettings(getContext().getTopologyInfo(),
                 input.getEntitySettings());
+            return Status.success();
         }
     }
 
@@ -688,8 +758,11 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             settingsApplicator.applySettings(getContext().getTopologyInfo(), input);
+            // TODO (roman, Oct 23 2018): Information about number of entities modified as part of
+            // setting application.
+            return Status.success();
         }
     }
 
@@ -709,7 +782,7 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             // Set up the post-stitching journal.
             final IStitchingJournal<StitchingEntity> mainJournal = getContext()
                 .getStitchingJournalContainer()
@@ -724,6 +797,20 @@ public class Stages {
             if (postStitchingJournal.shouldDumpTopologyAfterPostStitching()) {
                 postStitchingJournal.dumpTopology(input.getTopologyGraph().entities());
             }
+
+            final StitchingMetrics main = mainJournal.getMetrics();
+            final StitchingMetrics postStitching = postStitchingJournal.getMetrics();
+
+            final String status = new StringBuilder()
+                .append(postStitching.getTotalChangesetsGenerated() - main.getTotalChangesetsGenerated())
+                    .append(" changesets generated\n")
+                .append(postStitching.getTotalChangesetsIncluded() - main.getTotalChangesetsIncluded())
+                    .append(" changesets included\n")
+                .append(postStitching.getTotalEmptyChangests() - main.getTotalEmptyChangests())
+                    .append(" empty changesets\n")
+                .toString();
+
+            return Status.success(status);
         }
     }
 
@@ -742,9 +829,10 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             try {
                 entityValidator.validateTopologyEntities(input.getTopologyGraph().entities());
+                return Status.success();
             } catch (EntitiesValidationException e) {
                 throw new PipelineStageException(e);
             }
@@ -770,8 +858,20 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
-            supplyChainValidator.validateTopologyEntities(input.getTopologyGraph().entities());
+        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
+            final List<SupplyChainValidationFailure> validationErrors =
+                    supplyChainValidator.validateTopologyEntities(input.getTopologyGraph().entities());
+            final Map<String, Long> errorsByType = validationErrors.stream()
+                .collect(Collectors.groupingBy(error -> error.getClass().getSimpleName(), Collectors.counting()));
+
+            if (errorsByType.isEmpty()) {
+                return Status.success("No supply chain validation errors.");
+            } else {
+                return Status.withWarnings("Supply chain validation error counts:\n" +
+                        errorsByType.entrySet().stream()
+                                .map(entry -> entry.getKey() + " : " + entry.getValue())
+                                .collect(Collectors.joining("\n")));
+            }
         }
 
         @Override
@@ -791,9 +891,10 @@ public class Stages {
     public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph> {
         @Nonnull
         @Override
-        public TopologyGraph execute(@Nonnull final GraphWithSettings graphWithSettings)
-            throws PipelineStageException, InterruptedException {
-            return graphWithSettings.getTopologyGraph();
+        public StageResult<TopologyGraph> execute(@Nonnull final GraphWithSettings graphWithSettings)
+                throws PipelineStageException, InterruptedException {
+            return StageResult.withResult(graphWithSettings.getTopologyGraph())
+                .andStatus(Status.success());
         }
     }
 
@@ -814,7 +915,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public TopologyBroadcastInfo execute(@Nonnull final TopologyGraph input)
+        public StageResult<TopologyBroadcastInfo> execute(@Nonnull final TopologyGraph input)
             throws PipelineStageException, InterruptedException {
 
             // Record TopologyInfo and Metrics to the journal if there is one.
@@ -827,17 +928,27 @@ public class Stages {
                 .map(topologyEntity -> topologyEntity.getTopologyEntityDtoBuilder().build())
                 .iterator();
             try {
+                final TopologyBroadcastInfo broadcastInfo;
                 switch (getContext().getTopologyInfo().getTopologyType()) {
                     case REALTIME:
-                        return broadcastTopology(broadcastManagers.stream()
+                        broadcastInfo =broadcastTopology(broadcastManagers.stream()
                             .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastLiveTopology)
                             .collect(Collectors.toList()), entities);
+                        break;
                     case PLAN:
-                        return broadcastTopology(broadcastManagers.stream()
+                        broadcastInfo = broadcastTopology(broadcastManagers.stream()
                             .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastUserPlanTopology)
                             .collect(Collectors.toList()), entities);
+                        break;
                     default:
                         throw new IllegalStateException();
+                }
+                if (broadcastInfo.getEntityCount() == 0) {
+                    return StageResult.withResult(broadcastInfo)
+                            .andStatus(Status.withWarnings("No entities broadcast."));
+                } else {
+                    return StageResult.withResult(broadcastInfo)
+                            .andStatus(Status.success("Broadcast " + broadcastInfo.getEntityCount() + " entities."));
                 }
             } catch (CommunicationException e) {
                 throw new PipelineStageException(e);

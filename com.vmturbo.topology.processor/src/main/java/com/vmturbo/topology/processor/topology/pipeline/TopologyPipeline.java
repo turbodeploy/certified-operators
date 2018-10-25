@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.time.Clock;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -59,10 +60,13 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
 
     private final TopologyPipelineContext context;
 
+    private final TopologyPipelineSummary pipelineSummary;
+
     private TopologyPipeline(@Nonnull final List<Stage> stages,
                              @Nonnull final TopologyPipelineContext context) {
         this.stages = stages;
         this.context = context;
+        this.pipelineSummary = new TopologyPipelineSummary(Clock.systemUTC(), context, stages);
     }
 
     /**
@@ -79,6 +83,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
             throws TopologyPipelineException, InterruptedException {
         LOGGER.info("Running the topology pipeline for context {}",
                 context.getTopologyInfo().getTopologyContextId());
+        pipelineSummary.start();
         Object curStageInput = input;
         try (DataMetricTimer pipelineTimer =
                  TOPOLOGY_BROADCAST_SUMMARY.labels(context.getTopologyTypeName()).startTimer()) {
@@ -89,17 +94,19 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                     // TODO (roman, Nov 13) OM-27195: Consider refactoring the builder and pipeline
                     // into more of a linked-list format so that there is better type safety.
                     LOGGER.info("Executing stage {}", stage.getClass().getSimpleName());
-                    curStageInput = stage.execute(curStageInput);
+                    final StageResult result = stage.execute(curStageInput);
+                    curStageInput = result.result;
+                    pipelineSummary.endStage(result.status);
                 } catch (PipelineStageException | RuntimeException e) {
                     final String message = "Topology pipeline failed at stage " +
                             stage.getClass().getSimpleName() + " with error: " + e.getMessage();
-                    // Put a log message here as well, just in case the caller
-                    // of the pipeline forgets to log the exception.
-                    LOGGER.error(message, e);
+                    pipelineSummary.fail(message);
+                    LOGGER.info("\n{}", pipelineSummary);
                     throw new TopologyPipelineException(message, e);
                 }
             }
         }
+        LOGGER.info("\n{}", pipelineSummary);
         LOGGER.info("Topology pipeline for context {} finished successfully.",
                 context.getTopologyInfo().getTopologyContextId());
         return (PipelineOutput)curStageInput;
@@ -129,11 +136,13 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
 
         @Nonnull
         @Override
-        public InputType execute(@Nonnull InputType input) throws PipelineStageException {
+        public StageResult<InputType> execute(@Nonnull InputType input) throws PipelineStageException {
+            Status status = null;
             try {
-                passthrough(input);
+                status = passthrough(input);
             } catch (PipelineStageException e) {
                 if (!required()) {
+                    status = Status.failed("Error: " + e.getLocalizedMessage());
                     LOGGER.warn("Non-required pipeline stage {} failed with error: {}",
                             getClass().getSimpleName(), e.getMessage());
                 } else {
@@ -141,16 +150,191 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                 }
             } catch (RuntimeException e) {
                 if (!required()) {
+                    status = Status.failed("Runtime Error: " + e.getLocalizedMessage());
                     LOGGER.warn("Non-required pipeline stage {} failed with runtime Error: {}",
                             getClass().getSimpleName(), e.getMessage(), e);
                 } else {
                     throw new PipelineStageException(e);
                 }
             }
-            return input;
+            return StageResult.withResult(input)
+                    .andStatus(status);
         }
 
-        public abstract void passthrough(InputType input) throws PipelineStageException;
+        @Nonnull
+        public abstract Status passthrough(InputType input) throws PipelineStageException;
+    }
+
+    /**
+     * The output of a {@link Stage}. Essentially a semantically meaningful pair.
+     *
+     * @param <OutputType> The output type of the associated {@link Stage}.
+     */
+    public static class StageResult<OutputType> {
+
+        private final OutputType result;
+
+        private final Status status;
+
+        /**
+         * Use {@link StageResult#withResult(Object)}.
+         */
+        private StageResult(@Nonnull final Status status, @Nonnull final OutputType outputType) {
+            this.status = Objects.requireNonNull(status);
+            this.result = Objects.requireNonNull(outputType);
+        }
+
+        @Nonnull
+        public OutputType getResult() {
+            return result;
+        }
+
+        /**
+         * @return The status the stage completed with.
+         */
+        @Nonnull
+        public Status status() {
+            return status;
+        }
+
+        /**
+         * Factory method to start the construction of a {@link StageResult}.
+         *
+         * @param result The result of running the {@link Stage}.
+         * @param <OutputType> See {@link StageResult}.
+         * @return A {@link Builder} to complete the construction.
+         */
+        public static <OutputType> Builder<OutputType> withResult(@Nonnull final OutputType result) {
+            return new Builder<>(result);
+        }
+
+        public static class Builder<OutputType> {
+            private final OutputType result;
+
+            private Builder(@Nonnull final OutputType result) {
+                this.result = result;
+            }
+
+            /**
+             * Complete the construction of a {@link StageResult} by setting the status the stage
+             * completed with.
+             *
+             * @param status The status.
+             * @return The {@link StageResult}.
+             */
+            @Nonnull
+            public StageResult<OutputType> andStatus(@Nonnull final Status status) {
+                return new StageResult<>(status, result);
+            }
+        }
+    }
+
+    /**
+     * The status of a completed pipeline stage.
+     */
+    public static class Status {
+
+        /**
+         * The type of the status.
+         */
+        public enum Type {
+            /**
+             * Succeeded - the stage did what it's supposed to do with no major hiccups.
+             */
+            SUCCEEDED,
+
+            /**
+             * Warning - the stage encountered some errors, but the errors were not fatal in
+             * the sense that there was no significant impact on the resulting topology or
+             * the system.
+             *
+             * For example, if there are no discovered groups and we fail to upload discovered
+             * groups due to a connection error, that might be a WARNING status instead of
+             * FAILED.
+             */
+            WARNING,
+
+            /**
+             * Failed - the stage crashed and burned miserably. There should be no FAILED
+             * statuses in the pipeline.
+             *
+             * This status means that the stage failed in a way that would have a non-trivial impact
+             * on the resulting topology.
+             */
+            FAILED;
+        }
+
+        private Type type;
+
+        private String message;
+
+        private Status(@Nonnull final String message,
+                       final Type type) {
+            this.type = type;
+            this.message = message;
+        }
+
+        /**
+         * @return The message the stage completed with. May be empty if the stage completed
+         *         successfully with no message.
+         */
+        @Nonnull
+        public String getMessage() {
+            return message;
+        }
+
+        /**
+         * @return The status type.
+         */
+        public Type getType() {
+            return type;
+        }
+
+        /**
+         * The stage failed. See {@link Type.FAILED}.
+         *
+         * @param message The message to display to summarize the failure.
+         * @return The failure status.
+         */
+        public static Status failed(@Nonnull final String message) {
+            return new Status(message, Type.FAILED);
+        }
+
+        /**
+         * The stage succeeded. When possible, use {@link Status#success(String)} instead to
+         * communicate useful information about what happened during the stage
+         * (e.g. modified 5 entities).
+         *
+         * @return The successful status.
+         */
+        public static Status success() {
+            return new Status("", Type.SUCCEEDED);
+        }
+
+        /**
+         * The stage succeeded.
+         *
+         * @param message A message describing what happened during the stage. This could be
+         *                purely informative, or contain relatively harmless errors that occurred
+         *                during the process. Use {@link Status#withWarnings(String)} if a stage
+         *                completed with serious warnings/errors.
+         * @return The successful status.
+         */
+        public static Status success(@Nonnull final String message) {
+            return new Status(message, Type.SUCCEEDED);
+        }
+
+        /**
+         * The stage suceeded - i.e. it didn't fail - but there were serious issues during the
+         * stage execution that may dramatically affect the result of the stage or the result
+         * of the pipeline.
+         *
+         * @param message A summary of the warning. This should be no longer than a few lines.
+         * @return The warning status.
+         */
+        public static Status withWarnings(@Nonnull final String message) {
+            return new Status(message, Type.WARNING);
+        }
     }
 
     /**
@@ -172,7 +356,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
          * @throws InterruptedException If the stage is interrupted.
          */
         @Nonnull
-        public abstract StageOutput execute(@Nonnull StageInput input)
+        public abstract StageResult<StageOutput> execute(@Nonnull StageInput input)
                 throws PipelineStageException, InterruptedException;
 
         @VisibleForTesting
@@ -183,6 +367,11 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
         @Nonnull
         protected TopologyPipelineContext getContext() {
             return context;
+        }
+
+        @Nonnull
+        public String getName() {
+            return getClass().getSimpleName();
         }
     }
 

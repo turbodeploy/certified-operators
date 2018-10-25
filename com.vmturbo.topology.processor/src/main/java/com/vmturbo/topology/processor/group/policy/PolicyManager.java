@@ -125,8 +125,9 @@ public class PolicyManager {
      * @param graph The topology graph on which to apply the policies.
      * @param groupResolver The resolver for the groups that the policy applies to.
      * @param changes list of plan changes to be applied to the policies
+     * @return Map from (type of policy) -> (num of policies of the type)
      */
-    public void applyPolicies(@Nonnull final TopologyGraph graph,
+    public Map<PolicyDetailCase, Integer> applyPolicies(@Nonnull final TopologyGraph graph,
                               @Nonnull final GroupResolver groupResolver,
                               List<ScenarioChange> changes) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
@@ -147,6 +148,7 @@ public class PolicyManager {
 
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
+            return policyTypeCounts;
         }
     }
 

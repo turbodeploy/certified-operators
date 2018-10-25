@@ -20,6 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 public class TopologyPipelineTest {
@@ -122,16 +124,18 @@ public class TopologyPipelineTest {
     public static class TestStage extends Stage<Long, Long> {
         @Nonnull
         @Override
-        public Long execute(@Nonnull final Long input)
+        public StageResult<Long> execute(@Nonnull final Long input)
                 throws PipelineStageException, InterruptedException {
-            return input;
+            return StageResult.withResult(input)
+                .andStatus(Status.success());
         }
     }
 
     public static class TestPassthroughStage extends PassthroughStage<Long> {
         @Override
-        public void passthrough(final Long input) throws PipelineStageException {
+        public Status passthrough(final Long input) throws PipelineStageException {
             // Don't do anything.
+            return Status.success();
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -47,9 +48,11 @@ public class ApplicationCommodityKeyChanger {
      * Executes the key change to all the replica vms.
      *
      * @param topologyGraph graph of the current discovered topology.
+     * @return Number of modified commodity keys.
      */
-    public void execute(@Nonnull final TopologyGraph topologyGraph) {
+    public int execute(@Nonnull final TopologyGraph topologyGraph) {
 
+        final AtomicInteger numChanged = new AtomicInteger(0);
         // iterate over all the VMs and check which ones needs to be changed
         topologyGraph.entitiesOfType(EntityType.VIRTUAL_MACHINE).forEach(vm -> {
 
@@ -74,6 +77,7 @@ public class ApplicationCommodityKeyChanger {
                     // same app commodity in the replicated vm
                     // we are using the vm oid, because it's guaranteed to be unique
                     String newCommKey = Long.toString(vm.getOid());
+                    numChanged.incrementAndGet();
                     appComm.setKey(newCommKey);
 
                     // change app key on apps that are consuming from the vm
@@ -110,6 +114,7 @@ public class ApplicationCommodityKeyChanger {
             }
         });
 
+        return numChanged.get();
     }
 
 }

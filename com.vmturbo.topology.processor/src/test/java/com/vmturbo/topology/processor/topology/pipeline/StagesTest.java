@@ -115,14 +115,14 @@ public class StagesTest {
         verify(uploader).sendTemplateDeploymentProfileData();
     }
 
-    @Test(expected = PipelineStageException.class)
+    @Test
     public void testUploadTemplatesStageException() throws Exception {
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
         final DiscoveredTemplateDeploymentProfileNotifier uploader =
                 mock(DiscoveredTemplateDeploymentProfileNotifier.class);
         doThrow(CommunicationException.class).when(uploader).sendTemplateDeploymentProfileData();
         final UploadTemplatesStage stage = new UploadTemplatesStage(uploader);
-        stage.passthrough(topology);
+        assertThat(stage.passthrough(topology).getType(), is(TopologyPipeline.Status.Type.FAILED));
     }
 
     @Test
@@ -148,7 +148,7 @@ public class StagesTest {
 
         final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory);
         stitchingStage.setContext(context);
-        assertThat(stitchingStage.execute(entityStore).constructTopology(), is(Collections.emptyMap()));
+        assertThat(stitchingStage.execute(entityStore).getResult().constructTopology(), is(Collections.emptyMap()));
         assertTrue(container.getMainStitchingJournal().isPresent());
         assertFalse(container.getPostStitchingJournal().isPresent());
 
@@ -181,7 +181,7 @@ public class StagesTest {
 
         final ScanDiscoveredSettingPoliciesStage scannerStage =
                 new ScanDiscoveredSettingPoliciesStage(scanner, uploader);
-        assertThat(scannerStage.execute(stitchingContext), is(Collections.emptyMap()));
+        assertThat(scannerStage.execute(stitchingContext).getResult(), is(Collections.emptyMap()));
         verify(scanner).scanForDiscoveredSettingPolicies(eq(stitchingContext), eq(uploader));
     }
 
@@ -196,7 +196,7 @@ public class StagesTest {
 
         final TopologyAcquisitionStage acquisitionStage =
                 new TopologyAcquisitionStage(repositoryClient);
-        Map<Long, TopologyEntity.Builder> ret = acquisitionStage.execute(1L);
+        Map<Long, TopologyEntity.Builder> ret = acquisitionStage.execute(1L).getResult();
         assertTrue(ret.containsKey(7L));
         assertThat(ret.get(7L).getOid(), is(7L));
         assertThat(ret.get(7L).getEntityType(), is(10));
@@ -255,7 +255,7 @@ public class StagesTest {
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
 
         final GraphCreationStage stage = new GraphCreationStage();
-        final TopologyGraph topologyGraph = stage.execute(topology);
+        final TopologyGraph topologyGraph = stage.execute(topology).getResult();
         assertThat(topologyGraph.size(), is(1));
         assertThat(topologyGraph.getEntity(7L).get().getTopologyEntityDtoBuilder(),
                 is(entity));
@@ -333,7 +333,7 @@ public class StagesTest {
         when(broadcastManager2.broadcastLiveTopology(eq(topologyInfo)))
                 .thenReturn(broadcast2);
 
-        final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph());
+        final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph()).getResult();
         assertThat(broadcastInfo.getEntityCount(), is(1L));
         assertThat(broadcastInfo.getTopologyContextId(), is(1L));
         assertThat(broadcastInfo.getTopologyId(), is(2L));
@@ -370,7 +370,7 @@ public class StagesTest {
         when(broadcastManager.broadcastUserPlanTopology(eq(topologyInfo)))
                 .thenReturn(broadcast);
 
-        final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph());
+        final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph()).getResult();
         assertThat(broadcastInfo.getEntityCount(), is(1L));
         assertThat(broadcastInfo.getTopologyContextId(), is(1L));
         assertThat(broadcastInfo.getTopologyId(), is(2L));

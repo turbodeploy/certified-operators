@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.controllable;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
@@ -36,8 +37,10 @@ public class ControllableManager {
      *
      * @param topology a Map contains all topology entities, and which key is entity Id, and value is
      *                 {@link TopologyEntity.Builder}.
+     * @return Number of modified entities.
      */
-    public void applyControllable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applyControllable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final AtomicInteger numModified = new AtomicInteger(0);
         final Set<Long> entityIdsNotControllable =
                 entityActionDao.getNonControllableEntityIds();
         entityIdsNotControllable.stream()
@@ -45,10 +48,16 @@ public class ControllableManager {
                 .map(topology::get)
                 .map(TopologyEntity.Builder::getEntityBuilder)
                 .forEach(entityBuilder -> {
+                        if (entityBuilder.getAnalysisSettingsBuilder().getControllable()) {
+                            // It's currently controllable, and about to be marked
+                            // non-controllable.
+                            numModified.incrementAndGet();
+                        }
                         entityBuilder.getAnalysisSettingsBuilder().setControllable(false);
                         logger.trace("Applying controllable false for entity {}.",
                                 entityBuilder.getDisplayName());
                 });
+        return numModified.get();
     }
 
     /**
@@ -57,18 +66,26 @@ public class ControllableManager {
      *
      * @param topology a Map contains all topology entities, and which key is entity Id, and value is
      *                 {@link TopologyEntity.Builder}.
+     * @return Number of modified entities.
      */
-    public void applySuspendable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applySuspendable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final AtomicInteger numModified = new AtomicInteger(0);
         final Set<Long> entityIdsNotSuspendable =
                 entityActionDao.getNonSuspendableEntityIds();
         entityIdsNotSuspendable.stream()
-                .filter(topology::containsKey)
-                .map(topology::get)
-                .map(TopologyEntity.Builder::getEntityBuilder)
-                .forEach(entityBuilder -> {
-                        entityBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
-                        logger.trace("Applying suspendable false for entity {}.",
-                                entityBuilder.getDisplayName());
-                });
+            .filter(topology::containsKey)
+            .map(topology::get)
+            .map(TopologyEntity.Builder::getEntityBuilder)
+            .forEach(entityBuilder -> {
+                if (entityBuilder.getAnalysisSettingsBuilder().getSuspendable()) {
+                    // It's currently suspendable, and about to be marked
+                    // non-suspendable.
+                    numModified.incrementAndGet();
+                }
+                entityBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
+                logger.trace("Applying suspendable false for entity {}.",
+                        entityBuilder.getDisplayName());
+            });
+        return numModified.get();
     }
 }

@@ -78,8 +78,9 @@ public class ReservationManager {
      * topology.
      *
      * @param topology a Map contains live discovered topologyEntity.
+     * @return The number of reservation entities
      */
-    public void applyReservation(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applyReservation(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest.newBuilder()
                 .build();
         final Iterable<Reservation> allReservations = () ->
@@ -110,9 +111,15 @@ public class ReservationManager {
 
         //TODO: (OM-29676) update existing topologyEntity utilization based on placement information
         // and only buy provision commodities.
-        reservationTopologyEntities.stream()
-                .forEach(topologyEntity -> topology.putIfAbsent(topologyEntity.getOid(),
-                        topologyEntity));
+        int numAdded = 0;
+        for (TopologyEntity.Builder reservedEntity : reservationTopologyEntities) {
+            final TopologyEntity.Builder existingEntity =
+                    topology.putIfAbsent(reservedEntity.getOid(), reservedEntity);
+            if (existingEntity == null) {
+                numAdded++;
+            }
+        }
+        return numAdded;
     }
 
     /**

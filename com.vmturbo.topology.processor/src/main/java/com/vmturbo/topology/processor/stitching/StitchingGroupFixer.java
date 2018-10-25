@@ -46,8 +46,9 @@ public class StitchingGroupFixer {
      *                       {@link StitchingMergeInformation} describing the merges that affected
      *                       them.
      * @param groupCache A cache of the discovered groups to be fixed up.
+     * @return Number of fixed up groups.
      */
-    public void fixupGroups(@Nonnull final TopologyStitchingGraph stitchingGraph,
+    public int fixupGroups(@Nonnull final TopologyStitchingGraph stitchingGraph,
                             @Nonnull final DiscoveredGroupMemberCache groupCache) {
         // The set of all groups modified by the fixup operation.
         final Set<DiscoveredGroupMembers> modifiedGroups = new HashSet<>();
@@ -60,6 +61,7 @@ public class StitchingGroupFixer {
         // Replace the group members based on the cache modifications.
         modifiedGroups.forEach(modifiedGroup ->
             replaceGroupMembers(modifiedGroup.getAssociatedGroup(), modifiedGroup.getMemberOids()));
+        return modifiedGroups.size();
     }
 
     /**
