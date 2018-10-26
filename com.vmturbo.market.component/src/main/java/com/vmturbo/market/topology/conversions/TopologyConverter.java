@@ -247,6 +247,9 @@ public class TopologyConverter {
             if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
                 || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
                 || !includeByType(entityType)) {
+                logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
+                        "entity state = {}", entity.getDisplayName(),
+                        EntityType.forNumber(entity.getEntityType()), entity.getEntityState());
                 skippedEntities.add(entity);
             } else {
                 entityOidToDto.put(entity.getOid(), entity);
