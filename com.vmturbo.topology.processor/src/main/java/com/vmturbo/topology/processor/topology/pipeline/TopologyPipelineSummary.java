@@ -15,6 +15,7 @@ import org.apache.commons.lang.StringUtils;
 import org.stringtemplate.v4.ST;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 
 /**
@@ -168,8 +169,8 @@ public class TopologyPipelineSummary {
                 "None" : statusForStage.get(curStageIdx).stage.getName());
         template.add("startTime", pipelineStart.toString());
         template.add("endTime", completed ? pipelineEnd.toString() : "Still running");
-        template.add("duration", Duration.between(pipelineStart,
-                completed ? pipelineEnd : clock.instant()));
+        template.add("duration", TimeUtil.humanReadable(Duration.between(pipelineStart,
+            completed ? pipelineEnd : clock.instant())));
         template.add("stages", statusForStage);
 
         if (errorMessage.isPresent()) {
@@ -270,19 +271,22 @@ public class TopologyPipelineSummary {
                 if (this.startTime == null) {
                     return "NOT STARTED";
                 } else {
-                    return "RUNNING FOR " + Duration.between(startTime, clock.instant()).toString();
+                    return "RUNNING FOR " + TimeUtil.humanReadable(
+                        Duration.between(startTime, clock.instant()));
                 }
             } else {
                 final Duration duration = Duration.between(startTime, endTime);
                 switch (this.status.getType()) {
                     case SUCCEEDED:
-                        return "SUCCEEDED in " + duration;
+                        return "SUCCEEDED in " + TimeUtil.humanReadable(duration);
                     case FAILED:
-                        return "FAILED after " + duration;
+                        return "FAILED after " + TimeUtil.humanReadable(duration);
                     case WARNING:
-                        return "WARNING (completed in " + Duration.between(startTime, endTime) + ")";
+                        return "WARNING (completed in " +
+                            TimeUtil.humanReadable(Duration.between(startTime, endTime)) + ")";
                     default:
-                        return "ILLEGAL STATUS: " + this.status.getType() + " after " + duration;
+                        return "ILLEGAL STATUS: " + this.status.getType() + " after " +
+                            TimeUtil.humanReadable(duration);
                 }
             }
         }

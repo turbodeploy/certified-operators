@@ -45,10 +45,12 @@ chmod +x /etc/rc.d/rc.local
 # Set up permissions
 chmod +x /etc/docker/turboctl.py
 chmod +x /etc/docker/turboupgrade.py
+chmod +x /etc/docker/metron.py
 chmod +x /usr/local/bin/vmtctl
 
 # Add a symlink, so that the sudo would see it.
 ln -s /etc/docker/turboctl.py /usr/bin/turboctl
+ln -s /etc/docker/metron.py /usr/bin/metron
 ln -s /usr/local/bin/vmtctl /usr/bin/vmtctl
 
 # clean up the disk

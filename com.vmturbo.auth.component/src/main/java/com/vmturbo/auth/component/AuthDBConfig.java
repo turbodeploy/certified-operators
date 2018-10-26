@@ -70,6 +70,11 @@ public class AuthDBConfig {
     public static final String ARANGO_ROOT_PW_KEY = "arangocreds";
 
     /**
+     * The influx root DB password key.
+     */
+    public static final String INFLUX_ROOT_PW_KEY = "influxcreds";
+
+    /**
      * The DB host.
      */
     @Value("${dbHost}")
@@ -157,6 +162,22 @@ public class AuthDBConfig {
         }
         String defaultPwd = DBPasswordUtil.obtainDefaultArangoPW();
         authKVConfig.authKeyValueStore().put(ARANGO_ROOT_PW_KEY, CryptoFacility.encrypt(defaultPwd));
+        return defaultPwd;
+    }
+    /**
+     * Returns the root Influx password.
+     * In case the password is not yet encrypted and stored in Consul, do that.
+     *
+     * @return The root Influx password.
+     */
+    @Bean
+    public  @Nonnull String getDefaultInfluxRootPassword() {
+        Optional<String> influxDbPassword = authKVConfig.authKeyValueStore().get(INFLUX_ROOT_PW_KEY);
+        if (influxDbPassword.isPresent()) {
+            return CryptoFacility.decrypt(influxDbPassword.get());
+        }
+        String defaultPwd = DBPasswordUtil.obtainDefaultInfluxPW();
+        authKVConfig.authKeyValueStore().put(INFLUX_ROOT_PW_KEY, CryptoFacility.encrypt(defaultPwd));
         return defaultPwd;
     }
 

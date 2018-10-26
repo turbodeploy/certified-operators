@@ -26,6 +26,8 @@ volumes:
   arangodb: *localdriver
   arangodb-apps: *localdriver
   arangodb-dump: *localdriver
+  influxdb: *localdriver
+  influxdb-dump: *localdriver
   clustermgr: *localdriver
   api: *localdriver
   auth: *localdriver
@@ -40,6 +42,7 @@ volumes:
   plan-orchestrator: *localdriver
   reporting: *localdriver
   cost: *localdriver
+  ml-datastore: *localdriver
   mediation-vcenter: *localdriver
   mediation-vcenter-browsing: *localdriver
   mediation-stressprobe: *localdriver
@@ -364,6 +367,47 @@ services:
       - arangodb-apps:/var/lib/arangodb3-apps
       - arangodb-dump:/home/arangodb/arangodb-dump
     mem_limit: ${ARANGODB_MEM_LIMIT_MB}M
+
+  influxdb:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/influxdb
+    environment:
+      METRON_ENABLED: "${METRON_ENABLED}"
+      LOG_TO_STDOUT: "true"
+      # Uncomment to specify the dump interval for influx. Default is once per day if unspecified.
+      # INFLUX_DUMP_INTERVAL_SECONDS: 300
+    ports:
+      - "${INFLUXDB_PORT}"
+      - "${INFLUXDB_DUMP_PORT}"
+    volumes:
+      - influxdb:/var/lib/influxdb
+      - influxdb-dump:/home/influxdb/influxdb-dump
+    mem_limit: ${INFLUXDB_MEM_LIMIT_MB}M
+
+  ml-datastore:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/ml-datastore
+    ports:
+      - "${ML_DATASTORE_PORT}"
+      - "${ML_DATASTORE_DEBUG_PORT}"
+    depends_on:
+      - influxdb
+      - clustermgr
+      - kafka1
+      - auth
+    environment:
+      component_type: ml-datastore
+      instance_id: ml-datastore-1
+      kafkaServers: ${KAFKA_SERVERS}
+      METRON_ENABLED: "${METRON_ENABLED}"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ML_DATASTORE_XMX_MB}M ${ML_DATASTORE_SYSTEM_PROPERTIES}"
+    volumes:
+      - ml-datastore:/home/turbonomic/data
+    mem_limit: ${ML_DATASTORE_MEM_LIMIT_MB}M
 
   repository:
     extends:

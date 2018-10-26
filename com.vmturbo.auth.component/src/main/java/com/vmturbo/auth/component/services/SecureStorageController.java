@@ -236,4 +236,19 @@ public class SecureStorageController {
         return store_.getRootArangoDBPassword();
     }
 
+
+    /**
+     * Returns Influx DB root password.
+     *
+     * @return The user resource URL if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Returns Influx DB root password")
+    @RequestMapping(path = "getInfluxDBRootPassword",
+        method = RequestMethod.GET,
+        produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String getInfluxDBRootPassword() throws Exception {
+        return store_.getRootInfluxPassword();
+    }
 }

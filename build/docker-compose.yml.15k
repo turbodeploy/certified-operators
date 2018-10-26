@@ -23,6 +23,8 @@ volumes:
   arangodb: *localdriver
   arangodb-apps: *localdriver
   arangodb-dump: *localdriver
+  influxdb: *localdriver
+  influxdb-dump: *localdriver
   clustermgr: *localdriver
   api: *localdriver
   auth: *localdriver
@@ -35,6 +37,7 @@ volumes:
   plan-orchestrator: *localdriver
   reporting: *localdriver
 #  cost: *localdriver
+  ml-datastore: *localdriver
   mediation-vcenter: *localdriver
 #  mediation-vcenter-browsing: *localdriver
   mediation-hyperv: *localdriver
@@ -261,6 +264,25 @@ services:
 #      - clustermgr
 #      - kafka1
 #      - auth
+
+  influxdb:
+    extends:
+      file: prod-services.yml
+      service: influxdb-prod
+    mem_limit: 1G
+
+  ml-datastore:
+    extends:
+      file: prod-services.yml
+      service: ml-datastore-prod
+    environment:
+      JAVA_OPTS: "-Xmx384M"
+    mem_limit: 512M
+    depends_on:
+      - influxdb
+      - clustermgr
+      - kafka1
+      - auth
 
   mediation-vcenter:
     extends:

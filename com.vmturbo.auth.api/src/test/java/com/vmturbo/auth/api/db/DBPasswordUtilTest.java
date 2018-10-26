@@ -57,4 +57,13 @@ public class DBPasswordUtilTest {
 
         assertEquals("bar", passwordUtil.getArangoDbRootPassword());
     }
+
+    @Test
+    public void testInfluxDbRootPassword() throws Exception {
+        mockServer.expect(requestTo(rootUri + DBPasswordUtil.INFLUX_DB_ROOT_PASSWORD_PATH))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess("baz", MediaType.APPLICATION_JSON_UTF8));
+
+        assertEquals("baz", passwordUtil.getInfluxDbRootPassword());
+    }
 }

@@ -292,6 +292,43 @@ services:
       kafkaServers: kafka1:9092
     restart: always
 
+  influxdb-prod:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/influxdb
+    env_file:
+     - ./metron.env
+    environment:
+      METRON_ENABLED: "${METRON_ENABLED}"
+    volumes:
+      - influxdb:/var/lib/influxdb
+      - influxdb-dump:/home/influxdb/influxdb-dump
+    mem_limit: 768M
+    # Only restart on failure. Allow normal exit. The service will exit normally if
+    # the METRON_ENABLED environment flag is not set. Set the METRON_ENABLED flag
+    # in the common-services.yml file.
+    restart: on-failure
+
+  ml-datastore-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/ml-datastore
+    env_file:
+     - ./metron.env
+    environment:
+      METRON_ENABLED: "${METRON_ENABLED}"
+      component_type: ml-datastore
+      instance_id: ml-datastore-1
+      kafkaServers: kafka1:9092
+    volumes:
+      - ml-datastore:/home/turbonomic/data
+    # Only restart on failure. Allow normal exit. The component will exit normally if
+    # the METRON_ENABLED environment flag is not set. Set the METRON_ENABLED flag
+    # in the common-services.yml file.
+    restart: on-failure
+
   mediation-vcenter-prod:
     extends:
       file: common-services.yml

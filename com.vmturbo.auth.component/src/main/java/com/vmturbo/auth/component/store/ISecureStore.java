@@ -70,4 +70,11 @@ public interface ISecureStore {
      * @return The database root password.
      */
     @Nonnull String getRootArangoDBPassword();
+
+    /**
+     * Retrieves the influx database root password.
+     *
+     * @return The influx database root password.
+     */
+    @Nonnull String getRootInfluxPassword();
 }

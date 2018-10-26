@@ -1,0 +1,66 @@
+syntax = "proto2";
+
+package ml;
+
+option java_package = "com.vmturbo.common.protobuf.ml.datastore";
+
+import "topology/TopologyDTO.proto";
+
+// The whitelist of commodity types written by the ML datastore to influxDB. If
+// a commodity type is not on this whitelist, it will not be written.
+// So for example, if this list is [CPU], then CPU metrics will be written but VCPU metrics
+// will not be written.
+//
+// Use to control the volume and type of data written to influx. As a general rule,
+// write metrics for commodities that measure real data about the customer environment
+// (ie CPU, VCPU) and not things like access commodities added as side-effects of our
+// data model (ie DSPMAccessCommodity).
+//
+// Used in conjunction with the MetricTypeWhitelist to decie what to write.
+// That is if CommodityTypeWhitelist = [CPU, VCPU] and MetricTypeWhitelist = [USED]
+// Then CPU_USED and VCPU_USED will be written, but CPU_PEAK and VCPU_PEAK etc. will not.
+message CommodityTypeWhitelist {
+    // Commodity types are named by their SDK names.
+    repeated string commodity_type_names = 1;
+}
+
+// The whitelist of metric types written by the ML datastore to influxDB. For a better
+// understanding of what these metric types correspond to, see CommodityBoughtDTO and
+// CommoditySoldDTO in TopologyDTO.proto
+//
+// Used in conjunction with the MetricTypeWhitelist to decie what to write.
+// That is if CommodityTypeWhitelist = [CPU, VCPU] and MetricTypeWhitelist = [USED]
+// Then CPU_USED and VCPU_USED will be written, but CPU_PEAK and VCPU_PEAK etc. will not.
+message MetricTypeWhitelist {
+    enum MetricType {
+        USED = 1;
+        PEAK = 2;
+        CAPACITY = 3;
+        SCALING_FACTOR = 4;
+    }
+
+    repeated MetricType metric_types = 1;
+}
+
+message GetCommodityTypeWhitelistRequest {
+}
+
+message SetCommodityTypeWhitelistResponse {
+}
+
+message GetMetricTypeWhitelistRequest {
+}
+
+message SetMetricTypeWhitelistResponse {
+}
+
+// Service for interacting with the ML datastore component.
+service MLDatastoreService {
+    // Get the commodity type whitelist.
+    rpc GetCommodityTypeWhitelist(GetCommodityTypeWhitelistRequest) returns (CommodityTypeWhitelist);
+    rpc SetCommodityTypeWhitelist(CommodityTypeWhitelist) returns (SetCommodityTypeWhitelistResponse);
+
+    // Get the metric type whitelist.
+    rpc GetMetricTypeWhitelist(GetMetricTypeWhitelistRequest) returns (MetricTypeWhitelist);
+    rpc SetMetricTypeWhitelist(MetricTypeWhitelist) returns (SetMetricTypeWhitelistResponse);
+}

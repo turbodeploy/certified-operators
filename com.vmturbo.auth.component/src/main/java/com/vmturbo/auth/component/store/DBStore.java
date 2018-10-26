@@ -1,7 +1,6 @@
 package com.vmturbo.auth.component.store;
 
 import java.sql.Connection;
-import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -9,7 +8,15 @@ import java.sql.SQLSyntaxErrorException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
+
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.component.AuthDBConfig;
@@ -17,12 +24,6 @@ import com.vmturbo.auth.component.store.db.tables.Storage;
 import com.vmturbo.auth.component.store.db.tables.records.StorageRecord;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
-import jersey.repackaged.com.google.common.collect.ImmutableList;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.Condition;
-import org.jooq.DSLContext;
 
 /**
  * The DBStore implements RDBMS-backed secure storage.
@@ -234,10 +235,23 @@ public class DBStore implements ISecureStore {
      *
      * @return The database root password.
      */
+    @Override
     public @Nonnull String getRootArangoDBPassword() {
         Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.ARANGO_ROOT_PW_KEY);
         return CryptoFacility.decrypt(
             rootDbPassword.orElseThrow(() -> new SecurityException("No root Arango DB password")));
+    }
+
+    /**
+     * Retrieves the Infulx database root password.
+     *
+     * @return The database root password.
+     */
+    @Override
+    public @Nonnull String getRootInfluxPassword() {
+        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.INFLUX_ROOT_PW_KEY);
+        return CryptoFacility.decrypt(
+            rootDbPassword.orElseThrow(() -> new SecurityException("No root Influx DB password")));
     }
 
     /**

@@ -59,6 +59,9 @@ cp ${WORKSPACE}/build/turboctl.py ${WORKSPACE}/data/images/.
 # Copy the upgrade script to add into the iso
 cp ${WORKSPACE}/build/turboupgrade.py ${WORKSPACE}/data/images/.
 
+# Copy the start_metron script to add into the iso
+cp ${WORKSPACE}/build/metron.py ${WORKSPACE}/data/images/.
+
 # Copy vmtctl script to add into the iso
 cp ${WORKSPACE}/build/vmtctl ${WORKSPACE}/data/images/.
 
@@ -92,6 +95,7 @@ sha256sum "prod-services.yml" >> turbonomic_sums.txt
 sha256sum "common-services.yml" >> turbonomic_sums.txt
 sha256sum "turboctl.py" >> turbonomic_sums.txt
 sha256sum "turboupgrade.py" >> turbonomic_sums.txt
+sha256sum "metron.py" >> turbonomic_sums.txt
 sha256sum "vmtctl" >> turbonomic_sums.txt
 sha256sum "turbo_upgrade_spec.yml" >> turbonomic_sums.txt
 

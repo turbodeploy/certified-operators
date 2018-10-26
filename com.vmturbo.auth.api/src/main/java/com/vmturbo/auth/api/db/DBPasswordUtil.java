@@ -18,7 +18,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.components.api.ComponentRestTemplate;
 
 /**
- * Contains the method to retrieve the root password for both the SQL and Arango databases.
+ * Contains the method to retrieve the root password for XL databases (SQL, Arango, Influx, etc.)
  */
 public class DBPasswordUtil {
     /**
@@ -30,6 +30,7 @@ public class DBPasswordUtil {
     static final String SECURESTORAGE_PATH = "/securestorage/";
     static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
     static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
+    static final String INFLUX_DB_ROOT_PASSWORD_PATH = "getInfluxDBRootPassword";
 
     /**
      * The database root password.
@@ -106,6 +107,16 @@ public class DBPasswordUtil {
     }
 
     /**
+     * Obtains the default InfluxDB password.
+     *
+     * @return The default password.
+     */
+    public static @Nonnull String obtainDefaultInfluxPW() {
+        // Influx has the same default root password as Arango.
+        return obtainDefaultArangoPW();
+    }
+
+    /**
      * Fetch the the SQL database root password from the Auth component.
      *
      * In case we have an error obtaining the database root password from the auth component,
@@ -133,6 +144,21 @@ public class DBPasswordUtil {
      */
     public synchronized @Nonnull String getArangoDbRootPassword() {
         return getRootPassword(ARANGO_DB_ROOT_PASSWORD_PATH, "Arango");
+    }
+
+    /**
+     * Fetch the the Influx database root password from the Auth component.
+     *
+     * In case we have an error obtaining the database root password from the auth component,
+     * retry continually with a configured delay between each retry.
+     *
+     * If the auth component is down and the database root password has been changed, there will be
+     * no security implications, as the component will not be able to access the database..
+     *
+     * @return The Arango database root password.
+     */
+    public synchronized @Nonnull String getInfluxDbRootPassword() {
+        return getRootPassword(INFLUX_DB_ROOT_PASSWORD_PATH, "Influx");
     }
 
     /**

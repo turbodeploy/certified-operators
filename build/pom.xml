@@ -44,6 +44,7 @@
         <log4j2.AsyncVersion>3.3.6</log4j2.AsyncVersion>
         <commons-logging.version>1.2</commons-logging.version>
         <commons-io.version>2.5</commons-io.version>
+        <influxdb-java-api.version>2.14</influxdb-java-api.version>
         <junit.version>4.12</junit.version>
         <jacocoVersion>0.7.7.201606060606</jacocoVersion>
         <jacocoAntVersion>0.7.7.201606060606</jacocoAntVersion>
@@ -215,6 +216,14 @@
             <modules>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>metron</id>
+            <modules>
+                <module>../com.vmturbo.influxdb</module>
+                <module>../com.vmturbo.ml.datastore</module>
             </modules>
         </profile>
 
@@ -560,6 +569,7 @@
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -630,6 +640,7 @@
                 <module>../syslog</module>
                 <module>../db</module>
                 <module>../com.vmturbo.arangodb</module>
+                <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-grpc-moles</module>
@@ -666,6 +677,7 @@
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -1362,6 +1374,16 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.influxdb</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>ml-datastore</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>identity</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -1773,6 +1795,11 @@
                 <groupId>commons-io</groupId>
                 <artifactId>commons-io</artifactId>
                 <version>${commons-io.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.influxdb</groupId>
+                <artifactId>influxdb-java</artifactId>
+                <version>${influxdb-java-api.version}</version>
             </dependency>
 
             <!-- Java String templating library -->

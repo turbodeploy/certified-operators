@@ -20,8 +20,6 @@ public interface EntitiesListener {
      * discovered environments. Internally, topology comes in chunks, so use
      * {@link RemoteIterator#nextChunk()} to retrieve the next chunk of data.
      *
-     * <p>Note that stitching is not yet implemented.
-     *
      * <p>Consumer (implementation of this interface) is responseble for consuming ALL the
      * elements from this remote iterator. Otherwise, sender side will still think, that message
      * is not yet processed and may cause inter-component blocks.

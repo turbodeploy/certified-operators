@@ -133,7 +133,7 @@ public class SQLDatabaseConfig {
     }
 
     /**
-     * Rerutns database connection URL.
+     * Returns database connection URL.
      *
      * @return DB connection URL
      */
