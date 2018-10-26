@@ -117,8 +117,12 @@ public final class GuaranteedBuyerHelper {
         // update commSold that the shoppingList consume as a result of changing
         // quantity and peak quantity of shoppingList, the commSold is from existing
         // sellers
-        CommoditySold commSold = shoppingList.getSupplier()
-                        .getCommoditySold(shoppingList.getBasket().get(boughtIndex));
+        Trader supplier = shoppingList.getSupplier();
+        if (supplier == null) {
+            return;
+        }
+        CommoditySold commSold = supplier
+                .getCommoditySold(shoppingList.getBasket().get(boughtIndex));
         if (commSold != null) {
             commSold.setQuantity(Math.max(0, commSold.getQuantity() - origQuantity +
                     updatedQuantity));
@@ -145,7 +149,10 @@ public final class GuaranteedBuyerHelper {
             // included
             Set<ShoppingList> slsNeedsUpdate = slsSponsoredByGuaranteedBuyer
                     .get(shoppingList.getBuyer()).stream()
-                    .filter(sl -> sl.getSupplier().getState().isActive()).collect(Collectors.toSet());
+                    .filter(sl -> {
+                        Trader supplier = sl.getSupplier();
+                        return supplier != null && supplier.getState().isActive();
+                    }).collect(Collectors.toSet());
             // Cannot rebalance across zero buyers.
             if (slsNeedsUpdate.size() > 1) {
                 // update quantity and peak quantity of the shopping list sponsored by guaranteed buyer
