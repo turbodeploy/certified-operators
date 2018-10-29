@@ -53,7 +53,7 @@ public enum EntitySettingSpecs {
      * Provision action automation mode.
      */
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode(),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY), actionExecutionMode(),
             true),
     /**
      * Reconfigure action automation mode (not executable).
@@ -310,7 +310,7 @@ public enum EntitySettingSpecs {
     ProvisionActionScript("provisionActionScript", "Provision",
             Collections.singletonList("actionScript"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE, EntityType.DISK_ARRAY),
             string(), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
