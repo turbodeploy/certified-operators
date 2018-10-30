@@ -55,20 +55,20 @@ public class SystemLoadCalculatedProfileTest {
         TemplateInfo templateInfo = profile.getHeadroomTemplateInfo().get();
         assertEquals(templateInfo.getEntityType(),  EntityType.VIRTUAL_MACHINE_VALUE);
 
-        // MEM avg = (20 + 10)/2
+        // MEM avg = (50 + 40)/2
         Optional<TemplateField> mem = getField(SystemLoadCalculatedProfile.MEMORY_SIZE, templateInfo);
         assertTrue(mem.isPresent());
-        assertEquals(15d, Double.valueOf(mem.get().getValue()), delta);
+        assertEquals(45d, Double.valueOf(mem.get().getValue()), delta);
 
         // MEM consumption factor = (20 + 10)/(50 + 40)
         Optional<TemplateField> memConsumption = getField(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR, templateInfo);
         assertTrue(memConsumption.isPresent());
         assertEquals(0.3333d, Double.valueOf(memConsumption.get().getValue()), delta);
 
-        // CPU avg = (9 + 6)/2
+        // CPU avg = (100 + 50)/2
         Optional<TemplateField> cpu = getField(SystemLoadCalculatedProfile.CPU_SPEED, templateInfo);
         assertTrue(cpu.isPresent());
-        assertEquals(7.5d, Double.valueOf(cpu.get().getValue()), delta);
+        assertEquals(75d, Double.valueOf(cpu.get().getValue()), delta);
 
         // MEM consumption factor = (9 + 6)/(100 + 50)
         Optional<TemplateField> cpuConsumption = getField(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR, templateInfo);
@@ -168,20 +168,20 @@ public class SystemLoadCalculatedProfileTest {
         TemplateInfo templateInfo = profile.getHeadroomTemplateInfo().get();
         assertEquals(templateInfo.getEntityType(),  EntityType.VIRTUAL_MACHINE_VALUE);
 
-        // MEM : max(20,10)
+        // MEM : max(40,50)
         Optional<TemplateField> mem = getField(SystemLoadCalculatedProfile.MEMORY_SIZE, templateInfo);
         assertTrue(mem.isPresent());
-        assertEquals(20d, Double.valueOf(mem.get().getValue()), delta);
+        assertEquals(50d, Double.valueOf(mem.get().getValue()), delta);
 
         // MEM consumption factor = max(20,10)/max(50,40)
         Optional<TemplateField> memConsumption = getField(SystemLoadCalculatedProfile.MEMORY_CONSUMED_FACTOR, templateInfo);
         assertTrue(memConsumption.isPresent());
         assertEquals(0.4d, Double.valueOf(memConsumption.get().getValue()), delta);
 
-        // CPU : max(9,6)
+        // CPU : max(100,50)
         Optional<TemplateField> cpu = getField(SystemLoadCalculatedProfile.CPU_SPEED, templateInfo);
         assertTrue(cpu.isPresent());
-        assertEquals(9d, Double.valueOf(cpu.get().getValue()), delta);
+        assertEquals(100d, Double.valueOf(cpu.get().getValue()), delta);
 
         // MEM consumption factor = max(9,6)/max(100,50)
         Optional<TemplateField> cpuConsumption = getField(SystemLoadCalculatedProfile.CPU_CONSUMED_FACTOR, templateInfo);
