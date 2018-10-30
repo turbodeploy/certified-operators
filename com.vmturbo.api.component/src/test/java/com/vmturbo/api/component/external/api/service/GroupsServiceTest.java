@@ -38,6 +38,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -305,9 +306,10 @@ public class GroupsServiceTest {
     }
 
     @Test
-    public void testCreateTempGroup() throws Exception {
+    public void testCreateTempGroupONPREM() throws Exception {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
+        apiDTO.setEnvironmentType(EnvironmentType.ONPREM);
         final Group group = Group.newBuilder()
                 .setId(7L)
                 .build();
@@ -318,7 +320,26 @@ public class GroupsServiceTest {
             .thenReturn(CreateTempGroupResponse.newBuilder()
                 .setGroup(group)
                 .build());
-        when(groupMapper.toGroupApiDto(group)).thenReturn(apiDTO);
+        when(groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM)).thenReturn(apiDTO);
+        assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
+    }
+
+    @Test
+    public void testCreateTempGroupCloud() throws Exception {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        apiDTO.setTemporary(true);
+        apiDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        final Group group = Group.newBuilder()
+                .setId(7L)
+                .build();
+        when(groupMapper.toTempGroupProto(apiDTO)).thenReturn(TempGroupInfo.getDefaultInstance());
+        when(groupServiceSpy.createTempGroup(CreateTempGroupRequest.newBuilder()
+                .setGroupInfo(TempGroupInfo.getDefaultInstance())
+                .build()))
+                .thenReturn(CreateTempGroupResponse.newBuilder()
+                        .setGroup(group)
+                        .build());
+        when(groupMapper.toGroupApiDto(group, EnvironmentType.CLOUD)).thenReturn(apiDTO);
         assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
     }
 }

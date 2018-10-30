@@ -447,7 +447,9 @@ public class GroupsService implements IGroupsService {
                     CreateTempGroupRequest.newBuilder()
                         .setGroupInfo(tempGroupInfo)
                         .build());
-            return groupMapper.toGroupApiDto(response.getGroup());
+            final EnvironmentType environmentType = inputDTO.getEnvironmentType() != null
+                    ? inputDTO.getEnvironmentType() : EnvironmentType.ONPREM;
+            return groupMapper.toGroupApiDto(response.getGroup(), environmentType);
         } else {
             final GroupInfo request = groupMapper.toGroupInfo(inputDTO);
             final CreateGroupResponse res = groupServiceRpc.createGroup(request);

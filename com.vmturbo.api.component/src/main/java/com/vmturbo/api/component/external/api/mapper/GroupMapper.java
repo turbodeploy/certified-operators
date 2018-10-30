@@ -323,12 +323,25 @@ public class GroupMapper {
     }
 
     /**
-     * Converts from {@link Group} to {@link GroupApiDTO}.
+     * Converts from {@link Group} to {@link GroupApiDTO} using default EnvironmentType.ONPREM
+     * TODO switch to use {@link GroupMapper#toGroupApiDto(Group)} for Cloud group
      *
      * @param group The {@link Group} object
      * @return  The {@link GroupApiDTO} object
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Group group) {
+        return toGroupApiDto(group, EnvironmentType.ONPREM);
+    }
+
+    /**
+     * Converts from {@link Group} to {@link GroupApiDTO}.
+     *
+     * @param group The {@link Group} object
+     * @param environmentType The {@link EnvironmentType} object
+     * @return  The {@link GroupApiDTO} object
+     */
+    public GroupApiDTO toGroupApiDto(@Nonnull final Group group,
+                                     @Nonnull EnvironmentType environmentType) {
         final GroupApiDTO outputDTO;
         switch (group.getType()) {
             case GROUP:
@@ -351,7 +364,7 @@ public class GroupMapper {
         // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
         //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
         //     #getEntityInformation() to determine environmentType
-        outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
+        outputDTO.setEnvironmentType(environmentType);
 
         return outputDTO;
     }

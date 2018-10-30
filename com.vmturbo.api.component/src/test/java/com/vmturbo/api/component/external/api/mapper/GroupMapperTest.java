@@ -787,6 +787,54 @@ public class GroupMapperTest {
     }
 
     @Test
+    public void testMapTempGroupCloud() {
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Group.newBuilder()
+                .setType(Group.Type.TEMP_GROUP)
+                .setId(8L)
+                .setOrigin(Origin.USER)
+                .setTempGroup(TempGroupInfo.newBuilder()
+                        .setName("foo")
+                        .setEntityType(10)
+                        .setMembers(StaticGroupMembers.newBuilder()
+                                .addStaticMemberOids(1L)))
+                .build(), EnvironmentType.CLOUD);
+
+        assertThat(mappedDto.getTemporary(), is(true));
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getIsStatic(), is(true));
+        assertThat(mappedDto.getEntitiesCount(), is(1));
+        assertThat(mappedDto.getMembersCount(), is(1));
+        assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1"));
+        assertThat(mappedDto.getGroupType(), is(VM_TYPE));
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(mappedDto.getClassName(), is("Group"));
+    }
+
+    @Test
+    public void testMapTempGroupONPREM() {
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Group.newBuilder()
+                .setType(Group.Type.TEMP_GROUP)
+                .setId(8L)
+                .setOrigin(Origin.USER)
+                .setTempGroup(TempGroupInfo.newBuilder()
+                        .setName("foo")
+                        .setEntityType(10)
+                        .setMembers(StaticGroupMembers.newBuilder()
+                                .addStaticMemberOids(1L)))
+                .build(), EnvironmentType.ONPREM);
+
+        assertThat(mappedDto.getTemporary(), is(true));
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getIsStatic(), is(true));
+        assertThat(mappedDto.getEntitiesCount(), is(1));
+        assertThat(mappedDto.getMembersCount(), is(1));
+        assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1"));
+        assertThat(mappedDto.getGroupType(), is(VM_TYPE));
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
+        assertThat(mappedDto.getClassName(), is("Group"));
+    }
+
+    @Test
     public void testStaticGroupMembersCount() {
         final Group group = Group.newBuilder()
                 .setId(7L)
