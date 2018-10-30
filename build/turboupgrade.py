@@ -187,7 +187,8 @@ def exec_docker_compose_cmd(exit_on_error, cmd, *args):
     try:
         cmd = ["docker-compose", "-f", DOCKER_COMPOSE_FILE, cmd]
         cmd.extend(args)
-        out = subprocess.check_output(cmd)
+        # redirect stderr to stdout so that all cmd output is captured.
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         return (0, out)
     except subprocess.CalledProcessError as ex:
         if not exit_on_error:
@@ -521,11 +522,23 @@ if __name__ == '__main__':
         if (component in stopped_components):
             exec_docker_compose_cmd(True, "up", "-d", component)
 
+    # Update components which have a new image but are not enabled.
+    remaining_components_to_upgrade = \
+        components_to_upgrade.difference(topological_order)
+    LOGGER.info("Upgrading remaining %s new containers"
+        % len(remaining_components_to_upgrade))
+    for component in remaining_components_to_upgrade:
+        LOGGER.info("Stopping component %s"%component)
+        ret, out = exec_docker_compose_cmd(False, "stop", "-t",
+                        str(CONTAINER_STOP_TIMEOUT_SECS), component)
+        LOGGER.info("Loading new image for component: %s"%component);
+        exec_cmd(True, "docker", "load", "-i",
+            component_to_image_loc.get(component))
+
     # Remove dangling images
     LOGGER.info("Removing dangling images")
-    exec_cmd(True, "docker", "images", "prune")
-    #exec_cmd(True, "docker", "images", "-qa", "-f", "dangling=true", "|",
-    #                "xargs", "docker", "rmi")
+    ret, out = exec_cmd(True, "docker", "image", "prune", "-f")
+    LOGGER.info(out)
 
     # copy the turbo checksum and info files
     for fname in glob.glob("%s/*.txt"%ISO_MOUNTPOINT):
