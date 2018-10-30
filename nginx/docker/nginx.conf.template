@@ -38,7 +38,25 @@ http {
     client_body_buffer_size 10m;
     client_max_body_size    10m;
 
-    #gzip  on;
+
+    ## gzip settings
+    # enable gzip
+    gzip on;
+    # tells proxies to cache both gzipped and regular versions of a resource
+    gzip_vary on;
+    #  do not compress anything smaller than this size
+    gzip_min_length 1024;
+    # compress data even for clients that are connecting via proxies
+    gzip_proxied any;
+    #  disable compression for Internet Explorer versions 4-6
+    gzip_disable "msie6";
+    # gzip also 1.0 requests. this is because nginx is proxying requests on http 1.0 by default (and otherwise they will not be gzipped)
+    gzip_http_version 1.0;
+    # compression level, from 1 to 9
+    gzip_comp_level 5;
+    # enable gzip responses for specific MIME types
+    gzip_types text/plain text/css application/json text/javascript application/x-javascript application/javascript text/xml application/xml application/xml+rss font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
 
     # for passing the _crsf header for spring security
     underscores_in_headers on;
