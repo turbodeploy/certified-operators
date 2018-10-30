@@ -219,14 +219,19 @@ public class EntitiesService implements IEntitiesService {
                 .includeHealthSummary(false)
                 .entityDetailType(EntityDetailType.entity)
                 .fetch();
-        final Set<Long> supplyChainInstanceIds = supplyChain.getSeMap().entrySet().stream()
+        final Set<Long> entityIds = supplyChain.getSeMap().entrySet().stream()
                 .map(Entry::getValue)
                 .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().keySet().stream())
                 .map(Long::valueOf)
                 .collect(Collectors.toSet());
+
+        if (entityIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
                 repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(supplyChainInstanceIds)
+                        ServiceEntitiesRequest.newBuilder(entityIds)
                                 .build())
                         .entrySet().stream()
                         .filter(entry -> entry.getValue().isPresent())
