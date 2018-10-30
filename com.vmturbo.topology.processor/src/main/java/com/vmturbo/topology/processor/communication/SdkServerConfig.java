@@ -32,6 +32,9 @@ public class SdkServerConfig {
     @Value("${negotiation.timeout.sec:30}")
     private long negotiationTimeoutSec;
 
+    @Value("${websocket.atomic.send.timeout.sec:30}")
+    private long websocketAtomicSendTimeout;
+
     @Autowired
     private ProbeConfig probeConfig;
     @Autowired
@@ -71,7 +74,7 @@ public class SdkServerConfig {
     @Bean
     public WebsocketServerTransportManager remoteMediationServerTransportManager() {
         return new WebsocketServerTransportManager(remoteMediationTransportHandler(),
-                sdkServerThreadPool());
+                sdkServerThreadPool(), websocketAtomicSendTimeout);
     }
 
     /**

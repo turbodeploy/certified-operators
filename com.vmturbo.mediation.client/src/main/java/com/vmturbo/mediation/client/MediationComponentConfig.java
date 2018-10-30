@@ -51,6 +51,9 @@ public class MediationComponentConfig implements ConnectionConfig {
     @Value("${websocket.pong.timeout:30000}")
     private long pongMessageTimeout;
 
+    @Value("${websocket.send.atomic.timeout:30}")
+    private long websocketAtomicSendTimeout;
+
     // just for debugging - for now
     @Value("${instance_id}")
     private String instance_id;
@@ -102,6 +105,11 @@ public class MediationComponentConfig implements ConnectionConfig {
     @Override
     public long getPongMessageTimeout() {
         return pongMessageTimeout;
+    }
+
+    @Override
+    public long getAtomicSendTimeoutSec() {
+        return websocketAtomicSendTimeout;
     }
 
     @PostConstruct

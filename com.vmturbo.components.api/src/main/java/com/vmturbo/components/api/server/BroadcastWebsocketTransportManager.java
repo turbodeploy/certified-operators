@@ -34,7 +34,7 @@ public class BroadcastWebsocketTransportManager {
             for (IByteTransferNotificationSender<T> sender : senders) {
                 sender.addTransport(endpoint);
             }
-        }, threadPool);
+        }, threadPool, 30L);
     }
 
     /**
