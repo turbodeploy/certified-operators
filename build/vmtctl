@@ -217,85 +217,10 @@ if [[ "$1" == "init" ]]; then
     rm -rf /root/initial_setup
   fi
 
-  log_message "Stopping the previously running system, if any"
-  /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml stop ${XL_COMPONENTS}
-
-  # start nginx; note that this will be the "old" (i.e. pre-load) nginx
   log_message "Starting nginx"
   n_started=1
   start_xl_component nginx
 
-  # Load docker images from ISO if needed.
-  mkdir /media/cdrom >/dev/null 2>&1
-  log_message Attempting to load the CDROM
-  umount /media/cdrom >/dev/null 2>&1
-  mount /dev/cdrom /media/cdrom/ >/dev/null 2>&1
-  if [[ $? == 0 ]]; then
-      log_message "ISO Image has been mounted successfully"
-      # Check whether we need to do anything
-      if [ -f "/media/cdrom/turbonomic_sums.txt" ]; then
-         cmp -sb /media/cdrom/turbonomic_sums.txt /etc/docker/turbonomic_sums.txt
-         if [[ $? == 0 ]]; then
-             echo 'No changes in the ISO'
-             echo Unmounting the CDROM
-             umount /media/cdrom
-             start_xl
-         fi
-      fi
-
-      # Verify sha256 checksums
-      log_message "Performing integrity check"
-      pushd /media/cdrom
-      sha256sum -c turbonomic_sums.txt
-      CHECKSUM=$?
-      popd
-      if [[ ${CHECKSUM} == 0 ]]; then
-          log_message "Loading Docker images"
-          echo Docker image checksum verification has been successful
-          images=$(ls /media/cdrom/*tgz)
-          n=1
-          m=$(echo ${images} | wc -w)
-          for i in ${images}
-          do
-            dimg=$(echo ${i} | sed 's|.*/||' | cut -d'.' -f1)
-            log_message "Loading $dimg component ($n of $m)"
-            echo Loading docker image ${i}
-            docker load -i ${i}
-            n=$((n+1))
-          done
-          # Clean the dangling images
-          log_message "Cleaning old docker images"
-          docker images -qa -f 'dangling=true' | xargs docker rmi
-
-          # Copy the docker-compose.yml files for the available memory sizes
-          copy_cdrom_source docker-compose.yml.15k
-          copy_cdrom_source docker-compose.yml.25k
-          copy_cdrom_source docker-compose.yml.50k
-          copy_cdrom_source docker-compose.yml.100k
-          copy_cdrom_source docker-compose.yml.200k
-
-          copy_cdrom_source common-services.yml
-          copy_cdrom_source prod-services.yml
-          copy_cdrom_source turbonomic_info.txt
-          copy_cdrom_source turbonomic_sums.txt
-
-          # Copy the 'turboctl' command-line utility, make it executable, and add a symlink for it
-          copy_cdrom_source turboctl.py
-          chmod +x ${DEST_BASE}/turboctl.py
-          if [ ! -f /usr/bin/turboctl ]; then
-             ln -s ${DEST_BASE}/turboctl.py /usr/bin/turboctl
-          fi
-
-          log_message "Docker images loaded"
-          echo Unmounting the CDROM
-          umount /media/cdrom
-      else
-          log_message "!! Component checksum verification failed"
-          exit 1
-      fi
-  else
-      echo CDROM ISO Image is not present
-  fi
   # Start the product
   start_xl
 elif [[ "$1" == "info" ]]; then
