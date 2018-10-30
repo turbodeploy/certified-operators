@@ -143,7 +143,7 @@ public class TestMediationCommonConfig {
     @Bean
     public WebsocketServerTransportManager remoteMediationServerTransportManager() {
         return new WebsocketServerTransportManager(remoteMediationTransportHandler(),
-                sdkServerThreadPool());
+                sdkServerThreadPool(), 30);
     }
 
     /**
