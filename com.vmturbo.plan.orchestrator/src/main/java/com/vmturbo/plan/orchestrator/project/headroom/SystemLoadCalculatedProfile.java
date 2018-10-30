@@ -207,7 +207,9 @@ public class SystemLoadCalculatedProfile {
                             cpuConsumed / vCPUSpeed : CPU_CONSUMED_FACTOR_DEFAULT;
             storageConsumedFactor = STORAGE_CONSUMED_FACTOR_DEFAULT;
             memConsumed = memConsumed / numVMs;
+            vMemSize = vMemSize / numVMs;
             cpuConsumed = cpuConsumed / numVMs;
+            vCPUSpeed = vCPUSpeed / numVMs;
             networkThroughputConsumed = networkThroughputConsumed / numVMs;
             ioThroughputConsumed = ioThroughputConsumed / numVMs;
             storageConsumed = storageConsumed / numVMs;
@@ -215,12 +217,12 @@ public class SystemLoadCalculatedProfile {
 
         // compute
         templateComputeStats.put(CPU_CONSUMED_FACTOR, Math.min(1, cpuConsumedFactor));
-        templateComputeStats.put(CPU_SPEED, cpuConsumed);
+        templateComputeStats.put(CPU_SPEED, vCPUSpeed);
         // TODO : Update NUM_OF_CPU once we are able to extract this information.
         templateComputeStats.put(NUM_OF_CPU, 1F);
         templateComputeStats.put(IO_THROUGHPUT, ioThroughputConsumed);
         templateComputeStats.put(MEMORY_CONSUMED_FACTOR, Math.min(1, memConsumedFactor));
-        templateComputeStats.put(MEMORY_SIZE, memConsumed);
+        templateComputeStats.put(MEMORY_SIZE, vMemSize);
         templateComputeStats.put(NETWORK_THROUGHPUT, networkThroughputConsumed);
         // storage
         templateStorageStats.put(DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));

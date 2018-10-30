@@ -135,7 +135,7 @@ public class SystemLoadReader {
 
     /**
      * The method reads all the system load related records for a specific slice and the
-     * chosen system load.
+     * chosen system load which have a VM associated with them.
      * We calculate the system loads for the past LOOPBACK_DAYS, we order then and we choose
      * the system load in the SYSTEM_LOAD_PERCENTILE position.
      *
@@ -218,10 +218,14 @@ public class SystemLoadReader {
         calendar.add(Calendar.DATE, -1);
         Date startTime = calendar.getTime();
 
+        // Query to not return values where uuid is null and we will not get records with vmId = 0. We are only interested in records
+        // which have a VM associated with them but some records, for example, represent cluster info like total capacity or system load
+        // which are not required by the caller.
         SelectConditionStep<SystemLoadRecord> queryBuilder = historydbIO.JooqBuilder()
                 .selectFrom(SystemLoad.SYSTEM_LOAD)
                 .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(startTime.getTime()), new Timestamp(endTime.getTime())))
-                .and(SystemLoad.SYSTEM_LOAD.SLICE.eq(slice));
+                .and(SystemLoad.SYSTEM_LOAD.SLICE.eq(slice))
+                .and(SystemLoad.SYSTEM_LOAD.UUID.isNotNull());
 
         List<SystemLoadRecord> records = null;
 

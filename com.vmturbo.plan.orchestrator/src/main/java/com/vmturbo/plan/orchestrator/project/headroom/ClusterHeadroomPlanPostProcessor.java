@@ -420,37 +420,49 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             return CommodityHeadroom.getDefaultInstance();
         }
 
-        // Initialize headroom with maximum values because we want to maintain minimum
-       //  of headroom availability and capacity across commodities.
-        HeadroomData headroomData = new HeadroomData(Double.MAX_VALUE, Double.MAX_VALUE);
-
-        entities.stream()
-            .filter(e -> e.getEntityState() == TopologyDTO.EntityState.POWERED_ON)
-            .flatMap(entity -> entity.getCommoditySoldListList().stream())
-            .filter(comm -> headroomCommodities.keySet().contains(comm.getCommodityType().getType()))
-            .collect(Collectors.groupingBy(comm -> comm.getCommodityType().getType()))
-            .forEach((commType, commodityList) -> {
+        Map<Integer, Double> commHeadroomAvailable = new HashMap<Integer, Double>();
+        Map<Integer, Double> commHeadroomCapacity = new HashMap<Integer, Double>();
+        //Number of VMs that can be accommodated in cluster considering its current utilization.
+        long totalHeadroomAvailable = 0;
+        // Number of VMs that can be accommodated in cluster when cluster is empty.
+        long totalHeadroomCapacity = 0;
+        // Iterate over each entity and find number of VMs that fit providers.
+        for (TopologyEntityDTO entity : entities) {
+            for (CommoditySoldDTO comm : entity.getCommoditySoldListList()) {
+                int commType = comm.getCommodityType().getType();
                 double headroomAvailable = 0d;
                 double headroomCapacity  = 0d;
-                for (CommoditySoldDTO comm : commodityList) {
-                    double templateCommodityUsed = headroomCommodities.get(commType);
-                    if (templateCommodityUsed == 0) {
-                        continue;
-                    }
-                    double availableAmount = comm.getCapacity() - comm.getUsed();
-                    headroomAvailable += availableAmount > 0 ?
-                                    Math.floor(availableAmount / templateCommodityUsed) : 0;
-                    headroomCapacity += Math.floor(comm.getCapacity() / templateCommodityUsed);
+                double templateCommodityUsed = headroomCommodities.getOrDefault(commType, 0D);
+                if (templateCommodityUsed == 0) {
+                    continue;
                 }
-                // Maintain a minimum across headroom commodities.
-                headroomData.setHeadroomAvailable(Math.min(headroomData.getHeadroomAvailable(), headroomAvailable));
-                headroomData.setHeadroomCapacity(Math.min(headroomData.getHeadroomCapacity(), headroomCapacity));
-            });
+                // Set effective capacity
+                double capacity = (comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity();
+                double availableAmount =  capacity - comm.getUsed();
+                headroomAvailable = availableAmount > 0 ?
+                                Math.floor(availableAmount / templateCommodityUsed) : 0;
+                headroomCapacity = Math.floor(capacity / templateCommodityUsed);
+                commHeadroomAvailable.put(commType, headroomAvailable);
+                commHeadroomCapacity.put(commType, headroomCapacity);
+            }
 
+            final double headroomAvailableForCurrentEntity = commHeadroomAvailable.values().stream().min(Double::compare).get();
+            final double headroomCapacityForCurrentEntity = commHeadroomCapacity.values().stream().min(Double::compare).get();
+
+            // prevent overflow here, Integer.MAX_VALUE means that there is no limit, e.g.
+            // VMs do not consume storage, so storage headroom is unlimited
+            if (totalHeadroomAvailable != Long.MAX_VALUE) {
+                totalHeadroomAvailable += headroomAvailableForCurrentEntity;
+            }
+
+            if (totalHeadroomCapacity != Long.MAX_VALUE) {
+                totalHeadroomCapacity += headroomCapacityForCurrentEntity;
+            }
+        }
         return CommodityHeadroom.newBuilder()
-                    .setHeadroom((long)headroomData.getHeadroomAvailable())
-                    .setCapacity((long)headroomData.getHeadroomCapacity())
-                    .setDaysToExhaustion(getDaysToExhaustion(vmGrowth, headroomData.getHeadroomAvailable()))
+                    .setHeadroom(totalHeadroomAvailable)
+                    .setCapacity(totalHeadroomCapacity)
+                    .setDaysToExhaustion(getDaysToExhaustion(vmGrowth, totalHeadroomAvailable))
                     .build();
     }
 
@@ -461,13 +473,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param headroomAvailable current headroom availability.
      * @return days to exhaustion.
      */
-    private long getDaysToExhaustion(long vmGrowth, double headroomAvailable) {
+    private long getDaysToExhaustion(long vmGrowth, long headroomAvailable) {
         //if headroom == 0 - cluster is already exhausted
         if (headroomAvailable == 0) {
             return 0;
         }
         //if headroom is infinite OR VM Growth is 0  - exhaustion time is infinite
-        if (headroomAvailable == Double.MAX_VALUE || vmGrowth == 0) {
+        if (headroomAvailable == Long.MAX_VALUE || vmGrowth == 0) {
             return Long.MAX_VALUE;
         }
         return (long)Math.floor(((float)headroomAvailable / vmGrowth) * PEAK_LOOKBACK_DAYS);
@@ -485,49 +497,5 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         return template.getTemplateInfo().getResourcesList().stream()
             .flatMap(resources -> resources.getFieldsList().stream())
             .collect(Collectors.toMap(TemplateField::getName, TemplateField::getValue));
-    }
-
-    /**
-     * Contains availability and capacity for headroom.
-     *
-     */
-    private class HeadroomData {
-        private double headroomAvailable;
-        private double headroomCapacity;
-
-        /** Number of VMs that can be accommodated in cluster considering its utilization for given commodity.
-         * @return headroomAvailable
-         */
-        public double getHeadroomAvailable() {
-            return headroomAvailable;
-        }
-
-        /** Sets number of VMs that can be accommodated in cluster considering its utilization for given commodity.
-         * @param headroomAvailable the headroomAvailable to set
-         */
-        public void setHeadroomAvailable(double headroomAvailable) {
-            this.headroomAvailable = headroomAvailable;
-        }
-
-        /**
-         * Number of VMs that can be accommodated in cluster for given commodity when cluster is empty.
-         * @return the headroomCapacity
-         */
-        public double getHeadroomCapacity() {
-            return headroomCapacity;
-        }
-
-        /**
-         * Number of VMs that can be accommodated in cluster for given commodity when cluster is empty.
-         * @param headroomCapacity the headroomCapacity to set
-         */
-        public void setHeadroomCapacity(double headroomCapacity) {
-            this.headroomCapacity = headroomCapacity;
-        }
-
-        HeadroomData(double headroomAvailable, double headroomCapacity) {
-            this.headroomAvailable = headroomAvailable;
-            this.headroomCapacity = headroomCapacity;
-        }
     }
 }
