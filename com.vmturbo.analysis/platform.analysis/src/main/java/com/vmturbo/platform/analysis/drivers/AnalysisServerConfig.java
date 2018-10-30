@@ -55,7 +55,7 @@ public class AnalysisServerConfig implements AutoCloseable {
                                         new AnalysisServerProtobufEndPoint(transport);
                                 analysisServer.registerEndpoint(endpoint);
                             }
-                        }, analysisServerThreadPool);
+                        }, analysisServerThreadPool, 30L);
 
         final Configurator configurator = new Configurator() {
             @Override
