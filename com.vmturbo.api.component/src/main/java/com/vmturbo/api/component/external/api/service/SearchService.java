@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.mapper.GroupMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.CLUSTER;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STORAGE_CLUSTER;
@@ -32,6 +33,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -41,6 +43,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -56,6 +59,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -67,12 +71,14 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResp
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
@@ -694,6 +700,27 @@ public class SearchService implements ISearchService {
                 });
                 break;
 
+            case ACCOUNT_OID:
+                // get all business accounts
+                final SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
+                        .addSearchParameters(SearchParameters.newBuilder().setStartingFilter(
+                                SearchMapper.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.getValue())).build())
+                        .setPaginationParams(PaginationParameters.newBuilder().build())
+                        .build();
+                final List<Entity> businessAccounts;
+                try {
+                    businessAccounts = searchServiceRpc.searchEntities(request).getEntitiesList();
+                } catch (StatusRuntimeException e) {
+                    throw new OperationFailedException("Retrieval of business accounts failed", e);
+                }
+                businessAccounts.forEach(ba -> {
+                    // convert each business account to criteria option
+                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setDisplayName(ba.getDisplayName());
+                    crOpt.setValue(String.valueOf(ba.getOid()));
+                    optionApiDTOs.add(crOpt);
+                });
+                break;
             default:
                 throw new IllegalArgumentException("Unknown criterion key: " + criteriaKey);
         }

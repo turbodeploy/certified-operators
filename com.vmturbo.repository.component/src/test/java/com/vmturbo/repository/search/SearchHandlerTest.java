@@ -184,6 +184,7 @@ public class SearchHandlerTest {
         shouldContain(queriesToArangoDB, "state");
         shouldContain(queriesToArangoDB, "severity");
         shouldContain(queriesToArangoDB, "entityType");
+        shouldContain(queriesToArangoDB, "FILTER e.type == \"CONSUMES\"");
     }
 
     @Test

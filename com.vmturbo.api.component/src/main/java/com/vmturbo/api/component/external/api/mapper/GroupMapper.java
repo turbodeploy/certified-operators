@@ -58,28 +58,79 @@ import com.vmturbo.components.common.ClassicEnumMapper;
 public class GroupMapper {
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Name of the field for VM specific info in the ServiceEntityRepoDTO. This needs
+     * to be consistent with the name in ServiceEntityRepoDTO. Pay attention to the first
+     * character which is usually lower case.
+     */
+    public static final String VIRTUAL_MACHINE_INFO = "virtualMachineInfo";
+
+    /**
+     * Set of names of the fields for entity type specific info in the ServiceEntityRepoDTO. This
+     * needs to be consistent with the name in ServiceEntityRepoDTO. Pay attention to the first
+     * character which is usually lower case.
+     */
+    private static Set<String> TYPE_SPECIFIC_INFO_FIELDS = ImmutableSet.of(
+            VIRTUAL_MACHINE_INFO
+    );
+
     public static final String GROUP = "Group";
     public static final String CLUSTER = "Cluster";
     public static final String STORAGE_CLUSTER = "StorageCluster";
 
+    public static final String OID = "oid";
     public static final String DISPLAY_NAME = "displayName";
+
+    // For normal criteria, user just need to provide a string (like a display name). But for
+    // some criteria, UI allow user to choose from list of available options (like tags, state and
+    // account id for now). These special criteria are hardcoded in UI side (see
+    // "criteriaKeysWithOptions" in filter.registry.service.ts). UI will call another API
+    // "/criteria/{elements}/options" to get a list of options for user to select from.
+    // Note: these needs to be consistent with UI side and also the "elements" field defined in
+    // "groupBuilderUseCases.json". If not, "/criteria/{elements}/options" will not be called
+    // since UI gets all criteria from "groupBuilderUseCases.json" and check if the criteria
+    // matches that inside "groupBuilderUseCases.json".
+    public static final String ACCOUNT_OID = "BusinessAccount:oid:CONNECTED_TO:1";
+    public static final String STATE = "state";
     public static final String TAGS = "tags";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
+    private static final String CONNECTED_TO = "CONNECTED_TO";
+    private static final String CONNECTED_FROM = "CONNECTED_FROM";
 
     public static final String ELEMENTS_DELIMITER = ":";
 
     public static final String EQUAL = "EQ";
     public static final String NOT_EQUAL = "NEQ";
-    public static final String STATE = "state";
+
 
     private static final Map<String, Function<SearchFilterContext, List<SearchFilter>>> FILTER_TYPES_TO_PROCESSORS;
 
     static {
         final TraversalFilterProcessor traversalFilterProcessor = new TraversalFilterProcessor();
+        final Function<SearchFilterContext, List<SearchFilter>> entityTypeSpecificInfoFilter = context -> {
+            Optional<String> subToken = context.getSubToken();
+            if (!subToken.isPresent()) {
+                logger.error("No nested field provided for {}, thus using empty filter", context.getCurrentToken());
+                return Collections.emptyList();
+            }
+            final PropertyFilter entityInfoPropertyFilter = SearchMapper.mapPropertyFilterForNormalMap(
+                    context.getCurrentToken(), subToken.get(), context.getFilter().getExpVal());
+            return Collections.singletonList(SearchMapper.searchFilterProperty(entityInfoPropertyFilter));
+        };
         final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
                 filterTypesToProcessors = new ImmutableMap.Builder<>();
+        filterTypesToProcessors.put(
+                OID,
+                context -> {
+                    final PropertyFilter propertyFilter =
+                            SearchMapper.stringFilter(
+                                    OID,
+                                    context.getFilter().getExpVal(),
+                                    context.getFilter().getExpType().equals(EQUAL));
+                    return Collections.singletonList(SearchMapper.searchFilterProperty(propertyFilter));
+                });
         filterTypesToProcessors.put(
                 DISPLAY_NAME,
                 context -> {
@@ -87,7 +138,7 @@ public class GroupMapper {
                             SearchMapper.nameFilter(
                                 context.getFilter().getExpVal(),
                                 context.getFilter().getExpType().equals(EQUAL));
-                    return ImmutableList.of(SearchMapper.searchFilterProperty(propertyFilter));
+                    return Collections.singletonList(SearchMapper.searchFilterProperty(propertyFilter));
                 });
         filterTypesToProcessors.put(
                 STATE,
@@ -96,7 +147,7 @@ public class GroupMapper {
                             SearchMapper.stateFilter(
                                 context.getFilter().getExpVal(),
                                 context.getFilter().getExpType().equals(EQUAL));
-                    return ImmutableList.of(SearchMapper.searchFilterProperty(stateFilter));
+                    return Collections.singletonList(SearchMapper.searchFilterProperty(stateFilter));
                 });
         filterTypesToProcessors.put(
                 TAGS,
@@ -106,7 +157,7 @@ public class GroupMapper {
                     // This is reported as a JIRA issue OM-39039.
                     final PropertyFilter tagsFilter =
                             SearchMapper.mapPropertyFilterForMultimaps(TAGS, context.getFilter().getExpVal());
-                    return ImmutableList.of(SearchMapper.searchFilterProperty(tagsFilter));
+                    return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
                 });
         filterTypesToProcessors.put(
                 CLUSTER,
@@ -116,10 +167,13 @@ public class GroupMapper {
                                 SearchMapper.nameFilter(
                                     context.getFilter().getExpVal(),
                                     context.getFilter().getExpType().equals(EQUAL)));
-                    return ImmutableList.of(SearchMapper.searchFilterCluster(clusterFilter));
+                    return Collections.singletonList(SearchMapper.searchFilterCluster(clusterFilter));
                 });
+        filterTypesToProcessors.put(VIRTUAL_MACHINE_INFO, entityTypeSpecificInfoFilter);
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
         filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
+        filterTypesToProcessors.put(CONNECTED_FROM, traversalFilterProcessor);
+        filterTypesToProcessors.put(CONNECTED_TO, traversalFilterProcessor);
         FILTER_TYPES_TO_PROCESSORS = filterTypesToProcessors.build();
     }
 
@@ -489,7 +543,18 @@ public class GroupMapper {
     private List<SearchFilter> processToken(@Nonnull FilterApiDTO filter,
                     @Nonnull String entityType, @Nonnull Iterator<String> iterator) {
         final String currentToken = iterator.next();
-        final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator, entityType, currentToken);
+
+        final SearchFilterContext filterContext;
+        // todo: this should be improved to handle multiple nested levels (OM-40354)
+        if (TYPE_SPECIFIC_INFO_FIELDS.contains(currentToken)) {
+            // if the field is type specific info field, we need to go to next field in iterator
+            // for example: virtualMachineInfo:guestOsType, virtualMachineInfo is the name of field
+            // for vm specific info, guestOsType is the field inside virtualMachineInfo
+            String subToken = iterator.next();
+            filterContext = new SearchFilterContext(filter, iterator, entityType, currentToken, subToken);
+        } else {
+            filterContext = new SearchFilterContext(filter, iterator, entityType, currentToken);
+        }
 
         final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
                         FILTER_TYPES_TO_PROCESSORS.get(currentToken);
@@ -539,12 +604,28 @@ public class GroupMapper {
 
         private final String currentToken;
 
+        // subToken is a token which is associated with currentToken (nested field). for example:
+        // "virtualMachineInfo:guestOsType", currentToken is "virtualMachineInfo" and subToken is
+        // "guestOsType"
+        // todo: this should be improved to handle multiple nested levels (OM-40354)
+        private final String subToken;
+
         public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
                         @Nonnull String entityType, @Nonnull String currentToken) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
             this.entityType = Objects.requireNonNull(entityType);
             this.currentToken = Objects.requireNonNull(currentToken);
+            this.subToken = null;
+        }
+
+        public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
+                @Nonnull String entityType, @Nonnull String currentToken, @Nonnull String subToken) {
+            this.filter = Objects.requireNonNull(filter);
+            this.iterator = Objects.requireNonNull(iterator);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.currentToken = Objects.requireNonNull(currentToken);
+            this.subToken = Objects.requireNonNull(subToken);
         }
 
         @Nonnull
@@ -567,11 +648,14 @@ public class GroupMapper {
             return currentToken;
         }
 
+        public Optional<String> getSubToken() {
+            return Optional.ofNullable(subToken);
+        }
+
         public boolean isHopCountBasedTraverse(@Nonnull StoppingCondition stopper) {
             return !iterator.hasNext() && stopper.hasNumberHops();
         }
     }
-
 
     /**
      * Processor for filter which has PRODUCES type of token

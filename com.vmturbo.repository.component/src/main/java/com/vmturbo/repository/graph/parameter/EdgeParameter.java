@@ -16,11 +16,14 @@ public class EdgeParameter {
 
     private List<String> tos;
 
+    private EdgeType edgeType;
+
     private EdgeParameter(Builder b) {
         this.edgeCollection = b.edgeCollection;
         this.waitForSync = b.waitForSync;
         this.from = b.from;
         this.to= b.to;
+        this.edgeType = b.edgeType;
     }
 
     public String getEdgeCollection() {
@@ -45,6 +48,13 @@ public class EdgeParameter {
 
     public List<String> getTos() {
         return tos;
+    }
+
+    /**
+     * Get string representation of of this edge parameter.
+     */
+    public String getEdgeType() {
+        return edgeType == null ? null : edgeType.name();
     }
 
     public EdgeParameter withFrom(String from) {
@@ -77,10 +87,13 @@ public class EdgeParameter {
 
         private String to;
 
-        public Builder(String edgeCollection, String from, String to) {
+        private EdgeType edgeType;
+
+        public Builder(String edgeCollection, String from, String to, EdgeType edgeType) {
             this.edgeCollection = edgeCollection;
             this.from = from;
             this.to = to;
+            this.edgeType = edgeType;
         }
 
         public Builder waitFroSync() {
@@ -91,5 +104,22 @@ public class EdgeParameter {
         public EdgeParameter build() {
             return new EdgeParameter(this);
         }
+    }
+
+    /**
+     * Enum representing the types of edges which are currently supported.
+     */
+    public enum EdgeType {
+        /**
+         * Consumes edge type, which is used for market relationship (one end of the edge is buying
+         * commodities from the other end), including consumes and produces.
+         */
+        CONSUMES,
+
+        /**
+         * Connected edge type, which is used for connected to relationship (including normal
+         * connected to and owns).
+         */
+        CONNECTED
     }
 }

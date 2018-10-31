@@ -81,6 +81,7 @@ public class ClassicEnumMapper {
             .put("LogicalPool",             EntityType.LOGICAL_POOL)
             .put("CloudService",            EntityType.CLOUD_SERVICE)
             .put("DistributedVirtualPortgroup", EntityType.DISTRIBUTED_VIRTUAL_PORTGROUP)
+            .put("BusinessAccount",         EntityType.BUSINESS_ACCOUNT)
             .put("Unknown",                 EntityType.UNKNOWN)
             .build();
 

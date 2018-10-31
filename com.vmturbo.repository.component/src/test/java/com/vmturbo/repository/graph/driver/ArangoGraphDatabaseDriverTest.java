@@ -38,6 +38,7 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseExc
 import com.vmturbo.repository.graph.parameter.CollectionParameter;
 import com.vmturbo.repository.graph.parameter.EdgeDefParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter;
+import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 import com.vmturbo.repository.graph.parameter.GraphParameter;
 import com.vmturbo.repository.graph.parameter.IndexParameter;
 import com.vmturbo.repository.graph.parameter.IndexParameter.GraphIndexType;
@@ -95,15 +96,33 @@ public class ArangoGraphDatabaseDriverTest {
     }
 
     @Test
-    public void testCreateEdge() throws Exception {
+    public void testCreateEdgeOfTypeConsumes() throws Exception {
         final String from = "from-1";
         final String to = "to-1";
         final String edgeCollection = "edgeCollection-1";
-        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, from, to).build();
+        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, from, to, EdgeType.CONSUMES).build();
         arangoGraphDatabaseDriverTest.createEdge(p);
 
+        BaseEdgeDocument edgeDocument = new BaseEdgeDocument(from, to);
+        edgeDocument.addAttribute("type", p.getEdgeType());
+
         verify(mockArangoDatabase).collection(edgeCollection);
-        verify(mockArangoCollection).insertDocument(new BaseEdgeDocument(from, to));
+        verify(mockArangoCollection).insertDocument(edgeDocument);
+    }
+
+    @Test
+    public void testCreateEdgeOfTypeConnected() throws Exception {
+        final String from = "from-1";
+        final String to = "to-1";
+        final String edgeCollection = "edgeCollection-1";
+        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, from, to, EdgeType.CONNECTED).build();
+        arangoGraphDatabaseDriverTest.createEdge(p);
+
+        BaseEdgeDocument edgeDocument = new BaseEdgeDocument(from, to);
+        edgeDocument.addAttribute("type", p.getEdgeType());
+
+        verify(mockArangoDatabase).collection(edgeCollection);
+        verify(mockArangoCollection).insertDocument(edgeDocument);
     }
 
     @Test
@@ -115,14 +134,19 @@ public class ArangoGraphDatabaseDriverTest {
         final List<String> froms = Arrays.asList(from1, from2);
         final List<String> tos = Arrays.asList(to1, to2);
         final String edgeCollection = "edgeCollection-1";
-        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, "from", "to").build();
+        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, "from", "to", EdgeType.CONSUMES).build();
 
         arangoGraphDatabaseDriverTest.createEdgesInBatch(
                 p.withFroms(froms).withTos(tos));
 
         verify(mockArangoDatabase).collection(edgeCollection);
-        verify(mockArangoCollection).insertDocuments(Sets.newHashSet(
-             Arrays.asList(new BaseEdgeDocument(from1, to1), new BaseEdgeDocument(from2, to2))));
+
+        BaseEdgeDocument edgeDocument1 = new BaseEdgeDocument(from1, to1);
+        edgeDocument1.addAttribute("type", p.getEdgeType());
+        BaseEdgeDocument edgeDocument2 = new BaseEdgeDocument(from2, to2);
+        edgeDocument2.addAttribute("type", p.getEdgeType());
+        verify(mockArangoCollection).insertDocuments(Sets.newHashSet(Arrays.asList(
+                edgeDocument1, edgeDocument2)));
     }
 
     @Test
@@ -130,7 +154,7 @@ public class ArangoGraphDatabaseDriverTest {
         final List<String> froms = Arrays.asList();
         final List<String> tos = Arrays.asList();
         final String edgeCollection = "edgeCollection-1";
-        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, "from", "to").build();
+        EdgeParameter p = new EdgeParameter.Builder(edgeCollection, "from", "to", EdgeType.CONSUMES).build();
 
         arangoGraphDatabaseDriverTest.createEdgesInBatch(
                 p.withFroms(froms).withTos(tos));

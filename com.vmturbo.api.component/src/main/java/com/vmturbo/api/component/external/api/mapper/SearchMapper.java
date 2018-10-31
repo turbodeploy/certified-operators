@@ -109,7 +109,7 @@ public class SearchMapper {
      * @param value the value to search for
      * @return a property filter
      */
-    public static PropertyFilter numericPropertyFilter(String propName, int value) {
+    public static PropertyFilter numericPropertyFilter(String propName, long value) {
         return PropertyFilter.newBuilder()
                         .setPropertyName(propName)
                         .setNumericFilter(NumericFilter.newBuilder()
@@ -174,6 +174,30 @@ public class SearchMapper {
         logger.debug("Property filter constructed: {}", result);
 
         return result;
+    }
+
+    /**
+     * Create a map filter for the specified property name and specified expression field. This is
+     * a simple version of {@link SearchMapper::mapPropertyFilterForMultimaps}. It only support one
+     * value for one key.
+     *
+     * @param propName property name to use for the search.
+     * @param expKey expression field name coming from the UI.
+     * @param expValue the value of the field used to compare.
+     * @return the property filter.
+     */
+    public static PropertyFilter mapPropertyFilterForNormalMap(@Nonnull String propName,
+                                                         @Nonnull String expKey,
+                                                         @Nonnull String expValue) {
+        return PropertyFilter.newBuilder()
+                .setPropertyName(propName)
+                .setMapFilter(
+                        MapFilter.newBuilder()
+                                .setKey(expKey)
+                                .addValues(expValue)
+                                .setIsMultimap(false)
+                                .build()
+                ).build();
     }
 
     private static PropertyFilter emptyMapPropertyFilter(String propName) {
@@ -266,7 +290,6 @@ public class SearchMapper {
                 .setClusterSpecifier(propertyFilter)
                 .build();
     }
-
 
     /**
      * Convert a {@link com.vmturbo.common.protobuf.search.Search.Entity} to a {@link ServiceEntityApiDTO}.

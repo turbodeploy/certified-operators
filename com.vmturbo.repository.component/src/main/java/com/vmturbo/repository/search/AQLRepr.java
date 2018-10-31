@@ -123,6 +123,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         final Map<String, Object> ctx = ImmutableMap.of(
                 "direction", direction.toAQLString(),
                 "hops", hops,
+                "edgeType", direction.getEdgeType(),
                 "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())),
                 "pagination", pagination.map(AQLPagination::toAQLString).orElse(""));
 
@@ -142,6 +143,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         final Collection<String> bindVars = AQLTemplate.bindVarsMapper.get(Filter.Type.TRAVERSAL_COND);
         final Map<String, Object> ctx = ImmutableMap.of(
                 "direction", direction.toAQLString(),
+                "edgeType", direction.getEdgeType(),
                 "condition", condition.toAQLString(),
                 "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())),
                 "pagination", pagination.map(AQLPagination::toAQLString).orElse(""));

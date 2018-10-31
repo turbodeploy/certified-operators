@@ -9,11 +9,28 @@ import javax.annotation.Nonnull;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Multimap;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 import com.vmturbo.repository.topology.TopologyDatabase;
 
 public abstract class GraphCmd {
+    /**
+     * Currently both consumes and connected relationship are supported, but we only put PROVIDER
+     * and CONSUMER here for now since we only want to show consumes relationship in supply chain.
+     * We can add more types (CONNECTED_TO AND CONNECTED_FROM) in the future if needed.
+     */
     public enum SupplyChainDirection {
-        PROVIDER, CONSUMER
+        PROVIDER(EdgeType.CONSUMES),
+        CONSUMER(EdgeType.CONSUMES);
+
+        private EdgeType edgeType;
+
+        SupplyChainDirection(@Nonnull EdgeType edgeType) {
+            this.edgeType = edgeType;
+        }
+
+        public String getEdgeType() {
+            return edgeType.name();
+        }
     }
 
     /**

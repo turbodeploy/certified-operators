@@ -19,6 +19,7 @@ public class ResultsFixture {
 
     private static final Random RANDOM = new Random(System.nanoTime());
 
+    public static final String BA_TYPE = "BusinessAccount";
     public static final String PM_TYPE = "PhysicalMachine";
     public static final String VM_TYPE = "VirtualMachine";
     public static final String APP_TYPE = "Application";

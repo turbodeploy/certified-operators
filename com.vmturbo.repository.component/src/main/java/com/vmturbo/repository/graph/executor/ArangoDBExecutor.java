@@ -97,6 +97,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
                                                               .put("edgeCollection", graphName)
                                                               .put("startingId", startingId)
                                                               .put("vertexCollection", vertexCollection)
+                                                              .put("edgeType", direction.getEdgeType())
                                                               .build();
 
         final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);

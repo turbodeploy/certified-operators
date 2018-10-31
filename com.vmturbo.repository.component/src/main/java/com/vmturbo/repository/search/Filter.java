@@ -3,14 +3,16 @@ package com.vmturbo.repository.search;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.derive4j.Data;
 import org.derive4j.Derive;
 import org.derive4j.ExportAsPublic;
 import org.derive4j.Flavour;
 import org.derive4j.Visibility;
 
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 
 /**
  * The representation of different search filters.
@@ -69,18 +71,42 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     }
 
     enum TraversalDirection implements AQLConverter {
-        PROVIDER {
+        PROVIDER(EdgeType.CONSUMES) {
             @Override
             public String toAQLString() {
                 return "INBOUND";
             }
         },
 
-        CONSUMER {
+        CONSUMER(EdgeType.CONSUMES) {
             @Override
             public String toAQLString() {
                 return "OUTBOUND";
             }
+        },
+
+        CONNECTED_TO(EdgeType.CONNECTED) {
+            @Override
+            public String toAQLString() {
+                return "INBOUND";
+            }
+        },
+
+        CONNECTED_FROM(EdgeType.CONNECTED) {
+            @Override
+            public String toAQLString() {
+                return "OUTBOUND";
+            }
+        };
+
+        private EdgeType edgeType;
+
+        TraversalDirection(@Nonnull EdgeType edgeType) {
+            this.edgeType = edgeType;
+        }
+
+        public String getEdgeType() {
+            return edgeType.name();
         }
     }
 

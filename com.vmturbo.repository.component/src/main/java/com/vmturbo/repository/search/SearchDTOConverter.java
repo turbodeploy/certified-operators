@@ -88,6 +88,14 @@ public class SearchDTOConverter {
                 direction = Filter.TraversalDirection.CONSUMER;
                 break;
 
+            case CONNECTED_TO:
+                direction = Filter.TraversalDirection.CONNECTED_TO;
+                break;
+
+            case CONNECTED_FROM:
+                direction = Filter.TraversalDirection.CONNECTED_FROM;
+                break;
+
             default:
                 return Either.left(new IllegalArgumentException("Traversal direction is not set"));
         }

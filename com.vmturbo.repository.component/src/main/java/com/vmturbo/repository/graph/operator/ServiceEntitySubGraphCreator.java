@@ -2,15 +2,22 @@ package com.vmturbo.repository.graph.operator;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.CollectionOperationException;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.EdgeOperationException;
@@ -19,6 +26,7 @@ import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.parameter.CollectionParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter;
+import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 import com.vmturbo.repository.graph.parameter.VertexParameter;
 
 /**
@@ -39,6 +47,20 @@ import com.vmturbo.repository.graph.parameter.VertexParameter;
  */
 public class ServiceEntitySubGraphCreator {
     private final Logger logger = LoggerFactory.getLogger(ServiceEntitySubGraphCreator.class);
+
+    /**
+     * Map keeping all edge types to create, and the function for each edge type which is about how
+     * to get entities on the other side of the edge for a given entity.
+     */
+    private static final Map<EdgeType, Function<ServiceEntityRepoDTO, List<String>>> EDGE_TYPE_TO_GET_ENTITIES_FUNCTION =
+            ImmutableMap.of(
+                    EdgeType.CONSUMES, se -> se.getProviders(),
+                    EdgeType.CONNECTED, se -> se.getConnectedEntityList() == null ?
+                            Collections.emptyList() :
+                            se.getConnectedEntityList().stream()
+                                    .map(connectedEntity -> String.valueOf(connectedEntity.getConnectedEntityId()))
+                                    .collect(Collectors.toList())
+            );
 
     private final GraphDatabaseDriver graphDatabaseDriver;
     private final GraphDefinition graphDefinition;
@@ -95,22 +117,38 @@ public class ServiceEntitySubGraphCreator {
         logger.debug("Creating vertices for SEs");
         createVertices(ses);
 
-        logger.debug("Creating edges for SE provider relationship");
-        createEdges(ses);
+        // create edges for different types of relationship on the SE
+        for (Map.Entry<EdgeType, Function<ServiceEntityRepoDTO, List<String>>> entry :
+                EDGE_TYPE_TO_GET_ENTITIES_FUNCTION.entrySet()) {
+            logger.debug("Creating edges for SE {} relationship", entry.getKey());
+            createEdges(ses, entry.getKey(), entry.getValue());
+        }
     }
 
-    private void createEdges(Collection<ServiceEntityRepoDTO> ses) throws EdgeOperationException {
+    /**
+     * Create edges for a collection of entities, for the given edge type and the function about
+     * how to get related entities for an entity.
+     *
+     * @param ses the collection of entities to create edges for
+     * @param edgeType the type of the edge to create
+     * @param getRelatedEntities function which tells how to find related entities for an entity
+     * @throws EdgeOperationException
+     */
+    private void createEdges(@Nonnull Collection<ServiceEntityRepoDTO> ses,
+                             @Nonnull EdgeType edgeType,
+                             @Nonnull Function<ServiceEntityRepoDTO, List<String>> getRelatedEntities)
+            throws EdgeOperationException {
         // TODO: move the Arango-specific logic to ArangoGraphDatabaseDriver
         final String handlePrefix = graphDefinition.getServiceEntityVertex() + "/";
         EdgeParameter p = new EdgeParameter.Builder(
-                graphDefinition.getProviderRelationship(), "from", "to").build();
+                graphDefinition.getProviderRelationship(), "from", "to", edgeType).build();
 
         int counter = 0;
         List<String> froms = new ArrayList<>();
         List<String> tos = new ArrayList<>();
 
         for (ServiceEntityRepoDTO se : ses) {
-            Collection<String> providers = se.getProviders();
+            Collection<String> providers = getRelatedEntities.apply(se);
             if (providers == null || providers.isEmpty()) {
                 continue;
             }
@@ -122,16 +160,16 @@ public class ServiceEntitySubGraphCreator {
                     froms = new ArrayList<>();
                     tos = new ArrayList<>();
                 }
-
                 froms.add(handlePrefix + prov);
                 tos.add(handlePrefix + getVertexKey(se));
-
                 counter++;
             }
+
         }
 
-        graphDatabaseDriver.createEdgesInBatch(p.withFroms(froms).withTos(tos));
-
+        if (!froms.isEmpty()) {
+            graphDatabaseDriver.createEdgesInBatch(p.withFroms(froms).withTos(tos));
+        }
     }
 
     private void createVertices(Collection<ServiceEntityRepoDTO> ses)

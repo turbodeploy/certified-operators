@@ -83,6 +83,11 @@ message SearchFilter {
             // indicates that the Consumer is buying a commodity from the Producer.
             CONSUMES = 0;
             PRODUCES = 1;
+            // BusinessAccount ---- ConnectedTo   ---> VirtualMachine
+            // VirtualMachine  <--- ConnectedFrom ---> BusinessAccount
+            // where ConnectedFrom is the opposite direction (on the same edge) of ConnectedTo
+            CONNECTED_TO = 2;
+            CONNECTED_FROM = 3;
         }
     }
 

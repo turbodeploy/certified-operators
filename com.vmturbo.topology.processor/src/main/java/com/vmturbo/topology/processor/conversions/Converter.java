@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.conversions;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -35,8 +34,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagVal
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -47,8 +46,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -240,6 +239,7 @@ public class Converter {
                         .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
                         .setNumCoupons(ctData.getNumCoupons())
                         .build());
+                break;
             case APPLICATION_DATA:
                 final ApplicationData appData = sdkEntity.getApplicationData();
                 if (appData.hasDbData()) {
@@ -248,7 +248,6 @@ public class Converter {
                             .setEdition(parseDbEdition(dbData.getEdition()))
                             .setEngine(parseDbEngine(dbData.getEngine()))
                             .build());
-                    break;
                 }
                 break;
             case VIRTUAL_VOLUME_DATA:

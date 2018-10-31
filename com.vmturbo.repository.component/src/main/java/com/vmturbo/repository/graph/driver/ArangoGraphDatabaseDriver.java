@@ -98,6 +98,7 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     public synchronized void createEdge(final @Nonnull EdgeParameter p)
             throws EdgeOperationException {
         final BaseEdgeDocument newEdge = new BaseEdgeDocument(p.getFrom(), p.getTo());
+        newEdge.addAttribute("type", p.getEdgeType());
         try {
             arangoDatabase.collection(p.getEdgeCollection()).insertDocument(newEdge);
         } catch (ArangoDBException e) {
@@ -123,7 +124,10 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
             int index = 0;
             for (String from : p.getFroms()) {
                 final String to = p.getTos().get(index++);
-                newEdges.add(new BaseEdgeDocument(from, to));
+                final BaseEdgeDocument edgeDocument = new BaseEdgeDocument(from, to);
+                // set the type of the edge so we can traverse by edge type
+                edgeDocument.addAttribute("type", p.getEdgeType());
+                newEdges.add(edgeDocument);
             }
             arangoDatabase.collection(p.getEdgeCollection()).insertDocuments(newEdges);
         } catch (ArangoDBException e) {

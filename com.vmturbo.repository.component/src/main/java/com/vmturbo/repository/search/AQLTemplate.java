@@ -43,6 +43,7 @@ public class AQLTemplate {
     public static final String TRAVERSAL_HOP_TEMPLATE =
             "FOR origin IN @inputs\n" +
             "FOR v,e,p IN 1..{{hops}} {{direction}} origin GRAPH @graph\n" +
+            "FILTER e.type == \"{{edgeType}}\"\n" +
             "FILTER LENGTH(p.edges) == {{hops}}\n" +
             "LET service_entity = LAST(p.vertices)\n" +
             "{{#filters}}\n" +
@@ -63,6 +64,7 @@ public class AQLTemplate {
     public static final String TRAVERSAL_SEARCH_TEMPLATE =
             "FOR origin IN @inputs\n" +
             "FOR v,e,p IN 1..100 {{direction}} origin GRAPH @graph\n" +
+            "FILTER e.type == \"{{edgeType}}\"\n" +
             "LET service_entity = v\n" +
             "{{{condition}}}\n" +
             "{{#filters}}\n" +
