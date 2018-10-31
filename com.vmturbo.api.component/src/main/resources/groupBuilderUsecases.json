@@ -28,7 +28,8 @@
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
             {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "pmsByState"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "pmsbyTag"}
+            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag"},
+            {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsByStorage"}
         ]
     },
 
@@ -39,7 +40,7 @@
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
             {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "storagebyTag"},
+            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"}
         ]
     },
@@ -66,7 +67,7 @@
     "Cluster" : {
         "criteria" : [
           {"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"},
-          {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "clustersbyTag"}
+          {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "clustersByTag"}
         ]
     },
 
