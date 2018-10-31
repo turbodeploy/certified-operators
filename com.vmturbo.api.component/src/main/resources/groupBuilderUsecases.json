@@ -39,7 +39,8 @@
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
             {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "storagebyTag"}
+            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "storagebyTag"},
+            {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"}
         ]
     },
 
