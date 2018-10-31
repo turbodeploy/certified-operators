@@ -135,7 +135,7 @@ public class TemplateConverterFactoryTest {
                 .collect(Collectors.toList());
         Assert.assertEquals(2, topologyEntityDTOList.size());
         Assert.assertTrue(topologyEntityDTOList.stream()
-                .anyMatch(entity -> entity.getDisplayName().contains("Clone")));
+                .anyMatch(entity -> entity.getDisplayName().contains("Replacing")));
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }

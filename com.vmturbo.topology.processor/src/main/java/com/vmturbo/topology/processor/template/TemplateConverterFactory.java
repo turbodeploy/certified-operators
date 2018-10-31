@@ -155,12 +155,15 @@ public class TemplateConverterFactory {
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull Collection<Long> replacedEntities) {
         return replacedEntities.stream()
+            .filter(topology::containsKey)
             .map(entityOid -> {
+                final TopologyEntity.Builder entityBuilder = topology.get(entityOid);
                 final TopologyEntityDTO.Builder topologyEntityBuilder =
                     TemplatesConverterUtils.generateTopologyEntityBuilder(template);
                 topologyEntityBuilder
                     .setOid(identityProvider.generateTopologyId())
-                    .setDisplayName(template.getTemplateInfo().getName() + " - Clone for replacement");
+                    .setDisplayName(template.getTemplateInfo().getName() + " - Replacing " +
+                            entityBuilder.getDisplayName());
                 return generateTopologyEntityByType(template, topologyEntityBuilder, topology,
                     entityOid, false);
             });
