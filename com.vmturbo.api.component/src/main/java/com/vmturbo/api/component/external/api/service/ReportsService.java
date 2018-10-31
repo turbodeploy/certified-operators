@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -126,7 +127,8 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public List<ReportApiDTO> getTemplatesList() {
+    //TODO : Add implementation to use parameter "ReportType... types".
+    public List<ReportApiDTO> getTemplatesList(ReportType... types) {
         final List<ReportApiDTO> result = new ArrayList<>();
         final Iterator<ReportTemplate> iterator =
                 reportingService.listAllTemplates(Empty.getDefaultInstance());
@@ -444,5 +446,15 @@ public class ReportsService implements IReportsService {
      */
     private static String createFakeFilename(@Nonnull ReportTemplateId templateId) {
         return Integer.toString(templateId.getReportType()) + '-' + templateId.getId();
+    }
+
+    @Override
+    public ReportApiDTO createCustomReportTemplate(String arg0, ReportApiDTO arg1) {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public ReportApiDTO validateCustomReportTemplate(String arg0, String arg1, MultipartFile arg2) {
+        throw ApiUtils.notImplementedInXL();
     }
 }
