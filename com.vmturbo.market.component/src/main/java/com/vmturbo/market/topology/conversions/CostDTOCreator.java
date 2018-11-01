@@ -7,7 +7,6 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -16,7 +15,6 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
-import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
@@ -24,7 +22,6 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
@@ -35,18 +32,6 @@ public class CostDTOCreator {
         this.commodityConverter = commodityConverter;
         this.marketPriceTable = marketPriceTable;
     }
-
-    // A mapping between the CloudCostDTO.OSType to the os type(string) indicated by the license access commodity
-    public static ImmutableMap<CloudCostDTO.OSType, String> OSTypeMapping = ImmutableMap.<CloudCostDTO.OSType, String>builder()
-                                        .put(CloudCostDTO.OSType.LINUX, "Linux")
-                                        .put(CloudCostDTO.OSType.RHEL, "RHEL")
-                                        .put(CloudCostDTO.OSType.SUSE, "SUSE")
-                                        .put(CloudCostDTO.OSType.UNKNOWN_OS, "UNKNOWN")
-                                        .put(CloudCostDTO.OSType.WINDOWS, "Windows")
-                                        .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_STANDARD, "Windows_SQL_Standard")
-                                        .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_WEB, "Windows_SQL_Web")
-                                        .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_ENTERPRISE, "Windows_SQL_Server_Enterprise")
-                                        .put(CloudCostDTO.OSType.WINDOWS_BYOL, "Windows_Bring_your_own_license").build();
 
     /**
      * Create CostDTO for a given tier and region based traderDTO.
@@ -78,11 +63,6 @@ public class CostDTOCreator {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         //createComputeResourceDependency(tier); TODO: add it once dto has proper field to store
         ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier.getOid(), region.getOid());
-        if (priceBundle == null) {
-            logger.warn("Failed to get pricing information for tier {} on region {}",
-                    tier.getDisplayName(), region.getDisplayName());
-            return CostDTO.newBuilder().setComputeTierCost(computeTierDTOBuilder.build()).build();
-        }
         Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                 .map(CommoditySoldDTO::getCommodityType)
@@ -90,7 +70,7 @@ public class CostDTOCreator {
         Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
         for (ComputePrice price : priceBundle.getPrices()) {
             List<CommodityType> licenseCommType = licenseCommoditySet.stream()
-                    .filter(c -> c.getKey().equals(OSTypeMapping.get(price.getOsType()))).collect(Collectors.toList());
+                    .filter(c -> c.getKey().equals(price.getOsType().name())).collect(Collectors.toList());
             if (licenseCommType.size() != 1) {
                 logger.warn("Entity in tier {} region {} have duplicate number of license",
                         tier.getDisplayName(), region.getDisplayName());
@@ -195,30 +175,10 @@ public class CostDTOCreator {
      *
      * @return CostDTO
      */
-    public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, TopologyEntityDTO region,
-                                            Set<TopologyEntityDTO> businessAccountDTOs) {
-        StoragePriceBundle storageCostBundle = marketPriceTable
-                        .getStoragePriceBundle(tier.getOid(), region.getOid());
-        CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
-        if (storageCostBundle == null) {
-            logger.warn("Failed to get pricing information for tier {} on region {}",
-                    tier.getDisplayName(), region.getDisplayName());
-            return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
-        }
-        tier.getCommoditySoldListList().forEach(c ->  {
-            CommodityType commType = c.getCommodityType();
-            if (!storageCostBundle.getPrices(commType).isEmpty()) {
-                StorageTierCostDTO.StorageResourceCost.Builder builder = StorageTierCostDTO.StorageResourceCost
-                                .newBuilder()
-                                .setResourceType(commodityConverter.commoditySpecification(commType));
-                storageCostBundle.getPrices(commType).forEach(p -> builder.addStorageTierPriceData(p));
-                storageDTO.addStorageResourceCost(builder.build());
-            }
-        });
-
-        return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
+    public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, TopologyEntityDTO region, Set<TopologyEntityDTO> businessAccountDTOs) {
+        return CostDTO.newBuilder()
+                .setStorageTierCost(StorageTierCostDTO.newBuilder().build()).build();
     }
-
 
     /**
      * Create {@link ComputeResourceDependency} which specifies the constraint between comm bought used
