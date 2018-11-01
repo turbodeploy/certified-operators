@@ -14,23 +14,16 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
     private final long connRetryIntervalSeconds;
 
     private final long pongMessageTimeout;
-    /**
-     * Timeout applied for atomic sending operation. Some large data buffers are chunked into a less
-     * ones in order to send over the wire. This timeout applies to the 2nd ones, i.e. the buffers
-     * that are really sent to the underlying Websocket transport.
-     */
-    private final long atomicSendTimeoutSec;
 
     private WebsocketConnectionConfig(@Nonnull final String host, final int port,
             @Nullable final String userName, @Nullable final String userPassword,
             @Nullable final File sslKeystoreFile, @Nullable final String sslKeystorePassword,
             final long silentRetriesTime, final long connRetryIntervalSeconds,
-            final long pongMessageTimeout, final long atomicSendTimeoutSec) {
+            final long pongMessageTimeout) {
         super(host, port, userName, userPassword, sslKeystoreFile, sslKeystorePassword);
         this.silentRetriesTime = silentRetriesTime;
         this.connRetryIntervalSeconds = connRetryIntervalSeconds;
         this.pongMessageTimeout = pongMessageTimeout;
-        this.atomicSendTimeoutSec = atomicSendTimeoutSec;
     }
 
     public long getSilentRetriesTime() {
@@ -59,7 +52,6 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
         private long silentRetriesTime = 0;
         private long connRetryIntervalSeconds = DEFAULT_CONN_RETRY_INTERVAL_S;
         private long pongMessageTimeout = 10000;
-        private long atomicSendTimeoutSec = 30;
 
         public Builder(@Nonnull String host, int port) {
             super(host, port);
@@ -88,8 +80,7 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
         public WebsocketConnectionConfig build() {
             return new WebsocketConnectionConfig(getHost(), getPort(), getUserName(),
                     getUserPassword(), getSslKeystoreFile(), getSslKeystorePassword(),
-                    silentRetriesTime, connRetryIntervalSeconds, pongMessageTimeout,
-                    atomicSendTimeoutSec);
+                    silentRetriesTime, connRetryIntervalSeconds, pongMessageTimeout);
         }
     }
 }

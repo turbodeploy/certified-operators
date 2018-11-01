@@ -186,11 +186,6 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
         public long getPongMessageTimeout() {
             return innerConfig.getPongMessageTimeout();
         }
-
-        @Override
-        public long getAtomicSendTimeoutSec() {
-            return 30L;
-        }
     }
 }
 
