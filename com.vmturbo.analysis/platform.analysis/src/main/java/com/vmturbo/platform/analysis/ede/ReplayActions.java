@@ -234,9 +234,18 @@ public class ReplayActions {
                 if (Suspension.getSuspensionsthrottlingconfig() == SuspensionsThrottlingConfig.CLUSTER) {
                     Suspension.makeCoSellersNonSuspendable(economy, newTrader);
                 }
-                suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
-                                                                                    economy,
-                                                                                    ledger));
+                if (newTrader.getSettings().isControllable()) {
+                    suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
+                                    economy,
+                                    ledger));
+                } else {
+                    // If controllable is false, deactivate the trader without checking criteria
+                    // as entities may not be able to move out of the trader with controllable false.
+                    Deactivate replayedSuspension = new Deactivate(economy, newTrader,
+                                    economy.getMarketsAsSeller(newTrader).get(0));
+                    suspendActions.add(replayedSuspension.take());
+                    suspendActions.addAll(replayedSuspension.getSubsequentActions());
+                }
             }
         }
         //reset the above set utilThreshold.

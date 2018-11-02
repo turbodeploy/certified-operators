@@ -25,6 +25,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
 
     // Fields for TraderSettings
+    private boolean controllable_ = true;
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
     private boolean guaranteedBuyer_ = false;
@@ -102,6 +103,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
 
     @Override
     @Pure
+    public boolean isControllable(@ReadOnly TraderWithSettings this) {
+        return controllable_;
+    }
+
+    @Override
+    @Pure
     public boolean isSuspendable(@ReadOnly TraderWithSettings this) {
         return suspendable_;
     }
@@ -162,6 +169,13 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Pure
     public double getMoveCostFactor(@ReadOnly TraderWithSettings this) {
         return moveCostFactor_;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setControllable(boolean controllable) {
+        controllable_ = controllable;
+        return this;
     }
 
     @Override

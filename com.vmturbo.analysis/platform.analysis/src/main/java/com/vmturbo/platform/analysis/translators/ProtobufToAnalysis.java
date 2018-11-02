@@ -266,6 +266,7 @@ public final class ProtobufToAnalysis {
     public static void populateTraderSettings(@NonNull Topology topology,
                                               @NonNull TraderSettingsTO source,
                                               @NonNull TraderSettings destination) {
+        destination.setControllable(source.getControllable());
         destination.setCloneable(source.getClonable());
         destination.setSuspendable(source.getSuspendable());
         destination.setMinDesiredUtil(source.getMinDesiredUtilization());

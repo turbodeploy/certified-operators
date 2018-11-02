@@ -96,6 +96,9 @@ message TraderSettingsTO {
 
     // The move cost factor for a trader to move.
     optional float move_cost_factor = 13 [default = 0.005];
+
+    // Whether a trader is controllable or not.
+    optional bool controllable = 14;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

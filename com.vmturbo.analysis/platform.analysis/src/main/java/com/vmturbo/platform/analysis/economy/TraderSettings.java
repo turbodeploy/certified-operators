@@ -10,6 +10,11 @@ import com.vmturbo.platform.analysis.utilities.CostFunction;
  */
 public interface TraderSettings {
     /**
+     * Whether the associated {@link Trader} is controllable.
+     */
+    boolean isControllable();
+
+    /**
      * Whether the associated {@link Trader} should be considered for suspension.
      */
     boolean isSuspendable();
@@ -85,6 +90,18 @@ public interface TraderSettings {
      *
      */
     BalanceAccount getBalanceAccount();
+
+    /**
+     * Sets the value of the <b>controllable</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param controllable the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setControllable(boolean controllable);
 
     /**
      * Sets the value of the <b>suspendable</b> field.
