@@ -844,6 +844,7 @@ public class TopologyConverter {
                     createCommonTraderSettingsTOBuilder(
                             topologyDTO, unmodifiableEntityOidToDtoMap, isAlleviatePressurePlan);
             settingsBuilder.setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
+                    .setControllable(topologyDTO.getAnalysisSettings().getControllable())
                     .setSuspendable(suspendable)
                     .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
                                               && topologyDTO.getAnalysisSettings().getControllable())
