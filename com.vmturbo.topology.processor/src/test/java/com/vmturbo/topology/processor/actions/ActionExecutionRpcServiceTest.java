@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.actions;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -39,22 +38,31 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
 
 public class ActionExecutionRpcServiceTest {
+
     private EntityStore entityStore = Mockito.mock(EntityStore.class);
 
     private OperationManager operationManager = Mockito.mock(OperationManager.class);
 
-
     private ActionDataManager actionDataManager = Mockito.mock(ActionDataManager.class);
 
+    private EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
+
+    private ActionExecutionContextFactory actionExecutionContextFactory =
+            new ActionExecutionContextFactory(actionDataManager,
+                    entityStore,
+                    entityRetriever);
+
     private ActionExecutionRpcService actionExecutionBackend =
-            new ActionExecutionRpcService(entityStore,
-                    operationManager,
-                    actionDataManager);
+            new ActionExecutionRpcService(operationManager,
+                    actionExecutionContextFactory);
 
     @Captor
     private ArgumentCaptor<List<ActionItemDTO>> actionItemDTOCaptor;
@@ -70,10 +78,15 @@ public class ActionExecutionRpcServiceTest {
     public GrpcTestServer server = GrpcTestServer.newServer(actionExecutionBackend);
 
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
 
+        // These stubs will be replaced in the initializeTopology method for all valid entities in
+        // each test. The stubs defined here will be applied to entities that are not found in the
+        // topology defined in the test, i.e. missing entities.
         Mockito.when(entityStore.getEntity(Mockito.anyLong())).thenReturn(Optional.empty());
+        Mockito.doThrow(new EntityRetrievalException("No entity found "))
+                .when(entityRetriever).fetchAndConvertToEntityDTO(Mockito.anyLong());
 
         actionExecutionStub = ActionExecutionServiceGrpc.newBlockingStub(server.getChannel());
     }
@@ -178,7 +191,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing destination"));
+                .descriptionContains("entitydata for entity 3 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -400,7 +413,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing"));
+                .descriptionContains("entitydata for entity 1 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -429,7 +442,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing host of target"));
+                .descriptionContains("entitydata for entity 7 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -534,7 +547,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing"));
+                .descriptionContains("entitydata for entity 1 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -560,7 +573,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing host of target"));
+                .descriptionContains("entitydata for entity 2 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -668,7 +681,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing"));
+                .descriptionContains("entitydata for entity 1 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -694,7 +707,7 @@ public class ActionExecutionRpcServiceTest {
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Missing host of target"));
+                .descriptionContains("entitydata for entity 2 could not be retrieved"));
         actionExecutionStub.executeAction(request);
     }
 
@@ -705,16 +718,25 @@ public class ActionExecutionRpcServiceTest {
                 .map(entityRequest -> {
                     final Entity entity = new Entity(entityRequest.id,
                         entityRequest.entityType);
-                    entity.addTargetInfo(targetId, EntityDTO.newBuilder()
+                    final EntityDTO entityDTO = EntityDTO.newBuilder()
                             .setEntityType(entityRequest.entityType)
                             .setId(Long.toString(entityRequest.id))
-                            .build());
+                            .build();
+                    entity.addTargetInfo(targetId, entityDTO);
                     if (entityRequest.entityType == EntityType.VIRTUAL_MACHINE) {
                         entityRequest.hostPm.ifPresent(hostId ->
                                 entity.setHostedBy(targetId, hostId));
                     }
                     Mockito.when(entityStore.getEntity(entityRequest.id))
                            .thenReturn(Optional.of(entity));
+                    try {
+                        // This is expressed as a doReturn instead of a when...thenReturn so that
+                        // it does not invoke the default behavior that has already been stubbed for
+                        // this method (which is to trigger an exception).
+                        Mockito.doReturn(entityDTO).when(entityRetriever).fetchAndConvertToEntityDTO(entityRequest.id);
+                    } catch (EntityRetrievalException e) {
+                        throw new RuntimeException(e);
+                    }
                     return entity;
                 })
                 .collect(Collectors.toMap(Entity::getId, Function.identity()));

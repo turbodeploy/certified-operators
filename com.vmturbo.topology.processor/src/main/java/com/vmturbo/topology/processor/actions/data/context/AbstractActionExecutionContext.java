@@ -21,6 +21,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
@@ -69,6 +71,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private final EntityStore entityStore;
 
     /**
+     * Retrieves and converts an entity in order to provide the full entity data for action execution.
+     */
+    private final EntityRetriever entityRetriever;
+
+    /**
      * A list of {@link ActionItemDTO} to send to the probe for action execution.
      * This is the main carrier of data to the probes when executing an action.
      * By convention, the first ActionItem in the list will declare the overarching type of the
@@ -79,7 +86,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
-                                             @Nonnull final EntityStore entityStore)
+                                             @Nonnull final EntityStore entityStore,
+                                             @Nonnull final EntityRetriever entityRetriever)
             throws ActionExecutionException {
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
@@ -88,6 +96,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.actionInfo = Objects.requireNonNull(request.getActionInfo());
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
+        this.entityRetriever = Objects.requireNonNull(entityRetriever);
 
         // Build the action items, the primary data carrier to the probe for action execution
         List<ActionItemDTO.Builder> actionItemBuilders = initActionItems();
@@ -206,28 +215,32 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * @throws ActionExecutionException if the data required for action execution cannot be retrieved
      */
     protected List<ActionItemDTO.Builder> initActionItems() throws ActionExecutionException {
-        // Get the raw discovery data discovered for this entity by this particular target
-        // TODO: Update this to use the stitched entity DTO instead of the raw discovery data.
-        //       This change will take place in an upcoming, related task.
-        final PerTargetInfo targetInfo = getPerTargetInfo(getTargetId(),
-                getPrimaryEntityId(),
-                TARGET_LOOKUP_TOKEN);
-
+        // Get the full entity, including a combination of both stitched and raw data
+        final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
         actionItemBuilder.setActionType(getSDKActionType());
         actionItemBuilder.setUuid(Long.toString(getActionId()));
-        actionItemBuilder.setTargetSE(targetInfo.getEntityInfo());
+        actionItemBuilder.setTargetSE(fullEntityDTO);
 
         // Add additional data for action execution
         actionItemBuilder.addAllContextData(getContextData());
 
         // TODO: Determine if this special case should be converted to context data
         // Right now, this is treated as a fourth entity (hostedBySE) on the ActionItemDTO
-        getHost(getTargetId(), targetInfo).ifPresent(actionItemBuilder::setHostedBySE);
+        getHost(fullEntityDTO).ifPresent(actionItemBuilder::setHostedBySE);
 
         List<ActionItemDTO.Builder> builders = new ArrayList<>();
         builders.add(actionItemBuilder);
         return builders;
+    }
+
+    protected EntityDTO getFullEntityDTO(long entityId) throws ActionExecutionException {
+        try {
+            return entityRetriever.fetchAndConvertToEntityDTO(entityId);
+        } catch (EntityRetrievalException e) {
+            throw new ActionExecutionException("Unable to execute action because the full entity"
+                    + "data for entity " + entityId + " could not be retrieved.", e);
+        }
     }
 
     protected PerTargetInfo getPerTargetInfo(final long targetId,
@@ -241,16 +254,23 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                         entityType, entityId, targetId));
     }
 
-    protected Optional<EntityDTO> getHost(final long targetId, final PerTargetInfo entityInfo)
-            throws ActionExecutionException {
+    protected Optional<EntityDTO> getHost(final EntityDTO entity) throws ActionExecutionException {
         // Right now hosted by only gets set for VM -> PM and Container -> Pod relationships.
         // Hosted by for VM -> PM relationships is most notably required by the HyperV probe.
         // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.
-        if (entityInfo.getEntityInfo().getEntityType().equals(EntityType.VIRTUAL_MACHINE) ||
-                entityInfo.getEntityInfo().getEntityType().equals(EntityType.CONTAINER)) {
-            final PerTargetInfo hostOfTarget = getPerTargetInfo(targetId,
-                    entityInfo.getHost(), "host of target");
-            return Optional.of(hostOfTarget.getEntityInfo());
+        final EntityType entityType = entity.getEntityType();
+        if (entityType.equals(EntityType.VIRTUAL_MACHINE) ||
+                entityType.equals(EntityType.CONTAINER)) {
+            // Look up the raw entity info to find the host
+            // TODO: This is bad. Why store host separately from the rest of the entity data? This
+            //     should be stored somewhere in the EntityDTO, not in the PerTargetInfo itself!
+            //     If that were the case, this getPerTargetInfo lookup would not be needed.
+            // Get the raw discovery data discovered for this entity by this particular target
+            final PerTargetInfo entityInfo = getPerTargetInfo(getTargetId(),
+                    getPrimaryEntityId(),
+                    TARGET_LOOKUP_TOKEN);
+            // Look up the raw entity info for the host
+            return Optional.of(getFullEntityDTO(entityInfo.getHost()));
         }
         return Optional.empty();
     }

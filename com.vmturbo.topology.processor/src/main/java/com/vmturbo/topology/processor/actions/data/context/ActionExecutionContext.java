@@ -24,7 +24,7 @@ public interface ActionExecutionContext {
      * actions, ActionItemDTOs are used to communicate actions to the probes.
      * This is the main carrier of data sent to the probes when executing an action.
      *
-     * An action is repesenting as a list of action items because some actions, such as a move
+     * An action is represented as a list of action items because some actions, such as a move
      * together or a cross target move, will translate to multiple action items. For example, if a
      * VM is changing hosts and changing storage, it would have one action item for the hosts change
      * and another action item for the storage change. Any change of providers is represented as

@@ -9,6 +9,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -18,9 +19,10 @@ public class ActivateContext extends AbstractActionExecutionContext {
 
     public ActivateContext(@Nonnull final ExecuteActionRequest request,
                            @Nonnull final ActionDataManager dataManager,
-                           @Nonnull final EntityStore entityStore)
+                           @Nonnull final EntityStore entityStore,
+                           @Nonnull final EntityRetriever entityRetriever)
             throws ActionExecutionException {
-        super(request, dataManager, entityStore);
+        super(request, dataManager, entityStore, entityRetriever);
     }
 
     /**

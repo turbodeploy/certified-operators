@@ -20,9 +20,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
@@ -33,18 +35,12 @@ public class MoveContext extends AbstractActionExecutionContext {
 
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * Tokens to use generating error logging during entity lookup. These correspond to the
-     * two additional entity designations in any MOVE action.
-     */
-    private static final String SOURCE_LOOKUP_TOKEN = "source";
-    private static final String DESTINATION_LOOKUP_TOKEN = "destination";
-
     public MoveContext(@Nonnull final ExecuteActionRequest request,
                        @Nonnull final ActionDataManager dataManager,
-                       @Nonnull final EntityStore entityStore)
+                       @Nonnull final EntityStore entityStore,
+                       @Nonnull final EntityRetriever entityRetriever)
             throws ActionExecutionException {
-        super(request, dataManager, entityStore);
+        super(request, dataManager, entityStore, entityRetriever);
     }
 
     /**
@@ -112,10 +108,11 @@ public class MoveContext extends AbstractActionExecutionContext {
     protected List<ActionItemDTO.Builder> initActionItems() throws ActionExecutionException {
         Move move = getMoveInfo();
         List<ActionItemDTO.Builder> builders = Lists.newArrayList();
-        final PerTargetInfo targetInfo = getPerTargetInfo(getTargetId(), move.getTarget().getId(),
-                TARGET_LOOKUP_TOKEN);
+        // TODO: Assess whether the performance benefits warrant aggregating all the entities
+        // involved in the move and making a bulk call to lookup the TopologyEntityDTOs.
+        EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         for (ChangeProvider change : move.getChangesList()) {
-            builders.add(actionItemDtoBuilder(getTargetId(), change, getActionId(), targetInfo));
+            builders.add(actionItemDtoBuilder(getTargetId(), change, getActionId(), fullEntityDTO));
         }
         return builders;
     }
@@ -147,19 +144,18 @@ public class MoveContext extends AbstractActionExecutionContext {
     private ActionItemDTO.Builder actionItemDtoBuilder(long targetId,
                                                        ChangeProvider change,
                                                        long actionId,
-                                                       PerTargetInfo targetInfo)
+                                                       EntityDTO primaryEntity)
             throws ActionExecutionException {
-        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, change.getSource().getId(),
-                SOURCE_LOOKUP_TOKEN);
-        final PerTargetInfo destInfo = getPerTargetInfo(targetId, change.getDestination().getId(),
-                DESTINATION_LOOKUP_TOKEN);
+        EntityDTO sourceEntity = getFullEntityDTO(change.getSource().getId());
+        EntityDTO destinationEntity = getFullEntityDTO(change.getDestination().getId());
 
-        // Set the action type depending on the type of the entity being moved.
-        final EntityType srcEntityType = sourceInfo.getEntityInfo().getEntityType();
-        if (srcEntityType != destInfo.getEntityInfo().getEntityType()) {
+        // Check that the source and destination are the same type
+        final EntityType srcEntityType = sourceEntity.getEntityType();
+        final EntityType destinationEntityType = destinationEntity.getEntityType();
+        if (srcEntityType != destinationEntityType) {
             throw new ActionExecutionException("Mismatched source and destination entity types! " +
                     " Source: " + srcEntityType +
-                    " Destination: " + sourceInfo.getEntityInfo().getEntityType());
+                    " Destination: " + destinationEntityType);
         }
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder()
@@ -167,12 +163,12 @@ public class MoveContext extends AbstractActionExecutionContext {
                         ? ActionType.CHANGE
                         : ActionType.MOVE)
                 .setUuid(Long.toString(actionId))
-                .setTargetSE(targetInfo.getEntityInfo())
-                .setCurrentSE(sourceInfo.getEntityInfo())
-                .setNewSE(destInfo.getEntityInfo())
+                .setTargetSE(primaryEntity)
+                .setCurrentSE(sourceEntity)
+                .setNewSE(destinationEntity)
                 .addAllContextData(getContextData());
 
-        getHost(targetId, targetInfo).ifPresent(actionBuilder::setHostedBySE);
+        getHost(primaryEntity).ifPresent(actionBuilder::setHostedBySE);
         return actionBuilder;
     }
 

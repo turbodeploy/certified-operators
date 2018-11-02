@@ -75,10 +75,9 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 
 /**
@@ -177,9 +176,10 @@ public class TopologyEntitiesHandlerTest {
 
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-        Map<Long, TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> topoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable)
                         .convertToMarket(topoDTOs);
@@ -252,7 +252,8 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
-        List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
+        List<TopologyEntityDTO.Builder> topoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         TopologyConverter topoConverter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
 
@@ -297,7 +298,8 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
-        List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
+        List<TopologyEntityDTO.Builder> topoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
 
         Set<TraderTO> traderDTOs =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable).convertToMarket(topoDTOs.stream()
@@ -344,9 +346,10 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, nonShopTogetherProbeDTOs.size()).forEach(i -> map.put((long)i, nonShopTogetherProbeDTOs.get(i)));
 
-        Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs = Converter.convert(map).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter togetherConverter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
@@ -377,9 +380,10 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> shopTogetherMap = Maps.newHashMap();
         IntStream.range(0, shopTogetherProbeDTOs.size()).forEach(i -> shopTogetherMap.put((long)i, shopTogetherProbeDTOs.get(i)));
 
-        Map<Long, TopologyEntityDTO> shopTogetherTopoDTOs = Converter.convert(shopTogetherMap).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> shopTogetherTopoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(shopTogetherMap).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter shopTogetherConverter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
@@ -419,7 +423,8 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
-        List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
+        List<TopologyEntityDTO.Builder> topoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable).convertToMarket(
             topoDTOs.stream()
                 .map(TopologyEntityDTO.Builder::build)
@@ -699,9 +704,10 @@ public class TopologyEntitiesHandlerTest {
 
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-        Map<Long, TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> topoDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable)
                         .convertToMarket(topoDTOs);

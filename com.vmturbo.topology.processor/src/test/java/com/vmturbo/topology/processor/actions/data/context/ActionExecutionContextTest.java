@@ -3,11 +3,10 @@ package com.vmturbo.topology.processor.actions.data.context;
 import java.util.Collections;
 import java.util.Optional;
 
-import org.hamcrest.Matchers;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.mockito.internal.matchers.GreaterThan;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -18,14 +17,27 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 public class ActionExecutionContextTest {
 
-    private ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
+    private final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
 
-    private EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
+    private final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
+
+    private final EntityRetriever entityRetrieverMock = Mockito.mock(EntityRetriever.class);
+
+    private ActionExecutionContextFactory actionExecutionContextFactory;
+
+    @Before
+    public void setup() {
+        actionExecutionContextFactory = new ActionExecutionContextFactory(
+                actionDataManagerMock,
+                entityStoreMock,
+                entityRetrieverMock);
+    }
 
     @Test
     public void testActivateContext() throws Exception {
@@ -50,27 +62,31 @@ public class ActionExecutionContextTest {
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
         final Entity entity = new Entity(entityId, entityType);
-        entity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
-                .build());
+                .build();
+        entity.addTargetInfo(targetId, entityDTO);
         final int hostEntityId = 82;
         entity.setHostedBy(targetId, hostEntityId);
 
         final EntityType hostEntityType = EntityType.PHYSICAL_MACHINE;
-        final Entity hostEntity = new Entity(hostEntityId, hostEntityType);
-        hostEntity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO hostEntityDTO = EntityDTO.newBuilder()
                 .setEntityType(hostEntityType)
                 .setId(Long.toString(hostEntityId))
-                .build());
+                .build();
 
+        // Retrieve the raw entity info (used only for setting the host field)
         Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
-        Mockito.when(entityStoreMock.getEntity(hostEntityId)).thenReturn(Optional.of(hostEntity));
+        // Retrieve the full entity info
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(hostEntityId))
+                .thenReturn(hostEntityDTO);
 
         // Construct an activate action context to pull in additional data for action execution
         // This is the method call being tested
-        ActionExecutionContext actionExecutionContext = ActionExecutionContextFactory
-                .getActionExecutionContext(request, actionDataManagerMock, entityStoreMock);
+        ActionExecutionContext actionExecutionContext =
+                actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Activate actions should have exactly one actionItem
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
@@ -84,10 +100,14 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
 
-        // Check that the entityInfo was retrieved
+        // Check that the raw entityInfo was retrieved (used only for setting the host field)
         Mockito.verify(entityStoreMock).getEntity(entityId);
-        Mockito.verify(entityStoreMock).getEntity(hostEntityId);
         Mockito.verifyNoMoreInteractions(entityStoreMock);
+
+        // Check that the full entity was retrieved
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(hostEntityId);
+        Mockito.verifyNoMoreInteractions(entityRetrieverMock);
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(activate);
@@ -117,17 +137,19 @@ public class ActionExecutionContextTest {
         // We need entity info for just the primary entity -- physical machines don't have hosts
         final EntityType entityType = EntityType.PHYSICAL_MACHINE;
         final Entity entity = new Entity(entityId, entityType);
-        entity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
-                .build());
+                .build();
+        entity.addTargetInfo(targetId, entityDTO);
 
-        Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
+        // Retrieve the full entity info
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
 
         // Construct a deactivate action context to pull in additional data for action execution
         // This is the method call being tested
-        ActionExecutionContext actionExecutionContext = ActionExecutionContextFactory
-                .getActionExecutionContext(request, actionDataManagerMock, entityStoreMock);
+        ActionExecutionContext actionExecutionContext =
+                actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Deactivate actions should have exactly one actionItem
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
@@ -141,9 +163,13 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
 
-        // Check that the entityInfo was retrieved
-        Mockito.verify(entityStoreMock).getEntity(entityId);
-        Mockito.verifyNoMoreInteractions(entityStoreMock);
+        // Check that the entityInfo was not retrieved (used only for setting the host field)
+        // The reason this has zero interactions is that physical machines don't have the host field set
+        Mockito.verifyZeroInteractions(entityStoreMock);
+
+        // Check that the full entity was retrieved
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
+        Mockito.verifyNoMoreInteractions(entityRetrieverMock);
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(deactivate);
@@ -184,35 +210,44 @@ public class ActionExecutionContextTest {
         // Build the primary entity
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
         final Entity entity = new Entity(entityId, entityType);
-        entity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
-                .build());
+                .build();
+        entity.addTargetInfo(targetId, entityDTO);
         // Build the source provider entity
         entity.setHostedBy(targetId, sourceEntityId);
         final Entity sourceEntity = new Entity(sourceEntityId, sourceEntityType);
-        sourceEntity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO sourceEntityDTO = EntityDTO.newBuilder()
                 .setEntityType(sourceEntityType)
                 .setId(Long.toString(sourceEntityId))
-                .build());
+                .build();
+        sourceEntity.addTargetInfo(targetId, sourceEntityDTO);
         // Build the destination provider entity
         entity.setHostedBy(targetId, sourceEntityId);
         final Entity destinationEntity = new Entity(destinationEntityId, destinationEntityType);
-        destinationEntity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO destinationEntityDTO = EntityDTO.newBuilder()
                 .setEntityType(destinationEntityType)
                 .setId(Long.toString(destinationEntityId))
-                .build());
+                .build();
+        destinationEntity.addTargetInfo(targetId, destinationEntityDTO);
 
+        // Retrieve the raw entity info (used only for setting the host field)
         Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
-        Mockito.when(entityStoreMock.getEntity(sourceEntityId))
-                .thenReturn(Optional.of(sourceEntity));
+        // Raw destination entity is retrieved to check for cross target move
         Mockito.when(entityStoreMock.getEntity(destinationEntityId))
                 .thenReturn(Optional.of(destinationEntity));
+        // Retrieve the full entity info
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(sourceEntityId))
+                .thenReturn(sourceEntityDTO);
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(destinationEntityId))
+                .thenReturn(destinationEntityDTO);
 
         // Construct a move action context to pull in additional data for action execution
         // This is the method call being tested
-        ActionExecutionContext actionExecutionContext = ActionExecutionContextFactory
-                .getActionExecutionContext(request, actionDataManagerMock, entityStoreMock);
+        ActionExecutionContext actionExecutionContext =
+                actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Move actions should have at least one actionItem
         Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
@@ -226,15 +261,19 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
 
-        // Check that the entityInfo was retrieved
+        // Check that the raw entityInfo was retrieved (used only for setting the host field)
         Mockito.verify(entityStoreMock).getEntity(entityId);
+        // Check that the destination entityInfo was retrieved (used for detecting cross target move)
+        Mockito.verify(entityStoreMock).getEntity(destinationEntityId);
+        Mockito.verifyNoMoreInteractions(entityStoreMock);
+
+        // Check that the full entity was retrieved
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
         // Source entity info will be retrieved once while building the actionItem and again for
         // setting the hostedBy flag
-        Mockito.verify(entityStoreMock, Mockito.times(2)).getEntity(sourceEntityId);
-        // Destination entity info will be retrieved once while building the actionItem and again
-        // to determine if it is a cross target move.
-        Mockito.verify(entityStoreMock, Mockito.times(2)).getEntity(destinationEntityId);
-        Mockito.verifyNoMoreInteractions(entityStoreMock);
+        Mockito.verify(entityRetrieverMock, Mockito.times(2)).fetchAndConvertToEntityDTO(sourceEntityId);
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(destinationEntityId);
+        Mockito.verifyNoMoreInteractions(entityRetrieverMock);
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(move);
@@ -264,27 +303,33 @@ public class ActionExecutionContextTest {
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
         final Entity entity = new Entity(entityId, entityType);
-        entity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
-                .build());
+                .build();
+        entity.addTargetInfo(targetId, entityDTO);
         final int hostEntityId = 42;
         entity.setHostedBy(targetId, hostEntityId);
 
         final EntityType hostEntityType = EntityType.PHYSICAL_MACHINE;
         final Entity hostEntity = new Entity(hostEntityId, hostEntityType);
-        hostEntity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO hostEntityDTO = EntityDTO.newBuilder()
                 .setEntityType(hostEntityType)
                 .setId(Long.toString(hostEntityId))
-                .build());
+                .build();
+        hostEntity.addTargetInfo(targetId, hostEntityDTO);
 
+        // Retrieve the raw entity info (used only for setting the host field)
         Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
-        Mockito.when(entityStoreMock.getEntity(hostEntityId)).thenReturn(Optional.of(hostEntity));
+        // Retrieve the full entity info
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(hostEntityId))
+                .thenReturn(hostEntityDTO);
 
         // Construct a resize action context to pull in additional data for action execution
         // This is the method call being tested
-        ActionExecutionContext actionExecutionContext = ActionExecutionContextFactory
-                .getActionExecutionContext(request, actionDataManagerMock, entityStoreMock);
+        ActionExecutionContext actionExecutionContext =
+                actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Resize actions should have exactly one actionItem
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
@@ -300,10 +345,14 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
 
-        // Check that the entityInfo was retrieved
+        // Check that the raw entityInfo was retrieved (used only for setting the host field)
         Mockito.verify(entityStoreMock).getEntity(entityId);
-        Mockito.verify(entityStoreMock).getEntity(hostEntityId);
         Mockito.verifyNoMoreInteractions(entityStoreMock);
+
+        // Check that the full entity was retrieved
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(hostEntityId);
+        Mockito.verifyNoMoreInteractions(entityRetrieverMock);
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(resize);
@@ -333,17 +382,19 @@ public class ActionExecutionContextTest {
         // We need entity info for just the primary entity -- physical machines don't have hosts
         final EntityType entityType = EntityType.PHYSICAL_MACHINE;
         final Entity entity = new Entity(entityId, entityType);
-        entity.addTargetInfo(targetId, EntityDTO.newBuilder()
+        final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
                 .setId(Long.toString(entityId))
-                .build());
+                .build();
+        entity.addTargetInfo(targetId, entityDTO);
 
-        Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
+        // Retrieve the full entity info
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
 
         // Construct a provision action context to pull in additional data for action execution
         // This is the method call being tested
-        ActionExecutionContext actionExecutionContext = ActionExecutionContextFactory
-                .getActionExecutionContext(request, actionDataManagerMock, entityStoreMock);
+        ActionExecutionContext actionExecutionContext =
+                actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Provision actions should have exactly one actionItem
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
@@ -357,9 +408,13 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
 
-        // Check that the entityInfo was retrieved
-        Mockito.verify(entityStoreMock).getEntity(entityId);
-        Mockito.verifyNoMoreInteractions(entityStoreMock);
+        // Check that the entityInfo was not retrieved (used only for setting the host field)
+        // The reason this has zero interactions is that physical machines don't have the host field set
+        Mockito.verifyZeroInteractions(entityStoreMock);
+
+        // Check that the full entity was retrieved
+        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
+        Mockito.verifyNoMoreInteractions(entityRetrieverMock);
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(provision);

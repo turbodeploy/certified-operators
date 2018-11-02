@@ -68,7 +68,7 @@ public class ActionTargetSelector {
     private final RepositoryClient repositoryClient;
 
     /**
-     * The context ID for the realtime market. Used when making remote calls to the repostory service.
+     * The context ID for the realtime market. Used when making remote calls to the repository service.
      */
     private final long realtimeTopologyContextId;
 

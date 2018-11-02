@@ -16,6 +16,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAt
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -25,9 +26,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
 
     public ResizeContext(@Nonnull final ExecuteActionRequest request,
                          @Nonnull final ActionDataManager dataManager,
-                         @Nonnull final EntityStore entityStore)
+                         @Nonnull final EntityStore entityStore,
+                         @Nonnull final EntityRetriever entityRetriever)
             throws ActionExecutionException {
-        super(request, dataManager, entityStore);
+        super(request, dataManager, entityStore, entityRetriever);
     }
 
     /**

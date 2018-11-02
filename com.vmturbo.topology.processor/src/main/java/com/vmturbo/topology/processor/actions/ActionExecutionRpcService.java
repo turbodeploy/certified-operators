@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
@@ -22,6 +21,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContext;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -33,21 +33,28 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final EntityStore entityStore;
-
+    /**
+     * Used to initiate actions
+     */
     private final IOperationManager operationManager;
 
     /**
-     * Provides additional data for handling action execution special cases (i.e. complex actions)
+     * Constructs instances of ActionExecutionContext, an interface for collecting data needed for
+     * action execution.
      */
-    private final ActionDataManager actionDataManager;
+    private final ActionExecutionContextFactory actionExecutionContextFactory;
 
-    public ActionExecutionRpcService(@Nonnull final EntityStore entityStore,
-                                     @Nonnull final IOperationManager operationManager,
-                                     @Nonnull final ActionDataManager actionDataManager) {
-        this.entityStore = Objects.requireNonNull(entityStore);
+    /**
+     * Construct an ActionExecutionRpcService to respond to execute action requests
+     *
+     * @param operationManager used to initiate actions
+     * @param actionExecutionContextFactory builds an ActionExecutionContext, providing additional
+     *                                      data required for action execution
+     */
+    public ActionExecutionRpcService(@Nonnull final IOperationManager operationManager,
+                                     @Nonnull final ActionExecutionContextFactory actionExecutionContextFactory) {
         this.operationManager = Objects.requireNonNull(operationManager);
-        this.actionDataManager = Objects.requireNonNull(actionDataManager);
+        this.actionExecutionContextFactory = actionExecutionContextFactory;
     }
 
     @Override
@@ -55,8 +62,8 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     StreamObserver<ExecuteActionResponse> responseObserver) {
         try {
             // Construct a context to pull in additional data for action execution
-            ActionExecutionContext actionExecutionContext = ActionExecutionContextFactory
-                    .getActionExecutionContext(request, actionDataManager, entityStore);
+            ActionExecutionContext actionExecutionContext =
+                    actionExecutionContextFactory.getActionExecutionContext(request);
 
             // Get the list of action items to execute
             final List<ActionItemDTO> sdkActions = actionExecutionContext.getActionItems();

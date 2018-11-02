@@ -45,7 +45,8 @@ public class Probes {
     }
 
     /**
-     * Method creates new ProbeInfo builder with unique category and type. Builer is ready to be built.
+     * Method creates new ProbeInfo builder with unique category and type.
+     * Builder is ready to be built.
      *
      * @return probe info builder.
      */

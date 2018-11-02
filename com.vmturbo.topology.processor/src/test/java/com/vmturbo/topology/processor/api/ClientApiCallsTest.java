@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.api;
 
-import static org.mockito.Matchers.any;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +27,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
@@ -42,6 +41,8 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -56,6 +57,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -81,6 +83,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private EntityStore entityStore;
     private IdentityProvider identityProviderSpy;
     private GroupScopeResolver groupScopeResolver;
+    // For mocking the responses for remote calls to the Repository service
+    private FakeRepositoryClient repositoryClientFake;
 
     private static final String FIELD_NAME = FakeRemoteMediation.TGT_ID;
 
@@ -97,8 +101,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         targetStore = integrationTestServer.getBean(TargetStore.class);
         entityStore = integrationTestServer.getBean(EntityStore.class);
         identityProviderSpy = integrationTestServer.getBean(IdentityProvider.class);
+        repositoryClientFake = integrationTestServer.getBean(FakeRepositoryClient.class);
         groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
+        Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any()))
                 .then(AdditionalAnswers.returnsFirstArg());
     }
 
@@ -589,6 +594,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(actionId, success.getActionId());
     }
 
+    // Add entities to the appropriate data stores so that they will be found when tests access them.
     private void addEntities(final long probeId,
                              final long targetId,
                              Map<Long, EntityDTO> entities)
@@ -598,8 +604,18 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 .when(identityProviderSpy)
                 .getIdsForEntities(Mockito.eq(probeId),
                         Mockito.eq(new ArrayList<>(entities.values())));
+        // Add the entities to the entity store, which houses the raw discovered entity data
         entityStore.entitiesDiscovered(probeId, targetId,
                 new ArrayList<>(entities.values()));
+        // Also update the repository client mock to respond appropriately when queried about these
+        // entities. This simulates these entities also being found in the repository (where
+        // stitched data is found).
+        List<TopologyEntityDTO> convertedEntities =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(entities)
+                        .stream()
+                        .map(Builder::build)
+                        .collect(Collectors.toList());
+        repositoryClientFake.addEntities(convertedEntities);
     }
 
     private EntityDTO createEntity(final EntityType type, final String id) {

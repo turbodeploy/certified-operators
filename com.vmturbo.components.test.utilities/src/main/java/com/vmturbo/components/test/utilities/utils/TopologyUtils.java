@@ -10,7 +10,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sdk.examples.stressProbe.StressAccount;
 import com.vmturbo.sdk.examples.stressProbe.StressProbe;
-import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 /**
  * Utilities for constructing topologies used in tests.
@@ -89,7 +89,7 @@ public class TopologyUtils {
 
     /**
      * Follows the same contract as {@link #generateProbeTopology(int)} except that it returns a list of
-     * {@link TopologyEntityDTO} as converted by the TopologyProcessor's {@link Converter} instead of
+     * {@link TopologyEntityDTO} as converted by the TopologyProcessor's {@link SdkToTopologyEntityConverter} instead of
      * the list of discovered {@link EntityDTO}s.
      *
      * @param topologySize The size of the topology to create.
@@ -106,9 +106,9 @@ public class TopologyUtils {
                 entityDto -> nextId.incrementAndGet(),
                 Function.identity()));
 
-        return Converter.convert(entitiesWithOids).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+        return SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(entitiesWithOids).stream()
+                .map(TopologyEntityDTO.Builder::build)
+                .collect(Collectors.toList());
     }
 
     /**

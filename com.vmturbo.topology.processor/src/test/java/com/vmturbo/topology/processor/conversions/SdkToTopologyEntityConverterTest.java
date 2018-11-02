@@ -46,9 +46,9 @@ import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
- * Unit test for {@link Converter}.
+ * Unit test for {@link SdkToTopologyEntityConverter}.
  */
-public class ConverterTest {
+public class SdkToTopologyEntityConverterTest {
 
     private static final long PM_POWEREDON_OID = 102L;
     private static final long PM_MAINTENANCE_OID = 103L;
@@ -70,9 +70,10 @@ public class ConverterTest {
         probeDTOs.put(PM_MAINTENANCE_OID, pmMaintenanceProbeDTO);
         probeDTOs.put(PM_FAILOVER_OID, pmFailoverProbeDTO);
         probeDTOs.put(DS_OID, dsProbeDTO);
-        final List<TopologyEntityDTO> topologyDTOs = Converter.convert(probeDTOs).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+        final List<TopologyEntityDTO> topologyDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toList());
         assertEquals(5, topologyDTOs.size());
         // OIDs match
         TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, VM_OID);
@@ -164,9 +165,10 @@ public class ConverterTest {
         CommonDTO.EntityDTO vdcProbeDTO = messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
         probeDTOs.put(VDC_OID, vdcProbeDTO);
-        final List<TopologyEntityDTO> topologyDTOs = Converter.convert(probeDTOs).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+        final List<TopologyEntityDTO> topologyDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toList());
         assertEquals(1, topologyDTOs.size());
         TopologyEntityDTO vdcTopologyDTO = topologyDTOs.get(0);
         assertEquals(EntityType.VIRTUAL_DATACENTER_VALUE, vdcTopologyDTO.getEntityType());
@@ -197,7 +199,8 @@ public class ConverterTest {
             .build();
 
         final Map<Long, EntityDTO> probeDTOs = ImmutableMap.of(VM_OID, entityDTO);
-        Converter.convert(probeDTOs); // This should generate warning messages in the log about duplicate properties.
+        // This should generate warning messages in the log about duplicate properties.
+        SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs);
     }
 
     /**
@@ -207,7 +210,7 @@ public class ConverterTest {
      * @throws IOException when the file is not found
      */
     public static CommonDTO.EntityDTO messageFromJsonFile(String fileName) throws IOException {
-        URL fileUrl = ConverterTest.class.getClassLoader().getResources(fileName).nextElement();
+        URL fileUrl = SdkToTopologyEntityConverterTest.class.getClassLoader().getResources(fileName).nextElement();
         CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder();
         JsonFormat.parser().merge(new InputStreamReader(fileUrl.openStream()), builder);
         CommonDTO.EntityDTO message = builder.build();
@@ -234,16 +237,17 @@ public class ConverterTest {
         probeDTOs.put(PM_ID, pm);
         probeDTOs.put(DC_ID, dc);
         probeDTOs.put(ST_ID, st);
-        final List<TopologyEntityDTO> topologyDTOs = Converter.convert(probeDTOs).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+        final List<TopologyEntityDTO> topologyDTOs =
+                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
+                        .map(TopologyEntityDTO.Builder::build)
+                        .collect(Collectors.toList());
 
         // Assert that for all commodities sold that are not DSPM_ACCESS or DATASTORE
         // the accesses property is not set
         List<CommoditySoldDTO> commsSold = topologyDTOs.stream()
                         .map(TopologyEntityDTO::getCommoditySoldListList)
                         .flatMap(List::stream)
-                        .filter(ConverterTest::isNotAccessCommodity)
+                        .filter(SdkToTopologyEntityConverterTest::isNotAccessCommodity)
                         .filter(CommoditySoldDTO::hasAccesses)
                         .collect(Collectors.toList());
         assertTrue(commsSold.isEmpty());
@@ -251,7 +255,7 @@ public class ConverterTest {
         // This is the accesses property of the DATASTORE commodity that the PM sells
         long pmAccesses = topologyDTOs.stream().filter(dto -> dto.getOid() == PM_ID).findFirst().get()
                         .getCommoditySoldListList().stream()
-                        .filter(ConverterTest::isAccessCommodity)
+                        .filter(SdkToTopologyEntityConverterTest::isAccessCommodity)
                         .findFirst().get()
                         .getAccesses();
         assertEquals(ST_ID, pmAccesses);
@@ -259,7 +263,7 @@ public class ConverterTest {
         // This is the accesses property of the DSPM_ACCESS commodity that the ST sells
         long stAccesses = topologyDTOs.stream().filter(dto -> dto.getOid() == ST_ID).findFirst().get()
                         .getCommoditySoldListList().stream()
-                        .filter(ConverterTest::isAccessCommodity)
+                        .filter(SdkToTopologyEntityConverterTest::isAccessCommodity)
                         .findFirst().get()
                         .getAccesses();
         assertEquals(PM_ID, stAccesses);
@@ -267,7 +271,7 @@ public class ConverterTest {
 
     @Test
     public void testDiscoveredEntitySuspendability() {
-        assertEquals(Optional.empty(), Converter.calculateSuspendability(EntityDTO.newBuilder()
+        assertEquals(Optional.empty(), SdkToTopologyEntityConverter.calculateSuspendability(EntityDTO.newBuilder()
             .setId("foo")
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setOrigin(EntityOrigin.DISCOVERED)));
@@ -290,13 +294,13 @@ public class ConverterTest {
                 .build();
         TopologyStitchingEntity storageStitchingEntity = new TopologyStitchingEntity(storageEntity);
         storageStitchingEntity.addConsumer(pmStitchingEntity);
-        assertEquals(Optional.of(false), Converter.calculateSuspendabilityWithStitchingEntity(
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendabilityWithStitchingEntity(
                 storageStitchingEntity));
     }
 
     @Test
     public void testProxyEntitySuspendability() {
-        assertEquals(Optional.of(false), Converter.calculateSuspendability(EntityDTO.newBuilder()
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendability(EntityDTO.newBuilder()
             .setId("foo")
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setOrigin(EntityOrigin.PROXY)));
@@ -304,7 +308,7 @@ public class ConverterTest {
 
     @Test
     public void testReplacableEntitySuspendability() {
-        assertEquals(Optional.of(false), Converter.calculateSuspendability(EntityDTO.newBuilder()
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendability(EntityDTO.newBuilder()
             .setId("foo")
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setOrigin(EntityOrigin.REPLACEABLE)));
@@ -328,7 +332,7 @@ public class ConverterTest {
         pmEntityDto.getCommoditiesSoldList().stream()
                 .map(commodity -> commodity.toBuilder())
                 .forEach(commodity -> pmStitchingEntity.addCommoditySold(commodity, Optional.empty()));
-        final TopologyEntityDTO.Builder pmBuilder = Converter.newTopologyEntityDTO(pmStitchingEntity);
+        final TopologyEntityDTO.Builder pmBuilder = SdkToTopologyEntityConverter.newTopologyEntityDTO(pmStitchingEntity);
         assertEquals(2L, pmBuilder.getCommoditySoldListCount());
         assertFalse(pmBuilder.getCommoditySoldListList().stream()
                 .filter(commoditySold ->

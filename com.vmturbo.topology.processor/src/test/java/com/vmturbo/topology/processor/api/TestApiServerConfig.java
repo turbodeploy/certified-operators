@@ -30,10 +30,13 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -248,10 +251,35 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public TopologyToSdkEntityConverter topologyToSdkEntityConverter() {
+        return new TopologyToSdkEntityConverter(entityRepository(), targetStore());
+    }
+
+    @Bean
+    public FakeRepositoryClient repositoryClient() {
+        // Fake the remote calls to the Repository service
+        return new FakeRepositoryClient();
+    }
+
+    @Bean
+    public EntityRetriever entityRetriever() {
+        // Create an entity retriever with a real entity converter and a mock repository client
+        // Since the repository client is a mock, the context ID doesn't matter - using zero
+        return new EntityRetriever(topologyToSdkEntityConverter(), repositoryClient(), 0);
+    }
+
+    @Bean
+    public ActionExecutionContextFactory actionExecutionContextFactory() {
+        return new ActionExecutionContextFactory(actionDataManager(),
+                entityRepository(),
+                entityRetriever());
+    }
+
+    @Bean
     public ActionExecutionRpcService actionExecutionRpcService() {
-        return new ActionExecutionRpcService(entityRepository(),
+        return new ActionExecutionRpcService(
                 operationManager(),
-                actionDataManager());
+                actionExecutionContextFactory());
     }
 
 }

@@ -11,12 +11,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 /**
  * Represents an entity that exists in the topology. The information for the
@@ -150,7 +148,7 @@ public class Entity {
                 perTargetInfo.entrySet().iterator().next();
 
         return entityStore.getTargetEntityIdMap(targetAndEntityDTO.getKey())
-            .map(entityIdMap -> Converter.newTopologyEntityDTO(
+            .map(entityIdMap -> SdkToTopologyEntityConverter.newTopologyEntityDTO(
                     targetAndEntityDTO.getValue().entityInfo,
                     id,
                     entityIdMap));

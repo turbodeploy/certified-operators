@@ -56,10 +56,10 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
- * Convert a list of entity DTOs produced by SDK probes to topology
- * processor's entity DTOs.
+ * Convert entity DTOs produced by SDK probes to topology processor's entity DTOs
+ *
  */
-public class Converter {
+public class SdkToTopologyEntityConverter {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -71,7 +71,7 @@ public class Converter {
     // All probes using tags should be modified
     public static final String TAG_NAMESPACE = "VCTAGS";
 
-    private Converter() {}
+    private SdkToTopologyEntityConverter() {}
 
     private static int type(CommonDTO.EntityDTOOrBuilder dto) {
         return dto.getEntityType().getNumber();
@@ -82,12 +82,13 @@ public class Converter {
     }
 
     /**
-     * Convert probe entity DTOs to topology entity DTOs.
+     * Convert entity DTOs produced by SDK probes to topology processor's entity DTOs.
      *
-     * @param entityDTOs Map of probe entity DTOs keyed by oid (already obtained from the identity service}).
+     * @param entityDTOs Map of probe entity DTOs keyed by oid (obtained from the identity service)
      * @return a list of topology entity DTOs.
      */
-    public static List<TopologyDTO.TopologyEntityDTO.Builder> convert(Map<Long, CommonDTO.EntityDTO> entityDTOs) {
+    public static List<TopologyDTO.TopologyEntityDTO.Builder> convertToTopologyEntityDTOs(
+            Map<Long, CommonDTO.EntityDTO> entityDTOs) {
         // Map from provider ID to OID, to handle forward references in the list of DTOs
         Map<String, Long> providerOIDs = Maps.newHashMap();
         // Cache the oids. Using entrySet().stream() to void parallelism.
@@ -135,7 +136,7 @@ public class Converter {
                                             CommoditiesBoughtFromProvider.newBuilder()
                                                     .setProviderId(entry.getKey().getOid())
                                                     .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                                                            .map(Converter::newCommodityBoughtDTO)
+                                                            .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
                                                             .collect(Collectors.toList()))
                                                     .setProviderEntityType(entry.getKey().getEntityType().getNumber());
                                     Long volumeId = commodityBought.getVolumeId();
@@ -365,7 +366,7 @@ public class Converter {
             CommoditiesBoughtFromProvider.Builder cbBuilder = CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(providerOid)
                     .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                            .map(Converter::newCommodityBoughtDTO)
+                            .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
                             .collect(Collectors.toList()));
 
             // TODO: Right now, we not guarantee that commodity bought will always have provider entity

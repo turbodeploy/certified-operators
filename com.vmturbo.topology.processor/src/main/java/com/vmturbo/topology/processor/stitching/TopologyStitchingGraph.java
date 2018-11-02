@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
-import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 
 /**
@@ -180,7 +180,7 @@ public class TopologyStitchingGraph {
         }
 
         for (CommodityDTO commoditySold : entityDtoBuilder.getCommoditiesSoldList()) {
-            final TopologyStitchingEntity accessing = Converter.parseAccessKey(commoditySold).map(accessingLocalId -> {
+            final TopologyStitchingEntity accessing = SdkToTopologyEntityConverter.parseAccessKey(commoditySold).map(accessingLocalId -> {
                 final StitchingEntityData accessingData = entityMap.get(accessingLocalId);
                 if (accessingData == null) {
                     // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added

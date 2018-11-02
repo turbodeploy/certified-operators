@@ -23,7 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -263,7 +263,7 @@ public class StitchingContext {
         return stitchingGraph.entities()
             .collect(Collectors.toMap(
                 TopologyStitchingEntity::getOid,
-                stitchingEntity -> TopologyEntity.newBuilder(Converter.newTopologyEntityDTO(stitchingEntity)
+                stitchingEntity -> TopologyEntity.newBuilder(SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity)
                     .setOrigin(Origin.newBuilder().setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()))),
                 (oldValue, newValue) -> {
                     logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
