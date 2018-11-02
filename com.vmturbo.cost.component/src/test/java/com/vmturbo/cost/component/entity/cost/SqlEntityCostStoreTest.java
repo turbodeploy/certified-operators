@@ -19,6 +19,7 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,6 +115,7 @@ public class SqlEntityCostStoreTest {
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
     }
 
+    @Ignore
     @Test
     public void testGetCostWithEntityCostFilter() throws DbException, InvalidEntityCostsException {
         // get by date

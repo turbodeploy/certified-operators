@@ -250,14 +250,12 @@ public class SystemLoadHelper {
         logger.debug("SYSLOAD- Capacities are: " + Arrays.deepToString(capacitiesSums));
         logger.debug("SYSLOAD- Used are: " + Arrays.deepToString(usedSums));
 
-        // If the input sums are invalid, return null system load
-        for (Double used : usedSums) {
-            if (used == null)
-                return null;
-        }
-        for (Double capacity : capacitiesSums) {
-            if (capacity == null)
-                return null;
+        // If the input sums are invalid, set the value 0.0
+        for (int i = 0; i < SystemLoadCommodities.SIZE; i++) {
+            if (usedSums[i] == null)
+                usedSums[i] = 0.0;
+            if (capacitiesSums[i] == null)
+                capacitiesSums[i] = 0.0;
         }
 
         Double[] sysUtils = new Double[SystemLoadCommodities.SIZE];
