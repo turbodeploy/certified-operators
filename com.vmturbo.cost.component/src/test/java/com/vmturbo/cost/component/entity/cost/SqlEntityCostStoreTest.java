@@ -52,7 +52,7 @@ public class SqlEntityCostStoreTest {
     public static final long ID1 = 1L;
     public static final long ID2 = 2L;
     private final int ASSOCIATED_ENTITY_TYPE1 = 1;
-    private final int ASSOCIATED_ENTITY_TYPE2 = 1;
+    private final int ASSOCIATED_ENTITY_TYPE2 = 2;
 
     private final LocalDateTime curTime = LocalDateTime.now();
     private final ComponentCost componentCost = ComponentCost.newBuilder()
@@ -120,7 +120,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilter() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
                 now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
 
         // insert
@@ -140,7 +140,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterHourEmpty() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
                 now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.HOUR);
 
         // insert
@@ -160,7 +160,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterMonthEmpty() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
                 now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.MONTH);
 
         // insert
@@ -180,7 +180,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterDayEmpty() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(Collections.emptySet(), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
                 now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.DAY);
 
         // insert
@@ -213,6 +213,63 @@ public class SqlEntityCostStoreTest {
     }
 
     @Test
+    public void testGetCostWithEntityCostFilterWithEntityId() throws DbException, InvalidEntityCostsException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(ImmutableSet.of(1L, 2L), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
+
+        // insert
+        saveCosts();
+
+        // get by date
+
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+        validateResults(results, 1, 2, 2);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetCostWithEntityCostFilterWithEntityTypeFilter() throws DbException, InvalidEntityCostsException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final EntityCostFilter entityCostFilter = new EntityCostFilter(ImmutableSet.of(1L, 2L), ImmutableSet.of(1), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
+
+        // insert
+        saveCosts();
+
+        // get by date
+
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+
+        assertEquals(1, results.size());
+
+        // ensure in the same timestamp, we have expected entity costs
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.size() == 1));
+
+        // ensure we have the right entity costs.
+        assertTrue(results.values().stream().allMatch(entityCosts ->
+                isSameEntityCosts(entityCosts.get(ID1), entityCost)));
+
+        // ensure in the same timestamp, every entity cost have expected component costs
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.values().stream()
+                .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
+
+        // ensure the components are the same
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.values().stream().allMatch(entityCost ->
+                entityCost.getComponentCostList().contains(componentCost)
+                        && entityCost.getComponentCostList().contains(componentCost1))));
+
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
     public void testGetCostsWithTwoTimeStamps() throws InterruptedException, InvalidEntityCostsException, DbException {
 
         // insert
@@ -237,9 +294,48 @@ public class SqlEntityCostStoreTest {
 
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        Map<Long, Map<Long, EntityCost>> results = store.getLatestEntityCost();
+        Map<Long, Map<Long, EntityCost>> results = store.getLatestEntityCost(Collections.emptySet(), Collections.emptySet());
         validateResults(results, 1, 2, 2);
 
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetLatestEntityCostWithOidFilter() throws DbException, InvalidEntityCostsException, InterruptedException {
+
+        // insert
+        saveCostsWithTwoTimeStamps();
+
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        Map<Long, Map<Long, EntityCost>> results = store.getLatestEntityCost(ImmutableSet.of(1l), Collections.emptySet());
+        assertEquals(1, results.size());
+        // ensure in the same timestamp, we have expected entity costs
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.size() == 1));
+
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.values().stream()
+                .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
+        // clean up
+        store.cleanEntityCosts(now);
+        assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
+    }
+
+    @Test
+    public void testGetLatestEntityCostWithTypeFilter() throws DbException, InvalidEntityCostsException, InterruptedException {
+
+        // insert
+        saveCostsWithTwoTimeStamps();
+
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        Map<Long, Map<Long, EntityCost>> results = store.getLatestEntityCost(Collections.emptySet(), ImmutableSet.of(1));
+        assertEquals(1, results.size());
+        // ensure in the same timestamp, we have expected entity costs
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.size() == 1));
+        assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.values().stream()
+                .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
         // clean up
         store.cleanEntityCosts(now);
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -22,6 +23,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -32,8 +34,9 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
-import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
@@ -69,6 +72,7 @@ public class StatsMapper {
     public static final String FILTER_NAME_RESULTS_TYPE = "resultsType";
     public static final String FILTER_NAME_KEY = "key";
     public static final String FILTER_TYPE_BEFORE_PLAN = "beforePlan";
+    private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
     private static final ImmutableMap<String, Optional<String>> dbToUiStatTypes = ImmutableMap.of(
                RelationType.COMMODITIES.getLiteral(), Optional.of("sold"),
@@ -158,42 +162,62 @@ public class StatsMapper {
      * @param typeFunction function to populate the statistics -> filters -> type for API DTO
      * @param valueFunction function to populate the statistics -> filters -> value for API DTO
      *
+     * @param targetsService
      * @return a {@link StatSnapshotApiDTO} with fields initialized from the given StatSnapshot
      *
      **/
     @Nonnull
-    public StatSnapshotApiDTO toStatSnapshotApiDTO(@Nonnull final StatSnapshot statSnapshot,
+    public StatSnapshotApiDTO toStatSnapshotApiDTO(@Nonnull final CloudCostStatRecord statSnapshot,
                                                    @Nonnull final List<TargetApiDTO> targetApiDTOs,
                                                    @Nonnull final Function<TargetApiDTO, String> typeFunction,
                                                    @Nonnull final Function<TargetApiDTO, String> valueFunction,
-                                                   @Nonnull final List<BaseApiDTO> cloudServiceDTOs) {
+                                                   @Nonnull final List<BaseApiDTO> cloudServiceDTOs,
+                                                   @Nonnull final TargetsService targetsService) {
+        // construct target UUID -> targetApiDTO map
+        targetApiDTOs.forEach(targetApiDTO -> {
+            uuidToTargetApiDtoMap.putIfAbsent(Long.parseLong(targetApiDTO.getUuid()), targetApiDTO);
+        });
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(statSnapshot.getSnapshotDate());
         }
         // for Cloud service, search for all the discovered Cloud services ,and match the expenses
         if (!cloudServiceDTOs.isEmpty()) {
-                dto.setStatistics(statSnapshot.getStatRecordsList().stream()
-                        .map(statApiDTO -> toStatApiDtoWithTargets(statApiDTO,
-                                targetApiDTOs,
-                                typeFunction,
-                                valueFunction,
-                                cloudServiceDTOs))
-                        .collect(Collectors.toList()));
+            dto.setStatistics(statSnapshot.getStatRecordsList().stream()
+                    .map(statApiDTO -> toStatApiDtoWithTargets(statApiDTO,
+                            typeFunction,
+                            valueFunction,
+                            cloudServiceDTOs))
+                    .collect(Collectors.toList()));
         } else {
             // for groupBy CSP and target
             dto.setStatistics(statSnapshot.getStatRecordsList().stream()
-                    .filter(statRecord -> targetApiDTOs.stream()
-                            .anyMatch(target -> target.getUuid().equals(statRecord.getProviderUuid())))
+                    .filter(statRecord -> isAssociatedWithTarget(targetsService, statRecord.getAssociatedEntityId()))
                     .map(statApiDTO ->
                             toStatApiDtoWithTargets(statApiDTO,
-                                    targetApiDTOs,
                                     typeFunction,
                                     valueFunction,
                                     Collections.emptyList()))
                     .collect(Collectors.toList()));
         }
         return dto;
+    }
+
+    // determine if the associated entity id matches with target ID
+    private boolean isAssociatedWithTarget(final TargetsService targetsService, final long associatedEntityId) {
+        if (uuidToTargetApiDtoMap.containsKey(associatedEntityId)
+                && uuidToTargetApiDtoMap.get(associatedEntityId).getUuid() != null) {
+            return true;
+        }
+        // handle hidden targets, e.g. AWS billing
+        try {
+            final TargetApiDTO targetApiDTO = targetsService.getTarget(String.valueOf(associatedEntityId));
+            uuidToTargetApiDtoMap.putIfAbsent(associatedEntityId, targetApiDTO);
+            return true;
+        } catch (UnknownObjectException e) {
+            uuidToTargetApiDtoMap.putIfAbsent(associatedEntityId, new TargetApiDTO());
+            return false;
+        }
     }
 
     /**
@@ -212,8 +236,7 @@ public class StatsMapper {
                 .collect(Collectors.toList());
     }
 
-    private StatApiDTO toStatApiDtoWithTargets(@Nonnull final StatRecord statRecord,
-                                               @Nonnull final List<TargetApiDTO> targetApiDTOS,
+    private StatApiDTO toStatApiDtoWithTargets(@Nonnull final CloudCostStatRecord.StatRecord statRecord,
                                                @Nonnull final Function<TargetApiDTO, String> typeFunction,
                                                @Nonnull final Function<TargetApiDTO, String> valueFunction,
                                                @Nonnull final List<BaseApiDTO> cloudServiceDTOs) {
@@ -221,32 +244,31 @@ public class StatsMapper {
         statApiDTO.setName(statRecord.getName());
         statApiDTO.setUnits(statRecord.getUnits());
 
-        // The "values" should be equivalent to "used".
-        statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
-        statApiDTO.setValue(statRecord.getUsed().getAvg());
+        final StatValueApiDTO converted = new StatValueApiDTO();
+        converted.setAvg(statRecord.getValues().getAvg());
+        converted.setMax(statRecord.getValues().getMax());
+        converted.setMin(statRecord.getValues().getMin());
+        converted.setTotal(statRecord.getValues().getTotal());
+
+        statApiDTO.setValues(converted);
+        statApiDTO.setValue(statRecord.getValues().getAvg());
+
 
         final BaseApiDTO provider = new BaseApiDTO();
-        provider.setDisplayName(statRecord.getProviderDisplayName());
-        provider.setUuid(statRecord.getProviderUuid());
+        provider.setUuid(String.valueOf(statRecord.getAssociatedEntityId()));
 
         statApiDTO.setRelatedEntity(provider);
 
         // Build filters
         final List<StatFilterApiDTO> filters = new ArrayList<>();
-        targetApiDTOS.stream().forEach(
-                dto -> {
-                    StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-                    resultsTypeFilter.setType(typeFunction.apply(dto));
-                    resultsTypeFilter.setValue(cloudServiceDTOs.isEmpty() ?
-                            valueFunction.apply(dto) : popluateCloudServiceName(cloudServiceDTOs, statApiDTO)
-                            .orElse(UNKNOWN));
-                    filters.add(resultsTypeFilter);
-                }
-        );
-
-        if (filters.size() > 0) {
-            statApiDTO.setFilters(filters);
-        }
+        final TargetApiDTO targetApiDTO = uuidToTargetApiDtoMap.get(statRecord.getAssociatedEntityId());
+        final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
+        resultsTypeFilter.setType(typeFunction.apply(targetApiDTO));
+        resultsTypeFilter.setValue(cloudServiceDTOs.isEmpty() ?
+                valueFunction.apply(targetApiDTO) : popluateCloudServiceName(cloudServiceDTOs, statApiDTO)
+                .orElse(UNKNOWN));
+        filters.add(resultsTypeFilter);
+        statApiDTO.setFilters(filters);
         return statApiDTO;
     }
 
@@ -648,7 +670,7 @@ public class StatsMapper {
      * @param statSnapshot stat snap shot
      * @return StatSnapshotApiDTO
      */
-    public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudStatRecord statSnapshot) {
+    public StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(statSnapshot.getSnapshotDate());

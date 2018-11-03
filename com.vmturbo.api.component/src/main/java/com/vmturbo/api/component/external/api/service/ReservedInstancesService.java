@@ -272,13 +272,13 @@ public class ReservedInstancesService implements IReservedInstancesService {
                 GetReservedInstanceBoughtCountRequest.newBuilder();
         if (filterType == EntityDTO.EntityType.REGION_VALUE) {
             request.setRegionFilter(RegionFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllRegionId(filterIds));
         } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
             request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAvailabilityZoneId(filterIds));
         } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
             request.setAccountFilter(AccountFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAccountId(filterIds));
         } else {
             throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
         }
@@ -300,13 +300,13 @@ public class ReservedInstancesService implements IReservedInstancesService {
                 GetReservedInstanceBoughtByFilterRequest.newBuilder();
         if (filterType == EntityDTO.EntityType.REGION_VALUE) {
             request.setRegionFilter(RegionFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllRegionId(filterIds));
         } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
             request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAvailabilityZoneId(filterIds));
         } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
             request.setAccountFilter(AccountFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAccountId(filterIds));
         } else {
             throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
         }
@@ -375,13 +375,13 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         .setEndDate(endDateMillis);
         if (filterType == EntityDTO.EntityType.REGION_VALUE) {
             request.setRegionFilter(RegionFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllRegionId(filterIds));
         } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
             request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAvailabilityZoneId(filterIds));
         } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
             request.setAccountFilter(AccountFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAccountId(filterIds));
         } else {
             throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
         }

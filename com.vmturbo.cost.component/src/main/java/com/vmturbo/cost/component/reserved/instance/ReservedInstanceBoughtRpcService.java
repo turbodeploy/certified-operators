@@ -133,15 +133,15 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             @Nonnull final Optional<AccountFilter> accountFilter) {
         final ReservedInstanceBoughtFilter.Builder filterBuilder = ReservedInstanceBoughtFilter.newBuilder();
         if (regionFilter.isPresent()) {
-            regionFilter.get().getFilterIdList().forEach(filterBuilder::addRegionId);
+            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
             // Because region id is stored at RI spec table, it needs join operation.
             filterBuilder.setJoinWithSpecTable(true);
         }
         if (azFilter.isPresent()) {
-            azFilter.get().getFilterIdList().forEach(filterBuilder::addAvailabilityZoneId);
+            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
         }
         if (accountFilter.isPresent()) {
-            azFilter.get().getFilterIdList().forEach(filterBuilder::addBusinessAccountId);
+            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
         }
         return filterBuilder.build();
     }

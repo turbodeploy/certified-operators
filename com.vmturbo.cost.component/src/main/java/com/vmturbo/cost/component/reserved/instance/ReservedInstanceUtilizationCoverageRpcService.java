@@ -151,13 +151,13 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final TimeFrame timeFrame) {
         final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
         if (regionFilter.isPresent()) {
-            regionFilter.get().getFilterIdList().forEach(filterBuilder::addRegionId);
+            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
         }
         if (azFilter.isPresent()) {
-            azFilter.get().getFilterIdList().forEach(filterBuilder::addAvailabilityZoneId);
+            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
         }
         if (accountFilter.isPresent()) {
-            azFilter.get().getFilterIdList().forEach(filterBuilder::addBusinessAccountId);
+            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
         }
         filterBuilder.setStartDateMillis(startDateMillis);
         filterBuilder.setEndDateMillis(endDateMillis);
@@ -185,13 +185,13 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final TimeFrame timeFrame) {
         final ReservedInstanceCoverageFilter.Builder filterBuilder = ReservedInstanceCoverageFilter.newBuilder();
         if (regionFilter.isPresent()) {
-            regionFilter.get().getFilterIdList().forEach(filterBuilder::addRegionId);
+            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
         }
         if (azFilter.isPresent()) {
-            azFilter.get().getFilterIdList().forEach(filterBuilder::addAvailabilityZoneId);
+            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
         }
         if (accountFilter.isPresent()) {
-            azFilter.get().getFilterIdList().forEach(filterBuilder::addBusinessAccountId);
+            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
         }
         filterBuilder.setStartDateMillis(startDateMillis);
         filterBuilder.setEndDateMillis(endDateMillis);

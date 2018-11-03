@@ -7,6 +7,8 @@ import static org.junit.Assert.assertThat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -20,10 +22,15 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.TierExpenses;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -41,12 +48,14 @@ public class SqlAccountExpensesStoreTest {
     final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
+                    .setAssociatedServiceId(2l)
                     .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSES_PERCENTAGE1).build())
                     .build())
             .build();
     final AccountExpenses.AccountExpensesInfo accountExpensesInfo1 = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
+                    .setAssociatedServiceId(1l)
                     .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSES_PERCENTAGE2).build())
                     .build())
             .build();
@@ -108,7 +117,7 @@ public class SqlAccountExpensesStoreTest {
 
         clock.changeInstant(clock.instant().plusMillis(1000));
         expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID, accountExpensesInfo);
-        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getLatestExpenses();
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getLatestExpenses(Collections.emptySet(), Collections.emptySet());
         assertEquals(1, accountExpenses1.size());
         assertEquals(ASSOCIATED_ACCOUNT_ID, accountExpenses1.values().stream()
                 .findFirst()
@@ -124,15 +133,116 @@ public class SqlAccountExpensesStoreTest {
     }
 
     @Test
-    public void testGetExpensesWithTwoTimeStamps() throws DbException, AccountExpenseNotFoundException {
+    public void testGetLatestExpenseWithFilters() throws AccountExpenseNotFoundException, DbException {
+
+        // INSERT
+        expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID, accountExpensesInfo1);
+
+        clock.changeInstant(clock.instant().plusMillis(1000));
+        expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID, accountExpensesInfo);
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses = expensesStore
+                .getLatestExpenses(ImmutableSet.of(2l), Collections.emptySet());
+        assertEquals(1, accountExpenses.size());
+        assertEquals(ASSOCIATED_ACCOUNT_ID, accountExpenses.values().stream()
+                .findFirst()
+                .get()
+                .get(ASSOCIATED_ACCOUNT_ID)
+                .getAssociatedAccountId());
+
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
+                .getLatestExpenses(ImmutableSet.of(0l), Collections.emptySet());
+        assertEquals(0, accountExpenses1.size());
+
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses2 = expensesStore
+                .getLatestExpenses(ImmutableSet.of(1l), ImmutableSet.of(43));
+        assertEquals(1, accountExpenses2.size());
+
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses3 = expensesStore
+                .getLatestExpenses(ImmutableSet.of(1l), ImmutableSet.of(0));
+        assertEquals(0, accountExpenses3.size());
+
+
+        // DELETE
+        expensesStore
+                .deleteAccountExpensesByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
+        List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
+        assertEquals(0, allAccountExpenses.size());
+    }
+
+    @Test
+    public void tesGetAccountExpenseFilter() throws DbException, AccountExpenseNotFoundException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final AccountExpensesFilter entityCostFilter = new AccountExpensesFilter(
+                ImmutableSet.of(2l),
+                ImmutableSet.of(43),
+                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                TimeFrame.LATEST);
+
+        final AccountExpensesFilter entityCostFilter1 = new AccountExpensesFilter(
+                ImmutableSet.of(2l), //Not in the table
+                Collections.EMPTY_SET,
+                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                TimeFrame.LATEST);
+
+        final AccountExpensesFilter entityCostFilter2 = new AccountExpensesFilter(
+                Collections.EMPTY_SET, //any
+                ImmutableSet.of(43),
+                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                TimeFrame.LATEST);
+
+        final AccountExpensesFilter entityCostFilter3 = new AccountExpensesFilter(
+                ImmutableSet.of(Long.MAX_VALUE),
+                ImmutableSet.of(Integer.MAX_VALUE),
+                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                TimeFrame.LATEST);
 
         // INSERT
         saveExpense();
 
-        LocalDateTime now = LocalDateTime.now(clock);
-        // READ by timestamps
-        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
-                .getAccountExpenses(now.minusMinutes(1), now);
+        final Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getAccountExpenses(entityCostFilter);
+        assertEquals(1, accountExpenses1.size());
+        assertEquals(ASSOCIATED_ACCOUNT_ID, accountExpenses1.values().stream()
+                .findFirst()
+                .get()
+                .get(ASSOCIATED_ACCOUNT_ID)
+                .getAssociatedAccountId());
+
+        final Map<Long, Map<Long, AccountExpenses>> accountExpenses2 = expensesStore.getAccountExpenses(entityCostFilter1);
+        assertEquals(1, accountExpenses2.size());
+
+        final Map<Long, Map<Long, AccountExpenses>> accountExpenses3 = expensesStore.getAccountExpenses(entityCostFilter2);
+        assertEquals(1, accountExpenses3.size());
+
+        final Map<Long, Map<Long, AccountExpenses>> accountExpenses4 = expensesStore.getAccountExpenses(entityCostFilter3);
+        assertEquals(0, accountExpenses4.size());
+
+        // DELETE
+        expensesStore
+                .deleteAccountExpensesByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
+        List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
+        assertEquals(0, allAccountExpenses.size());
+    }
+
+    @Test
+    public void testGetCostWithAccountExpenseFilter() throws DbException, AccountExpenseNotFoundException {
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final AccountExpensesFilter entityCostFilter = new AccountExpensesFilter(
+                Collections.EMPTY_SET,
+                Collections.EMPTY_SET,
+                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                TimeFrame.LATEST);
+
+        // INSERT
+        saveExpense();
+
+        Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getAccountExpenses(entityCostFilter);
         assertEquals(1, accountExpenses1.size());
         assertEquals(ASSOCIATED_ACCOUNT_ID, accountExpenses1.values().stream()
                 .findFirst()
@@ -145,7 +255,6 @@ public class SqlAccountExpensesStoreTest {
                 .deleteAccountExpensesByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
         List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
         assertEquals(0, allAccountExpenses.size());
-
     }
 
     private void saveExpense() throws DbException {

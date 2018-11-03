@@ -43,6 +43,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -70,9 +71,15 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -257,10 +264,8 @@ public class StatsServiceTest {
         statApiInputDTO.setName(StatsService.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.CSP));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
-                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy(StatsService.CSP).build())
-                        .build())
+        GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
+                .setGroupBy(GroupByType.CSP)
                 .build();
         verifyCall(request, inputDto);
     }
@@ -272,10 +277,8 @@ public class StatsServiceTest {
         statApiInputDTO.setName(StatsService.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.TARGET));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
-                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy(StatsService.TARGET).build())
-                        .build())
+        GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
+                .setGroupBy(GroupByType.TARGET)
                 .build();
         verifyCall(request, inputDto);
     }
@@ -287,12 +290,57 @@ public class StatsServiceTest {
         statApiInputDTO.setName(StatsService.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.CLOUD_SERVICE));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
-                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
-                        .addGroupBy(StatsService.CLOUD_SERVICE).build())
-                        .build())
+        inputDto.setEndDate("15000");
+        GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
+                .setGroupBy(GroupByType.CLOUD_SERVICE)
                 .build();
         verifyCall(request, inputDto);
+    }
+
+
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostTargetWithScope() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.TARGET));
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
+                .setGroupBy(GroupByType.TARGET)
+                .setEntityFilter(EntityFilter.newBuilder().addEntityId(111l).build())
+                .build();
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.newBuilder().setId(111l).build()));
+        when(groupExpander.expandUuid(anyObject())).thenReturn(ImmutableSet.of(111l));
+
+        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.IP, 1))
+                .build();
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(cloudStatRecord);
+
+        when(costServiceSpy.getCloudCostStats(any()))
+                .thenReturn(builder.build());
+
+        when(costServiceSpy.getAccountExpenseStats(any()))
+                .thenReturn(builder.build());
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any())).thenReturn(apiDto);
+
+        when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery("111", inputDto);
+
+        verify(costServiceSpy).getAccountExpenseStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any());
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets(null);
+
+        assertEquals(1, resp.size());
     }
 
     @Test
@@ -314,19 +362,15 @@ public class StatsServiceTest {
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
 
-        when(costServiceSpy.getAveragedEntityStats(any()))
-                .thenReturn(ImmutableList.of(STAT_SNAPSHOT));
-
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any())).thenReturn(apiDto);
+        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any())).thenReturn(apiDto);
 
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(StatsService.MARKET, inputDto);
 
         verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
-        verify(costServiceSpy, never()).getAveragedEntityStats(any());
     }
 
     @Test
@@ -348,11 +392,11 @@ public class StatsServiceTest {
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        final CloudStatRecord cloudStatRecord = CloudStatRecord.newBuilder()
+        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE))
-                .addStatRecords(getStatRecordBuilder(CostCategory.IP))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.IP, 1))
                 .build();
 
         builder.addCloudStatRecord(cloudStatRecord);
@@ -369,35 +413,29 @@ public class StatsServiceTest {
         final List<StatSnapshotApiDTO> resp = statsService
                 .getStatsByEntityQuery(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID, inputDto);
 
-        verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
-        verify(costServiceSpy).getCloudCostStats(any());
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .build();
+        verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
         verify(statsMapper).toCloudStatSnapshotApiDTO(any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
         assertEquals(1, resp.size());
     }
 
-    private CloudStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory) {
-        final CloudStatRecord.StatRecord.Builder statRecordBuilder = CloudStatRecord.StatRecord.newBuilder();
-        statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4l);
-        statRecordBuilder.setAssociatedEntityType(1);
-        statRecordBuilder.setCategory(costCategory);
-        CloudStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudStatRecord.StatRecord.StatValue.newBuilder();
 
-        statValueBuilder.setAvg(1);
+    //custom group and entityid are both in id form, so this test also cover the getting stat from an entity
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostBottomUpWorkloadWithCustomGroupOrEntity() throws Exception {
 
-        statValueBuilder.setTotal(1);
-        statValueBuilder.setMax(1);
-        statValueBuilder.setMin(1);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
-        return statRecordBuilder;
-    }
-
-    public void verifyCall(final GetAveragedEntityStatsRequest request, final StatPeriodApiInputDTO inputDto) throws Exception {
-
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setRelatedEntityType("Workload");
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder().build())
+                        .build())
+                .build();
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
@@ -405,21 +443,101 @@ public class StatsServiceTest {
 
         when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
                 .thenReturn(request);
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        final int value1 = 1;
+        final int value2 = 2;
+        final int value3 = 3;
 
-        when(costServiceSpy.getAveragedEntityStats(any()))
-                .thenReturn(ImmutableList.of(STAT_SNAPSHOT));
+        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, value1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, value2))
+                .addStatRecords(getStatRecordBuilder(CostCategory.IP, value3))
+                .build();
+
+        builder.addCloudStatRecord(cloudStatRecord);
+
+        when(costServiceSpy.getCloudCostStats(any()))
+                .thenReturn(builder.build());
 
         final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
         apiDto.setStatistics(Collections.emptyList());
-        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any())).thenReturn(apiDto);
+        when(statsMapper.toCloudStatSnapshotApiDTO(any())).thenReturn(apiDto);
+
+        when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+
+        final List<StatSnapshotApiDTO> resp = statsService
+                .getStatsByEntityQuery("11111", inputDto);
+
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .setEntityFilter(EntityFilter.newBuilder().addEntityId(1l).build())
+                .build();
+
+        final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(StatRecord.newBuilder()
+                        .setName("costPrice")
+                        .setUnits("$/h")
+                        .setValues(StatValue.newBuilder().setTotal(value1 + value2 + value3)
+                                .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
+                        .build())
+                .build();
+        verify(costServiceSpy).getCloudCostStats(cloudCostStatsRequest);
+        verify(statsMapper).toCloudStatSnapshotApiDTO(expectedCloudStatRecord);
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets(null);
+        assertEquals(1, resp.size());
+    }
+
+    private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory, float value) {
+        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
+        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setAssociatedEntityId(4l);
+        statRecordBuilder.setAssociatedEntityType(1);
+        statRecordBuilder.setCategory(costCategory);
+        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+
+        statValueBuilder.setAvg(value);
+        statValueBuilder.setTotal(value);
+        statValueBuilder.setMax(value);
+        statValueBuilder.setMin(value);
+
+        statRecordBuilder.setValues(statValueBuilder.build());
+        return statRecordBuilder;
+    }
+
+    public void verifyCall(final GetCloudExpenseStatsRequest request, final StatPeriodApiInputDTO inputDto) throws Exception {
+
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(DateTimeUtil.toString(1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.IP, 1))
+                .build();
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(cloudStatRecord);
+
+        when(costServiceSpy.getCloudCostStats(any()))
+                .thenReturn(builder.build());
+
+        when(costServiceSpy.getAccountExpenseStats(any()))
+                .thenReturn(builder.build());
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any())).thenReturn(apiDto);
 
         when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(StatsService.MARKET, inputDto);
 
-        verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
-        verify(costServiceSpy).getAveragedEntityStats(any());
-        verify(statsMapper).toStatSnapshotApiDTO(any(), any(), any(), any(), any());
+        verify(costServiceSpy).getAccountExpenseStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
 

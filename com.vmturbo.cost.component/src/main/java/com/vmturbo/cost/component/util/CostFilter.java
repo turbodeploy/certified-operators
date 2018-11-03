@@ -13,18 +13,22 @@ import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFram
 
 /**
  * A abstract class represents the filter object.
- * Current it's only used with entity cost tables.
+ * Current it's only used with entity and expense cost tables.
+ * TODO there is discussion to remove this abstract class.
+ * See https://rbcommons.com/s/VMTurbo/r/26851/.
  */
 public abstract class CostFilter {
-    public static final String ASSOCIATED_ENTITY_TYPE = "associated_entity_type";
+
     protected final long startDateMillis;
     protected final long endDateMillis;
-    private final Set<Long> entityTypeFilters;
+    protected final Set<Integer> entityTypeFilters;
+    protected final Set<Long> entityFilters;
     protected TimeFrame timeFrame;
     protected String snapshotTime;
 
 
-    public CostFilter(@Nonnull final Set<Long> entityTypeFilters,
+    public CostFilter(@Nonnull final Set<Long> entityFilters,
+                      @Nonnull final Set<Integer> entityTypeFilters,
                       final long startDateMillis,
                       final long endDateMillis,
                       @Nullable final TimeFrame timeFrame,
@@ -33,23 +37,18 @@ public abstract class CostFilter {
         this.endDateMillis = endDateMillis;
         this.timeFrame = timeFrame;
         this.snapshotTime = snapshotTime;
+        this.entityFilters = entityFilters;
         this.entityTypeFilters = entityTypeFilters;
-
     }
 
     /**
      * Generate a list of {@link Condition} based on different fields.
      *
-     * @param startDateMillis
-     * @param endDateMillis
-     * @param entityTypeFilters
      * @return a list of {@link Condition}.
      */
-    abstract public List<Condition> generateConditions(final long startDateMillis,
-                                                       final long endDateMillis,
-                                                       final Set<Long> entityTypeFilters);
+    abstract public List<Condition> generateConditions();
 
     abstract public Condition[] getConditions();
 
-    abstract Table<?> getTable();
+    public abstract Table<?> getTable();
 }

@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.sql.utils.DbException;
 
@@ -55,7 +56,7 @@ public interface EntityCostStore {
      * @return Map with entry (timestamp -> (entityId -> entity costs))
      * @throws DbException if anything goes wrong in the database
      */
-    Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final EntityCostFilter filter) throws DbException;
+    Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter filter) throws DbException;
 
     /**
      * Get entity costs for the provided entity ids and between the start (minValue) and end (maxValue) dates.
@@ -73,12 +74,14 @@ public interface EntityCostStore {
                                                     @Nonnull final LocalDateTime endDate) throws DbException;
 
     /**
-     * Get the latest entity cost.
+     * Get the latest entity cost based on provided entityIds and entityTypeIds.
      * It returns Map with entry (timestamp -> (associatedEntityId -> EntityCost)).
      * In a timestamp/snapshot, the entity cost with same ids will be combined to one entity cost.
-     *
+     * @Param entityIds entity ids
+     * @Param entityTypeIds entity type ids
      * @return Map with entry (timestamp -> (associatedEntityId -> EntityCost))
      * @throws DbException if anything goes wrong in the database
      */
-    Map<Long,Map<Long,EntityCost>> getLatestEntityCost() throws DbException;
+    Map<Long,Map<Long,EntityCost>> getLatestEntityCost(@Nonnull final Set<Long> entityIds,
+                                                       @Nonnull final Set<Integer> entityTypeIds) throws DbException;
 }

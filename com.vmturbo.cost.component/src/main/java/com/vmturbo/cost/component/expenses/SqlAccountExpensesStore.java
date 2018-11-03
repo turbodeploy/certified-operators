@@ -6,17 +6,22 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import org.jooq.BatchBindStep;
+import org.jooq.Condition;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Record6;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -26,9 +31,12 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.TierExpenses;
+import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.AccountExpensesRecord;
+import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -158,6 +166,39 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
         }
     }
 
+    @Override
+    public Map<Long, Map<Long, AccountExpenses>> getAccountExpenses(@Nonnull final CostFilter filter) throws DbException {
+        try {
+            final Field<Long> entityId = (Field<Long>) filter
+                    .getTable()
+                    .field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName());
+            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>) filter
+                    .getTable()
+                    .field(ACCOUNT_EXPENSES.SNAPSHOT_TIME.getName());
+            final Field<Long> acccountId = (Field<Long>) filter
+                    .getTable()
+                    .field(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.getName());
+            final Field<Integer> entityType = (Field<Integer>) filter
+                    .getTable()
+                    .field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName());
+            final Field<Integer> currency = (Field<Integer>) filter
+                    .getTable()
+                    .field(ACCOUNT_EXPENSES.CURRENCY.getName());
+            final Field<BigDecimal> amount = (Field<BigDecimal>) filter
+                    .getTable()
+                    .field(ACCOUNT_EXPENSES.AMOUNT.getName());
+            final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> records = dsl
+                    .select(acccountId, createdTime, entityId, entityType, currency, amount)
+                    .from(filter.getTable())
+                    .where(filter.getConditions())
+                    .fetch();
+            return constructExpensesMap(records);
+        } catch (DataAccessException e) {
+            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
+        }
+    }
+
+
     /**
      * {@inheritDoc}
      */
@@ -175,30 +216,35 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
      * {@inheritDoc}
      */
     @Override
-    public Map<Long, Map<Long, Cost.AccountExpenses>> getAccountExpenses(@Nonnull final LocalDateTime startDate,
-                                                                         @Nonnull final LocalDateTime endDate) throws DbException {
+    public Map<Long, Map<Long, Cost.AccountExpenses>> getLatestExpenses(@Nonnull final Set<Long> entityIds,
+                                                                        @Nonnull final Set<Integer> entityTypeIds) throws DbException {
         try {
-            return constructExpensesMap(dsl
-                    .selectFrom(ACCOUNT_EXPENSES)
-                    .where(ACCOUNT_EXPENSES.SNAPSHOT_TIME.between(startDate, endDate))
-                    .fetch());
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
-        }
-    }
+            final List<Condition> conditions = new ArrayList<>();
+            if (!entityTypeIds.isEmpty()) {
+                conditions.add(ACCOUNT_EXPENSES.field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName()).in(entityTypeIds));
+            }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Map<Long, Map<Long, Cost.AccountExpenses>> getLatestExpenses() throws DbException {
-        try {
-            return constructExpensesMap(dsl
-                    .selectFrom(ACCOUNT_EXPENSES)
-                    .where(ACCOUNT_EXPENSES.SNAPSHOT_TIME.eq(dsl.select(ACCOUNT_EXPENSES.SNAPSHOT_TIME
+            if (!entityIds.isEmpty()) {
+                conditions.add(ACCOUNT_EXPENSES.field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName()).in(entityIds));
+            }
+
+
+            final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> results = dsl.select(
+                    ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
+                    ACCOUNT_EXPENSES.SNAPSHOT_TIME,
+                    ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID,
+                    ACCOUNT_EXPENSES.ENTITY_TYPE,
+                    ACCOUNT_EXPENSES.CURRENCY,
+                    ACCOUNT_EXPENSES.AMOUNT)
+                    .from(ACCOUNT_EXPENSES)
+                    .where(conditions.toArray(new Condition[conditions.size()]))
+                    .and(ACCOUNT_EXPENSES.SNAPSHOT_TIME.eq(dsl.select(ACCOUNT_EXPENSES.SNAPSHOT_TIME
                             .max())
-                            .from(ACCOUNT_EXPENSES)))
-                    .fetch());
+                            .from(ACCOUNT_EXPENSES)
+                            .where(conditions.toArray(new Condition[conditions.size()]))))
+
+                    .fetch();
+            return constructExpensesMap(results);
         } catch (DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB" + e.getMessage());
         }
@@ -211,13 +257,14 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
      * @param accountExpensesRecords account expense records in db
      * @return Account expenses map, key is timestamp in long, values are Map of AccountId -> AccountExpense.
      */
-    private Map<Long, Map<Long, Cost.AccountExpenses>> constructExpensesMap(final Result<AccountExpensesRecord> accountExpensesRecords) {
+    private Map<Long, Map<Long, AccountExpenses>> constructExpensesMap(
+            @Nonnull final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> accountExpensesRecords) {
         final Map<Long, Map<Long, Cost.AccountExpenses>> records = new HashMap<>();
         accountExpensesRecords.forEach(expense -> {
-            final Map<Long, Cost.AccountExpenses> costsForTimestamp = records
-                    .computeIfAbsent(localDateTimeToDate(expense.getSnapshotTime()), k -> new HashMap<>());
+            final Map<Long, AccountExpenses> costsForTimestamp = records
+                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(expense.value2()), k -> new HashMap<>());
             //TODO: optimize to avoid building newExpense
-            final Cost.AccountExpenses newExpense = toDTO(expense);
+            final AccountExpenses newExpense = toDTO(new RecordWrapper(expense));
             costsForTimestamp.compute(newExpense.getAssociatedAccountId(),
                     (id, existingExpense) -> existingExpense == null ?
                             newExpense :
@@ -229,10 +276,37 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
         return records;
     }
 
+    private AccountExpenses toDTO(final RecordWrapper recordWrapper) {
+        final boolean isCloudSerivce = EntityType.CLOUD_SERVICE_VALUE == recordWrapper.getAssociatedEntityType();
+        AccountExpensesInfo info = isCloudSerivce ? AccountExpensesInfo.newBuilder()
+                .addServiceExpenses(ServiceExpenses.newBuilder()
+                        .setAssociatedServiceId(recordWrapper.getAssociatedEntityId())
+                        .setExpenses(CurrencyAmount.newBuilder()
+                                .setAmount(recordWrapper.getAmount().doubleValue())
+                                .setCurrency(recordWrapper.getCurrency())
+                                .build()))
+                .build()
+                : AccountExpensesInfo.newBuilder()
+                .addTierExpenses(TierExpenses
+                        .newBuilder()
+                        .setAssociatedTierId(recordWrapper.getAssociatedEntityId())
+                        .setExpenses(CurrencyAmount.newBuilder()
+                                .setAmount(recordWrapper.getAmount().doubleValue())
+                                .setCurrency(recordWrapper.getCurrency()))
+                        .build())
+                .build();
+        return Cost.AccountExpenses.newBuilder()
+                .setAssociatedAccountId(recordWrapper.gettAssociatedAccountId())
+                .setExpenseReceivedTimestamp(localDateTimeToDate(recordWrapper.getSnapshotTime()))
+                .setAccountExpensesInfo(info)
+                .build();
+    }
+
     //Convert accountExpensesRecord DB record to AccountExpenses proto DTO
     private Cost.AccountExpenses toDTO(@Nonnull final AccountExpensesRecord accountExpensesRecord) {
         final boolean isCloudSerivce = EntityType.CLOUD_SERVICE_VALUE == accountExpensesRecord.getEntityType();
-        AccountExpensesInfo info = isCloudSerivce ? AccountExpensesInfo.newBuilder()
+        final Builder accountExpensesInfoBuilder = AccountExpensesInfo.newBuilder();
+        final AccountExpensesInfo info = isCloudSerivce ? accountExpensesInfoBuilder
                 .addServiceExpenses(ServiceExpenses.newBuilder()
                         .setAssociatedServiceId(accountExpensesRecord.getAssociatedEntityId())
                         .setExpenses(CurrencyAmount.newBuilder()
@@ -240,9 +314,8 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                                 .setCurrency(accountExpensesRecord.getCurrency())
                                 .build()))
                 .build()
-                : AccountExpensesInfo.newBuilder()
-                .addTierExpenses(TierExpenses
-                        .newBuilder()
+                : accountExpensesInfoBuilder
+                .addTierExpenses(TierExpenses.newBuilder()
                         .setAssociatedTierId(accountExpensesRecord.getAssociatedEntityId())
                         .setExpenses(CurrencyAmount.newBuilder()
                                 .setAmount(accountExpensesRecord.getAmount().doubleValue())
@@ -265,4 +338,41 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
     private long localDateTimeToDate(LocalDateTime startOfDay) {
         return Date.from(startOfDay.atZone(ZoneId.systemDefault()).toInstant()).getTime();
     }
+
+
+    /**
+     * A wrapper class to wrap {@link Record6} class, to make it more readable
+     */
+    private class RecordWrapper {
+        final Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal> record6;
+
+        RecordWrapper(Record6 record6) {
+            this.record6 = record6;
+        }
+
+        long gettAssociatedAccountId() {
+            return record6.value1();
+        }
+
+        LocalDateTime getSnapshotTime() {
+            return record6.value2();
+        }
+
+        long getAssociatedEntityId() {
+            return record6.value3();
+        }
+
+        int getAssociatedEntityType() {
+            return record6.value4();
+        }
+
+        int getCurrency() {
+            return record6.value5();
+        }
+
+        BigDecimal getAmount() {
+            return record6.value6();
+        }
+    }
 }
+

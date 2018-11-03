@@ -5,6 +5,7 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record6;
@@ -33,6 +35,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -204,7 +207,7 @@ public class SqlEntityCostStore implements EntityCostStore {
     }
 
     @Override
-    public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final EntityCostFilter entityCostFilter) throws DbException {
+    public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter entityCostFilter) throws DbException {
         try {
             final Field<Long> entityId = (Field<Long>) entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
             final Field<LocalDateTime> createdTime = (Field<LocalDateTime>) entityCostFilter.getTable().field(ENTITY_COST.CREATED_TIME.getName());
@@ -277,8 +280,18 @@ public class SqlEntityCostStore implements EntityCostStore {
      * {@inheritDoc}
      */
     @Override
-    public Map<Long, Map<Long, EntityCost>> getLatestEntityCost() throws DbException {
+    public Map<Long, Map<Long, EntityCost>> getLatestEntityCost(@Nonnull final Set<Long> entityIds,
+                                                                @Nonnull final Set<Integer> entityTypeIds) throws DbException {
         try {
+            final List<Condition> conditions = new ArrayList<>();
+            if (!entityTypeIds.isEmpty()) {
+                conditions.add(ENTITY_COST.field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()).in(entityTypeIds));
+            }
+
+            if (!entityIds.isEmpty()) {
+                conditions.add(ENTITY_COST.field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()).in(entityIds));
+            }
+
             final Result<Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal>> records = dsl
                     .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
                             ENTITY_COST.CREATED_TIME,
@@ -287,9 +300,12 @@ public class SqlEntityCostStore implements EntityCostStore {
                             ENTITY_COST.CURRENCY,
                             ENTITY_COST.AMOUNT)
                     .from(ENTITY_COST)
-                    .where(ENTITY_COST.CREATED_TIME.eq(dsl.select(ENTITY_COST.CREATED_TIME
+                    .where(conditions.toArray(new Condition[conditions.size()]))
+                    .and(ENTITY_COST.CREATED_TIME.eq(dsl.select(ENTITY_COST.CREATED_TIME
                             .max())
-                            .from(ENTITY_COST)))
+                            .from(ENTITY_COST)
+                            .where(conditions.toArray(new Condition[conditions.size()]))))
+
                     .fetch();
             return constructEntityCostMap(records);
         } catch (DataAccessException e) {
@@ -327,37 +343,37 @@ public class SqlEntityCostStore implements EntityCostStore {
                 .setAssociatedEntityType(recordWrapper.getAssociatedEntityType())
                 .build();
     }
-}
 
-/**
- * A wrapper class to wrap {@link Record6} class, to make it more readable
- */
-class RecordWrapper {
-    final Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal> record6;
-    RecordWrapper(Record6 record6) {
-     this.record6 = record6;
-    }
+    /**
+     * A wrapper class to wrap {@link Record6} class, to make it more readable
+     */
+    class RecordWrapper {
+        final Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal> record6;
+        RecordWrapper(Record6 record6) {
+            this.record6 = record6;
+        }
 
-    long getAssociatedEntityId() {
-        return record6.value1();
-    }
+        long getAssociatedEntityId() {
+            return record6.value1();
+        }
 
-    LocalDateTime getCreatedTime() {
-        return record6.value2();
-    }
+        LocalDateTime getCreatedTime() {
+            return record6.value2();
+        }
 
-    int getAssociatedEntityType() {
-        return record6.value3();
-    }
+        int getAssociatedEntityType() {
+            return record6.value3();
+        }
 
-    int getCostType() {
-        return record6.value4();
-    }
+        int getCostType() {
+            return record6.value4();
+        }
 
-    int getCurrency() {
-        return record6.value5();
-    }
-    BigDecimal getAmount() {
-        return record6.value6();
+        int getCurrency() {
+            return record6.value5();
+        }
+        BigDecimal getAmount() {
+            return record6.value6();
+        }
     }
 }

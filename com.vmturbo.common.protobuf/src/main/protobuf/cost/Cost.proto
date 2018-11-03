@@ -5,7 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "CloudCostDTO.proto";
 import "common/Pagination.proto";
-import "stats/Stats.proto";
+import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
@@ -497,27 +497,27 @@ message ChecksumResponse {
 
 message RegionFilter {
     // A list of region ids need to filter by.
-    repeated int64 filter_id = 1;
+    repeated int64 region_id = 1;
 }
 
 message AvailabilityZoneFilter {
     // A list of availability zone ids need to filter by.
-    repeated int64 filter_id = 1;
+    repeated int64 availability_zone_id = 1;
 }
 
 message AccountFilter {
     // A list of account ids need to filter by.
-    repeated int64 filter_id = 1;
+    repeated int64 account_id = 1;
 }
 
 message EntityFilter {
     // A list of entity ids need to filter by.
-    repeated int64 filter_id = 1;
+    repeated int64 entity_id = 1;
 }
 
 message EntityTypeFilter {
     // A list of entity type need to filter by. E.g. App or VM
-    repeated int64 filter_id = 1;
+    repeated int32 entity_type_id = 1;
 }
 
 // A request to get reserved instance bought by some filter condition. If provider more than one
@@ -642,6 +642,35 @@ message ReservedInstanceStatsRecord {
 }
 
 // A request to get bottom up Cloud cost stats
+message GetCloudExpenseStatsRequest {
+    // The start date of the request
+    optional uint64 start_date = 1;
+
+    // The end date of the request
+    optional uint64 end_date = 2;
+
+    // Entity ids filter, return all entities if not set
+    optional EntityFilter entity_filter = 3;
+
+    // Entity type filter, could be VM or APP, return all entities if not set
+    optional EntityTypeFilter entity_type_filter = 4;
+
+    // A property names to aggregate stats over, as in an SQL 'group by' clause.
+    optional GroupByType group_by = 5;
+
+    enum GroupByType {
+        // Cloud service provider
+        CSP = 1;
+
+        // Target
+        TARGET = 2;
+
+        // Cloud Service
+        CLOUD_SERVICE =3;
+    }
+}
+
+// A request to get bottom up Cloud cost stats
 message GetCloudCostStatsRequest {
     // The start date of the request
     optional uint64 start_date = 1;
@@ -657,15 +686,23 @@ message GetCloudCostStatsRequest {
 
     // Entity type filter, could be VM or APP, return all entities if not set
     optional EntityTypeFilter entity_type_filter = 5;
+
+    // A property names to aggregate stats over, as in an SQL 'group by' clause.
+    optional GroupByType group_by = 6;
+
+    enum GroupByType {
+        // Cloud Cost Component
+        COSTCOMPONENT = 1;
+    }
 }
 
 // Bottom up Cloud cost stats reponse
 message GetCloudCostStatsResponse {
-    repeated CloudStatRecord cloud_stat_record = 1;
+    repeated CloudCostStatRecord cloud_stat_record = 1;
 }
 
-// Bottom up Cloud cost stat record
-message CloudStatRecord {
+// Cloud cost stat record, used for both top down and bottom up
+message CloudCostStatRecord {
     // the actual snapshot_date for this response
     optional string snapshot_date = 1;
 
@@ -782,12 +819,6 @@ service BuyRIAnalysisService {
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
 
-    //Get stats filtered by certain options and average over all entities listed in the request
-    rpc GetAveragedEntityStats(stats.GetAveragedEntityStatsRequest) returns (stream stats.StatSnapshot);
-
-    // Get information about account expense
-    rpc GetAccountExpense(ExpenseRequest) returns (ExpenseResponse);
-
     // Get account discounts by associated account ids
     rpc GetDiscounts(GetDiscountRequest) returns (stream Discount);
 
@@ -804,6 +835,9 @@ service CostService {
 
     // Get bottom up Cloud cost stats
     rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (GetCloudCostStatsResponse);
+
+    // Get information about account expense
+    rpc GetAccountExpenseStats(GetCloudExpenseStatsRequest) returns (GetCloudCostStatsResponse);
 }
 
 service RIAndExpenseUploadService {

@@ -1,12 +1,14 @@
 package com.vmturbo.cost.component.util;
 
-import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.cost.component.db.Tables.ACCOUNT_EXPENSES;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.jooq.Condition;
@@ -17,23 +19,23 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 
 /**
- * A filter to restrict the entity cost records from the
- * {@link com.vmturbo.cost.component.entity.cost.EntityCostStore}.
- * It provider a easier way to define simple search over entity cost records
+ * A filter to restrict the account expenses records from the
+ * {@link com.vmturbo.cost.component.expenses.AccountExpensesStore}.
+ * It provider a easier way to define simple search over account expense records
  * in the tables.
  */
-public class EntityCostFilter extends CostFilter {
+public class AccountExpensesFilter extends CostFilter {
 
-    private static final String CREATED_TIME = "created_time";
+    private static final String CREATED_TIME = ACCOUNT_EXPENSES.SNAPSHOT_TIME.getName();
 
     private final List<Condition> conditions;
 
-    public EntityCostFilter(final Set<Long> entityFilters,
-                            final Set<Integer> entityTypeFilters,
-                            final long startDateMillis,
-                            final long endDateMillis,
-                            @Nullable final TimeFrame timeFrame) {
-        super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame, CREATED_TIME);
+    public AccountExpensesFilter(@Nonnull Set<Long> entityFilter,
+                                 @Nonnull Set<Integer> entityTypeFilter,
+                                 final long startDateMillis,
+                                 final long endDateMillis,
+                                 @Nullable final TimeFrame timeFrame) {
+        super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame, CREATED_TIME);
         this.conditions = generateConditions();
     }
 
@@ -54,11 +56,12 @@ public class EntityCostFilter extends CostFilter {
         }
 
         if (!entityTypeFilters.isEmpty()) {
-            conditions.add(table.field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()).in(entityTypeFilters));
+            conditions.add((table.field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName()))
+                    .in(entityTypeFilters));
         }
-
         if (!entityFilters.isEmpty()) {
-            conditions.add(table.field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()).in(entityFilters));
+            conditions.add((table.field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName()))
+                    .in(entityFilters));
         }
         return conditions;
     }
@@ -71,13 +74,13 @@ public class EntityCostFilter extends CostFilter {
     @Override
     public Table<?> getTable() {
         if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
-            return Tables.ENTITY_COST;
+            return Tables.ACCOUNT_EXPENSES;
         } else if (this.timeFrame.equals(TimeFrame.HOUR)) {
-            return Tables.ENTITY_COST_BY_HOUR;
+            return Tables.ACCOUNT_EXPENSES_BY_HOUR;
         } else if (this.timeFrame.equals(TimeFrame.DAY)) {
-            return Tables.ENTITY_COST_BY_DAY;
+            return Tables.ACCOUNT_EXPENSES_BY_DAY;
         } else {
-            return Tables.ENTITY_COST_BY_MONTH;
+            return Tables.ACCOUNT_EXPENSES_BY_MONTH;
         }
     }
 }

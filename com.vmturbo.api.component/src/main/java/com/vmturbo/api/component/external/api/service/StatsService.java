@@ -72,10 +72,14 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CloudStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.Builder;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
@@ -140,6 +144,8 @@ public class StatsService implements IStatsService {
      * Cloud service provider constant to match UI request, also used in test cases
      */
     public static final String CSP = "CSP";
+
+    private static final String COSTCOMPONENT = "costComponent";
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
@@ -447,12 +453,6 @@ public class StatsService implements IStatsService {
                     statsFilters.addAll(currentStatFilters);
                 }
                 final Optional<Integer> tempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
-                final GetAveragedEntityStatsRequest request =
-                        statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
-
-                final Iterable<StatSnapshot> statsIterator = isCostStats
-                        ? () -> costServiceRpc.getAveragedEntityStats(request)
-                        : () -> statsServiceRpc.getAveragedEntityStats(request);
 
                 // convert the stats snapshots to the desired ApiDTO and return them. Also, insert
                 // them before any projected stats in the output collection, since the UI expects
@@ -473,22 +473,31 @@ public class StatsService implements IStatsService {
                         final List<BaseApiDTO> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
                                 getDiscoveredServiceDTO() : Collections.emptyList();
 
-                        stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
+                        final List<CloudCostStatRecord> cloudStatRecords =
+                                getCloudExpensesRecordList(inputDto, uuid, requestGroupBySet, entityStatOids);
+                        stats.addAll(cloudStatRecords.stream()
                                 .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot,
                                         finalTargets,
                                         typeFunction,
                                         valueFunction,
-                                        cloudServiceDTOs))
+                                        cloudServiceDTOs,
+                                        targetsService))
                                 .collect(Collectors.toList()));
-                    } else if (isDefaultCloudGroupUuid || fullMarketRequest) {
-                        final List<CloudStatRecord> cloudStatRecords = getCloudStatRecordList(inputDto);
-                        stats.addAll(cloudStatRecords.stream()
-                                .map(statsMapper::toCloudStatSnapshotApiDTO)
-                                .collect(Collectors.toList()));
+                    } else if (uuid != null || isDefaultCloudGroupUuid || fullMarketRequest) {
+                        final List<CloudCostStatRecord> cloudStatRecords =
+                                getCloudStatRecordList(inputDto, uuid, entityStatOids, requestGroupBySet);
+                            stats.addAll(cloudStatRecords.stream()
+                                    .map(statsMapper::toCloudStatSnapshotApiDTO)
+                                    .collect(Collectors.toList()));
                     } else {
                         ApiUtils.notImplementedInXL();
                     }
                 } else {
+                    final GetAveragedEntityStatsRequest request =
+                            statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
+
+                    final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
+
                     stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
                             .map(statsMapper::toStatSnapshotApiDTO)
                             .collect(Collectors.toList()));
@@ -500,17 +509,82 @@ public class StatsService implements IStatsService {
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
     }
 
-    private List<CloudStatRecord> getCloudStatRecordList(final StatPeriodApiInputDTO inputDto) {
+    // aggregate to one StatRecord per CloudClostStatRecord
+    private List<CloudCostStatRecord> aggregate(@Nonnull final List<CloudCostStatRecord> cloudStatRecords) {
+        return cloudStatRecords.stream().map(cloudCostStatRecord -> {
+            final Builder builder = CloudCostStatRecord.newBuilder();
+            builder.setSnapshotDate(cloudCostStatRecord.getSnapshotDate());
+            final StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
+            final StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+            final List<StatRecord> statRecordsList = cloudCostStatRecord.getStatRecordsList();
+            statValueBuilder.setAvg((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+                    .mapToDouble(v -> v).average().orElse(0));
+            statValueBuilder.setMax((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+                    .mapToDouble(v -> v).max().orElse(0));
+            statValueBuilder.setMin((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+                    .mapToDouble(v -> v).min().orElse(0));
+            statValueBuilder.setTotal((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+                    .mapToDouble(v -> v).sum());
+            statRecordBuilder.setValues(statValueBuilder.build());
+            statRecordBuilder.setName("costPrice");
+            statRecordBuilder.setUnits("$/h");
+            builder.addStatRecords(statRecordBuilder.build());
+            return builder.build();
+        }).collect(Collectors.toList());
+    }
+
+    private List<CloudCostStatRecord> getCloudStatRecordList(@Nonnull final StatPeriodApiInputDTO inputDto,
+                                                             @Nonnull final String uuid,
+                                                             @Nonnull final Set<Long> entityStatOids,
+                                                             @Nonnull final Set<String> requestGroupBySet) {
         final GetCloudCostStatsRequest.Builder builder = GetCloudCostStatsRequest.newBuilder();
         if (isRelatedEntityTypeVM(inputDto)) {
-            builder.setEntityTypeFilter(EntityTypeFilter.newBuilder().addFilterId(EntityType.VIRTUAL_MACHINE_VALUE).build());
+            builder.setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.VIRTUAL_MACHINE_VALUE).build());
+        }
+        //TODO consider create default Cloud group (probably in Group component). Currently the only group
+        if (!isDefaultCloudGroupUuid(uuid) && !entityStatOids.isEmpty()) {
+            builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
+        }
+        final boolean isGroupByComponent = requestGroupBySet.contains(COSTCOMPONENT);
+        if (isGroupByComponent) {
+            builder.setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT);
         }
         if (inputDto.getStartDate() != null && inputDto.getEndDate() != null) {
             builder.setStartDate(Long.valueOf(inputDto.getStartDate()));
             builder.setEndDate(Long.valueOf(inputDto.getEndDate()));
-
         }
-        return costServiceRpc.getCloudCostStats(
+        final List<CloudCostStatRecord> cloudCostStatRecords = costServiceRpc.getCloudCostStats(
+                builder.build()).getCloudStatRecordList();
+
+        if (isGroupByComponent) {
+            return cloudCostStatRecords;
+        } else {
+            // have to aggregate as needed.
+            return aggregate(cloudCostStatRecords);
+        }
+    }
+
+    private List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final StatPeriodApiInputDTO inputDto,
+                                                                 @Nonnull final String uuid,
+                                                                 @Nonnull final Set<String> requestGroupBySet,
+                                                                 @Nonnull final Set<Long> entityStatOids) {
+        final GetCloudExpenseStatsRequest.Builder builder = GetCloudExpenseStatsRequest.newBuilder();
+        if (inputDto.getStartDate() != null && inputDto.getEndDate() != null) {
+            builder.setStartDate(Long.valueOf(inputDto.getStartDate()));
+            builder.setEndDate(Long.valueOf(inputDto.getEndDate()));
+        }
+        if (!isDefaultCloudGroupUuid(uuid) && !entityStatOids.isEmpty()) {
+            builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
+        }
+        if (requestGroupBySet.contains(TARGET)) {
+            builder.setGroupBy(GroupByType.TARGET);
+        } else if (requestGroupBySet.contains(CSP)){
+            builder.setGroupBy(GroupByType.CSP);
+        } else if (requestGroupBySet.contains(CLOUD_SERVICE)) {
+            builder.setGroupBy(GroupByType.CLOUD_SERVICE);
+        }
+
+        return costServiceRpc.getAccountExpenseStats(
                 builder.build()).getCloudStatRecordList();
     }
 
@@ -1258,16 +1332,16 @@ public class StatsService implements IStatsService {
                         .setEndDate(endDateMillis);
         if (filterType == EntityDTO.EntityType.REGION_VALUE) {
             request.setRegionFilter(RegionFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllRegionId(filterIds));
         } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
             request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAvailabilityZoneId(filterIds));
         } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
             request.setAccountFilter(AccountFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllAccountId(filterIds));
         } else if (filterType == EntityType.VIRTUAL_MACHINE_VALUE) {
             request.setEntityFilter(EntityFilter.newBuilder()
-                    .addAllFilterId(filterIds));
+                    .addAllEntityId(filterIds));
         }
         else {
             throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
