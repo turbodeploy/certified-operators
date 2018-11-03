@@ -71,6 +71,8 @@ public class BusinessUnitMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final Set<String> AWS_PROBE = ImmutableSet.of("AWS", "AWS Billing", "AWS Cost");
+
     private static final Set<Integer> TIER_TYPES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE,
             EntityType.DATABASE_TIER_VALUE,
@@ -448,12 +450,25 @@ public class BusinessUnitMapper {
                     .flatMap(apiDTO -> response.getEntitiesList()
                             .stream()
                             .filter(dto -> dto.getOid() == Long.parseLong(apiDTO.getUuid()))
-                            .map(tpDto -> buildDiscoveredBusinessUintApiDTO(apiDTO, tpDto, CloudType.valueOf(type), targetsService))
+                            .map(tpDto -> buildDiscoveredBusinessUintApiDTO(apiDTO, tpDto, normalize(type), targetsService))
                             .filter(Optional::isPresent)
                             .map(Optional::get)
                     ).collect(Collectors.toList());
         }
         throw new MissingTopologyEntityException(REPOSITORY_CANNOT_RESOLVE_OIDS + oids);
+    }
+
+    // From UI perspective, AWS is one Cloud type, but in implementation, we have AWS, AWS billing
+    // and AWS Cost probe, and business unit from these are all from AWS Cloud type.
+    private CloudType normalize(@Nonnull final String type) {
+        if (AWS_PROBE.contains(type)) {
+            return CloudType.AWS;
+        }
+        try {
+            return CloudType.valueOf(type);
+        } catch (IllegalArgumentException exception) {
+            return CloudType.UNKNOWN;
+        }
     }
 
     /**

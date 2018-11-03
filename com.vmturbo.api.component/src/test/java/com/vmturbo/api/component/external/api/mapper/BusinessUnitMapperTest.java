@@ -185,6 +185,22 @@ public class BusinessUnitMapperTest {
         assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
     }
 
+    @Test
+    public void testToDiscoveredBusinessUnitDTOWithBillingProbe() throws Exception {
+        TargetApiDTO targetApiDTO = new TargetApiDTO();
+        targetApiDTO.setUuid(TARGET_UUID);
+        targetApiDTO.setType("AWS Billing");
+        targetApiDTO.setDisplayName("engineering.billing.aws.amazon.com");
+        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
+        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.toDiscoveredBusinessUnitDTO(searchService, targetsService, repositoryClient);
+        assertEquals(1, businessUnitApiDTOs.size());
+        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
+        assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
+        // still AWS instead of billing probe
+        assertEquals(CloudType.AWS, businessUnitApiDTOs.get(0).getCloudType());
+        assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
+    }
+
 
     @Test(expected = MissingTopologyEntityException.class)
     public void testToDiscoveredBusinessUnitDTOWithException() throws Exception {
