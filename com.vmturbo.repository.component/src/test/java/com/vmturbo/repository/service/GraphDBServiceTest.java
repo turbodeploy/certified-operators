@@ -16,17 +16,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.arangodb.ArangoCursor;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-
 import javaslang.control.Either;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
@@ -77,7 +70,7 @@ public class GraphDBServiceTest {
             Try.success(subgraph));
 
         final Map<String, SupplyChainNode> nodes =
-            graphDBService.getSupplyChain(Optional.empty(), "123").get()
+            graphDBService.getSupplyChain(Optional.empty(), Optional.empty(), "123").get()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
         assertEquals(node, nodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()));

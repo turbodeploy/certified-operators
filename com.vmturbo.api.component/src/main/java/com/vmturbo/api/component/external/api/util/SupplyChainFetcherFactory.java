@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
@@ -58,6 +59,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -134,6 +136,7 @@ public class SupplyChainFetcherFactory {
                         topologyContextId,
                         seedUuids,
                         entityTypes,
+                        environmentType,
                         supplyChainRpcService,
                         groupExpander,
                         supplyChainFetcherTimeoutSeconds).fetch();
@@ -149,25 +152,8 @@ public class SupplyChainFetcherFactory {
      * {@link SupplychainApiDTO} representing the supply chain.
      */
     public class SupplychainApiDTOFetcherBuilder extends SupplyChainFetcherBuilder<SupplychainApiDTOFetcherBuilder, SupplychainApiDTO> {
-        protected EnvironmentType environmentType;
         protected EntityDetailType entityDetailType;
         protected Boolean includeHealthSummary = false;
-
-        /**
-         * Limit the response to service entities in this environment e.g. ON_PREM, CLOUD, HYBRID
-         * - default is all environments.
-         *
-         * NOTE:  this setting is not currently supported in XL
-         *
-         * @param environmentType what environment to limit the responses to
-         * @return the flow-style OperationBuilder for this SupplyChainFetcher
-         */
-        @Nonnull
-        public SupplychainApiDTOFetcherBuilder environmentType(
-                @Nullable final EnvironmentType environmentType) {
-            this.environmentType = environmentType;
-            return this;
-        }
 
         /**
          * Specify the level of service entity detail to include in the result
@@ -238,6 +224,8 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> entityTypes = Sets.newHashSet();
 
+        protected EnvironmentType environmentType = null;
+
         /**
          * Synchronously fetch the supply chain with the parameters specified in the builder.
          *
@@ -301,6 +289,21 @@ public class SupplyChainFetcherFactory {
             return (B)this;
         }
 
+        /**
+         * Limit the response to service entities in this environment e.g. ON_PREM, CLOUD, HYBRID
+         * - default is all environments.
+         *
+         * @param environmentType what environment to limit the responses to
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
+         */
+        @Nonnull
+        public B environmentType(@Nullable final EnvironmentType environmentType) {
+            if (environmentType != null) {
+                this.environmentType = environmentType;
+            }
+            return (B)this;
+        }
+
     }
 
     /**
@@ -317,6 +320,8 @@ public class SupplyChainFetcherFactory {
 
         private final Set<String> entityTypes;
 
+        private final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType;
+
         private final SupplyChainServiceStub supplyChainRpcService;
 
         private final GroupExpander groupExpander;
@@ -328,12 +333,21 @@ public class SupplyChainFetcherFactory {
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
+                                   @Nullable final EnvironmentType environmentType,
                                    @Nonnull SupplyChainServiceStub supplyChainRpcService,
                                    @Nonnull GroupExpander groupExpander,
                                    @Nonnull Duration supplyChainFetcherTimeoutSeconds) {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
+            // If the desired environment type is "HYBRID", we're looking for cloud OR on-prem,
+            // which is the same as looking for all.
+            if (environmentType == null || environmentType == EnvironmentType.HYBRID) {
+                this.environmentType = Optional.empty();
+            } else {
+                this.environmentType = Optional.of(UIEnvironmentType.fromString(
+                        environmentType.name()).toEnvType());
+            }
 
 
             this.supplyChainRpcService = supplyChainRpcService;
@@ -433,6 +447,8 @@ public class SupplyChainFetcherFactory {
                 requestBuilder.addAllEntityTypesToInclude(entityTypes);
             }
 
+            environmentType.ifPresent(requestBuilder::setEnvironmentType);
+
             SupplyChainRequest request = requestBuilder.build();
 
             supplyChainRpcService.getSupplyChain(request, this);
@@ -463,6 +479,7 @@ public class SupplyChainFetcherFactory {
                     .add("topologyContextId", topologyContextId)
                     .add("seedUuids", seedUuids)
                     .add("entityTypes", entityTypes)
+                    .add("environmentType", environmentType)
                     .add("supplyChainFetcherTimeoutSeconds", supplyChainFetcherTimeoutSeconds)
                     .add("resultReadyFuture", resultReadyFuture)
                     .toString();
@@ -486,10 +503,11 @@ public class SupplyChainFetcherFactory {
         private SupplychainNodeFetcher(final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
                                        @Nullable final Set<String> entityTypes,
+                                       @Nullable final EnvironmentType environmentType,
                                        @Nonnull final SupplyChainServiceStub supplyChainRpcService,
                                        @Nonnull final GroupExpander groupExpander,
                                        @Nonnull final Duration supplyChainFetcherTimeoutSeconds) {
-            super(topologyContextId, seedUuids, entityTypes, supplyChainRpcService,
+            super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
                     groupExpander, supplyChainFetcherTimeoutSeconds);
         }
 
@@ -520,8 +538,6 @@ public class SupplyChainFetcherFactory {
      */
     private static class SupplychainApiDTOFetcher extends SupplychainFetcher<SupplychainApiDTO> {
 
-        private final EnvironmentType environmentType;
-
         private final EntityDetailType entityDetailType;
 
         private final EntitySeverityServiceBlockingStub severityRpcService;
@@ -545,9 +561,8 @@ public class SupplyChainFetcherFactory {
                                          @Nonnull final RepositoryApi repositoryApi,
                                          @Nonnull final GroupExpander groupExpander,
                                          @Nonnull final Duration supplyChainFetcherTimeoutSeconds) {
-            super(topologyContextId, seedUuids, entityTypes, supplyChainRpcService,
+            super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
                     groupExpander, supplyChainFetcherTimeoutSeconds);
-            this.environmentType = environmentType;
             this.entityDetailType = entityDetailType;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
@@ -731,7 +746,6 @@ public class SupplyChainFetcherFactory {
         @Override
         public String toString() {
             return super.toString() + "\n" + MoreObjects.toStringHelper(this)
-                    .add("environmentType", environmentType)
                     .add("entityDetailType", entityDetailType)
                     .add("includeHealthSummary", includeHealthSummary)
                     .add("resultApiDTO", resultApiDTO)

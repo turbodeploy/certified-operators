@@ -4,6 +4,8 @@ package repository;
 
 option java_package = "com.vmturbo.common.protobuf.repository";
 
+import "common/EnvironmentTypeEnum.proto";
+
 // Request the supply chain. A supply chain request may optionally specify a contextId and
 // startingVertexId.
 message SupplyChainRequest {
@@ -20,6 +22,10 @@ message SupplyChainRequest {
     // list is empty, then no filtering is done and SupplyChainNodes pertaining
     // to any entity type are included.
     repeated string entity_types_to_include = 3;
+
+    // Only include entities in a particular environment type in the supply chain.
+    // If not set, return all entities regardless of environment type.
+    optional .common.EnvironmentType environment_type = 4;
 }
 
 // The response to a supply chain request consists of a series of supply chain nodes

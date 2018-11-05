@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -274,7 +275,7 @@ public class GroupsServiceTest {
             .thenReturn(GetMembersResponse.newBuilder()
                 .setMembers(Members.newBuilder().addIds(memberId))
                 .build());
-        Optional<Collection<Long>> retIds = groupsService.getMemberIds("1");
+        Optional<Set<Long>> retIds = groupsService.getMemberIds("1");
         assertTrue(retIds.isPresent());
         assertEquals(1, retIds.get().size());
         assertEquals(memberId, retIds.get().iterator().next().longValue());

@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -105,7 +106,7 @@ public class ReactiveArangoDBExecutorTest {
                                                                    objectMapper);
 
         final GraphCmd.GetGlobalSupplyChain globalSupplyChainCmd = new GraphCmd.GetGlobalSupplyChain(
-                TEST_DATABASE, TEST_COLLECTION, HashMultimap.create());
+                TEST_DATABASE, TEST_COLLECTION, Optional.empty());
 
         final GlobalSupplyChainFluxResult globalResults = reactiveArangoDBExecutor
                 .executeGlobalSupplyChainCmd(globalSupplyChainCmd);

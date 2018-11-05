@@ -234,6 +234,10 @@
             <version>${zt-zip.version}</version>
             <type>jar</type>
         </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>ST4</artifactId>
+        </dependency>
 
         <!-- Test Scope -->
         <dependency>

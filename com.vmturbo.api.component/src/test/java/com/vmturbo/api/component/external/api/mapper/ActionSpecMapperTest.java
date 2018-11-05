@@ -11,13 +11,13 @@ import static org.mockito.Matchers.any;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
@@ -31,6 +31,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -728,7 +729,7 @@ public class ActionSpecMapperTest {
     @Test
     public void testCreateActionFilterNoInvolvedEntities() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        final Optional<Collection<Long>> involvedEntities = Optional.empty();
+        final Optional<Set<Long>> involvedEntities = Optional.empty();
 
         final ActionQueryFilter filter = mapper.createActionFilter(inputDto, involvedEntities);
 
@@ -738,8 +739,8 @@ public class ActionSpecMapperTest {
     @Test
     public void testCreateActionFilterWithInvolvedEntities() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        final Collection<Long> oids = Arrays.asList(1L, 2L, 3L);
-        final Optional<Collection<Long>> involvedEntities = Optional.of(oids);
+        final Set<Long> oids = Sets.newHashSet(1L, 2L, 3L);
+        final Optional<Set<Long>> involvedEntities = Optional.of(oids);
 
         final ActionQueryFilter filter = mapper.createActionFilter(inputDto, involvedEntities);
 

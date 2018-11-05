@@ -674,6 +674,7 @@ public class GroupMapperTest {
         final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
         when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.environmentType(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(7L).build())
@@ -701,6 +702,7 @@ public class GroupMapperTest {
         final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
         when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.environmentType(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(7L).build())
@@ -746,6 +748,7 @@ public class GroupMapperTest {
         final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
         when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.environmentType(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(7L).build())

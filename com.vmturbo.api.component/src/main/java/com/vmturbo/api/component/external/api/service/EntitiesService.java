@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -154,7 +153,7 @@ public class EntitiesService implements IEntitiesService {
         final long entityId = Long.valueOf(uuid);
 
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
-                                     inputDto, Optional.of(Collections.singletonList(entityId)));
+                                     inputDto, Optional.of(Collections.singleton(entityId)));
 
         final FilteredActionResponse response = actionOrchestratorRpcService.getAllActions(
                 FilteredActionRequest.newBuilder()
@@ -250,7 +249,7 @@ public class EntitiesService implements IEntitiesService {
             final long entityId = Long.valueOf(uuid);
             final ActionQueryFilter filter =
                     actionSpecMapper.createActionFilter(inputDto,
-                            Optional.of(Collections.singletonList(entityId)));
+                            Optional.of(Collections.singleton(entityId)));
             final GetActionCountsResponse actionCountsResponse =
                     actionOrchestratorRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
                             .setTopologyContextId(realtimeTopologyContextId)

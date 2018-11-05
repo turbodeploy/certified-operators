@@ -2,12 +2,15 @@ package com.vmturbo.repository.graph.parameter;
 
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Multimap;
+
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 import com.vmturbo.repository.topology.TopologyDatabase;
@@ -60,15 +63,18 @@ public abstract class GraphCmd {
     public static final class GetSupplyChain extends GraphCmd {
 
         private final String startingVertex;
+        private final Optional<UIEnvironmentType> environmentType;
         private final String graphName;
         private final String vertexCollection;
         private final TopologyDatabase topologyDatabase;
 
         public GetSupplyChain(@Nonnull final String startingVertex,
+                              @Nonnull final Optional<UIEnvironmentType> environmentType,
                               final TopologyDatabase topologyDatabase,
                               final String graphName,
                               final String vertexCollection) {
             this.startingVertex = startingVertex;
+            this.environmentType = environmentType;
             this.topologyDatabase = topologyDatabase;
             this.graphName = graphName;
             this.vertexCollection = vertexCollection;
@@ -87,6 +93,10 @@ public abstract class GraphCmd {
             return startingVertex;
         }
 
+        public Optional<UIEnvironmentType> getEnvironmentType() {
+            return environmentType;
+        }
+
         public TopologyDatabase getTopologyDatabase() {
             return topologyDatabase;
         }
@@ -96,6 +106,7 @@ public abstract class GraphCmd {
             return MoreObjects.toStringHelper(this)
                     .add("topologyDatabase", topologyDatabase)
                     .add("startingVertex", startingVertex)
+                    .add("environmentType", environmentType)
                     .add("graphName", graphName)
                     .add("vertexCollection", vertexCollection)
                     .toString();
@@ -109,26 +120,27 @@ public abstract class GraphCmd {
         private final String vertexCollection;
 
         private final TopologyDatabase topologyDatabase;
-        private final Multimap<String, String> providerStructure;
+
+        private final Optional<UIEnvironmentType> environmentType;
 
         public GetGlobalSupplyChain(final TopologyDatabase topologyDatabase,
                                     final String vertexCollection,
-                                    final Multimap<String, String> providerStructure) {
+                                    final Optional<UIEnvironmentType> environmentType) {
             this.topologyDatabase = topologyDatabase;
             this.vertexCollection = vertexCollection;
-            this.providerStructure = providerStructure;
+            this.environmentType = environmentType;
         }
 
         public String getVertexCollection() {
             return vertexCollection;
         }
 
-        public Multimap<String, String> getProviderStructure() {
-            return providerStructure;
-        }
-
         public TopologyDatabase getTopologyDatabase() {
             return topologyDatabase;
+        }
+
+        public Optional<UIEnvironmentType> getEnvironmentType() {
+            return environmentType;
         }
 
         @Override
@@ -136,7 +148,7 @@ public abstract class GraphCmd {
             return MoreObjects.toStringHelper(this)
                     .add("topologyDatabase", topologyDatabase)
                     .add("vertexCollection", vertexCollection)
-                    .add("providerStructure", providerStructure)
+                    .add("environmentType", environmentType)
                     .toString();
         }
     }

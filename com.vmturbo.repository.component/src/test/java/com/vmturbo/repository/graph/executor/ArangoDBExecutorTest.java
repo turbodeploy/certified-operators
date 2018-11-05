@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -42,6 +43,7 @@ import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -78,7 +80,7 @@ public class ArangoDBExecutorTest {
 
     @Test
     public void testExecuteSupplyChainCmdWithException() throws Exception {
-        givenASupplyChainCmd("db", "start", "graph", "vertex");
+        givenASupplyChainCmd("db", "start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
 
         whenExecuteSupplyChainCmd();
@@ -96,7 +98,7 @@ public class ArangoDBExecutorTest {
                 host(1).providesTo(vm(5))
             ).build();
 
-        givenASupplyChainCmd("db","start", "graph", "vertex");
+        givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
         givenSupplyChainSubgraphResults(emptySubgraphFor(host(1)), consumerResults);
         whenExecuteSupplyChainCmd();
@@ -132,7 +134,7 @@ public class ArangoDBExecutorTest {
                 host(10).consumesFrom(dc(20)) // This edge won't be traversed either
             ).build();
 
-        givenASupplyChainCmd("db","start", "graph", "vertex");
+        givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
         givenSupplyChainSubgraphResults(providerResults, consumerResults);
         whenExecuteSupplyChainCmd();
@@ -210,8 +212,9 @@ public class ArangoDBExecutorTest {
     private void givenASupplyChainCmd(final String databaseName,
                                       final String starting,
                                       final String graphName,
+                                      final Optional<UIEnvironmentType> environmentType,
                                       final String vertexColl) {
-        graphCmd = new GraphCmd.GetSupplyChain(starting, TopologyDatabase.from(databaseName),graphName, vertexColl);
+        graphCmd = new GraphCmd.GetSupplyChain(starting, environmentType, TopologyDatabase.from(databaseName),graphName, vertexColl);
     }
 
     @SuppressWarnings("unchecked")

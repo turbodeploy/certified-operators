@@ -2,7 +2,6 @@ package com.vmturbo.repository.service;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -23,13 +22,13 @@ import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.graph.result.SupplyChainResultsConverter;
-import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -69,7 +68,8 @@ public class SupplyChainService {
      *
      * @return A map of entity type names to {@link SupplyChainNode}s.
      */
-    public Mono<Map<String, SupplyChainNode>> getGlobalSupplyChain(final Optional<Long> contextID) {
+    public Mono<Map<String, SupplyChainNode>> getGlobalSupplyChain(final Optional<Long> contextID,
+                                               final Optional<UIEnvironmentType> environmentType) {
 
         Optional<TopologyID> targetTopology = contextID
             .map(context -> lifecycleManager.getTopologyId(context, TopologyType.SOURCE))
@@ -81,12 +81,16 @@ public class SupplyChainService {
             return Mono.just(new java.util.HashMap<>());
         }
 
-        final GlobalSupplyChainFluxResult results =
-                globalSupplyChainResult(targetTopology.map(TopologyID::database).get());
+        final GraphCmd.GetGlobalSupplyChain cmd = new GraphCmd.GetGlobalSupplyChain(
+                targetTopology.get().database(),
+                graphDefinition.getServiceEntityVertex(),
+                environmentType);
+
+        final GlobalSupplyChainFluxResult results = executor.executeGlobalSupplyChainCmd(cmd);
 
         // Using the mapping, construct a supply chain.
         return SupplyChainResultsConverter.toSupplyChainNodes(results,
-            globalSupplyChainRecorder.getGlobalSupplyChainProviderStructures())
+                globalSupplyChainRecorder.getGlobalSupplyChainProviderStructures())
             .doOnError(err -> LOGGER.error("Error while computing supply chain", err));
     }
 
@@ -98,9 +102,11 @@ public class SupplyChainService {
      * @param startId The starting entity ID.
      * @return A mapping between entity types and OIDs.
      */
-    public Mono<Map<String, Set<Long>>> getSupplyChainInternal(final long contextID, final String startId) {
+    public Mono<Map<String, Set<Long>>> getSupplyChainInternal(final long contextID,
+                                                               final String startId,
+                                                               Optional<UIEnvironmentType> envType) {
         if (startId.equals(GLOBAL_SCOPE)) {
-            return getGlobalSupplyChain(Optional.of(contextID))
+            return getGlobalSupplyChain(Optional.of(contextID), Optional.empty())
                 .map(nodeMap -> nodeMap.entrySet().stream()
                     .collect(Collectors.toMap(
                         Entry::getKey, entry -> RepositoryDTOUtil.getAllMemberOids(entry.getValue())
@@ -108,7 +114,7 @@ public class SupplyChainService {
         } else {
             return Mono.fromCallable(() -> {
                 final Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                    Optional.of(contextID), startId);
+                    Optional.of(contextID), envType, startId);
 
                 final Either<String, Map<String, Set<Long>>> e = supplyChain
                     .map(nodeStream -> nodeStream.collect(Collectors.toMap(
@@ -132,7 +138,7 @@ public class SupplyChainService {
                                              final String startId,
                                              final Collection<String> entityTypes) {
         return lifecycleManager.databaseOf(contextID, TopologyType.SOURCE)
-            .map(database -> getSupplyChainInternal(contextID, startId)
+            .map(database -> getSupplyChainInternal(contextID, startId, Optional.empty())
                 .flatMap(m -> {
                     final Map<String, Set<Long>> filteredMap = HashMap.ofAll(m)
                             .filter(entry -> entityTypes.contains(entry._1)).toJavaMap();
@@ -147,23 +153,5 @@ public class SupplyChainService {
                         " Returning empty list of scoped entities.", contextID);
                 return Flux.empty();
             });
-    }
-
-    /**
-     * Compute the global supply chain.
-     *
-     * @param topologyDatabase The {@link TopologyDatabase} to compute the global supply chain from.
-     *
-     * @return The {@link GlobalSupplyChainFluxResult}.
-     */
-    private GlobalSupplyChainFluxResult globalSupplyChainResult(
-                                                final TopologyDatabase topologyDatabase) {
-
-        final GraphCmd.GetGlobalSupplyChain cmd = new GraphCmd.GetGlobalSupplyChain(
-                topologyDatabase,
-                graphDefinition.getServiceEntityVertex(),
-                globalSupplyChainRecorder.getGlobalSupplyChainProviderStructures());
-
-        return executor.executeGlobalSupplyChainCmd(cmd);
     }
 }

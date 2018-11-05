@@ -239,6 +239,7 @@ public class GroupMapper {
                     supplyChainFetcherFactory.newNodeFetcher()
                             .addSeedUuids(apiDTO.getScope())
                             .entityTypes(Collections.singletonList(apiDTO.getGroupType()))
+                            .environmentType(apiDTO.getEnvironmentType())
                             .fetch();
             final SupplyChainNode node = supplyChainForScope.get(apiDTO.getGroupType());
             if (node == null) {

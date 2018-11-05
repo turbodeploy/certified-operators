@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -634,9 +635,9 @@ public class GroupsService implements IGroupsService {
      * @throws UnknownObjectException if the UUID is valid, but group with the UUID exists.
      */
     @VisibleForTesting
-    Optional<Collection<Long>> getMemberIds(@Nonnull final String groupUuid)
+    Optional<Set<Long>> getMemberIds(@Nonnull final String groupUuid)
             throws UnknownObjectException {
-        Collection<Long> memberIds = null;
+        Set<Long> memberIds = null;
 
         // These magic UI strings currently have no associated group in XL, so they are not valid.
         if (groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
@@ -657,7 +658,7 @@ public class GroupsService implements IGroupsService {
                 GetMembersResponse groupResp = groupServiceRpc.getMembers(GetMembersRequest.newBuilder()
                         .setId(id)
                         .build());
-                memberIds = groupResp.getMembers().getIdsList();
+                memberIds = Sets.newHashSet(groupResp.getMembers().getIdsList());
             } catch (StatusRuntimeException e) {
                 if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                     throw new UnknownObjectException("Can't find group " + groupUuid);

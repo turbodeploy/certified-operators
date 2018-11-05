@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.stringtemplate.v4.ST;
 
 import com.arangodb.ArangoCursor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,13 +47,14 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
     }
 
     private static String getGlobalSupplyChainQuery(final GraphCmd.GetGlobalSupplyChain globalSupplyChainCmd) {
-        final Map<String, String> valuesMap = new ImmutableMap.Builder<String, String>()
-                .put("seCollection", globalSupplyChainCmd.getVertexCollection())
-                .build();
+        final ST queryTemplate = new ST(ArangoDBQueries.GLOBAL_SUPPLY_CHAIN_QUERY_TEMPLATE)
+            .add("seCollection", globalSupplyChainCmd.getVertexCollection())
+            .add("hasEnvType", globalSupplyChainCmd.getEnvironmentType().isPresent());
 
-        final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);
+        globalSupplyChainCmd.getEnvironmentType().ifPresent(envType ->
+                queryTemplate.add("envType", envType.getApiEnumStringValue()));
 
-        return substitutor.replace(ArangoDBQueries.GLOBAL_SUPPLY_CHAIN_REACTIVE_QUERY_STRING);
+        return queryTemplate.render();
     }
 
     private static String scopedEntitiesQuery(final String collection, final List<Long> oids) {

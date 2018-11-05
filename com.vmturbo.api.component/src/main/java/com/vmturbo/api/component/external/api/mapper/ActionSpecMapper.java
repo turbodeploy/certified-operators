@@ -886,7 +886,7 @@ public class ActionSpecMapper {
      */
     public ActionQueryFilter createActionFilter(
                             @Nullable final ActionApiInputDTO inputDto,
-                            @Nonnull final Optional<Collection<Long>> involvedEntities) {
+                            @Nonnull final Optional<Set<Long>> involvedEntities) {
         ActionQueryFilter.Builder queryBuilder = ActionQueryFilter.newBuilder()
                 .setVisible(true);
         if (inputDto != null) {

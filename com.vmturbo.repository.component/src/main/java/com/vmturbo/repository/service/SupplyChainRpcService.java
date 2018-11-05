@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
@@ -92,12 +93,16 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         final Optional<Long> contextId = request.hasContextId() ?
             Optional.of(request.getContextId()) : Optional.empty();
 
+        final Optional<UIEnvironmentType> envType = request.hasEnvironmentType() ?
+                Optional.of(UIEnvironmentType.fromEnvType(request.getEnvironmentType())) :
+                Optional.empty();
         if (request.getStartingEntityOidCount() > 0) {
             getMultiSourceSupplyChain(request.getStartingEntityOidList(),
-                    request.getEntityTypesToIncludeList(), contextId,
+                    request.getEntityTypesToIncludeList(), contextId, envType,
                     responseObserver);
         } else {
-            getGlobalSupplyChain(request.getEntityTypesToIncludeList(), contextId, responseObserver);
+            getGlobalSupplyChain(request.getEntityTypesToIncludeList(), envType,
+                    contextId, responseObserver);
         }
     }
 
@@ -114,10 +119,11 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
+                                      @Nonnull final Optional<UIEnvironmentType> environmentType,
                                       @Nonnull final Optional<Long> contextId,
                                       @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
-            supplyChainService.getGlobalSupplyChain(contextId)
+            supplyChainService.getGlobalSupplyChain(contextId, environmentType)
                 .subscribe(supplyChainNodes -> {
                     supplyChainNodes.values().stream()
                             // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
@@ -151,11 +157,12 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
                                            @Nullable final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
+                                           @Nonnull final Optional<UIEnvironmentType> envType,
                                            @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
 
         startingVertexOids.stream()
-            .map(oid -> getSingleSourceSupplyChain(oid, contextId))
+            .map(oid -> getSingleSourceSupplyChain(oid, contextId, envType))
             .forEach(supplyChainMerger::addSingleSourceSupplyChain);
 
         final MergedSupplyChain supplyChain = supplyChainMerger.merge();
@@ -179,14 +186,15 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      * topology context ID, which might be the Live Topology or a Plan Topology.
      */
     private SingleSourceSupplyChain getSingleSourceSupplyChain(@Nonnull final Long startingVertexOid,
-                                     @Nonnull final Optional<Long> contextId) {
+                                     @Nonnull final Optional<Long> contextId,
+                                     @Nonnull final Optional<UIEnvironmentType> envType) {
         logger.debug("Getting a supply chain starting from {} in topology {}",
             startingVertexOid, contextId.map(Object::toString).orElse("DEFAULT"));
         final SingleSourceSupplyChain singleSourceSupplyChain = new SingleSourceSupplyChain();
 
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                contextId, startingVertexOid.toString());
+                contextId, envType, startingVertexOid.toString());
 
             Match(supplyChain).of(
                 Case(Right($()), v -> {

@@ -71,7 +71,7 @@ public class SupplyChainServiceTest {
             .thenReturn(supplyChainFluxResult);
 
         final Mono<Map<String, SupplyChainNode>> globalSupplyChain =
-            testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty());
+            testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty(), Optional.empty());
         final Map<String, SupplyChainNode> result = globalSupplyChain.toFuture().get();
         Assert.assertEquals(2, result.size());
         assertThat(RepositoryDTOUtil.getAllMemberOids(result.get(VMS)),

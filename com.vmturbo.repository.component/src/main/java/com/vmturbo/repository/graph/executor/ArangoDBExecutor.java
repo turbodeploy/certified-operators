@@ -1,8 +1,6 @@
 package com.vmturbo.repository.graph.executor;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static javaslang.API.Case;
-import static javaslang.API.Match;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -20,6 +18,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.stringtemplate.v4.ST;
 
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
@@ -81,55 +80,32 @@ public class ArangoDBExecutor implements GraphDBExecutor {
      *
      * @param direction Either a CONSUMER or PROVIDER. This value determines whether the query will
      *                  traverse inbound edges or outbound edges of the starting vertex.
-     * @param startingVertex The origin of the supply chain. The value is the ID of the service entity.
-     * @param graphName The name of graph with the service entity graph inside ArangoDB.
-     * @param vertexCollection The collection where all the service entity documents reside.
      * @return An AQL query.
      */
     private static String getSupplyChainQuery(final SupplyChainDirection direction,
-                                              final String startingVertex,
-                                              final String graphName,
-                                              final String vertexCollection) {
+                                              final GraphCmd.GetSupplyChain supplyChainCmd) {
 
-        final String startingId = Joiner.on("/").join(vertexCollection, startingVertex);
+        final String vertexCollection = supplyChainCmd.getVertexCollection();
+        final String startingId = Joiner.on("/").join(vertexCollection, supplyChainCmd.getStartingVertex());
 
-        final Map<String, String> valuesMap = new ImmutableMap.Builder<String, String>()
-                                                              .put("edgeCollection", graphName)
-                                                              .put("startingId", startingId)
-                                                              .put("vertexCollection", vertexCollection)
-                                                              .put("edgeType", direction.getEdgeType())
-                                                              .build();
+        final ST template;
+        if (direction == SupplyChainDirection.CONSUMER) {
+            template = new ST(ArangoDBQueries.SUPPLY_CHAIN_CONSUMER_QUERY_TEMPLATE);
+        } else if (direction == SupplyChainDirection.PROVIDER) {
+            template = new ST(ArangoDBQueries.SUPPLY_CHAIN_PROVIDER_QUERY_TEMPLATE);
+        } else {
+            throw new IllegalArgumentException("Invalid direction: " + direction);
+        }
 
-        final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);
+        template.add("edgeCollection", supplyChainCmd.getGraphName())
+            .add("startingId", startingId)
+            .add("vertexCollection", vertexCollection)
+            .add("edgeType", direction.getEdgeType())
+            .add("hasEnvType", supplyChainCmd.getEnvironmentType().isPresent());
+        supplyChainCmd.getEnvironmentType().ifPresent(envType ->
+                template.add("envType", envType.getApiEnumStringValue()));
 
-        return Match(direction).of(
-                Case(SupplyChainDirection.PROVIDER,
-                    substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_PROVIDER_QUERY_STRING)),
-                Case(SupplyChainDirection.CONSUMER,
-                    substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_CONSUMER_QUERY_STRING))
-        );
-    }
-
-    private static String staticGlobalSupplyChainQuery(final GraphCmd.GetGlobalSupplyChain cmd) {
-        final Set<String> types = new HashSet<>();
-        types.addAll(cmd.getProviderStructure().values());
-        types.addAll(cmd.getProviderStructure().keySet());
-
-        final Map<String, String> valueMap = new ImmutableMap.Builder<String, String>()
-                .put("types", types.stream().map(t -> "\"" + t + "\"").collect(Collectors.joining(", ")))
-                .put("vertexCollection", cmd.getVertexCollection())
-                .build();
-        final StrSubstitutor substitutor = new StrSubstitutor(valueMap);
-
-        return substitutor.replace(ArangoDBQueries.INSTANCES_OF_TYPES_QUERY_STRING);
-    }
-
-    private static String getSupplyChainQuery(final SupplyChainDirection direction,
-                                      final GraphCmd.GetSupplyChain supplyChainCmd) {
-        return getSupplyChainQuery(direction,
-                                   supplyChainCmd.getStartingVertex(),
-                                   supplyChainCmd.getGraphName(),
-                                   supplyChainCmd.getVertexCollection());
+        return template.render();
     }
 
     static String searchServiceEntitytQuery(final GraphCmd.SearchServiceEntity searchCmd) {

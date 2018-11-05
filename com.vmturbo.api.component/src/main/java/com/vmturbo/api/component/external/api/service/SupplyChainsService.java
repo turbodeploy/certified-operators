@@ -20,6 +20,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -211,7 +212,8 @@ public class SupplyChainsService implements ISupplyChainsService {
             throw ApiUtils.notImplementedInXL();
         }
         // grab the 'groupBy' criteria list, if any
-        final List<EntitiesCountCriteria> criteriaToGroupBy = supplyChainStatsApiInputDTO.getGroupBy();
+        final List<EntitiesCountCriteria> criteriaToGroupBy =
+                ListUtils.emptyIfNull(supplyChainStatsApiInputDTO.getGroupBy());
         // fetch the supplychain for the list of seeds; includes group and cluster expansion
         // and if criteria only has severity, it doesn't need to query severity stats for each entity,
         // it just need to make one query to get the total severity count stats.

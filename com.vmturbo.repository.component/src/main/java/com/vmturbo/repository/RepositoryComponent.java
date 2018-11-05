@@ -41,6 +41,7 @@ import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
+import com.vmturbo.common.protobuf.repository.SupplyChainREST.SupplyChainServiceController;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
@@ -380,9 +381,14 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public SupplyChainRpcService supplyChainRpcService()
-        throws InterruptedException, CommunicationException, URISyntaxException {
+    public SupplyChainRpcService supplyChainRpcService() throws InterruptedException, CommunicationException, URISyntaxException {
         return new SupplyChainRpcService(graphDBService(), supplyChainService());
+    }
+
+    @Bean
+    public SupplyChainServiceController supplyChainServiceController()
+            throws InterruptedException, CommunicationException, URISyntaxException {
+        return new SupplyChainServiceController(supplyChainRpcService());
     }
 
     @Bean

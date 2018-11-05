@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -26,6 +27,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -183,15 +185,17 @@ public class ActionsService implements IActionsService {
             final Set<Long> entityIds = new HashSet<>();
             // Handle request if scope uuid belongs to a group/cluster.
             final List<EntityStatsApiDTO> resultStats = new ArrayList<>();
-            actionScopesApiInputDTO.getScopes().stream().forEach(uuid -> {
+            actionScopesApiInputDTO.getScopes().forEach(uuid -> {
                 Set<Long> groupMembers = groupExpander.expandUuid(uuid);
-                long groupUuid = Long.valueOf(uuid);
-                if (!groupMembers.contains(groupUuid)) {
-                    resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
-                                    actionScopesApiInputDTO, groupMembers));
-                } else {
+                if (StringUtils.isNumeric(uuid) && groupMembers.contains(Long.valueOf(uuid))) {
                     // Add to entity id set only if it is not a group.
-                    entityIds.add(groupUuid);
+                    entityIds.add(Long.valueOf(uuid));
+                } else if (UuidMapper.isRealtimeMarket(uuid)) {
+                    resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
+                            actionScopesApiInputDTO, Optional.empty()));
+                } else {
+                    resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
+                            actionScopesApiInputDTO, Optional.of(groupMembers)));
                 }
             });
 
@@ -240,7 +244,7 @@ public class ActionsService implements IActionsService {
     @Nonnull
     private EntityStatsApiDTO getActionStatsByUuidsQueryForGroup(String uuid,
                     ActionScopesApiInputDTO actionScopesApiInputDTO,
-                    Set<Long> groupMembers) {
+                    Optional<Set<Long>> groupMembers) {
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(uuid);
         entityStatsApiDTO.setStats(getActionCountStatsForEntities(actionScopesApiInputDTO.getActionInput(),
@@ -299,9 +303,9 @@ public class ActionsService implements IActionsService {
      * @return stats collected for entities in group.
      */
     @Nonnull
-    private List<StatSnapshotApiDTO> getActionCountStatsForEntities(ActionApiInputDTO inputDto, Set<Long> entityIds) {
+    private List<StatSnapshotApiDTO> getActionCountStatsForEntities(ActionApiInputDTO inputDto, Optional<Set<Long>> entityIds) {
         final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, Optional.ofNullable(entityIds));
+                actionSpecMapper.createActionFilter(inputDto, entityIds);
         final GetActionCountsResponse response =
                 actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
                     .setTopologyContextId(realtimeTopologyContextId)

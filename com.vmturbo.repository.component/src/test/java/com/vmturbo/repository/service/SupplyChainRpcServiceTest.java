@@ -28,6 +28,7 @@ import io.grpc.Status.Code;
 import javaslang.control.Either;
 import reactor.core.publisher.Mono;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 
 public class SupplyChainRpcServiceTest {
 
@@ -78,7 +80,7 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainSuccess() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()), eq("5678"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -94,12 +96,12 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFiltered() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()), eq("5678"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                    .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
+                .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
                 .addAllStartingEntityOid(Lists.newArrayList(5678L))
                 .build()));
 
@@ -110,7 +112,7 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
         doReturn(Either.left("failed"))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)), eq("5678"));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
             .hasCode(Code.INTERNAL)
@@ -119,7 +121,8 @@ public class SupplyChainRpcServiceTest {
         // Force evaluation of the stream
         Lists.newArrayList(supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
             .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(5678L))
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .addAllStartingEntityOid(Lists.newArrayList(5678L))
             .build()));
     }
 
@@ -158,13 +161,14 @@ public class SupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)), eq("5678"));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("91011"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),eq("91011"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
                         .setContextId(1234L)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
                         .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
                         .build()));
 
@@ -208,13 +212,14 @@ public class SupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)), eq("5678"));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("91011"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),eq("91011"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
                         .setContextId(1234L)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
                         .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
                         .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
                         .build()));
@@ -228,20 +233,21 @@ public class SupplyChainRpcServiceTest {
         final Map<String, SupplyChainNode> inputNodes = ImmutableMap.of(
             "PhysicalMachine", pmNode,
             "VirtualMachine", vmNode);
-        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L))))
+        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD))))
             .thenReturn(Mono.just(inputNodes));
 
         // Force evaluation of the stream
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
                 .setContextId(1234L)
+                .setEnvironmentType(EnvironmentType.CLOUD)
                 .build()));
         assertThat(nodes, containsInAnyOrder(pmNode, vmNode));
     }
 
     @Test
     public void testGetGlobalSupplyChainFailure() throws Exception {
-        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L))))
+        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD))))
             .thenReturn(Mono.error(new RuntimeException("failed")));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
@@ -251,6 +257,7 @@ public class SupplyChainRpcServiceTest {
         // Force evaluation of the stream
         Lists.newArrayList(supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
             .setContextId(1234L)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .build()));
     }
 
