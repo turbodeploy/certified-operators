@@ -307,15 +307,26 @@ public class LiveActionStore implements ActionStore {
             final Set<Long> entitiesToRetrieve = new HashSet<>();
             final AtomicInteger newActionCounts = new AtomicInteger(0);
             for (ActionDTO.Action recommendedAction : actionPlan.getActionList() ) {
-                ActionInfo actionInfo = recommendedAction.getInfo();
-                // If the new action has not been recommended previously, add it to the action
-                // store.
-                final Action action =
-                        recommendations.take(actionInfo)
-                                .orElseGet(() ->  {
-                                        newActionCounts.getAndIncrement();
-                                        return actionFactory.newAction(recommendedAction, entitySettingsCache, planId);
-                                });
+                final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());
+                final Action action;
+                if (existingActionOpt.isPresent()) {
+                    action = existingActionOpt.get();
+
+                    // If we are re-using an existing action, we should update the recommendation
+                    // so other properties that may have changed (e.g. importance, executability)
+                    // reflect the most recent recommendation from the market. However, we only
+                    // do this for "READY" actions. An IN_PROGRESS or QUEUED action is considered
+                    // "fixed" until it either succeeds or fails.
+                    // TODO (roman, Oct 31 2018): If a QUEUED action becomes non-executable, it
+                    // may be worth clearing it.
+                    if (action.getState() == ActionState.READY) {
+                        action.updateRecommendation(recommendedAction);
+                    }
+                } else {
+                    newActionCounts.getAndIncrement();
+                    action = actionFactory.newAction(recommendedAction, entitySettingsCache, planId);
+                }
+
                 if (action.getState() == ActionState.READY) {
                     try {
                         entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntities(recommendedAction));

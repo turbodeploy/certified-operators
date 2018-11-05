@@ -7,6 +7,7 @@ import java.util.function.UnaryOperator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -53,8 +54,40 @@ public class Action implements ActionView {
 
     /**
      * The recommended steps to take in the environment.
+     *
+     * Not final - if the same recommendation with different non-identifying properties (e.g.
+     * different savings or explanation) comes in from the market we want to be able to capture
+     * the updated information.
      */
-    private final ActionDTO.Action recommendation;
+    @GuardedBy("recommendationLock")
+    private ActionDTO.Action recommendation;
+
+    /**
+     * The translation for this action.
+     *
+     * Actions are translated from the market's domain-agnostic action recommendations into
+     * domain-specific actions that make sense in the real world. See
+     * {@link com.vmturbo.action.orchestrator.execution.ActionTranslator} for more details.
+     */
+    @Nonnull
+    @GuardedBy("recommendationLock")
+    private ActionTranslation actionTranslation;
+
+    /**
+     * A lock used to control re-assignments of the recommendation, and the associated
+     * action translation.
+     *
+     * Because the recommendation is immutable, you don't need to hold the lock when interacting
+     * with it if you save it to a local variable. i.e:
+     *
+     * <code>
+     * final ActionDTO.Action curRecommendation;
+     * synchronized (recommendationLock) {
+     *     curRecommendation = recommendation;
+     * }
+     * </code>
+     */
+    private final Object recommendationLock = new Object();
 
     /**
      * The time at which this action was recommended.
@@ -90,15 +123,6 @@ public class Action implements ActionView {
      */
     private final EntitySettingsCache entitySettings;
 
-    /**
-     * The translation for this action.
-     *
-     * Actions are translated from the market's domain-agnostic action recommendations into
-     * domain-specific actions that make sense in the real world. See
-     * {@link com.vmturbo.action.orchestrator.execution.ActionTranslator} for more details.
-     */
-    @Nonnull
-    private final ActionTranslation actionTranslation;
 
     /**
      * The ID of the action plan to which this action's recommendation belongs.
@@ -136,9 +160,9 @@ public class Action implements ActionView {
      * @param savedState A state object that was used to serialize the state of the action.
      */
     public Action(@Nonnull final SerializationState savedState) {
+        this.recommendation = savedState.recommendation;
         this.actionPlanId = savedState.actionPlanId;
         this.executableStep = Optional.ofNullable(ExecutableStep.fromExecutionStep(savedState.executionStep));
-        this.recommendation = savedState.recommendation;
         this.recommendationTime = savedState.recommendationTime;
         this.decision = new Decision();
         if (savedState.actionDecision != null) {
@@ -153,13 +177,13 @@ public class Action implements ActionView {
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
                   final long actionPlanId) {
-        this.recommendation = Objects.requireNonNull(recommendation);
+        this.recommendation = recommendation;
+        this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
         this.recommendationTime = Objects.requireNonNull(recommendationTime);
         this.stateMachine = ActionStateMachine.newInstance(this);
         this.executableStep = Optional.empty();
         this.decision = new Decision();
-        this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = null;
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
@@ -169,21 +193,22 @@ public class Action implements ActionView {
                   @Nonnull final LocalDateTime recommendationTime,
                   @Nonnull final EntitySettingsCache entitySettings,
                   final long actionPlanId) {
-        this.recommendation = Objects.requireNonNull(recommendation);
+        this.recommendation = recommendation;
+        this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
         this.recommendationTime = Objects.requireNonNull(recommendationTime);
         this.stateMachine = ActionStateMachine.newInstance(this);
         this.executableStep = Optional.empty();
         this.decision = new Decision();
-        this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = Objects.requireNonNull(entitySettings);
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
     }
 
     public Action(Action prototype, SupportLevel supportLevel) {
-        this.actionPlanId = prototype.actionPlanId;
+        this.recommendation = prototype.recommendation;
         this.actionTranslation = prototype.actionTranslation;
+        this.actionPlanId = prototype.actionPlanId;
         this.decision = prototype.decision;
         this.executableStep = prototype.executableStep;
         this.recommendationTime = prototype.recommendationTime;
@@ -215,14 +240,44 @@ public class Action implements ActionView {
         return stateMachine.receive(event);
     }
 
+    /**
+     * Update the {@link ActionDTO.Action} generated by the market to recommend this action.
+     * This is necessary when the market re-recommends the same action with a different set
+     * of non-identifying fields (e.g. the importance changes, or the savings amount).
+     *
+     * @param newRecommendation The new recommendation from the market.
+     */
+    public void updateRecommendation(@Nonnull final ActionDTO.Action newRecommendation) {
+        synchronized (recommendationLock) {
+            if (recommendation == null) {
+                throw new IllegalStateException("Action has no recommendation.");
+            }
+
+            if (!newRecommendation.getInfo().equals(this.recommendation.getInfo())) {
+                throw new IllegalArgumentException(
+                    "Updated recommendation must have the same ActionInfo!\n" +
+                        "Before:\n" + this.recommendation.getInfo() + "\nAfter:\n" +
+                        newRecommendation.getInfo());
+            }
+            this.recommendation = newRecommendation.toBuilder()
+                    // It's important to keep the same ID - that's the whole point of
+                    // updating the recommendation instead of creating a new action.
+                    .setId(this.recommendation.getId())
+                    .build();
+            this.actionTranslation = new ActionTranslation(this.recommendation);
+        }
+    }
+
 
     @Override
     public String toString() {
-        return "Action Id=" + getId() +
-                ", Type=" + recommendation.getInfo().getActionTypeCase() +
-                ", Mode=" + getMode() +
-                ", State=" + getState() +
-                ", Recommendation=" + recommendation;
+        synchronized (recommendationLock) {
+            return "Action Id=" + getId() +
+                    ", Type=" + recommendation.getInfo().getActionTypeCase() +
+                    ", Mode=" + getMode() +
+                    ", State=" + getState() +
+                    ", Recommendation=" + recommendation;
+        }
     }
 
     /**
@@ -232,7 +287,9 @@ public class Action implements ActionView {
      */
     @Override
     public ActionDTO.Action getRecommendation() {
-        return recommendation;
+        synchronized (recommendationLock) {
+            return recommendation;
+        }
     }
 
     /**
@@ -285,8 +342,14 @@ public class Action implements ActionView {
      */
     @Override
     public ActionMode getMode() {
-        return ActionModeCalculator.calculateWorkflowActionMode(recommendation, entitySettings)
-                .orElseGet(this::getClippedActionMode);
+        // To avoid holding the lock for a long time, save the reference to the recommendation at
+        // the time the method is called. Note that the underlying protobuf is immutable.
+        final ActionDTO.Action curRecommendation;
+        synchronized (recommendationLock) {
+            curRecommendation = recommendation;
+        }
+        return ActionModeCalculator.calculateWorkflowActionMode(curRecommendation, entitySettings)
+                .orElseGet(() -> getClippedActionMode(curRecommendation));
     }
 
 
@@ -301,7 +364,7 @@ public class Action implements ActionView {
      * @return The {@link ActionMode} that currently applies to the action.
      * @throws IllegalArgumentException if the Action SupportLevel is not supported.
      */
-    private ActionMode getClippedActionMode() {
+    private ActionMode getClippedActionMode(@Nonnull final ActionDTO.Action recommendation) {
         switch (recommendation.getSupportingLevel()) {
             case UNSUPPORTED:
                 return ActionMode.DISABLED;
@@ -357,7 +420,9 @@ public class Action implements ActionView {
      */
     @Override
     public long getId() {
-        return recommendation.getId();
+        synchronized (recommendationLock) {
+            return recommendation.getId();
+        }
     }
 
     /**
@@ -401,7 +466,9 @@ public class Action implements ActionView {
     @Override
     @Nonnull
     public ActionTranslation getActionTranslation() {
-        return actionTranslation;
+        synchronized (recommendationLock) {
+            return actionTranslation;
+        }
     }
 
     /**
@@ -412,7 +479,9 @@ public class Action implements ActionView {
      */
     @Override
     public TranslationStatus getTranslationStatus() {
-        return actionTranslation.getTranslationStatus();
+        synchronized (recommendationLock) {
+            return actionTranslation.getTranslationStatus();
+        }
     }
 
     /**
@@ -424,7 +493,13 @@ public class Action implements ActionView {
      */
     @Nonnull
     private Optional<SettingProto.Setting> getWorkflowSetting() {
-        return ActionModeCalculator.calculateWorkflowSetting(recommendation, entitySettings);
+        // To avoid holding the lock for a long time, save the reference to the recommendation at
+        // the time the method is called. Note that the underlying protobuf is immutable.
+        final ActionDTO.Action curRecommendation;
+        synchronized (recommendationLock) {
+            curRecommendation = recommendation;
+        }
+        return ActionModeCalculator.calculateWorkflowSetting(curRecommendation, entitySettings);
     }
 
 
@@ -435,7 +510,8 @@ public class Action implements ActionView {
      * @return true if this Action may be executed, i.e. mode is either AUTOMATIC or MANUAL
      */
     private boolean modePermitsExecution() {
-        return getMode() == ActionMode.AUTOMATIC || getMode() == ActionMode.MANUAL;
+        final ActionMode mode = getMode();
+        return mode == ActionMode.AUTOMATIC || mode == ActionMode.MANUAL;
     }
 
     /**
@@ -529,7 +605,9 @@ public class Action implements ActionView {
      * @return should be the shown or not.
      */
     public SupportLevel getSupportLevel() {
-        return recommendation.getSupportingLevel();
+        synchronized (recommendationLock) {
+            return recommendation.getSupportingLevel();
+        }
     }
 
     /**

@@ -484,6 +484,43 @@ public class LiveActionStoreTest {
     }
 
     @Test
+    public void testUpdateOfReRecommendedAction() {
+        final ActionDTO.Action.Builder move = move(vm1, hostA, vmType, hostB, vmType)
+                // Initially the importance is 1 and executability is "false".
+                .setImportance(1)
+                .setExecutable(false);
+
+        final ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(firstPlanId)
+                .addAction(move)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+
+        assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getImportance(),
+                is(move.getImportance()));
+        assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getExecutable(),
+                is(move.getExecutable()));
+
+        final ActionDTO.Action.Builder updatedMove = move(vm1, hostA, vmType, hostB, vmType)
+                .setImportance(2)
+                .setExecutable(true);
+        final ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(secondPlanId)
+                .addAction(updatedMove)
+                .build();
+        actionStore.populateRecommendedActions(secondPlan);
+
+        assertThat (actionStore.size(), is(1));
+        assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getImportance(),
+                is(updatedMove.getImportance()));
+        assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getExecutable(),
+                is(updatedMove.getExecutable()));
+    }
+
+    @Test
     public void testRecommendationTracker() {
         ActionDTO.Action move1 =
                 move(vm1, hostA, vmType, hostB, vmType).build();
