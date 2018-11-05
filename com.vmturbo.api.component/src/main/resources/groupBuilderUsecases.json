@@ -63,6 +63,14 @@
         ]
     },
 
+    "DatabaseServer" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
+            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag"},
+            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid"}
+        ]
+    },
+
     "VirtualApplication" : {
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vappsByName"}]
     },
