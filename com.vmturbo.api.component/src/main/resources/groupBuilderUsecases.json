@@ -57,8 +57,9 @@
 
     "Database" : {
         "criteria" : [
-          {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
-          {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag"}
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
+            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag"},
+            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid"}
         ]
     },
 
