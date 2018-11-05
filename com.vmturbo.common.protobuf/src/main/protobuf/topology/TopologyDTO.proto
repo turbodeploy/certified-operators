@@ -17,11 +17,18 @@ message TypeSpecificInfo {
 
     oneof type {
         // The field number is the index of the entity type.
+        ApplicationInfo application = 1;
         VirtualMachineInfo virtual_machine = 10;
         PhysicalMachineInfo physical_machine = 14;
         DatabaseInfo database = 46;
         ComputeTierInfo compute_tier = 56;
         VirtualVolumeInfo virtual_volume = 60;
+        StorageInfo storage = 70;
+    }
+
+    message ApplicationInfo {
+        // the IP Address to connect to the application
+        optional IpAddress ip_address = 1;
     }
 
     message VirtualMachineInfo {
@@ -40,6 +47,12 @@ message TypeSpecificInfo {
     message PhysicalMachineInfo {
         // The cpu_model for this machine, if known, used to scale the CPU performance
         optional string cpu_model = 1;
+
+        // The vendor (or manufacturer) of this Physical Machine (Host)
+        optional string vendor = 2;
+
+        // The model identifier of this Physical Machine (Host)
+        optional string model = 3;
     }
 
     // specific data for compute tier
@@ -86,6 +99,15 @@ message TypeSpecificInfo {
 
         // String identifying the replication type needed for cost calculations
         optional .common_dto.EntityDTO.VirtualVolumeData.RedundancyType redundancy_type = 3;
+    }
+
+    // specific data for a Storage entity
+    message StorageInfo {
+        // some number of different external names for this storage as known to the provider(s)
+        repeated string external_name = 1;
+
+        // What basic type of storage does this represent, e.g. GENERIC_BLOCK, ISCSI, FIBER_CHANNEL, etc
+        optional .common_dto.EntityDTO.StorageType storage_type = 2;
     }
 }
 
