@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -49,7 +50,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
@@ -244,15 +247,19 @@ public class AnalysisDebuggingTest {
 
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
+        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
+        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+        when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
 
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
             GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             Clock.systemUTC(),
-            analysisConfig.build(), cloudTopologyFactory, cloudCostCalculator, priceTableFactory);
+            analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
         return analysis;
     }
 

@@ -25,10 +25,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
@@ -76,7 +74,7 @@ public interface AnalysisFactory {
 
         private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
-        private final TopologyCostCalculator topologyCostCalculator;
+        private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
 
         /**
          * The quote factor to use for allevate pressure plans. See {@link AnalysisConfig}.
@@ -89,14 +87,14 @@ public interface AnalysisFactory {
                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
                   @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
                   @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
-                  @Nonnull final TopologyCostCalculator topologyCostCalculator,
+                  @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
                   @Nonnull final Clock clock,
                   final float alleviatePressureQuoteFactor,
                   final boolean suspensionThrottlingPerCluster) {
             this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
             this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
             this.priceTableFactory = Objects.requireNonNull(marketPriceTableFactory);
-            this.topologyCostCalculator = Objects.requireNonNull(topologyCostCalculator);
+            this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
@@ -122,7 +120,7 @@ public interface AnalysisFactory {
             return new Analysis(topologyInfo, topologyEntities,
                 groupServiceClient, clock,
                 configBuilder.build(), cloudTopologyFactory,
-                topologyCostCalculator, priceTableFactory);
+                topologyCostCalculatorFactory, priceTableFactory);
         }
 
         /**

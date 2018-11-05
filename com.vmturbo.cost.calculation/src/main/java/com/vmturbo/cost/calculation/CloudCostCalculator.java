@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -68,14 +67,14 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
-    private CloudCostCalculator(@Nonnull final CloudCostDataProvider cloudCostDataProvider,
+    private CloudCostCalculator(@Nonnull final CloudCostData cloudCostData,
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory,
                @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup)
             throws CloudCostDataRetrievalException {
-        this.cloudCostData = Objects.requireNonNull(cloudCostDataProvider).getCloudCostData();
+        this.cloudCostData = Objects.requireNonNull(cloudCostData);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
         this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
@@ -467,7 +466,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
         @Nonnull
         CloudCostCalculator<ENTITY_CLASS> newCalculator(
-                @Nonnull final CloudCostDataProvider cloudCostDataProvider,
+                @Nonnull final CloudCostData cloudCostData,
                 @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                 @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                 @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,

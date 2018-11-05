@@ -17,6 +17,8 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory.DefaultTopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
@@ -74,7 +76,7 @@ public class TopologyListenerConfig {
         final LiveTopologyEntitiesListener entitiesListener =
             new LiveTopologyEntitiesListener(realtimeTopologyContextId,
                 computeTierDemandStatsConfig.riDemandStatsWriter(),
-                cloudTopologyFactory(), topologyCostCalculator(), entityCostConfig.entityCostStore(),
+                cloudTopologyFactory(), topologyCostCalculatorFactory(), entityCostConfig.entityCostStore(),
                 reservedInstanceConfig.reservedInstanceCoverageUpload(),
                 costConfig.businessAccountHelper(),
                 costJournalRecorder());
@@ -88,8 +90,8 @@ public class TopologyListenerConfig {
     }
 
     @Bean
-    public TopologyCostCalculator topologyCostCalculator() {
-        return new TopologyCostCalculator(topologyEntityInfoExtractor(),
+    public TopologyCostCalculatorFactory topologyCostCalculatorFactory() {
+        return new DefaultTopologyCostCalculatorFactory(topologyEntityInfoExtractor(),
             cloudCostCalculatorFactory(), localCostDataProvider(), discountApplicatorFactory(),
             riApplicatorFactory());
     }

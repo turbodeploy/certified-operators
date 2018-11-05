@@ -30,7 +30,6 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.checkerframework.checker.units.qual.m;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -60,7 +59,9 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.MarketNotificationSender;
@@ -126,9 +127,12 @@ public class ScopedTopologyTest {
                 .build();
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
-        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
+        final TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
+        when(topologyCostCalculator.getCloudCostData()).thenReturn(mock(CloudCostData.class));
+        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(topologyCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+        when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
 
         testAnalysis = new Analysis(topoogyInfo,
@@ -137,7 +141,7 @@ public class ScopedTopologyTest {
                 Clock.systemUTC(),
                 analysisConfig,
                 cloudTopologyFactory,
-                cloudCostCalculator,
+                cloudCostCalculatorFactory,
                 priceTableFactory);
     }
 
@@ -247,7 +251,10 @@ public class ScopedTopologyTest {
         MarketNotificationSender serverApi = mock(MarketNotificationSender.class);
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
+        TopologyCostCalculatorFactory topologyCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
+        when(topologyCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
+        when(topologyCostCalculatorFactory.newCalculator()).thenReturn(topologyCostCalculator);
         TopologyEntityCloudTopologyFactory cloudTopologyFactory =
                 mock(TopologyEntityCloudTopologyFactory.class);
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -275,10 +282,10 @@ public class ScopedTopologyTest {
                 configCustomizer.customize(configBuilder);
 
                 final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-                when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+                when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
                 return new Analysis(topologyInfo, topologyDTOs,
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
-                        cloudTopologyFactory, topologyCostCalculator, priceTableFactory);
+                        cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory);
             });
 
         Analysis analysis =

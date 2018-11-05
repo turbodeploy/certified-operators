@@ -44,6 +44,10 @@ public interface CloudCostDataProvider {
     @Immutable
     class CloudCostData {
 
+        private static final CloudCostData EMPTY = new CloudCostData(PriceTable.getDefaultInstance(),
+                Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap());
+
         private final PriceTable combinedPriceTable;
 
         private final Map<Long, Discount> discountsByAccount;
@@ -97,8 +101,7 @@ public interface CloudCostDataProvider {
          */
         @Nonnull
         public static CloudCostData empty() {
-            return new CloudCostData(PriceTable.getDefaultInstance(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            return EMPTY;
         }
 
     }

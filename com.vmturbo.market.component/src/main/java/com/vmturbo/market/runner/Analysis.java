@@ -47,6 +47,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -177,7 +178,7 @@ public class Analysis {
                     @Nonnull final Clock clock,
                     @Nonnull final AnalysisConfig analysisConfig,
                     @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
-                    @Nonnull final TopologyCostCalculator cloudCostCalculator,
+                    @Nonnull final TopologyCostCalculatorFactory cloudCostCalculatorFactory,
                     @Nonnull final MarketPriceTableFactory priceTableFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
@@ -191,12 +192,16 @@ public class Analysis {
         this.clock = Objects.requireNonNull(clock);
         this.config = analysisConfig;
         this.cloudTopologyFactory = cloudTopologyFactory;
-        this.topologyCostCalculator = cloudCostCalculator;
+        this.topologyCostCalculator = cloudCostCalculatorFactory.newCalculator();
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
-        MarketPriceTable marketPriceTable = priceTableFactory.newPriceTable(this.originalCloudTopology);
+
+        // Use the cloud cost data we use for cost calculations for the price table.
+        MarketPriceTable marketPriceTable = priceTableFactory.newPriceTable(
+                this.originalCloudTopology, this.topologyCostCalculator.getCloudCostData());
         this.marketPriceTable = marketPriceTable;
+
         this.converter = new TopologyConverter(topologyInfo,
-                                               analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(), marketPriceTable);
+           analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(), marketPriceTable);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()

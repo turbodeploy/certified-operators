@@ -15,6 +15,7 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
@@ -35,7 +36,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final ComputeTierDemandStatsWriter computeTierDemandStatsWriter;
 
-    private final TopologyCostCalculator topologyCostCalculator;
+    private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
 
     private final EntityCostStore entityCostStore;
 
@@ -50,7 +51,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     public LiveTopologyEntitiesListener(long realtimeTopologyContextId,
                                         @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
                                         @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
-                                        @Nonnull final TopologyCostCalculator topologyCostCalculator,
+                                        @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
                                         @Nonnull final EntityCostStore entityCostStore,
                                         @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
                                         @Nonnull final BusinessAccountHelper businessAccountHelper,
@@ -58,7 +59,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.cloudTopologyFactory = cloudTopologyFactory;
-        this.topologyCostCalculator = Objects.requireNonNull(topologyCostCalculator);
+        this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
         this.entityCostStore = Objects.requireNonNull(entityCostStore);
         this.reservedInstanceCoverageUpdate = Objects.requireNonNull(reservedInstanceCoverageUpdate);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
@@ -84,6 +85,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
         storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
 
+        final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator();
         final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);
 

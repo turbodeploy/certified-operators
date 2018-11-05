@@ -27,7 +27,8 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory.DefaultTopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
@@ -107,15 +108,15 @@ public class MarketRunnerConfig {
                 settingServiceClient(),
                 marketPriceTableFactory(),
                 cloudTopologyFactory(),
-                topologyCostCalculator(),
+                topologyCostCalculatorFactory(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
                 suspensionThrottlingPerCluster);
     }
 
     @Bean
-    public TopologyCostCalculator topologyCostCalculator() {
-        return new TopologyCostCalculator(topologyEntityInfoExtractor(),
+    public TopologyCostCalculatorFactory topologyCostCalculatorFactory() {
+        return new DefaultTopologyCostCalculatorFactory(topologyEntityInfoExtractor(),
                 cloudCostCalculatorFactory(),
                 marketCloudCostDataProvider(),
                 discountApplicatorFactory(),
@@ -139,8 +140,7 @@ public class MarketRunnerConfig {
 
     @Bean
     public MarketPriceTableFactory marketPriceTableFactory() {
-        return new DefaultMarketPriceTableFactory(marketCloudCostDataProvider(),
-                discountApplicatorFactory(), topologyEntityInfoExtractor());
+        return new DefaultMarketPriceTableFactory(discountApplicatorFactory(), topologyEntityInfoExtractor());
     }
 
     @Nonnull

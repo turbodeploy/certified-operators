@@ -46,7 +46,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.MarketNotificationSender;
@@ -116,14 +118,17 @@ public class MarketRunnerTest {
 
             final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
             final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+            when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
+            final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
+            when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
             final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-            when(priceTableFactory.newPriceTable(any())).thenReturn(mock(MarketPriceTable.class));
+            when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
 
             return new Analysis(topologyInfo, entities,
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                     Clock.systemUTC(), configBuilder.build(),
-                    cloudTopologyFactory, cloudCostCalculator, priceTableFactory);
+                    cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 
