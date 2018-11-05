@@ -3,6 +3,7 @@ package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
 
+import "common/EnvironmentTypeEnum.proto";
 import "plan/PlanDTO.proto";
 import "CloudCostDTO.proto";
 import "CommonDTO.proto";
@@ -124,6 +125,17 @@ message TopologyEntityDTO {
 
     // name to display in the UI
     optional string display_name = 3;
+
+    // The environment type for the entity.
+    //
+    // The environment type is closely related to the origin, but we keep it outside
+    // the origin because they are distinct concepts. The origin outlines how the entity came to
+    // be included in the topology. The environment type specifies the subset of the topology the
+    // entity belongs to.
+    //
+    // Some entities will only ever have one environment type (e.g. COMPUTE_TIER -> CLOUD,
+    // PHYSICAL_MACHINE -> ON_PREM), whereas others (e.g. VMs) can have either.
+    optional .common.EnvironmentType environment_type = 14;
 
     // list of commodities sold
     repeated CommoditySoldDTO commodity_sold_list = 4;

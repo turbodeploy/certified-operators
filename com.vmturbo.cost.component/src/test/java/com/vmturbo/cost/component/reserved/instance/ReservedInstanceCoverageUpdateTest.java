@@ -15,6 +15,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -53,24 +54,18 @@ public class ReservedInstanceCoverageUpdateTest {
     private ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate;
 
     private static final long AWS_TARGET_ID = 77777L;
-    private static final long AWS_PROBE_ID = 87778L;
 
     private static final Origin AWS_ORIGIN = Origin.newBuilder()
             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                     .addDiscoveringTargetIds(AWS_TARGET_ID))
             .build();
 
-    private TargetInfo awsTargetInfo;
-
-    private ProbeInfo awsProbeInfo;
-
-    private TopologyProcessor topologyProcessorClient = mock(TopologyProcessor.class);
-
     private final TopologyEntityDTO AZ = TopologyEntityDTO.newBuilder()
             .setOid(8L)
             .setDisplayName("this is available")
             .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .setOrigin(AWS_ORIGIN)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .build();
 
     private final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
@@ -78,6 +73,7 @@ public class ReservedInstanceCoverageUpdateTest {
             .setDisplayName("region")
             .setEntityType(EntityType.REGION_VALUE)
             .setOrigin(AWS_ORIGIN)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(AZ.getEntityType())
                     .setConnectedEntityId(AZ.getOid())
@@ -89,6 +85,7 @@ public class ReservedInstanceCoverageUpdateTest {
             .setDisplayName("r3.xlarge")
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .setOrigin(AWS_ORIGIN)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(REGION.getEntityType())
                     .setConnectedEntityId(REGION.getOid())
@@ -107,47 +104,48 @@ public class ReservedInstanceCoverageUpdateTest {
                             .setCoveredCoupons(10))
                     .build();
 
-    private final TopologyEntityDTO VMOne =
-            TopologyEntityDTO.newBuilder()
-                    .setOid(123L)
-                    .setDisplayName("bar")
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOrigin(AWS_ORIGIN)
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(COMPUTE_TIER.getOid())
-                            .setProviderEntityType(COMPUTE_TIER.getEntityType()))
-                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                            .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                                    .setGuestOsType(OSType.LINUX)
-                                    .setTenancy(Tenancy.DEFAULT)))
-                    .addConnectedEntityList(ConnectedEntity.newBuilder()
-                            .setConnectedEntityType(REGION.getEntityType())
-                            .setConnectedEntityId(REGION.getOid()))
-                    .build();
+    private final TopologyEntityDTO VMOne = TopologyEntityDTO.newBuilder()
+            .setOid(123L)
+            .setDisplayName("bar")
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOrigin(AWS_ORIGIN)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(COMPUTE_TIER.getOid())
+                    .setProviderEntityType(COMPUTE_TIER.getEntityType()))
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                            .setGuestOsType(OSType.LINUX)
+                            .setTenancy(Tenancy.DEFAULT)))
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityType(REGION.getEntityType())
+                    .setConnectedEntityId(REGION.getOid()))
+            .build();
 
-    private final TopologyEntityDTO VMTwo =
-            TopologyEntityDTO.newBuilder()
-                    .setOid(124L)
-                    .setDisplayName("foo")
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setOrigin(AWS_ORIGIN)
-                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(COMPUTE_TIER.getOid())
-                            .setProviderEntityType(COMPUTE_TIER.getEntityType()))
-                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                            .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                                    .setGuestOsType(OSType.LINUX)
-                                    .setTenancy(Tenancy.DEFAULT)))
-                    .addConnectedEntityList(ConnectedEntity.newBuilder()
-                            .setConnectedEntityType(AZ.getEntityType())
-                            .setConnectedEntityId(AZ.getOid()))
-                    .build();
+    private final TopologyEntityDTO VMTwo = TopologyEntityDTO.newBuilder()
+            .setOid(124L)
+            .setDisplayName("foo")
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOrigin(AWS_ORIGIN)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(COMPUTE_TIER.getOid())
+                    .setProviderEntityType(COMPUTE_TIER.getEntityType()))
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                            .setGuestOsType(OSType.LINUX)
+                            .setTenancy(Tenancy.DEFAULT)))
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityType(AZ.getEntityType())
+                    .setConnectedEntityId(AZ.getOid()))
+            .build();
 
     private final TopologyEntityDTO BUSINESS_ACCOUNT = TopologyEntityDTO.newBuilder()
             .setOid(125L)
             .setDisplayName("businessAccount")
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOrigin(AWS_ORIGIN)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(VMOne.getOid())
                     .setConnectedEntityType(VMOne.getEntityType())
@@ -175,21 +173,13 @@ public class ReservedInstanceCoverageUpdateTest {
      * together, so we use a "real" topology factory for now.
      */
     private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            new DefaultTopologyEntityCloudTopologyFactory(topologyProcessorClient);
+            new DefaultTopologyEntityCloudTopologyFactory();
 
     @Before
     public void setup() throws CommunicationException {
         reservedInstanceCoverageUpdate = new ReservedInstanceCoverageUpdate(dsl,
                 entityReservedInstanceMappingStore, reservedInstanceUtilizationStore,
                 reservedInstanceCoverageStore, 120);
-        awsProbeInfo = mock(ProbeInfo.class);
-        when(awsProbeInfo.getType()).thenReturn(SDKProbeType.AWS.getProbeType());
-        when(awsProbeInfo.getId()).thenReturn(AWS_PROBE_ID);
-        awsTargetInfo = mock(TargetInfo.class);
-        when(awsTargetInfo.getId()).thenReturn(AWS_TARGET_ID);
-        when(awsTargetInfo.getProbeId()).thenReturn(AWS_PROBE_ID);
-        when(topologyProcessorClient.getAllTargets()).thenReturn(Collections.singleton(awsTargetInfo));
-        when(topologyProcessorClient.getAllProbes()).thenReturn(Collections.singleton(awsProbeInfo));
     }
 
     @Test

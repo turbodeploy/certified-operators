@@ -11,6 +11,11 @@ public class ServiceEntityRepoDTO {
 
     private String entityType;
 
+    /**
+     * This should be a {@link com.vmturbo.components.common.mapping.UIEnvironmentType}.
+     */
+    private String environmentType;
+
     private Float priceIndex;
 
     private Float priceIndexProjected;
@@ -59,6 +64,14 @@ public class ServiceEntityRepoDTO {
 
     public void setEntityType(String entityType) {
         this.entityType = entityType;
+    }
+
+    public String getEnvironmentType() {
+        return environmentType;
+    }
+
+    public void setEnvironmentType(String environmentType) {
+        this.environmentType = environmentType;
     }
 
     public Float getPriceIndex() {
@@ -168,9 +181,9 @@ public class ServiceEntityRepoDTO {
     @Override
     public int hashCode() {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
-                            entityType, oid, priceIndex, priceIndexProjected, providers, severity,
-                            state, uuid, tags, connectedEntityList, targetIds, virtualMachineInfo,
-                            computeTierInfo);
+            entityType, environmentType, oid, priceIndex, priceIndexProjected,
+            providers, severity, state, uuid, tags, connectedEntityList, targetIds,
+            virtualMachineInfo, computeTierInfo);
     }
 
     @Override
@@ -186,6 +199,7 @@ public class ServiceEntityRepoDTO {
                 Objects.equals(commoditySoldList, that.commoditySoldList) &&
                 Objects.equals(displayName, that.displayName) &&
                 Objects.equals(entityType, that.entityType) &&
+                Objects.equals(environmentType, that.environmentType) &&
                 Objects.equals(oid, that.oid) &&
                 Objects.equals(priceIndex, that.priceIndex) &&
                 Objects.equals(priceIndexProjected, that.priceIndexProjected) &&
@@ -204,6 +218,7 @@ public class ServiceEntityRepoDTO {
     public String toString() {
         return "ServiceEntityRepoDTO [uuid=" + uuid + ", displayName=" + displayName
                 + ", entityType=" + entityType + ", priceIndex=" + priceIndex
+                + ", environmentType=" + environmentType
                 + ", priceIndexProjected=" + priceIndexProjected
                 + ", state=" + state + ", severity=" + severity + ", oid=" + oid
                 + ", providers=" + providers + ", commoditiesBoughtRepoFromProviderDTOList="

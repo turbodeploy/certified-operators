@@ -16,6 +16,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -40,6 +41,7 @@ public class TopologyEntityCloudTopologyFactoryTest {
     private static final TopologyEntityDTO CLOUD_ENTITY = TopologyEntityDTO.newBuilder()
             .setOid(1L)
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
             .setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                         .addDiscoveringTargetIds(CLOUD_TARGET_ID)))
@@ -48,46 +50,16 @@ public class TopologyEntityCloudTopologyFactoryTest {
     private static final TopologyEntityDTO NON_CLOUD_ENTITY = TopologyEntityDTO.newBuilder()
             .setOid(2L)
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setEnvironmentType(EnvironmentType.ON_PREM)
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                             .addDiscoveringTargetIds(NON_CLOUD_TARGET_ID)))
             .build();
 
-    private TargetInfo CLOUD_TARGET_INFO;
-
-    private ProbeInfo CLOUD_PROBE_INFO;
-
-    private TargetInfo NON_CLOUD_TARGET_INFO;
-
-    private ProbeInfo NON_CLOUD_PROBE_INFO;
-
-    @Before
-    public void setup() throws CommunicationException {
-        CLOUD_TARGET_INFO = mock(TargetInfo.class);
-        when(CLOUD_TARGET_INFO.getId()).thenReturn(CLOUD_TARGET_ID);
-        when(CLOUD_TARGET_INFO.getProbeId()).thenReturn(CLOUD_PROBE_ID);
-
-        CLOUD_PROBE_INFO = mock(ProbeInfo.class);
-        when(CLOUD_PROBE_INFO.getId()).thenReturn(CLOUD_PROBE_ID);
-        when(CLOUD_PROBE_INFO.getType()).thenReturn(SDKProbeType.AWS.getProbeType());
-
-        NON_CLOUD_TARGET_INFO = mock(TargetInfo.class);
-        when(NON_CLOUD_TARGET_INFO.getId()).thenReturn(NON_CLOUD_TARGET_ID);
-        when(NON_CLOUD_TARGET_INFO.getProbeId()).thenReturn(NON_CLOUD_PROBE_ID);
-
-        NON_CLOUD_PROBE_INFO = mock(ProbeInfo.class);
-        when(NON_CLOUD_PROBE_INFO.getId()).thenReturn(NON_CLOUD_PROBE_ID);
-        when(NON_CLOUD_PROBE_INFO.getType()).thenReturn(SDKProbeType.VCENTER.getProbeType());
-
-        when(topologyProcessor.getAllTargets()).thenReturn(Sets.newHashSet(CLOUD_TARGET_INFO, NON_CLOUD_TARGET_INFO));
-        when(topologyProcessor.getAllProbes()).thenReturn(Sets.newHashSet(CLOUD_PROBE_INFO, NON_CLOUD_PROBE_INFO));
-
-    }
-
     @Test
     public void testStream() {
         final TopologyEntityCloudTopologyFactory factory =
-                new DefaultTopologyEntityCloudTopologyFactory(topologyProcessor);
+                new DefaultTopologyEntityCloudTopologyFactory();
         final TopologyEntityCloudTopology topology = factory.newCloudTopology(Stream.of(CLOUD_ENTITY, NON_CLOUD_ENTITY));
         assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY));
     }
@@ -100,7 +72,7 @@ public class TopologyEntityCloudTopologyFactoryTest {
                 .thenReturn(Collections.singleton(NON_CLOUD_ENTITY))
                 .thenReturn(Collections.singleton(CLOUD_ENTITY));
         final TopologyEntityCloudTopologyFactory factory =
-                new DefaultTopologyEntityCloudTopologyFactory(topologyProcessor);
+                new DefaultTopologyEntityCloudTopologyFactory();
         final TopologyEntityCloudTopology topology = factory.newCloudTopology(1, remoteIterator);
         assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY));
     }

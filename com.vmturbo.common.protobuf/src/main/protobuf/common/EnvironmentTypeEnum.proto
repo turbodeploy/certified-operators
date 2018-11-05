@@ -4,8 +4,21 @@ package common;
 
 option java_package = "com.vmturbo.common.protobuf.common";
 
+
+// Identifies a subset of the topology.
+//
+// Note - we don't have "HYBRID" as an environment type, because most things are either
+// ON_PREM or CLOUD. "HYBRID" is a useful short-form for queries (to indicate ON_PREM or CLOUD),
+// but it's not a valid environment.
 enum EnvironmentType {
-    HYBRID = 1;
+    // The environment type was either unset or could not be determined.
+    // It's up to the caller to decide whether how to treat UNKNOWN,
+    // though we typically treat it as ON_PREM.
+    UNKNOWN_ENV = 0;
+
+    // The on-premise subset of the topology.
+    ON_PREM = 1;
+
+    // The "cloud" subset of the topology.
     CLOUD = 2;
-    ONPREM = 3;
 }

@@ -108,7 +108,7 @@ public class TopologyListenerConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory(topologyProcessor());
+        return new DefaultTopologyEntityCloudTopologyFactory();
     }
 
     @Bean

@@ -14,7 +14,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
@@ -44,6 +46,14 @@ public class ResultsConverter {
         serviceEntityApiDTO.setClassName(repoDTO.getEntityType());
         serviceEntityApiDTO.setState(repoDTO.getState());
         serviceEntityApiDTO.setTags(repoDTO.getTags());
+
+        UIEnvironmentType envType = UIEnvironmentType.fromString(repoDTO.getEnvironmentType());
+        if (envType == UIEnvironmentType.UNKNOWN) {
+            // The UI doesn't have a default state, so we default to ONPREM.
+            serviceEntityApiDTO.setEnvironmentType(EnvironmentType.ONPREM);
+        } else {
+            serviceEntityApiDTO.setEnvironmentType(EnvironmentType.valueOf(envType.getApiEnumStringValue()));
+        }
 
         return serviceEntityApiDTO;
     }

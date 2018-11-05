@@ -135,7 +135,7 @@ public class MarketRunnerConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory(topologyProcessorConfig.topologyProcessor());
+        return new DefaultTopologyEntityCloudTopologyFactory();
     }
 
     @Bean

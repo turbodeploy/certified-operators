@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -61,6 +62,8 @@ public class TopologyConverter {
             topologyEntityBuilder.setOid(Long.valueOf(serviceEntityDTO.getOid()));
             topologyEntityBuilder.setDisplayName(serviceEntityDTO.getDisplayName());
             topologyEntityBuilder.setEntityType(mapEntityType(serviceEntityDTO.getEntityType()));
+            topologyEntityBuilder.setEnvironmentType(
+                    UIEnvironmentType.fromString(serviceEntityDTO.getEnvironmentType()).toEnvType());
             topologyEntityBuilder.setEntityState(
                     UIEntityState.fromString(serviceEntityDTO.getState()).toEntityState());
             serviceEntityDTO.getTags().forEach((key, value) ->
@@ -150,6 +153,7 @@ public class TopologyConverter {
             se.setOid(seOid);
             se.setDisplayName(t.getDisplayName());
             se.setEntityType(mapEntityType(t.getEntityType()));
+            se.setEnvironmentType(UIEnvironmentType.fromEnvType(t.getEnvironmentType()).getApiEnumStringValue());
             se.setUuid(String.valueOf(t.getOid()));
             se.setState(UIEntityState.fromEntityState(t.getEntityState()).getValue());
             se.setTags(new HashMap<>());

@@ -70,6 +70,8 @@ import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFa
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
+import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
+import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -636,6 +638,57 @@ public class Stages {
             constraintsEditor.editConstraints(input, changes, isPressurePlan);
             // TODO (roman, 23 Oct 2018): Add some high-level information about modifications made.
             return Status.success();
+        }
+    }
+
+    /**
+     * This stage is responsible for setting the environment type of entities in the graph.
+     *
+     * This needs to happen after things like topology editing and stitching, but before
+     * policy/setting application in case we we have environment-type-specific
+     * groups/policies/settings policies.
+     *
+     * This stage modifies the entities in the input {@link TopologyGraph}.
+     */
+    public static class EnvironmentTypeStage extends PassthroughStage<TopologyGraph> {
+
+        private final EnvironmentTypeInjector environmentTypeInjector;
+
+        public EnvironmentTypeStage(@Nonnull final EnvironmentTypeInjector environmentTypeInjector) {
+            this.environmentTypeInjector = Objects.requireNonNull(environmentTypeInjector);
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(final TopologyGraph input) {
+            final InjectionSummary injectionSummary =
+                    environmentTypeInjector.injectEnvironmentType(input);
+
+            final StringBuilder statusBuilder = new StringBuilder();
+            if (injectionSummary.getUnknownCount() > 0) {
+                statusBuilder.append("Could not determine type for ")
+                        .append(injectionSummary.getUnknownCount())
+                        .append(" entities.\n");
+            }
+            if (injectionSummary.getConflictingTypeCount() > 0) {
+                statusBuilder.append(injectionSummary.getConflictingTypeCount())
+                        .append(" entities already have env type set.\n");
+            }
+            injectionSummary.getEnvTypeCounts().forEach((envType, count) ->
+                    // Should look something like "5 ON_PREM entities"
+                    statusBuilder.append(count).append(" ").append(envType).append(" entities.\n"));
+
+            // Note: if conflicting type count > 0, we may want to consider return a "failed" status.
+            if (injectionSummary.getUnknownCount() > 0 || injectionSummary.getConflictingTypeCount() > 0) {
+                return TopologyPipeline.Status.withWarnings(statusBuilder.toString());
+            } else {
+                return TopologyPipeline.Status.success(statusBuilder.toString());
+            }
+        }
+
+        @Override
+        public boolean required() {
+            return true;
         }
     }
 

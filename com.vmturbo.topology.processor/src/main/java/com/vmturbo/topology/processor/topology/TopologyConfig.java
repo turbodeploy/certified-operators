@@ -137,6 +137,11 @@ public class TopologyConfig {
     }
 
     @Bean
+    public EnvironmentTypeInjector environmentTypeInjector() {
+        return new EnvironmentTypeInjector(targetConfig.targetStore());
+    }
+
+    @Bean
     public TopologyPipelineFactory topologyPipelineFactory() {
         return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
@@ -147,6 +152,7 @@ public class TopologyConfig {
                 cloudCostConfig.discoveredCloudCostUploader(),
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),
+                environmentTypeInjector(),
                 topologyEditor(),
                 repositoryConfig.repository(),
                 groupConfig.topologyFilterFactory(),

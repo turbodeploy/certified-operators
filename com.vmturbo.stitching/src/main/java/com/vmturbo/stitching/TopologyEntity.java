@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -79,6 +80,17 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
     @Nonnull
     public EntityState getEntityState() {
         return entityBuilder.getEntityState();
+    }
+
+    /**
+     * Get the entity's environment type. This field corresponds to
+     * {@link TopologyEntityDTO#getEnvironmentType()}
+     *
+     * @return The {@link EnvironmentType} for the entity builder corresponding to this node.
+     */
+    @Nonnull
+    public EnvironmentType getEnvironmentType() {
+        return entityBuilder.getEnvironmentType();
     }
 
     @Nonnull

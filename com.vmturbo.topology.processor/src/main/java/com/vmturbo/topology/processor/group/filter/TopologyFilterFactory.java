@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
@@ -172,6 +173,23 @@ public class TopologyFilterFactory {
                 return new PropertyFilter(intPredicate(targetState.toEntityState().getNumber(),
                         stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
                         entity -> entity.getEntityState().getNumber()));
+            case "environmentType":
+                final UIEnvironmentType targetType =
+                        UIEnvironmentType.fromString(stringCriteria.getStringPropertyRegex());
+
+                // If the target type resolves to "UNKNOWN" but "UNKNOWN" wasn't what the user
+                // explicitly wanted, throw an exception to get an early-exit.
+                if (targetType == UIEnvironmentType.UNKNOWN &&
+                    !StringUtils.equalsIgnoreCase(UIEnvironmentType.UNKNOWN.getApiEnumStringValue(),
+                        stringCriteria.getStringPropertyRegex())) {
+                    throw new IllegalArgumentException("Desired env type: " +
+                            stringCriteria.getStringPropertyRegex() +
+                            " doesn't match a known/valid env type.");
+                }
+                // It's more efficient to compare the numeric value of the enum.
+                return new PropertyFilter(intPredicate(targetType.toEnvType().getNumber(),
+                        stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                        entity -> entity.getEnvironmentType().getNumber()));
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);

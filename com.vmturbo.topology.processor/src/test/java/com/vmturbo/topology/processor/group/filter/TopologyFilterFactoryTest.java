@@ -24,9 +24,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -290,6 +290,71 @@ public class TopologyFilterFactoryTest {
         assertTrue(propertyFilter.test(entity1));
     }
 
+    @Test
+    public void testSearchFilterForEnvironmentTypeMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("environmentType")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setMatch(true)
+                                .setStringPropertyRegex("CLOUD")))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getEnvironmentType()).thenReturn(EnvironmentType.CLOUD);
+        assertTrue(propertyFilter.test(entity1));
+
+        when(entity2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEnvironmentTypeNoMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("environmentType")
+                        .setStringFilter(StringFilter.newBuilder()
+                                // Match set to false, so "CLOUD" entities shouldn't match.
+                                .setMatch(false)
+                                .setStringPropertyRegex("CLOUD")))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getEnvironmentType()).thenReturn(EnvironmentType.CLOUD);
+        assertFalse(propertyFilter.test(entity1));
+
+        when(entity2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
+        assertTrue(propertyFilter.test(entity2));
+
+        when(entity2.getEnvironmentType()).thenReturn(EnvironmentType.UNKNOWN_ENV);
+        assertTrue(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForEnvironmentTypeCaseInsensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("environmentType")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setMatch(true)
+                                .setStringPropertyRegex("cLoUD")
+                                // Ignore case sensitive flag.
+                                .setCaseSensitive(true)))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getEnvironmentType()).thenReturn(EnvironmentType.CLOUD);
+        assertTrue(propertyFilter.test(entity1));
+    }
     @Test
     public void testNumericDisplayNameIllegal() {
         expectedException.expect(IllegalArgumentException.class);

@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
+import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
@@ -43,6 +44,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.EnvironmentTypeStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
@@ -92,6 +94,8 @@ public class TopologyPipelineFactory {
 
     private final EntitySettingsResolver entitySettingsResolver;
 
+    private final EnvironmentTypeInjector environmentTypeInjector;
+
     private final TopologyEditor topologyEditor;
 
     private final RepositoryClient repositoryClient;
@@ -127,6 +131,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final DiscoveredCloudCostUploader cloudCostUploader,
                                    @Nonnull final EntitySettingsResolver entitySettingsResolver,
                                    @Nonnull final EntitySettingsApplicator settingsApplicator,
+                                   @Nonnull final EnvironmentTypeInjector environmentTypeInjector,
                                    @Nonnull final TopologyEditor topologyEditor,
                                    @Nonnull final RepositoryClient repositoryClient,
                                    @Nonnull final TopologyFilterFactory topologyFilterFactory,
@@ -149,6 +154,7 @@ public class TopologyPipelineFactory {
         this.discoveredCloudCostUploader = cloudCostUploader;
         this.settingsApplicator = Objects.requireNonNull(settingsApplicator);
         this.entitySettingsResolver = entitySettingsResolver;
+        this.environmentTypeInjector = Objects.requireNonNull(environmentTypeInjector);
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
@@ -206,6 +212,7 @@ public class TopologyPipelineFactory {
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
+                .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PolicyStage(policyManager))
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
@@ -259,8 +266,8 @@ public class TopologyPipelineFactory {
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
-                .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),
-                        groupServiceClient, changes))
+                .addStage(new EnvironmentTypeStage(environmentTypeInjector))
+                .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
