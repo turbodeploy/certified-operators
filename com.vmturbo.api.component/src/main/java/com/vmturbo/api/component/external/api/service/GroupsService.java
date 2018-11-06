@@ -696,6 +696,7 @@ public class GroupsService implements IGroupsService {
     public List<GroupApiDTO> getGroupApiDTOS(GetGroupsRequest groupsRequest) {
         Iterable<Group> groups = () -> groupServiceRpc.getGroups(groupsRequest);
         return StreamSupport.stream(groups.spliterator(), false)
+                .filter(group -> !isHiddenGroup(group))
                 .map(groupMapper::toGroupApiDto)
                 .collect(Collectors.toList());
     }
@@ -753,5 +754,15 @@ public class GroupsService implements IGroupsService {
                         .setTypeFilter(ClusterInfo.Type.STORAGE)
                         .build())
                 .build());
+    }
+
+    /**
+     * Check if the returned group is hidden group. We should not show the hidden group to users.
+     *
+     * @param group The group info fetched from Group Component.
+     * @return true if the group is hidden group.
+     */
+    private boolean isHiddenGroup(@Nonnull final Group group) {
+        return group.hasGroup() && group.getGroup().getIsHidden();
     }
 }

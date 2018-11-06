@@ -230,7 +230,8 @@ public class ServiceConfig {
                 mapperConfig.paginationMapper(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.repositoryRpcService(),
-                websocketConfig.websocketHandler());
+                websocketConfig.websocketHandler(),
+                communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean

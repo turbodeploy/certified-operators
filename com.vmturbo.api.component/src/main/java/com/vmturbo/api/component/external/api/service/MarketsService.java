@@ -13,13 +13,16 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
@@ -43,6 +46,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -56,6 +60,8 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -76,12 +82,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -118,6 +131,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Service implementation of Markets.
  **/
 public class MarketsService implements IMarketsService {
+
     private final Logger logger = LogManager.getLogger();
 
     private final PlanServiceBlockingStub planRpcService;
@@ -148,6 +162,10 @@ public class MarketsService implements IMarketsService {
 
     private final UINotificationChannel uiNotificationChannel;
 
+    private final long realtimeTopologyContextId;
+
+    private final MergeDataCenterPolicyHandler mergeDataCenterPolicyHandler;
+
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -161,7 +179,8 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PaginationMapper paginationMapper,
                           @Nonnull final GroupServiceBlockingStub groupRpcService,
                           @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
-                          @Nonnull final UINotificationChannel uiNotificationChannel) {
+                          @Nonnull final UINotificationChannel uiNotificationChannel,
+                          final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.actionRpcService = Objects.requireNonNull(actionRpcService);
@@ -176,6 +195,9 @@ public class MarketsService implements IMarketsService {
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
+
+        this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
     }
 
     /**
@@ -330,7 +352,14 @@ public class MarketsService implements IMarketsService {
                                                   PolicyApiInputDTO policyApiInputDTO)
             throws Exception {
         try {
+            // Create hidden group and update policyApiInputDTO for data centers if the policy is
+            // merge data center policy.
+            if (isMergeDataCenterPolicy(policyApiInputDTO)) {
+                mergeDataCenterPolicyHandler.createDataCenterHiddenGroup(policyApiInputDTO);
+            }
+
             final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
+
             final PolicyDTO.PolicyCreateRequest createRequest = PolicyDTO.PolicyCreateRequest.newBuilder()
                     .setPolicyInfo(policyInfo)
                     .build();
@@ -353,6 +382,12 @@ public class MarketsService implements IMarketsService {
                                    final String policyUuid,
                                    PolicyApiInputDTO policyApiInputDTO) throws Exception {
         try {
+            // Update hidden group and update policyApiInputDTO for data centers if the policy is
+            // merge data center policy.
+            if (isMergeDataCenterPolicy(policyApiInputDTO)) {
+                mergeDataCenterPolicyHandler.updateDataCenterHiddenGroup(policyUuid, policyApiInputDTO);
+            }
+
             final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
             final PolicyDTO.PolicyEditRequest policyEditRequest = PolicyDTO.PolicyEditRequest.newBuilder()
                     .setPolicyId(Long.valueOf(policyUuid))
@@ -370,16 +405,23 @@ public class MarketsService implements IMarketsService {
 
     @Override
     // uuid is not used because there is only one Market in XL.
-    public Boolean deletePolicy(String uuid, String policy_uuid) throws Exception {
+    public Boolean deletePolicy(String uuid, String policyUuid) throws Exception {
         final PolicyDTO.PolicyDeleteRequest policyDeleteRequest = PolicyDTO.PolicyDeleteRequest.newBuilder()
-                .setPolicyId(Long.valueOf(policy_uuid))
+                .setPolicyId(Long.valueOf(policyUuid))
                 .build();
 
         try {
-            policyRpcService.deletePolicy(policyDeleteRequest);
+            final PolicyDeleteResponse response = policyRpcService.deletePolicy(policyDeleteRequest);
+            final PolicyInfo policy = response.getPolicy().getPolicyInfo();
+
+            // we need to remove the hidden group as well if the policy is merge data center policy.
+            if (isMergeDataCenterPolicy(policy)) {
+                mergeDataCenterPolicyHandler.deleteDataCenterHiddenGroup(policyUuid, policy);
+            }
+
             return true;
         } catch (RuntimeException e) {
-            logger.error("Fail to delete policy " + policy_uuid, e);
+            logger.error("Failed to delete policy " + policyUuid, e);
             return false;
         }
     }
@@ -753,5 +795,167 @@ public class MarketsService implements IMarketsService {
         seEntity.setPlacedOn(placedOnJoiner.toString());
         seEntity.setNotPlacedOn(notPlacedOnJoiner.toString());
         return seEntity;
+    }
+
+    /**
+     * Check if the policy type is merge data center from user input policy DTO.
+     *
+     * @param policyApiInputDTO
+     * @return true if merge type is data center
+     */
+    private boolean isMergeDataCenterPolicy(final PolicyApiInputDTO policyApiInputDTO) {
+        return policyApiInputDTO.getType() == PolicyType.MERGE
+                && policyApiInputDTO.getMergeType() == MergePolicyType.DataCenter;
+    }
+
+    /**
+     * Check if the policy type is merge data center from policy info DTO.
+     *
+     * @param policyInfo
+     * @return true if merge type is data center
+     */
+    private boolean isMergeDataCenterPolicy(final PolicyInfo policyInfo) {
+        return policyInfo.hasMerge()
+                && policyInfo.getMerge().getMergeType() == MergeType.DATACENTER;
+    }
+
+    /**
+     * Class to handle all the operation related to merge data center policy.
+     */
+    private class MergeDataCenterPolicyHandler {
+
+        /**
+         *  Max char length of group name.
+         */
+        private final int MAX_GROUP_NAME_LENGTH = 255;
+
+        /**
+         * Create hidden group for data center list when user select merge data center policy. Since
+         * data center is not kind of group, we need to create a hidden group to apply the policy, and
+         * set the merge group members to the hidden group id.
+         *
+         * @param policyApiInputDTO policy data from user input, we need to change the merge group member
+         *                          uuids to the hidden group uuid.
+         */
+        public void createDataCenterHiddenGroup(final PolicyApiInputDTO policyApiInputDTO) {
+            final String groupName = StringUtils.abbreviate(String.format("Merge: %s",
+                    Strings.join(fetchDataCenterNamesByOids(policyApiInputDTO.getMergeUuids()),
+                            ',')), MAX_GROUP_NAME_LENGTH);
+            // New hidden group creation request
+            final GroupDTO.GroupInfo.Builder requestBuilder = GroupDTO.GroupInfo.newBuilder()
+                    .setName(groupName)
+                    .setEntityType(EntityType.DATACENTER.getNumber())
+                    .setIsHidden(true);
+
+            requestBuilder.setStaticGroupMembers(
+                    GroupDTO.StaticGroupMembers.newBuilder().addAllStaticMemberOids(
+                            policyApiInputDTO.getMergeUuids().stream()
+                                    .map(Long::parseLong).collect(Collectors.toList())));
+
+            final GroupDTO.CreateGroupResponse response = groupRpcService.createGroup(requestBuilder.build());
+
+            logger.debug("Created new hidden group {} for data centers {}.",
+                    response.getGroup().getId(),
+                    policyApiInputDTO.getMergeUuids());
+            // Set the hidden group uuid to the group member list
+            policyApiInputDTO.setMergeUuids(Stream.of(response.getGroup().getId()).map(String::valueOf)
+                    .collect(Collectors.toList()));
+
+        }
+
+        /**
+         * Update hidden group for data center list when user select new merge data center policy. The
+         * merge group member will still the hidden group.
+         *
+         * @param policyUuid the policy uuid to fetch the current contained group.
+         * @param policyApiInputDTO policy data from user input, we need to change the merge group member
+         *                          uuids to the hidden group uuid.
+         */
+        public void updateDataCenterHiddenGroup(final String policyUuid,
+                                                 final PolicyApiInputDTO policyApiInputDTO) {
+            final String groupName = StringUtils.abbreviate(String.format("Merge: %s",
+                    Strings.join(fetchDataCenterNamesByOids(policyApiInputDTO.getMergeUuids()),
+                    ',')), MAX_GROUP_NAME_LENGTH);
+            try {
+                // Fetch the current group members in the merge data center policy. It should only has
+                // 1 hidden group that contains all the selected data centers.
+                final PolicyApiDTO policyApiDTO = policiesService.getPolicyByUuid(policyUuid);
+                final List<Long> oldPolicyGroupsList = policyApiDTO.getMergeGroups().stream()
+                        .map(BaseApiDTO::getUuid)
+                        .map(Long::parseLong)
+                        .collect(Collectors.toList());
+
+                // There should be only 1 hidden group in the policy member list, so this shouldn't happen.
+                if (oldPolicyGroupsList.size() != 1) {
+                    logger.error("More than 1 group member in merge data center policy {}, update" +
+                                    " will be skipped.",
+                            policyApiInputDTO.getPolicyName());
+                    return;
+                }
+                final List<Long> currPolicyMemberList = policyApiInputDTO.getMergeUuids().stream()
+                        .map(Long::parseLong)
+                        .collect(Collectors.toList());
+
+                final long groupId = oldPolicyGroupsList.get(0);
+                // If group members don't change in the policy, then we skip the update.
+                if (oldPolicyGroupsList.equals(currPolicyMemberList)) {
+                    return;
+                }
+
+                // Update the hidden group if data centers in the policy have changed.
+                final GroupDTO.GroupInfo.Builder newInfo = GroupDTO.GroupInfo.newBuilder()
+                        .setName(groupName)
+                        .setEntityType(EntityType.DATACENTER.getNumber())
+                        .setIsHidden(true)
+                        .setStaticGroupMembers(GroupDTO.StaticGroupMembers.newBuilder()
+                                        .addAllStaticMemberOids(currPolicyMemberList));
+
+                final UpdateGroupResponse response = groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
+                        .setId(groupId)
+                        .setNewInfo(newInfo)
+                        .build());
+
+                logger.debug("Updated hidden group {} for data centers {}.",
+                        response.getUpdatedGroup().getId(),
+                        policyApiInputDTO.getMergeUuids());
+                // Replace the data centers OIDs to the hidden group OID.
+                policyApiInputDTO.setMergeUuids(Stream.of(String.valueOf(groupId))
+                        .collect(Collectors.toList()));
+
+            } catch (Exception e) {
+                logger.error("Error when updating hidden group, {}", e);
+            }
+        }
+
+        /**
+         * Delete the hidden group when user deletes the merge data center policy.
+         *
+         * @param policyUuid the deleted policy uuid.
+         * @param policyInfo the info of the removed policy.
+         */
+        public void deleteDataCenterHiddenGroup(final String policyUuid, final PolicyInfo policyInfo) {
+            policyInfo.getMerge().getMergeGroupIdsList().stream()
+                    .map(groupId -> GroupID.newBuilder().setId(groupId).build())
+                    .forEach(groupRpcService::deleteGroup);
+            logger.debug("Deleted hidden group for policy {}.", policyUuid);
+        }
+
+        /**
+         * Fetch data center names according to their OIDs.
+         *
+         * @param dataCenterIds
+         * @return list of data center names.
+         */
+        private List<String> fetchDataCenterNamesByOids(final List<String> dataCenterIds) {
+            return repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addAllEntityOids(dataCenterIds.stream()
+                            .map(Long::parseLong).collect(Collectors.toList()))
+                    .setTopologyContextId(realtimeTopologyContextId)
+                    .setTopologyType(TopologyType.SOURCE)
+                    .build())
+                    .getEntitiesList().stream()
+                    .map(TopologyEntityDTO::getDisplayName)
+                    .collect(Collectors.toList());
+        }
     }
 }

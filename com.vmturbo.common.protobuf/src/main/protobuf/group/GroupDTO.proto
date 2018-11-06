@@ -98,6 +98,11 @@ message GroupInfo {
         // A wrapper layer to respent a list of search parameters
         SearchParametersCollection search_parameters_collection = 5;
     }
+
+    // Is the group a hidden group
+    // We use this field for the groups automatically created for merge data centers policy, since
+    // data center is not a group, but we need the groups for the merge operation.
+    optional bool is_hidden = 6 [default = false];
 }
 
 message TempGroupInfo {

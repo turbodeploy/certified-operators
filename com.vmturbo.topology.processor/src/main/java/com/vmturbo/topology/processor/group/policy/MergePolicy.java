@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -227,12 +228,35 @@ public class MergePolicy extends PlacementPolicy {
         // Not using lambda here, for loop is easier to throw GroupResolutionException to caller
         List<Set<Long>> listOfOids = Lists.newArrayList();
         for (Group group : groups) {
-            listOfOids.add(groupResolver.resolve(group, topologyGraph));
+            Set<Long> entityOids = groupResolver.resolve(group, topologyGraph);
+            // If the group is data center group, then retrieve the physical machine OIDs by data
+            // center OIDs.
+            if (group.getGroup().getEntityType() == EntityType.DATACENTER_VALUE) {
+                entityOids = getConsumedPMOids(entityOids, topologyGraph);
+            }
+            listOfOids.add(entityOids);
         }
         return listOfOids
                 .stream()
                 .flatMap(ids -> ids.stream())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * If merge policy is data center, then the OID list will contains the data center OIDs,
+     * we need to convert them into all the physical machine OIDs which belong to the data centers.
+     *
+     * @param dataCenterOids The data center OIDs set.
+     * @param topologyGraph the {@link TopologyGraph} to which the policy should be applied.
+     * @return The physical machine OIDs that consume on the data centers.
+     */
+    private Set<Long> getConsumedPMOids(@Nonnull Set<Long> dataCenterOids,
+                                        @Nonnull final TopologyGraph topologyGraph) {
+        return dataCenterOids.stream()
+                .flatMap(topologyGraph::getConsumers)
+                .filter(entity -> entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
     }
 
     /**
