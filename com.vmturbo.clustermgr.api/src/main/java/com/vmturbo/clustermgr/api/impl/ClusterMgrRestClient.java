@@ -262,6 +262,26 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
     }
 
     /**
+     * Set the default configuration properties for a single Component Type. The properties
+     * given in this call replace all previous default configuration for the component.
+     * If the component is not previously known, a new component configuration will be added.
+     * <p/>
+     * Note that this function is *not* required by the external REST API currently, and so
+     * is not declared in the ICLusterService interface.
+     *
+     * @param componentType the component type
+     * @param updatedProperties the default configuration properties for this component type; the
+     *                          previous configuration properties will all be replaced.
+     * @return the newly updated default configuration properties for this component type
+     */
+    public ComponentPropertiesDTO putComponentDefaultProperties(String componentType,
+                                                                ComponentPropertiesDTO updatedProperties) {
+        return new RestPutRequestor<ComponentPropertiesDTO, ComponentPropertiesDTO>(
+                COMPONENT_TYPE_DEFAULTS_URI, ComponentPropertiesDTO.class)
+                .invoke(updatedProperties, componentType);
+    }
+
+    /**
      * Utility class to perform an HTTP GET. The constructor takes a URI string as a parameter, which
      * may include substitution parameters. The field "uriBase" is prepended to the given URI string.
      * <p>

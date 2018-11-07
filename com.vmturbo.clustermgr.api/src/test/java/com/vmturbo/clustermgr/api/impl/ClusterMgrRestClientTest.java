@@ -14,18 +14,16 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
@@ -44,8 +42,6 @@ public class ClusterMgrRestClientTest {
 
     private Gson gson = new Gson();
 
-    private static Logger logger = LogManager.getLogger();
-
     private static String TELEMETRY_INITIALIZED = "/proactive/initialized";
     private static String TELEMETRY_ENABLED = "/proactive/enabled";
 
@@ -59,7 +55,6 @@ public class ClusterMgrRestClientTest {
         // Create the class to test
         testRestClient = new ClusterMgrRestClient(connectionConfig);
         mockServer = MockRestServiceServer.createServer(testRestClient.getRestTemplate());
-//        mockServer.bindTo(testRestClient.getRestTemplate());
     }
 
     @Test
@@ -230,6 +225,25 @@ public class ClusterMgrRestClientTest {
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
         ComponentPropertiesDTO result = testRestClient.getDefaultPropertiesForComponentType("test-type");
+        // Assert
+        mockServer.verify();
+        assertThat(result, is(testResponse));
+    }
+
+    @Test
+    public void testPutDefaultPropertiesForComponentType() throws Exception {
+        // Arrange
+        ComponentPropertiesDTO newValue = new ComponentPropertiesDTO();
+        ComponentPropertiesDTO testResponse = new ComponentPropertiesDTO();
+        String testResponseString = gson.toJson(testResponse);
+        String expectedUri = baseTestURL + "/components/test-type/defaults";
+        mockServer.expect(requestTo(expectedUri))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(content().string(testResponseString))
+                .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
+        // Act
+        ComponentPropertiesDTO result = testRestClient.putComponentDefaultProperties("test-type",
+                testResponse);
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));

@@ -163,6 +163,23 @@ public class ClusterMgrController {
     }
 
     /**
+     * Replace the map of default (property name -> value) for a VMTurbo component type.
+     *
+     * @return the updated map of default property-name/value pairs for the given component type
+     */
+    @ApiOperation("Replace the map of default (property name -> value) for a component type.")
+    @RequestMapping(path = "components/{componentType}/defaults",
+            consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
+            method = RequestMethod.PUT)
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public ComponentProperties putDefaultPropertiesForType(@PathVariable("componentType") String componentType,
+                                                         @RequestBody ComponentProperties updatedProperties) {
+        return clusterMgrService.putDefaultPropertiesForComponentType(componentType, updatedProperties);
+    }
+
+
+    /**
      * Return the Set of component instances for a given component type that are defined.
      *
      * The instance ids are returned regardless of the execution state of each instance. In other words,
