@@ -7,11 +7,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +53,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
@@ -91,6 +94,7 @@ public class TopologyConverterToMarketTest {
     private CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private CloudCostData ccd = mock(CloudCostData.class);
 
     @Before
     public void setup() {
@@ -113,12 +117,13 @@ public class TopologyConverterToMarketTest {
                         .setType(1)
                         .setBaseType(2)
                         .build();
+        when(ccd.getAllRiBought()).thenReturn(new ArrayList<>());
     }
 
     @Test
     public void testConvertCommodityCloneWithNewType() {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertTrue(traderTO.getCommoditiesSold(1).getSpecification().getCloneWithNewType());
     }
@@ -143,7 +148,7 @@ public class TopologyConverterToMarketTest {
     @Test
     public void testProvisionedCommodityResizable() {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
-        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
     }
@@ -342,7 +347,7 @@ public class TopologyConverterToMarketTest {
         // Since we create a new TopologyConverter here that's fine, as long
         // as the implementation of the ID allocator doesn't change.
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
         converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         assertEquals(topologyCommodity1, converter.getCommodityConverter()
@@ -370,7 +375,7 @@ public class TopologyConverterToMarketTest {
     private Set<TraderTO> convertToMarketTO(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
                                          @Nonnull final TopologyInfo topologyInfo) {
 
-        return new TopologyConverter(topologyInfo, true, 0.75f, marketPriceTable)
+        return new TopologyConverter(topologyInfo, true, 0.75f, marketPriceTable, ccd)
             .convertToMarket(topology.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
@@ -388,7 +393,7 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/vm-2.dto.json"))
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> traderTOs =
-                new TopologyConverter(REALTIME_TOPOLOGY_INFO, false, 0.75f, marketPriceTable)
+                new TopologyConverter(REALTIME_TOPOLOGY_INFO, false, 0.75f, marketPriceTable, ccd)
                         .convertToMarket(topologyDTOs);
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
@@ -480,7 +485,7 @@ public class TopologyConverterToMarketTest {
                         .setOid(1002L).setEntityType(26).build();
         TopologyDTO.TopologyEntityDTO actionManager = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setOid(1003L).setEntityType(22).build();
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
         assertEquals(2, converter.convertToMarket(Stream.of(container, virtualApp, actionManager)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
                 .size());
@@ -674,7 +679,7 @@ public class TopologyConverterToMarketTest {
                                         .setType(CommodityDTO.CommodityType.CPU_VALUE))))
                 .build();
         final TopologyConverter converter =
-                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
         topology.put(vmEntityDTO.getOid(), vmEntityDTO);
@@ -715,7 +720,7 @@ public class TopologyConverterToMarketTest {
                                 .addCommodityBought(memBought))
                         .build();
         final TopologyConverter converter =
-                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
         float[] quantities = converter.getResizedCapacityForCloud(vmEntityDTO, memBought);
         assertEquals(100, quantities[0] , 0.0f);
         assertEquals(100, quantities[1], 0.0f);

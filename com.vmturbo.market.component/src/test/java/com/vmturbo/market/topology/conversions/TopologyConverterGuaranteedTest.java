@@ -4,7 +4,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -50,6 +53,8 @@ public class TopologyConverterGuaranteedTest {
             .build();
     private static Map<Long, TopologyEntityDTO> entities;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+
+    private CloudCostData ccd = mock(CloudCostData.class);
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
@@ -98,6 +103,7 @@ public class TopologyConverterGuaranteedTest {
                         .build();
         entities = Stream.of(vdc1, vdc2, dpod, pm, vm1, vm2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        when(ccd.getAllRiBought()).thenReturn(new ArrayList());
     }
 
     /**
@@ -107,7 +113,7 @@ public class TopologyConverterGuaranteedTest {
     public void testExcludeVDCs() {
         // includeVDC is false
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are skipped
         assertEquals(1, traders.size());
@@ -127,7 +133,7 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testIncludeVDCs() {
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

@@ -109,6 +109,7 @@ public class MarketRunnerConfig {
                 marketPriceTableFactory(),
                 cloudTopologyFactory(),
                 topologyCostCalculatorFactory(),
+                marketCloudCostDataProvider(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
                 suspensionThrottlingPerCluster);

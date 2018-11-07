@@ -176,6 +176,41 @@ public class CommodityConverter {
     }
 
     /**
+     * Creates a {@link CommoditySoldTO} of specific type with a specific used and capacity
+     *
+     * @param commodityType {@link CommodityType} of commodity to be created
+     * @param capacity is the capacity of the commSold
+     * @param used is the current used of the commSold
+     * @param uf is the updating function of the commold
+     * @return a {@link CommoditySoldTO}
+     */
+    @Nonnull
+    public CommodityDTOs.CommoditySoldTO createCommoditySoldTO(
+            @Nonnull CommodityType commodityType,
+            float capacity,
+            float used, @Nonnull UpdatingFunctionTO uf) {
+        final int type = commodityType.getType();
+        final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
+                CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
+                        .setResizable(false)
+                        .setCapacityUpperBound(capacity)
+                        .setPriceFunction(priceFunction(type))
+                        .setUpdateFunction(uf)
+                        .build();
+
+        return CommodityDTOs.CommoditySoldTO.newBuilder()
+                .setPeakQuantity(0)
+                .setCapacity(capacity)
+                .setQuantity(used)
+                // Warning: we are down casting from double to float.
+                // Market has to change this field to double
+                .setSettings(economyCommSoldSettings)
+                .setSpecification(commoditySpecification(commodityType))
+                .setThin(false)
+                .build();
+    }
+
+    /**
      * Create biclique commodity sold for entities. The commodity sold will play a role
      * in shop alone placement.
      *
@@ -292,6 +327,17 @@ public class CommodityConverter {
     }
 
     /**
+     * Select the right {@link PriceFunctionTO} based on the commodity sold type.
+     *
+     * @param commodityType type of commodity for which to add an price function
+     * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
+     */
+    @Nonnull
+    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(int commodityType) {
+        return AnalysisUtil.priceFunction(commodityType);
+    }
+
+    /**
      * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
      *
      * @param topologyCommSold a commodity sold for which to add an updating function
@@ -301,6 +347,17 @@ public class CommodityConverter {
     private static UpdatingFunctionTO updateFunction(
             TopologyDTO.CommoditySoldDTO topologyCommSold) {
         return AnalysisUtil.updateFunction(topologyCommSold.getCommodityType().getType());
+    }
+
+    /**
+     * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
+     *
+     * @param commodityType type of commodity for which to add an updating function
+     * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
+     */
+    @Nonnull
+    private static UpdatingFunctionTO updateFunction(int commodityType) {
+        return AnalysisUtil.updateFunction(commodityType);
     }
 
     /**

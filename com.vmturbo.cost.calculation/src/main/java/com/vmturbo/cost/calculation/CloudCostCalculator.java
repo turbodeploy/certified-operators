@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -67,12 +68,15 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
+    private final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
+
     private CloudCostCalculator(@Nonnull final CloudCostData cloudCostData,
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory,
-               @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup)
+               @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
+               @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage)
             throws CloudCostDataRetrievalException {
         this.cloudCostData = Objects.requireNonNull(cloudCostData);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
@@ -80,6 +84,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
         this.reservedInstanceApplicatorFactory = Objects.requireNonNull(reservedInstanceApplicatorFactory);
         this.dependentCostLookup = Objects.requireNonNull(dependentCostLookup);
+        this.topologyRICoverage = Objects.requireNonNull(topologyRICoverage);
     }
 
     /**
@@ -281,7 +286,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for vm {}", entityId);
         final ReservedInstanceApplicator<ENTITY_CLASS> reservedInstanceApplicator =
-                reservedInstanceApplicatorFactory.newReservedInstanceApplicator(journal, entityInfoExtractor, cloudCostData);
+                reservedInstanceApplicatorFactory.newReservedInstanceApplicator(journal, entityInfoExtractor, cloudCostData, topologyRICoverage);
 
         // For storage costs, the primary entity for cost calculation is the volume.
         // The VM's storage cost just inherits the volumes.
@@ -471,7 +476,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
                 @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
                 @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory,
-                @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup)
+                @Nonnull final DependentCostLookup<ENTITY_CLASS> dependentCostLookup,
+                @Nonnull final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage)
             throws CloudCostDataRetrievalException;
     }
 }

@@ -25,9 +25,12 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -49,12 +52,13 @@ public class CloudTopologyConverter {
     // 1.) When the actions come back from Market, the MarketTier can be looked up based on the
     // oid of the traderTO in the action. The MarketTier will contain the relevant
     // TopologyEntityDTOs like computeTier / region for onDemandMarketTier
-    // and tenancy / Avaialbility zone etc for DiscountedMarketTier.
+    // and tenancy / Avaialbility zone etc for RiDiscountedMarketTier.
     // 2.) When setting the supplier of VM compute shopping list in TopologyConverter,
     // the traderTO to be used as supplier can be looked up based on the MarketTier.
     private final BiMap<Long, MarketTier> traderTOOidToMarketTier = HashBiMap.create();
     // Each type of tier has its own converter which will convert the tier to market tiers.
     private final ComputeTierConverter computeTierConverter;
+    private final ReservedInstanceConverter riConverter;
     private final StorageTierConverter storageTierConverter;
     private final Map<Integer, TierConverter> converterMap;
     private TopologyInfo topologyInfo;
@@ -64,6 +68,7 @@ public class CloudTopologyConverter {
     private final Map<Long, TopologyEntityDTO> topology;
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
+    private final CloudCostData cloudCostData;
 
     /**
      * This constructor will be used by tests. Mock converters can be passed in.
@@ -74,7 +79,8 @@ public class CloudTopologyConverter {
              @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
-             @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable) {
+             @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
+             @Nonnull CloudCostData cloudCostData) {
          this.topology = topology;
          this.topologyInfo = topologyInfo;
          this.commodityConverter = commodityConverter;
@@ -84,7 +90,9 @@ public class CloudTopologyConverter {
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter, costDTOCreator);
          this.businessAccounts = businessAccounts;
+         this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());
      }
 
@@ -118,6 +126,19 @@ public class CloudTopologyConverter {
                         traderTOOidToMarketTier.put(traderTO.getOid(), marketTier));
             }
         }
+
+        // create TOs for RiDiscountedMarketTiers
+        // since riData does not come along with the topologyEntityDTOs, RiDiscountedMarketTier creation
+        // happens outside the for loop processing topologyEntityDTOs
+        Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
+                riConverter.createMarketTierTraderTOs(cloudCostData, topology, businessAccounts);
+        traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
+        computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
+        // Add all the traderTO oids to MarketTier mappings to
+        // traderTOOidToMarketTier
+        traderTOBuildersForEntity.forEach((traderTO, marketTier) ->
+                traderTOOidToMarketTier.put(traderTO.getOid(), marketTier));
+
         // After all the market tiers are constructed, populate the bicliquers
         for(TraderTO.Builder computeMarketTierBuilder : computeMarketTierBuilders) {
             MarketTier marketTier = traderTOOidToMarketTier.get(computeMarketTierBuilder.getOid());
@@ -330,5 +351,25 @@ public class CloudTopologyConverter {
             return false;
         }
         return getMarketTier(providerOid) != null;
+    }
+
+    /**
+     * Returns {@link ReservedInstanceData} for a given riId
+     *
+     * @param riId
+     * @return ReservedInstanceData corresponding to that riId
+     */
+    public ReservedInstanceData getRiDataById(long riId) {
+        return riConverter.getRiDataById(riId);
+    }
+
+    /**
+     * Returns {@link EntityReservedInstanceCoverage} of an entity
+     *
+     * @param entityId
+     * @return EntityReservedInstanceCoverage corresponding to the given entity
+     */
+    public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
+        return cloudCostData.getRiCoverageForEntity(entityId);
     }
 }

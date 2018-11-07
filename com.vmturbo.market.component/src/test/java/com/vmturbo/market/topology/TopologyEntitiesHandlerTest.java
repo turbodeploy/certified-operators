@@ -3,6 +3,7 @@ package com.vmturbo.market.topology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +32,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -50,6 +53,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -108,6 +112,13 @@ public class TopologyEntitiesHandlerTest {
     private static final Gson GSON = new Gson();
 
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+
+    private CloudCostData ccd = mock(CloudCostData.class);
+
+    @Before
+    public void setup() {
+        when(ccd.getAllRiBought()).thenReturn(new ArrayList());
+    }
 
     /**
      * Test loading a file that was generated using the hyper-v probe.
@@ -181,7 +192,7 @@ public class TopologyEntitiesHandlerTest {
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable)
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)
@@ -255,7 +266,7 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO.Builder> topoDTOs =
                 SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         TopologyConverter topoConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                 .map(TopologyEntityDTO.Builder::build)
@@ -302,7 +313,7 @@ public class TopologyEntitiesHandlerTest {
                 SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
 
         Set<TraderTO> traderDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable)
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd)
                     .convertToMarket(topoDTOs.stream()
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -355,7 +366,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter togetherConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
         final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -389,7 +400,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter shopTogetherConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
         final Set<TraderTO> shopTogetherTraderDTOs = shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -429,7 +440,7 @@ public class TopologyEntitiesHandlerTest {
 
         List<TopologyEntityDTO.Builder> topoDTOs =
                 SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
-        new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable).convertToMarket(
+        new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd).convertToMarket(
             topoDTOs.stream()
                 .map(TopologyEntityDTO.Builder::build)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -494,8 +505,9 @@ public class TopologyEntitiesHandlerTest {
                     .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
             when(marketPriceTable.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
                     .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+            when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
             final TopologyConverter converter =
-                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
             final Set<EconomyDTOs.TraderTO> traderTOs =
                     converter.convertToMarket(dtosToProcess.stream()
                             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -600,8 +612,9 @@ public class TopologyEntitiesHandlerTest {
                 .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3MediumPrices));
             when(marketPriceTable.getDatabasePriceBundle(dbm3Large.getOid(), region.getOid()))
                 .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3LargePrices));
+            when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
             final TopologyConverter converter =
-                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
+                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
             final Set<EconomyDTOs.TraderTO> traderTOs =
             converter.convertToMarket(dtosToProcess.stream()
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -713,7 +726,7 @@ public class TopologyEntitiesHandlerTest {
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable)
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)

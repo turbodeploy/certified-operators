@@ -45,6 +45,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -199,9 +201,9 @@ public class Analysis {
         MarketPriceTable marketPriceTable = priceTableFactory.newPriceTable(
                 this.originalCloudTopology, this.topologyCostCalculator.getCloudCostData());
         this.marketPriceTable = marketPriceTable;
-
         this.converter = new TopologyConverter(topologyInfo,
-           analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(), marketPriceTable);
+                analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
+                marketPriceTable, null, this.topologyCostCalculator.getCloudCostData());
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -334,7 +336,7 @@ public class Analysis {
                 projectedEntities = converter.convertFromMarket(
                     projectedTraderDTO,
                     realTopologyDTOs,
-                    results.getPriceIndexMsg());
+                    results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
 
                 // retrieve region DTOs from the original entities topology
                 Stream<TopologyEntityDTO> entitiesFromOriginalTopo =
@@ -351,7 +353,8 @@ public class Analysis {
                                             .map(ProjectedTopologyEntity::getEntity),
                                     // pass region and businessAccount from the original topo
                                     entitiesFromOriginalTopo));
-                projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology);
+                projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
+                        converter.getProjectedReservedInstanceCoverage());
             }
 
             // Create the action plan

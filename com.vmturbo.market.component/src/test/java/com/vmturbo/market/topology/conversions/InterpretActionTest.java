@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +39,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.DiscountApplicator;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -78,6 +81,7 @@ public class InterpretActionTest {
     private CommodityType topologyCommodity2;
 
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private CloudCostData ccd = mock(CloudCostData.class);
 
     @Before
     public void setup() {
@@ -100,12 +104,13 @@ public class InterpretActionTest {
                         .setType(1)
                         .setBaseType(2)
                         .build();
+        when(ccd.getAllRiBought()).thenReturn(new ArrayList());
     }
 
     @Test
     public void testCommodityIdsAreInvertible() {
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -143,7 +148,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(modelSeller, modelType);
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -179,7 +184,7 @@ public class InterpretActionTest {
                             entityDto.getOid(), entityDto.getEntityType());
 
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         final Set<TraderTO> traderTOs =
             converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -237,7 +242,7 @@ public class InterpretActionTest {
                 reconfigureSourceId, reconfigureSourceType,
                 entityDto.getOid(), entityDto.getEntityType());
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         final Set<TraderTO> traderTOs =
                 converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -265,7 +270,7 @@ public class InterpretActionTest {
             ImmutableMap.of(
                 entityDto.getOid(), entityDto.getEntityType());
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         final Set<TraderTO> traderTOs =
                 converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -291,7 +296,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(modelSeller, modelType);
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
 
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()

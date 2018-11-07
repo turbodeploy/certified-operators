@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -48,15 +49,20 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      */
     private final CloudCostData cloudCostData;
 
+
+    private final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
+
     /**
      * Use {@link ReservedInstanceApplicator#newFactory()} to get a factory to construct applicators.
      */
     private ReservedInstanceApplicator(@Nonnull final CostJournal.Builder<ENTITY_CLASS> journal,
                                        @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                                       @Nonnull final CloudCostData cloudCostData) {
+                                       @Nonnull final CloudCostData cloudCostData,
+                                       @Nonnull Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
         this.journal = journal;
         this.cloudCostData = cloudCostData;
         this.entityInfoExtractor = infoExtractor;
+        this.topologyRICoverage = topologyRICoverage;
     }
 
     /**
@@ -73,7 +79,7 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      */
     public double recordRICoverage(@Nonnull final ENTITY_CLASS computeTier) {
         final long entityId = entityInfoExtractor.getId(journal.getEntity());
-        return cloudCostData.getRiCoverageForEntity(entityId)
+        return Optional.ofNullable(topologyRICoverage.get(entityId))
             .map(entityRiCoverage -> {
                 final double totalRequired = entityInfoExtractor.getComputeTierConfig(computeTier)
                     .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
@@ -214,7 +220,8 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
         ReservedInstanceApplicator<ENTITY_CLASS> newReservedInstanceApplicator(
                 @Nonnull final CostJournal.Builder<ENTITY_CLASS> journal,
                 @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                @Nonnull final CloudCostData cloudCostData);
+                @Nonnull final CloudCostData cloudCostData,
+                @Nonnull Map<Long, EntityReservedInstanceCoverage> topologyRICoverage);
 
     }
 }

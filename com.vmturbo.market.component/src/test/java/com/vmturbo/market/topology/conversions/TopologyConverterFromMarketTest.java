@@ -2,7 +2,9 @@ package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ENTITY_VALUE;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -33,6 +35,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
@@ -63,7 +67,7 @@ public class TopologyConverterFromMarketTest {
     private static final Float MARKET_PM_CAPACITY = RAW_PM_CAPACITY * SCALING_FACTOR;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
     private CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
-
+    private CloudCostData mockCCD = mock(CloudCostData.class);
 
     private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.REALTIME)
@@ -153,6 +157,8 @@ public class TopologyConverterFromMarketTest {
                         TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
         shoppingListInfos.set(converter, shoppingListMap);
+        shoppingListInfos.setAccessible(true);
+        shoppingListInfos.set(converter, shoppingListMap);
 
         final CommodityDTOs.CommoditySoldTO economyCPUSold = CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder()
@@ -204,11 +210,12 @@ public class TopologyConverterFromMarketTest {
                                 .build())
                             .build())
                         .build();
+        when(mockCCD.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
 
         List<TopologyDTO.ProjectedTopologyEntity> entity =
             converter.convertFromMarket(Collections.singletonList(trader),
                 ImmutableMap.of(expectedEntity.getOid(), expectedEntity, expectedEntity2.getOid(), expectedEntity2),
-                PriceIndexMessage.getDefaultInstance());
+                PriceIndexMessage.getDefaultInstance(), mockCCD);
         assertEquals(1L, entity.size());
         assertEquals(expectedEntity.getCommoditySoldList(0), entity.get(0).getEntity().getCommoditySoldList(0));
         assertEquals(1, entity.get(0).getEntity().getCommoditiesBoughtFromProvidersCount());
@@ -225,11 +232,12 @@ public class TopologyConverterFromMarketTest {
      */
     @Test
     public void testVMTraderToEntityConversion() throws Exception {
+        when(mockCCD.getAllRiBought()).thenReturn(Collections.emptyList());
         TopologyConverter converter = Mockito.spy(
                 new TopologyConverter(TopologyInfo.newBuilder()
                         .setTopologyType(TopologyType.PLAN)
                         .build(), false, 0.75f, marketPriceTable,
-                        mockCommodityConverter));
+                        mockCommodityConverter, mockCCD));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
                 TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -312,6 +320,7 @@ public class TopologyConverterFromMarketTest {
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity1))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity2))
                 .build();
+        when(mockCCD.getRiCoverageForEntity(10000L)).thenReturn(Optional.empty());
 
         Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
         Map<Long, TopologyEntityDTO> map = new HashMap<>();
@@ -340,7 +349,7 @@ public class TopologyConverterFromMarketTest {
         List<TopologyDTO.ProjectedTopologyEntity> entity =
                 converter.convertFromMarket(Collections.singletonList(trader),
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
-                        PriceIndexMessage.getDefaultInstance());
+                        PriceIndexMessage.getDefaultInstance(), mockCCD);
         assertEquals(1L, entity.size());
         // Ensure the entity is having SUSPENDED state.
         assertEquals(EntityState.SUSPENDED, entity.get(0).getEntity().getEntityState());
@@ -472,7 +481,7 @@ public class TopologyConverterFromMarketTest {
                         // map back to original TopologyEntityDTOs
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
                                 expectedEntity2.getOid(), expectedEntity2),
-                        PriceIndexMessage.getDefaultInstance());
+                        PriceIndexMessage.getDefaultInstance(), mockCCD);
 
         // Assert two entities returned - they will be in the original order - VM and PM
         assertEquals(2L, entity.size());

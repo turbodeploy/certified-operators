@@ -12,14 +12,17 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
@@ -67,6 +70,8 @@ public class CloudCostCalculatorTest {
 
     private ReservedInstanceApplicatorFactory<TestEntityClass> reservedInstanceApplicatorFactory =
             (ReservedInstanceApplicatorFactory<TestEntityClass>)mock(ReservedInstanceApplicatorFactory.class);
+
+    private Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = Maps.newHashMap();
 
     private NetworkConfig networkConfig = (NetworkConfig)mock(NetworkConfig.class);
 
@@ -128,7 +133,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor,
-                        discountApplicatorFactory, reservedInstanceApplicatorFactory, e -> null);
+                        discountApplicatorFactory, reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
 
         final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -159,7 +164,7 @@ public class CloudCostCalculatorTest {
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
         when(riApplicator.recordRICoverage(computeTier)).thenReturn(riCoverage);
-        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData)))
+        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
 
         // act
@@ -217,7 +222,7 @@ public class CloudCostCalculatorTest {
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
         when(riApplicator.recordRICoverage(computeTier)).thenReturn(0.0);
-        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData)))
+        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
 
         // Set up a volume, and the cost lookup for the volume.
@@ -241,7 +246,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor,
-                        discountApplicatorFactory, reservedInstanceApplicatorFactory, volumeCostLookup);
+                        discountApplicatorFactory, reservedInstanceApplicatorFactory, volumeCostLookup, topologyRiCoverage);
 
         final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(vm);
         // The cost for the VM sh
@@ -286,7 +291,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
-                        reservedInstanceApplicatorFactory, e -> null);
+                        reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
 
         final TestEntityClass volume = TestEntityClass.newBuilder(volumeId)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -338,7 +343,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
-                        reservedInstanceApplicatorFactory, e -> null);
+                        reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
 
         final TestEntityClass volume = TestEntityClass.newBuilder(volumeId)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -392,7 +397,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
-                        reservedInstanceApplicatorFactory, e -> null);
+                        reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
 
         final TestEntityClass volume = TestEntityClass.newBuilder(volumeId)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -455,7 +460,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
-                        reservedInstanceApplicatorFactory, e -> null);
+                        reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
 
         final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
                 .setType(EntityType.DATABASE_VALUE)
@@ -499,7 +504,7 @@ public class CloudCostCalculatorTest {
 
         final CloudCostCalculator<TestEntityClass> calculator =
             calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
-                    reservedInstanceApplicatorFactory, e -> null);
+                    reservedInstanceApplicatorFactory, e -> null, topologyRiCoverage);
         final TestEntityClass noCostEntity = TestEntityClass.newBuilder(7)
                 .setType(EntityType.HYPERVISOR_VALUE)
                 .build(infoExtractor);

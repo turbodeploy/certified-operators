@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -76,6 +77,8 @@ public interface AnalysisFactory {
 
         private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
 
+        private final CloudCostDataProvider cloudCostDataProvider;
+
         /**
          * The quote factor to use for allevate pressure plans. See {@link AnalysisConfig}.
          */
@@ -88,6 +91,7 @@ public interface AnalysisFactory {
                   @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
                   @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                   @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
+                  @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final Clock clock,
                   final float alleviatePressureQuoteFactor,
                   final boolean suspensionThrottlingPerCluster) {
@@ -98,6 +102,7 @@ public interface AnalysisFactory {
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
+            this.cloudCostDataProvider = cloudCostDataProvider;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
         }

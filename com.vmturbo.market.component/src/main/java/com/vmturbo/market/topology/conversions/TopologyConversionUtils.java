@@ -134,4 +134,8 @@ public class TopologyConversionUtils {
                 "Min: %s must be <= max: %s", min, max);
         return Math.min(max, Math.max(value, min));
     }
+
+    public static boolean areFloatsEqual(float a, float b) {
+        return Math.abs(a - b) < TopologyConversionConstants.FLOAT_COMPARISON_DELTA;
+    }
 }

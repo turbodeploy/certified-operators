@@ -12,6 +12,7 @@ import java.util.Map;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
@@ -42,6 +43,8 @@ public class TopologyCostCalculatorTest {
 
     private CloudCostDataProvider localCostDataProvider = mock(CloudCostDataProvider.class);
 
+    private CloudCostData cloudCostData = mock(CloudCostData.class);
+
     private DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory = mock(DiscountApplicatorFactory.class);
 
     private ReservedInstanceApplicatorFactory<TopologyEntityDTO> reservedInstanceApplicatorFactory = mock(ReservedInstanceApplicatorFactory.class);
@@ -52,9 +55,8 @@ public class TopologyCostCalculatorTest {
 
     @Test
     public void testCalculateCosts() throws CloudCostDataRetrievalException {
-        final CloudCostData cloudCostData = mock(CloudCostData.class);
+        when(cloudCostData.getCurrentRiCoverage()).thenReturn(Maps.newHashMap());
         when(localCostDataProvider.getCloudCostData()).thenReturn(cloudCostData);
-
         final TopologyCostCalculator topologyCostCalculator = factory.newCalculator();
 
         final Map<Long, TopologyEntityDTO> cloudEntities = ImmutableMap.of(ENTITY.getOid(), ENTITY);
@@ -70,7 +72,7 @@ public class TopologyCostCalculatorTest {
                 eq(topologyEntityInfoExtractor),
                 eq(discountApplicatorFactory),
                 eq(reservedInstanceApplicatorFactory),
-                any()))
+                any(), any()))
             .thenReturn(costCalculator);
 
 

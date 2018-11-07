@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -88,8 +89,18 @@ public interface CloudCostDataProvider {
         }
 
         @Nonnull
+        public Map<Long, EntityReservedInstanceCoverage> getCurrentRiCoverage() {
+            return riCoverageByEntityId;
+        }
+
+        @Nonnull
         public Optional<ReservedInstanceData> getRiBoughtData(final long riBoughtId) {
             return Optional.ofNullable(riBoughtDataById.get(riBoughtId));
+        }
+
+        @Nonnull
+        public Collection<ReservedInstanceData> getAllRiBought() {
+            return Collections.unmodifiableCollection(riBoughtDataById.values());
         }
 
         /**
@@ -110,7 +121,7 @@ public interface CloudCostDataProvider {
      * A semantically-meaningful tuple of information about an RI purchase.
      */
     @Immutable
-    class ReservedInstanceData {
+    public class ReservedInstanceData {
         /**
          * The {@link ReservedInstanceBought} object describing the RI purchase.
          */

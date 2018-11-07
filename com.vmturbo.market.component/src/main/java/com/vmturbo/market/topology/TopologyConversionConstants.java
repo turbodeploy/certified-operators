@@ -47,6 +47,8 @@ public class TopologyConversionConstants {
      */
     public static final float CAPACITY_FACTOR = 0.999999f;
 
+    public static final float ACCESS_COMMODITY_CAPACITY = 1.0E9f;
+
     public static final String BICLIQUE = "BICLIQUE";
 
     // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
@@ -68,5 +70,5 @@ public class TopologyConversionConstants {
     public static final float RESIZE_PEAK_WEIGHT =  0.0f;
     public static final float RESIZE_TARGET_UTILIZATION_VM_VCPU = 0.7f;
     public static final float RESIZE_TARGET_UTILIZATION_VM_VMEM = 0.9f;
-
+    public static final float FLOAT_COMPARISON_DELTA = 0.0000001f;
 }

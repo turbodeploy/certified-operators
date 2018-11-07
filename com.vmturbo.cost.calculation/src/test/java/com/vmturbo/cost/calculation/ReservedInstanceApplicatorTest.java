@@ -12,6 +12,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
@@ -77,20 +79,20 @@ public class ReservedInstanceApplicatorTest {
 
     @Test
     public void testApplyRi() {
-        final ReservedInstanceApplicator<TestEntityClass> applicator =
-            applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
-
+        Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
+                .putCouponsCoveredByRi(RI_ID, 5.0)
+                .build());
         final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
                 .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED))
                 .build(infoExtractor);
+        final ReservedInstanceApplicator<TestEntityClass> applicator =
+            applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
+                    cloudCostData, topologyRiCoverage);
 
         when(costJournal.getEntity()).thenReturn(entity);
-        when(cloudCostData.getRiCoverageForEntity(entity.getId()))
-            .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
-                .putCouponsCoveredByRi(RI_ID, 5.0)
-                .build()));
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
 
@@ -110,21 +112,19 @@ public class ReservedInstanceApplicatorTest {
 
     @Test
     public void testApplyRiCoverageMoreThanRequired() {
-        final ReservedInstanceApplicator<TestEntityClass> applicator =
-                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
-
+        Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
+                .putCouponsCoveredByRi(RI_ID, 100)
+                .build());
         final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
                 .setComputeTierConfig(new ComputeTierConfig(10))
                 .build(infoExtractor);
-
+        final ReservedInstanceApplicator<TestEntityClass> applicator =
+                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
+                        cloudCostData, topologyRiCoverage);
         when(costJournal.getEntity()).thenReturn(entity);
-        when(cloudCostData.getRiCoverageForEntity(entity.getId()))
-            .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
-                // More covered coupons than coupons required.
-                .putCouponsCoveredByRi(RI_ID, 100)
-                .build()));
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
 
@@ -146,16 +146,16 @@ public class ReservedInstanceApplicatorTest {
 
     @Test
     public void testApplyRiNoCoverage() {
+        Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
         final ReservedInstanceApplicator<TestEntityClass> applicator =
-                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
+                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
+                        cloudCostData, topologyRiCoverage);
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
         final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
                 .setComputeTierConfig(new ComputeTierConfig(10))
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
-        when(cloudCostData.getRiCoverageForEntity(entity.getId())).thenReturn(Optional.empty());
-
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
         verify(costJournal, never()).recordRiCost(any(), anyLong(), any());
@@ -163,8 +163,10 @@ public class ReservedInstanceApplicatorTest {
 
     @Test
     public void testApplyRiNoRequiredNoCoverage() {
+        Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
         final ReservedInstanceApplicator<TestEntityClass> applicator =
-                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
+                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
+                        cloudCostData, topologyRiCoverage);
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
         final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
@@ -173,7 +175,6 @@ public class ReservedInstanceApplicatorTest {
                 .setComputeTierConfig(new ComputeTierConfig(0))
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
-        when(cloudCostData.getRiCoverageForEntity(entity.getId())).thenReturn(Optional.empty());
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));
@@ -182,19 +183,20 @@ public class ReservedInstanceApplicatorTest {
 
     @Test
     public void testApplyRiNoRiData() {
-        final ReservedInstanceApplicator<TestEntityClass> applicator =
-                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor, cloudCostData);
+        Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
         final TestEntityClass entity = TestEntityClass.newBuilder(7)
                 .build(infoExtractor);
+        topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
+                .putCouponsCoveredByRi(RI_ID, 5.0)
+                .build());
+        final ReservedInstanceApplicator<TestEntityClass> applicator =
+                applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
+                        cloudCostData, topologyRiCoverage);
         final TestEntityClass computeTier = TestEntityClass.newBuilder(17)
                 .setComputeTierConfig(new ComputeTierConfig(10))
                 .build(infoExtractor);
 
         when(costJournal.getEntity()).thenReturn(entity);
-        when(cloudCostData.getRiCoverageForEntity(entity.getId()))
-            .thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
-                    .putCouponsCoveredByRi(RI_ID, 5.0)
-                    .build()));
         when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.empty());
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
