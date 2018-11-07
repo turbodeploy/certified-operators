@@ -69,7 +69,7 @@ public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETUR
         }
         try {
             RETURN_TYPE retVal = (RETURN_TYPE) nextObject;
-            return Optional.of(retVal);
+            return Optional.ofNullable(retVal);
         } catch (ClassCastException cce) {
             logger.error("While extracting matching field for entity {} extracted value of wrong "
                             + " class.  For field {} retrieved value of type {}.  Exception: {}",

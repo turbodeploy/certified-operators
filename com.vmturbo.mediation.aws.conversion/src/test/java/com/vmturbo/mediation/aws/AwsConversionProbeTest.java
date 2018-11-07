@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.aws;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
 import java.util.List;
@@ -103,6 +105,9 @@ public class AwsConversionProbeTest {
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
+
+        // check that displayName field is cleared for sub account target
+        assertThat(entitiesByType.get(EntityType.BUSINESS_ACCOUNT).get(0).hasDisplayName(), is(false));
     }
 
     private void verifyOtherFieldsNotModified(@Nonnull DiscoveryResponse oldResponse,

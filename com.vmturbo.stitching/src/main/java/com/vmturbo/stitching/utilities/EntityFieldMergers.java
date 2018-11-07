@@ -3,6 +3,7 @@ package com.vmturbo.stitching.utilities;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import org.apache.logging.log4j.LogManager;
@@ -55,7 +56,7 @@ public class EntityFieldMergers {
     @FunctionalInterface
     public interface FieldMerger<T> {
         T mergeField(@Nonnull final StitchingEntity fromEntity,
-                     @Nonnull final T fromField,
+                     @Nullable final T fromField,
                      @Nonnull final StitchingEntity ontoEntity,
                      @Nonnull final T ontoField);
     }
@@ -70,7 +71,7 @@ public class EntityFieldMergers {
      */
     @FunctionalInterface
     public interface SimpleFieldMerger<T> {
-        T mergeField(@Nonnull final T fromField, @Nonnull final T ontoField);
+        T mergeField(@Nullable final T fromField, @Nonnull final T ontoField);
     }
 
     /**
@@ -116,7 +117,10 @@ public class EntityFieldMergers {
                 ontoEntity, getter.get(ontoEntity.getEntityBuilder())
             );
 
-            setter.set(ontoEntity.getEntityBuilder(), mergeResult);
+            // do not set new result on EntityDTO if it is null
+            if (mergeResult != null) {
+                setter.set(ontoEntity.getEntityBuilder(), mergeResult);
+            }
         }
 
         /**
@@ -204,10 +208,9 @@ public class EntityFieldMergers {
                 },
                 (entity, newValue) -> {
                     DTOFieldAndPropertyHandler.setPropertyOfEntity(entity, propertyName, newValue);
-
                 })
-                .withMethod((fromProperty, ontoProperty) -> fromProperty.isEmpty() ? ontoProperty :
-                        fromProperty);
+                .withMethod((fromProperty, ontoProperty) -> fromProperty == null ||
+                        fromProperty.isEmpty() ? ontoProperty : fromProperty);
     }
 
     /**
@@ -235,16 +238,14 @@ public class EntityFieldMergers {
                 },
                 ((builder, newValue) -> {
                     try {
-                        DTOFieldAndPropertyHandler.setValueToFieldSpec(builder,
-                                attribute, newValue);
+                        DTOFieldAndPropertyHandler.setValueToFieldSpec(builder, attribute, newValue);
                     } catch (NoSuchFieldException e) {
                         logger.error("Could not set value of attribute " + attribute.getFieldName()
                                 + " for entity " + builder.getDisplayName()
                                 + ".  New value to set was " + newValue
                                 + " Exception: " + e);
                     }
-                })).withMethod((fromProperty, ontoProperty) -> fromProperty);
-
+                })).withMethod((fromField, ontoField) -> fromField == null ? ontoField : fromField);
     }
 
     /**

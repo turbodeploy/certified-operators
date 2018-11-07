@@ -428,9 +428,9 @@ public class AwsCloudDiscoveryConverterTest {
     public void testBusinessAccountConverter() {
         IEntityConverter converter = new BusinessAccountConverter(SDKProbeType.AWS);
         rawEntitiesByType.get(EntityType.BUSINESS_ACCOUNT).forEach(entity -> {
-            String dbId = entity.getId();
-            EntityDTO oldEntity = awsConverter.getRawEntityDTO(dbId);
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(dbId);
+            String baId = entity.getId();
+            EntityDTO oldEntity = awsConverter.getRawEntityDTO(baId);
+            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(baId);
 
             // check ba not removed
             assertTrue(converter.convert(newEntity, awsConverter));

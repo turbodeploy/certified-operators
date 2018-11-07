@@ -1,5 +1,6 @@
 package com.vmturbo.mediation.aws;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -11,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.mediation.aws.client.AwsAccount;
@@ -19,7 +19,6 @@ import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
@@ -91,7 +90,10 @@ public class AwsConversionProbe extends AwsProbe {
         for (TemplateDTO templateDTO : super.getSupplyChainDefinition()) {
             if (templateDTO.getTemplateClass() == EntityType.BUSINESS_ACCOUNT) {
                 sc.add(templateDTO.toBuilder()
-                        .setMergedEntityMetaData(createMergedEntityMetadata())
+                        .setMergedEntityMetaData(createMergedEntityMetadataBuilder()
+                                .mergedField("displayName", Collections.emptyList())
+                                .mergedField("consistsOf", Collections.emptyList())
+                                .build())
                         .build());
             } else {
                 sc.add(templateDTO);
@@ -102,7 +104,7 @@ public class AwsConversionProbe extends AwsProbe {
         for (EntityType entityType : NEW_SHARED_ENTITY_TYPES) {
             sc.add(new SupplyChainNodeBuilder()
                     .entity(entityType)
-                    .mergedBy(createMergedEntityMetadata())
+                    .mergedBy(createMergedEntityMetadataBuilder().build())
                     .buildEntity());
         }
 
@@ -117,18 +119,17 @@ public class AwsConversionProbe extends AwsProbe {
     }
 
     /**
-     * Create MergedEntityMetadata for supply chain node used for stitching. Cloud entities are
-     * shared across different targets, and only one set should be kept in topology. This metadata
-     * matches based on id of the EntityDTO.
+     * Create MergedEntityMetadataBuilder for supply chain node used for stitching. Cloud entities
+     * are shared across different targets, and only one set should be kept in topology. This
+     * metadata matches based on id of the EntityDTO.
      *
-     * @return MergedEntityMetadata for use by stitching
+     * @return MergedEntityMetadataBuilder for use by stitching
      */
-    private static MergedEntityMetadata createMergedEntityMetadata() {
+    private static MergedEntityMetadataBuilder createMergedEntityMetadataBuilder() {
         return new MergedEntityMetadataBuilder()
-                .internalMatchingField("id", Lists.newArrayList())
+                .internalMatchingField("id", Collections.emptyList())
                 .internalMatchingType(ReturnType.STRING)
-                .externalMatchingField("id", Lists.newArrayList())
-                .externalMatchingType(ReturnType.STRING)
-                .build();
+                .externalMatchingField("id", Collections.emptyList())
+                .externalMatchingType(ReturnType.STRING);
     }
 }

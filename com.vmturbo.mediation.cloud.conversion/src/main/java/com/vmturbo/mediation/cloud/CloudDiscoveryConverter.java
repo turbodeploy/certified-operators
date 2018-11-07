@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,9 +21,9 @@ import com.vmturbo.mediation.cloud.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 
@@ -383,6 +384,18 @@ public class CloudDiscoveryConverter {
                 !entityId.equals(businessAccountToOwnEntities.getId())) {
             businessAccountToOwnEntities.addConsistsOf(entityId);
         }
+    }
+
+    /**
+     * Check whether this target is added using a sub account. For sub account target, the
+     * displayName is the same as id, since its displayName can not be obtained due to API access
+     * restriction, and it was set as id in original probe.
+     *
+     * @return true if this is a sub account target, otherwise false
+     */
+    public boolean isSubAccountTarget() {
+        return StringUtils.equals(businessAccountToOwnEntities.getDisplayName(),
+                businessAccountToOwnEntities.getId());
     }
 
     /**

@@ -75,17 +75,20 @@ public class DTOFieldAndPropertyHandler {
     }
 
     /**
-     * Retrieve the named field from the passed in MessageOrBuilder.
+     * Retrieve the value of named field from the passed in MessageOrBuilder. If the field exists,
+     * but the value is not set, it will return null.
      *
      * @param message {@link MessageOrBuilder} object from which we extract the field value.
      * @param fieldName {@link String} simple name of the field to retrieve.
      * @return {@link Object} the value of the field which may be another {@link MessageOrBuilder}
-     *               if the field is itself a protobuf message.
+     * if the field is itself a protobuf message, or null if the field is not set.
      */
+    @Nullable
     public static Object getFieldFromMessageOrBuilder(@Nonnull final MessageOrBuilder message,
                                                       @Nonnull final String fieldName)
-    throws NoSuchFieldException {
-        return message.getField(getFieldDescriptor(message, fieldName));
+            throws NoSuchFieldException {
+        FieldDescriptor fieldDescriptor = getFieldDescriptor(message, fieldName);
+        return message.getAllFields().getOrDefault(fieldDescriptor, null);
     }
 
     /**
@@ -98,9 +101,8 @@ public class DTOFieldAndPropertyHandler {
     public static FieldDescriptor getFieldDescriptor(@Nonnull final MessageOrBuilder builder,
                                                      @Nonnull final String fieldName)
             throws NoSuchFieldException {
-        FieldDescriptor nextField = builder.getDescriptorForType()
-                .findFieldByName(fieldName);
-        if (null == nextField) {
+        FieldDescriptor nextField = builder.getDescriptorForType().findFieldByName(fieldName);
+        if (nextField == null) {
             throw new NoSuchFieldException("No field named " + fieldName + " found in builder.");
         }
         return nextField;
@@ -109,13 +111,15 @@ public class DTOFieldAndPropertyHandler {
     /**
      * Take a protobuf {@link MessageOrBuilder} and a sequence of simple field names ending in the
      * field whose value should be returned and return that value by traversing the field names in
-     * the sequence.
+     * the sequence. If the value of the field is not set, it will return null.
      *
      * @param msgOrBuilder {@link MessageOrBuilder} object to begin the traversal at.
      * @param fieldSpec {@link DTOFieldSpec} specifying the field to return.
-     * @return {@link Object} with the value of the field that was obtained from the traversal.
+     * @return {@link Object} with the value of the field that was obtained from the traversal, or
+     * null if the field is not set.
      * @throws NoSuchFieldException if any field in the sequence cannot be found
      */
+    @Nullable
     public static Object getValueFromFieldSpec(@Nonnull final MessageOrBuilder msgOrBuilder,
                                                @Nonnull final DTOFieldSpec fieldSpec)
             throws NoSuchFieldException {
@@ -123,13 +127,18 @@ public class DTOFieldAndPropertyHandler {
         // Iterate over protobuf Message fields to get to Message that actually contains the value
         // we want
         for (String nextFieldName : fieldSpec.getMessagePath()) {
+            // if the field exists, but value is not set, return null immediately
+            if (nxtObject == null) {
+                return null;
+            }
             if (!(nxtObject instanceof MessageOrBuilder)) {
                 throw new NoSuchFieldException("Could not find field " + nextFieldName +
                         " in Object " + nxtObject);
             }
             nxtObject = getFieldFromMessageOrBuilder((MessageOrBuilder) nxtObject, nextFieldName);
         }
-        return getFieldFromMessageOrBuilder((MessageOrBuilder) nxtObject, fieldSpec.getFieldName());
+        return nxtObject == null ? null : getFieldFromMessageOrBuilder(
+                (MessageOrBuilder) nxtObject, fieldSpec.getFieldName());
     }
 
     /**

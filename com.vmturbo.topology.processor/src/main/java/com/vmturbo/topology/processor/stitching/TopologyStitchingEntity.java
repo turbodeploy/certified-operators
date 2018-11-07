@@ -264,8 +264,12 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(
-                Objects.requireNonNull(entity));
+        addConnectedTo(connectionType, Sets.newHashSet(entity));
+    }
+
+    public void addConnectedTo(@Nonnull final ConnectionType connectionType,
+                               @Nonnull final Set<StitchingEntity> entities) {
+        connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).addAll(entities);
     }
 
     @Override

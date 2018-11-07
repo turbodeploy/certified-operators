@@ -3,7 +3,8 @@ package com.vmturbo.topology.processor.stitching;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.coolingDegC;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.cpuMHz;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.powerWatts;
-import static com.vmturbo.stitching.utilities.MergeEntities.*;
+import static com.vmturbo.stitching.utilities.MergeEntities.KEEP_DISTINCT_FAVOR_ONTO;
+import static com.vmturbo.stitching.utilities.MergeEntities.mergeEntity;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.buying;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.newStitchingGraph;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
@@ -17,6 +18,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,7 +31,9 @@ import java.util.stream.Collectors;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -418,5 +422,33 @@ public class TopologyStitchingChangesTest {
 
         assertEquals("quux", onto.getDisplayName());
 
+    }
+
+    @Test
+    public void testMergeEntityConnectedTo() {
+        TopologyStitchingEntity ba1 = spy(new TopologyStitchingEntity(entity1Data));
+        TopologyStitchingEntity ba2 = new TopologyStitchingEntity(entity2Data);
+
+        when(stitchingContext.hasEntity(ba1)).thenReturn(true);
+        when(stitchingContext.hasEntity(ba2)).thenReturn(true);
+        when(ba1.getConnectedToByType()).thenReturn(ImmutableMap.of(
+                ConnectionType.OWNS_CONNECTION, Sets.newHashSet(entity3, entity4),
+                ConnectionType.NORMAL_CONNECTION, Sets.newHashSet(entity5)
+        ));
+
+        // before merging
+        assertEquals(0, ba2.getConnectedToByType().size());
+
+        // merge connectedTo from ba1 to ba2
+        final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, ba1, ba2,
+                mock(CommoditySoldMerger.class), Collections.emptyList());
+        merge.applyChange(new StitchingJournal<>());
+
+        // after merging
+        assertEquals(2, ba2.getConnectedToByType().size());
+        assertEquals(Sets.newHashSet(entity3, entity4),
+                ba2.getConnectedToByType().get(ConnectionType.OWNS_CONNECTION));
+        assertEquals(Sets.newHashSet(entity5),
+                ba2.getConnectedToByType().get(ConnectionType.NORMAL_CONNECTION));
     }
 }

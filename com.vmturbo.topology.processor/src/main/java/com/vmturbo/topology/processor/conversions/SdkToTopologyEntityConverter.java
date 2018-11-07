@@ -138,7 +138,8 @@ public class SdkToTopologyEntityConverter {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
-        final String displayName = dto.getDisplayName();
+        // use id for displayName if it is not set in probe
+        final String displayName = dto.hasDisplayName() ? dto.getDisplayName() : dto.getId();
         final TopologyDTO.EntityState entityState = entityState(dto);
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();

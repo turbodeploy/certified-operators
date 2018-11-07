@@ -1,6 +1,7 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,8 +54,9 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
 
                     @Override
                     public List<String> getMessagePath() {
-                        return entityField.getMessagePathList().subList(0,
-                                entityField.getMessagePathCount() - 1);
+                        // path may be empty since the field may be in EntityDTO directly, no nested layers
+                        return entityField.getMessagePathList().isEmpty() ? Collections.emptyList()
+                                : entityField.getMessagePathList().subList(0, entityField.getMessagePathCount() - 1);
                     }
                 })
                 .collect(Collectors.toList());

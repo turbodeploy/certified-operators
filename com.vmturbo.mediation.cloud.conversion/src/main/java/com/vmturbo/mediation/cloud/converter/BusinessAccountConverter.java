@@ -23,6 +23,13 @@ public class BusinessAccountConverter implements IEntityConverter {
         // sub account owned by master account
         if (probeType == SDKProbeType.AWS) {
             converter.ownedByBusinessAccount(entity.getId());
+            // do not set displayName for sub account target, since its displayName can not be
+            // obtained due to API access restriction, and it was set as id in original probe.
+            // clearing displayName field will ensure that correct displayName is set in the
+            // stitching process
+            if (converter.isSubAccountTarget()) {
+                entity.clearDisplayName();
+            }
         }
         return true;
     }

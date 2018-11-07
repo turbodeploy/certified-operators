@@ -154,6 +154,11 @@ public class TopologyStitchingChanges {
                 buyFromNewProvider(consumer, from, onto);
             });
 
+            // merge "connectedTo" from "from" entity to "onto" entity
+            from.getConnectedToByType().forEach((connectionType, connectedEntities) ->
+                    onto.addConnectedTo(connectionType, connectedEntities)
+            );
+
             trackMergeInformation(from, onto);
             stitchingContext.removeEntity(from);
             changeset.observeRemoval(from);

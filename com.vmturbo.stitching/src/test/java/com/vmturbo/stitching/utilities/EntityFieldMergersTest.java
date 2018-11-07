@@ -1,11 +1,13 @@
 package com.vmturbo.stitching.utilities;
 
+import static com.vmturbo.platform.common.builders.EntityBuilders.businessAccount;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -127,5 +129,58 @@ public class EntityFieldMergersTest {
         assertEquals("barProfile", bar.getEntityBuilder().getProfileId());
         profileIdMerger.merge(foo, bar);
         assertEquals("fooProfile", bar.getEntityBuilder().getProfileId());
+    }
+
+    @Test
+    public void testMergeBusinessAccountFields() {
+        final String subAccountName = "subAccount1";
+        // sub account (discovered from master account target) with displayName, but no consistsOf
+        EntityDTO.Builder baDTO1 = businessAccount("baId1")
+                .displayName(subAccountName)
+                .build().toBuilder();
+        // sub account (discovered from sub account target) with consistsOf, but no displayName
+        EntityDTO.Builder baDTO2 = businessAccount("baId1")
+                .consistsOf("vm1")
+                .consistsOf("vm2")
+                .build().toBuilder();
+
+        StitchingEntity ba1 = new TestStitchingEntity(baDTO1);
+        StitchingEntity ba2 = new TestStitchingEntity(baDTO2);
+
+        final EntityFieldMerger<Object> displayNameMerger = EntityFieldMergers.getAttributeFieldMerger(
+                new DTOFieldSpec() {
+                    @Override
+                    public String getFieldName() {
+                        return "displayName";
+                    }
+
+                    @Override
+                    public List<String> getMessagePath() {
+                        return Collections.emptyList();
+                    }
+                });
+
+        final EntityFieldMerger<Object> consistsOfMerger = EntityFieldMergers.getAttributeFieldMerger(
+                new DTOFieldSpec() {
+                    @Override
+                    public String getFieldName() {
+                        return "consistsOf";
+                    }
+
+                    @Override
+                    public List<String> getMessagePath() {
+                        return Collections.emptyList();
+                    }
+                });
+
+        // check that displayName of ba1 is not overwritten
+        assertEquals(subAccountName, ba1.getEntityBuilder().getDisplayName());
+        displayNameMerger.merge(ba2, ba1);
+        assertEquals(subAccountName, ba1.getEntityBuilder().getDisplayName());
+
+        // check that consistsOf is patched from ba2 to ba1
+        assertEquals(0, ba1.getEntityBuilder().getConsistsOfCount());
+        consistsOfMerger.merge(ba2, ba1);
+        assertEquals(2, ba1.getEntityBuilder().getConsistsOfCount());
     }
 }
