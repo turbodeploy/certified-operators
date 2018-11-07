@@ -314,7 +314,17 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     commoditySold.setQuantity(tempUpdatedQnty[0]).setPeakQuantity(tempUpdatedQnty[1]);
                 }
             }
-            double[] combinedQuantity = new double[]{commoditySold.getQuantity(), commoditySold.getPeakQuantity()};
+            double[] combinedQuantity = new double[]{
+                    // OM-40472 - handle the case where we are rolling back from one to zero
+                    // customers. In this case, the explicitCombinator will not be called to
+                    // update the commoditySold. Therefore, if there are no customers when
+                    // we reach this point, we should return the overhead. We limit it to >= 0
+                    // to maintain the previous behavior of returning commoditySold.getQuantity
+                    // after being reset above to 0
+                    traderToUpdate.getCustomers().isEmpty() ?
+                            Math.max(overhead, 0) : commoditySold.getQuantity(),
+                    commoditySold.getPeakQuantity()
+            };
             if (explicitCombinator == FunctionalOperatorUtil.AVG_COMMS) {
                 if (incomingSl) {
                     combinedQuantity[0] = Math.max(combinedQuantity[0], sellerOrigUsed);
