@@ -7,7 +7,6 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletRegistration;
 
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -183,7 +182,9 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 communicationConfig.supplyChainFetcher(),
-                mapperConfig.paginationMapper()
+                mapperConfig.paginationMapper(),
+                communicationConfig.searchServiceBlockingStub(),
+                mapperConfig.entityAspectMapper()
         );
     }
 
@@ -198,7 +199,9 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                communicationConfig.templateServiceBlockingStub());
+                communicationConfig.templateServiceBlockingStub(),
+                mapperConfig.entityAspectMapper(),
+                communicationConfig.searchServiceBlockingStub());
     }
 
     @Bean

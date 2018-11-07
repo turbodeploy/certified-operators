@@ -12,7 +12,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -27,7 +26,6 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.Lists;
-
 import io.grpc.Channel;
 import io.grpc.Status;
 
@@ -36,6 +34,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
@@ -64,6 +63,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class GroupsServiceTest {
@@ -85,6 +85,9 @@ public class GroupsServiceTest {
 
     @Mock
     private PaginationMapper paginationMapper;
+
+    @Mock
+    private EntityAspectMapper entityAspectMapper;
 
     @Mock
     private RepositoryApi repositoryApi;
@@ -122,7 +125,9 @@ public class GroupsServiceTest {
                 repositoryApi,
                 realtimeTopologyContextId,
                 mock(SettingsManagerMapping.class),
-                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                entityAspectMapper,
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);

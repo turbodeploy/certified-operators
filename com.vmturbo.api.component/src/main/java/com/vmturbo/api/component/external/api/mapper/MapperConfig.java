@@ -4,15 +4,19 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 
@@ -149,6 +153,28 @@ public class MapperConfig {
         return new BusinessUnitMapper(communicationConfig.getRealtimeTopologyContextId());
     }
 
+    @Bean
+    public StorageTierAspectMapper storageTierAspectMapper() {
+        return new StorageTierAspectMapper();
+    }
+
+    @Bean
+    public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
+        return new VirtualVolumeAspectMapper(communicationConfig.searchServiceBlockingStub(),
+                communicationConfig.costServiceBlockingStub());
+    }
+
+    @Bean
+    public CloudAspectMapper cloudAspectMapper() {
+        return new CloudAspectMapper();
+    }
+
+    @Bean
+    public EntityAspectMapper entityAspectMapper() {
+        return new EntityAspectMapper(storageTierAspectMapper(),
+                                      virtualVolumeAspectMapper(),
+                                      cloudAspectMapper());
+    }
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService executorService() {

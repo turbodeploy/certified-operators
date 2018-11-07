@@ -36,6 +36,10 @@ public class AQLReprFuser {
      */
     public static List<AQLRepr> fuse(@Nonnull final List<AQLRepr> aqlReprs,
                                      @Nonnull final Optional<PaginationParameters> paginationParams) {
+        if (aqlReprs.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         final List<Filter<? extends AnyFilterType>> filters = aqlReprs.stream()
                 .flatMap(repr -> repr.getFilters().toJavaStream())
                 .collect(Collectors.toList());

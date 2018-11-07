@@ -42,6 +42,8 @@ public class ServiceEntityRepoDTO {
 
     private ComputeTierInfoRepoDTO computeTierInfo;
 
+    private VirtualVolumeInfoRepoDTO virtualVolumeInfo;
+
     public String getUuid() {
         return uuid;
     }
@@ -178,12 +180,20 @@ public class ServiceEntityRepoDTO {
         this.computeTierInfo = computeTierInfoRepoDTO;
     }
 
+    public VirtualVolumeInfoRepoDTO getVirtualVolumeInfo() {
+        return virtualVolumeInfo;
+    }
+
+    public void setVirtualVolumeInfo(final VirtualVolumeInfoRepoDTO virtualVolumeInfo) {
+        this.virtualVolumeInfo = virtualVolumeInfo;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
             entityType, environmentType, oid, priceIndex, priceIndexProjected,
             providers, severity, state, uuid, tags, connectedEntityList, targetIds,
-            virtualMachineInfo, computeTierInfo);
+            virtualMachineInfo, computeTierInfo, virtualVolumeInfo);
     }
 
     @Override
@@ -211,7 +221,8 @@ public class ServiceEntityRepoDTO {
                 Objects.equals(connectedEntityList, that.connectedEntityList) &&
                 Objects.equals(targetIds, that.targetIds) &&
                 Objects.equals(virtualMachineInfo, that.virtualMachineInfo) &&
-                Objects.equals(computeTierInfo, that.computeTierInfo);
+                Objects.equals(computeTierInfo, that.computeTierInfo) &&
+                Objects.equals(virtualVolumeInfo, that.virtualVolumeInfo);
     }
 
     @Override
@@ -228,6 +239,7 @@ public class ServiceEntityRepoDTO {
                 + ", targetIds=" + targetIds
                 + ", virtualMachineInfo=" + virtualMachineInfo
                 + ", computerTierInfo=" + computeTierInfo
+                + ", virtualVolumeInfo=" + virtualVolumeInfo
                 + "]";
     }
 }

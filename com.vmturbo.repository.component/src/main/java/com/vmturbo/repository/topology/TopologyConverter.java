@@ -3,6 +3,7 @@ package com.vmturbo.repository.topology;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -24,8 +25,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagVal
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -37,6 +40,7 @@ import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
+import com.vmturbo.repository.dto.VirtualVolumeInfoRepoDTO;
 
 /**
  * Convert topology DTOs to repository DTOs. And also convert repository DTOs to topology DTOs.
@@ -56,8 +60,8 @@ public class TopologyConverter {
      * Because {@link ServiceEntityRepoDTO} only keep part of TopologyEntityDTO fields, returned
      * {@link TopologyEntityDTO} will also contains partial fields.
      */
-    static class TopologyEntityMapper {
-        static TopologyEntityDTO convert(ServiceEntityRepoDTO serviceEntityDTO) {
+    public static class TopologyEntityMapper {
+        public static TopologyEntityDTO convert(ServiceEntityRepoDTO serviceEntityDTO) {
             TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder();
             topologyEntityBuilder.setOid(Long.valueOf(serviceEntityDTO.getOid()));
             topologyEntityBuilder.setDisplayName(serviceEntityDTO.getDisplayName());
@@ -66,22 +70,39 @@ public class TopologyConverter {
                     UIEnvironmentType.fromString(serviceEntityDTO.getEnvironmentType()).toEnvType());
             topologyEntityBuilder.setEntityState(
                     UIEntityState.fromString(serviceEntityDTO.getState()).toEntityState());
-            serviceEntityDTO.getTags().forEach((key, value) ->
-                    topologyEntityBuilder.putTags(key, TagValuesDTO.newBuilder()
-                        .addAllValues(value)
-                        .build()));
-            topologyEntityBuilder.addAllCommoditySoldList(
-                    serviceEntityDTO.getCommoditySoldList().stream()
-                            .map(CommodityMapper::convert)
-                            .collect(Collectors.toList()));
-            topologyEntityBuilder.addAllCommoditiesBoughtFromProviders(
-                    serviceEntityDTO.getCommoditiesBoughtRepoFromProviderDTOList().stream()
-                            .map(CommodityMapper::convert)
-                            .collect(Collectors.toList()));
-            topologyEntityBuilder.addAllConnectedEntityList(
-                    serviceEntityDTO.getConnectedEntityList().stream()
-                            .map(ConnectedEntityMapper::convert)
-                            .collect(Collectors.toList()));
+
+            final Map<String, List<String>> tags = serviceEntityDTO.getTags();
+            if (tags != null) {
+                tags.forEach((key, value) -> topologyEntityBuilder.putTags(key,
+                        TagValuesDTO.newBuilder()
+                                .addAllValues(value)
+                                .build()));
+            }
+
+            final List<CommoditySoldRepoDTO> soldCommodities = serviceEntityDTO.getCommoditySoldList();
+            if (soldCommodities != null) {
+                topologyEntityBuilder.addAllCommoditySoldList(
+                        soldCommodities.stream()
+                                .map(CommodityMapper::convert)
+                                .collect(Collectors.toList()));
+            }
+
+            final List<CommoditiesBoughtRepoFromProviderDTO> boughtCommodities =
+                    serviceEntityDTO.getCommoditiesBoughtRepoFromProviderDTOList();
+            if (boughtCommodities != null) {
+                topologyEntityBuilder.addAllCommoditiesBoughtFromProviders(
+                        boughtCommodities.stream()
+                                .map(CommodityMapper::convert)
+                                .collect(Collectors.toList()));
+            }
+
+            final List<ConnectedEntityRepoDTO> connectedEntities = serviceEntityDTO.getConnectedEntityList();
+            if (connectedEntities != null) {
+                topologyEntityBuilder.addAllConnectedEntityList(
+                        connectedEntities.stream()
+                                .map(ConnectedEntityMapper::convert)
+                                .collect(Collectors.toList()));
+            }
 
             Optional.ofNullable(serviceEntityDTO.getVirtualMachineInfo()).ifPresent(
                     virtualMachineInfoRepoDTO -> {
@@ -128,6 +149,26 @@ public class TopologyConverter {
                                         .setComputeTier(computeTierBuilder));
 
                     });
+
+            final VirtualVolumeInfoRepoDTO vvInfoRepoDTO = serviceEntityDTO.getVirtualVolumeInfo();
+            if (vvInfoRepoDTO != null) {
+                VirtualVolumeInfo.Builder vvBuilder = VirtualVolumeInfo.newBuilder();
+                Float storageAccessCapacity = vvInfoRepoDTO.getStorageAccessCapacity();
+                if (storageAccessCapacity != null) {
+                    vvBuilder.setStorageAccessCapacity(storageAccessCapacity);
+                }
+                Float storageAmountCapacity = vvInfoRepoDTO.getStorageAmountCapacity();
+                if (storageAmountCapacity != null) {
+                    vvBuilder.setStorageAmountCapacity(storageAmountCapacity);
+                }
+                Integer redundancyType = vvInfoRepoDTO.getRedundancyType();
+                if (redundancyType != null) {
+                    vvBuilder.setRedundancyType(RedundancyType.forNumber(redundancyType));
+                }
+                topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(vvBuilder.build()));
+            }
+
             // set DiscoveryOrigin if any
             Optional.ofNullable(serviceEntityDTO.getTargetIds()).ifPresent(targetIds ->
                     topologyEntityBuilder.setOrigin(Origin.newBuilder()
@@ -191,8 +232,9 @@ public class TopologyConverter {
 
             // save VirtualMachineInfo
             if (t.hasTypeSpecificInfo()) {
-                if (t.getTypeSpecificInfo().hasVirtualMachine()) {
-                    VirtualMachineInfo vmInfo = t.getTypeSpecificInfo().getVirtualMachine();
+                final TypeSpecificInfo typeSpecificInfo = t.getTypeSpecificInfo();
+                if (typeSpecificInfo.hasVirtualMachine()) {
+                    VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
                     se.setVirtualMachineInfo(new VirtualMachineInfoRepoDTO(
                             vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null,
                             vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null,
@@ -200,11 +242,24 @@ public class TopologyConverter {
                                     .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
                                             ipAddrInfo.getIsElastic()))
                                     .collect(Collectors.toList())));
-                } else if (t.getTypeSpecificInfo().hasComputeTier()) {
-                    ComputeTierInfo computeTierInfo = t.getTypeSpecificInfo().getComputeTier();
+                } else if (typeSpecificInfo.hasComputeTier()) {
+                    ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
                     se.setComputeTierInfo(new ComputeTierInfoRepoDTO(
                             computeTierInfo.hasFamily() ? computeTierInfo.getFamily() : null,
                             computeTierInfo.hasNumCoupons() ? computeTierInfo.getNumCoupons() : 0));
+                } else if (typeSpecificInfo.hasVirtualVolume()) {
+                    VirtualVolumeInfo virtualVolumeInfo = typeSpecificInfo.getVirtualVolume();
+                    VirtualVolumeInfoRepoDTO vvInfoRepoDTO = new VirtualVolumeInfoRepoDTO();
+                    if (virtualVolumeInfo.hasStorageAccessCapacity()) {
+                        vvInfoRepoDTO.setStorageAccessCapacity(virtualVolumeInfo.getStorageAccessCapacity());
+                    }
+                    if (virtualVolumeInfo.hasStorageAmountCapacity()) {
+                        vvInfoRepoDTO.setStorageAmountCapacity(virtualVolumeInfo.getStorageAmountCapacity());
+                    }
+                    if (virtualVolumeInfo.hasRedundancyType()) {
+                        vvInfoRepoDTO.setRedundancyType(virtualVolumeInfo.getRedundancyType().getNumber());
+                    }
+                    se.setVirtualVolumeInfo(vvInfoRepoDTO);
                 }
             }
             return se;
@@ -325,6 +380,8 @@ public class TopologyConverter {
                 commoditiesBoughtFromProvider.getProviderId() : null);
             commoditiesBoughtRepoFromProviderDTO.setProviderEntityType(commoditiesBoughtFromProvider.hasProviderEntityType() ?
                 commoditiesBoughtFromProvider.getProviderEntityType() : null);
+            commoditiesBoughtRepoFromProviderDTO.setVolumeId(commoditiesBoughtFromProvider.hasVolumeId() ?
+                    commoditiesBoughtFromProvider.getVolumeId() : null);
             return commoditiesBoughtRepoFromProviderDTO;
         }
 
@@ -343,6 +400,10 @@ public class TopologyConverter {
             if (commoditiesBoughtRepoFromProviderDTO.getProviderEntityType() != null) {
                 commodityBoughtFromProviderBuilder.setProviderEntityType(
                         commoditiesBoughtRepoFromProviderDTO.getProviderEntityType());
+            }
+            if (commoditiesBoughtRepoFromProviderDTO.getVolumeId() != null) {
+                commodityBoughtFromProviderBuilder.setVolumeId(
+                        commoditiesBoughtRepoFromProviderDTO.getVolumeId());
             }
             return commodityBoughtFromProviderBuilder.build();
         }

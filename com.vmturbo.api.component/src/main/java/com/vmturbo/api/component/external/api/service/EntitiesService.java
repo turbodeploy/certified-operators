@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Lists;
-
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -26,6 +24,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
@@ -58,6 +57,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -69,7 +71,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  **/
 public class EntitiesService implements IEntitiesService {
 
-    Logger log = LogManager.getLogger();
+    Logger logger = LogManager.getLogger();
 
     private final ActionsServiceBlockingStub actionOrchestratorRpcService;
 
@@ -83,18 +85,26 @@ public class EntitiesService implements IEntitiesService {
 
     private final PaginationMapper paginationMapper;
 
+    private final SearchServiceBlockingStub searchServiceRpc;
+
+    private final EntityAspectMapper entityAspectMapper;
+
     public EntitiesService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                            @Nonnull final ActionSpecMapper actionSpecMapper,
                            @Nonnull final RepositoryApi repositoryApi,
                            final long realtimeTopologyContextId,
                            @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
-                           @Nonnull final PaginationMapper paginationMapper) {
+                           @Nonnull final PaginationMapper paginationMapper,
+                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+                           @Nonnull final EntityAspectMapper entityAspectMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
     }
 
     @Override
@@ -311,12 +321,12 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException {
-        throw ApiUtils.notImplementedInXL();
+        return entityAspectMapper.getAspectsByEntity(getTopologyEntityDTO(uuid));
     }
 
     @Override
     public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
-        throw ApiUtils.notImplementedInXL();
+        return entityAspectMapper.getAspectByEntity(getTopologyEntityDTO(uuid), aspectTag);
     }
 
     @Override
@@ -347,6 +357,23 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<ServiceEntityApiDTO> getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto) throws Exception {
         throw ApiUtils.notImplementedInXL();
+    }
+
+    /**
+     * Get TopologyEntityDTO based on provided oid.
+     */
+    private TopologyEntityDTO getTopologyEntityDTO(@Nonnull String uuid) throws UnknownObjectException {
+        List<TopologyEntityDTO> entities = searchServiceRpc.searchTopologyEntityDTOs(
+                SearchTopologyEntityDTOsRequest.newBuilder()
+                        .addEntityOid(Long.valueOf(uuid))
+                        .build()).getTopologyEntityDtosList();
+        if (entities.size() > 1) {
+            throw new UnknownObjectException("Found " + entities.size() + " entities of same id: " + uuid);
+        }
+        if (entities.size() == 0) {
+            throw new UnknownObjectException("Entity: " + uuid + " not found");
+        }
+        return entities.get(0);
     }
 }
 

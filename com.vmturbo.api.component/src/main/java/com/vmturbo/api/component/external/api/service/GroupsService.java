@@ -21,7 +21,6 @@ import org.springframework.validation.Errors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
-
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -35,6 +34,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -95,6 +95,10 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * Service implementation of Groups functionality.
@@ -124,6 +128,8 @@ public class GroupsService implements IGroupsService {
 
     private final PaginationMapper paginationMapper;
 
+    private final EntityAspectMapper entityAspectMapper;
+
     private final SettingsManagerMapping settingsManagerMapping;
 
     private final TemplateServiceBlockingStub templateService;
@@ -131,6 +137,8 @@ public class GroupsService implements IGroupsService {
     private final RepositoryApi repositoryApi;
 
     private final long realtimeTopologyContextId;
+
+    private final SearchServiceBlockingStub searchServiceBlockingStub;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -142,7 +150,9 @@ public class GroupsService implements IGroupsService {
                          @Nonnull final RepositoryApi repositoryApi,
                          final long realtimeTopologyContextId,
                          @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                         @Nonnull final TemplateServiceBlockingStub templateService) {
+                         @Nonnull final TemplateServiceBlockingStub templateService,
+                         @Nonnull final EntityAspectMapper entityAspectMapper,
+                         @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -152,6 +162,8 @@ public class GroupsService implements IGroupsService {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.templateService = templateService;
+        this.entityAspectMapper = entityAspectMapper;
+        this.searchServiceBlockingStub = searchServiceBlockingStub;
     }
 
     @Override
@@ -516,12 +528,12 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public Map<String, EntityAspect> getAspectsByGroupUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException {
-        throw ApiUtils.notImplementedInXL();
+        return entityAspectMapper.getAspectsByGroup(getGroupMembers(uuid));
     }
 
     @Override
     public EntityAspect getAspectByGroupUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
-        throw ApiUtils.notImplementedInXL();
+        return entityAspectMapper.getAspectByGroup(getGroupMembers(uuid), aspectTag);
     }
 
     @Override
@@ -764,5 +776,28 @@ public class GroupsService implements IGroupsService {
      */
     private boolean isHiddenGroup(@Nonnull final Group group) {
         return group.hasGroup() && group.getGroup().getIsHidden();
+    }
+
+    /**
+     * Get all members of a given group uuid and return in the form of TopologyEntityDTO.
+     */
+    private List<TopologyEntityDTO> getGroupMembers(@Nonnull String uuid) throws UnknownObjectException {
+        final GetGroupResponse groupRes = groupServiceRpc.getGroup(GroupID.newBuilder()
+                .setId(Long.parseLong(uuid))
+                .build());
+        if (!groupRes.hasGroup()) {
+            throw new UnknownObjectException("Group not found: " + uuid);
+        }
+
+        final Collection<Long> memberIds = getMemberIds(uuid).orElseThrow(() ->
+                new IllegalArgumentException("Can't get members in invalid group: " + uuid));
+
+        // Get group members as TopologyEntityDTOs from the repository component
+        final SearchTopologyEntityDTOsResponse response =
+                searchServiceBlockingStub.searchTopologyEntityDTOs(
+                        SearchTopologyEntityDTOsRequest.newBuilder()
+                                .addAllEntityOid(memberIds)
+                                .build());
+        return response.getTopologyEntityDtosList();
     }
 }

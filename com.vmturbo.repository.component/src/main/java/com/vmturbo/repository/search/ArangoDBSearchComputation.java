@@ -134,18 +134,28 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
                                                            List<ServiceEntityRepoDTO>>> toEntities =
             // The IDs that come in are qualified with the collection name.
             vertexIds -> () -> (ctx, in) -> {
-                final String query = "FOR se IN @@serviceEntityCollection\n" +
-                                     "FILTER se._id IN @inputs\n" +
-                                     "RETURN { \"vertexId\" : se._id, " +
-                                              "\"dto\" : {" +
-                                                   "uuid: se.uuid," +
-                                                   "oid: se.oid," +
-                                                   "displayName: se.displayName," +
-                                                   "state: se.state," +
-                                                   "severity: se.severity," +
-                                                   "entityType: se.entityType" +
-                                               "}" +
-                                             "}";
+                final String query;
+                if (ctx.fullEntity()) {
+                    // retrieve full ServiceEntityRepoDTO
+                    query = "FOR se IN @@serviceEntityCollection\n" +
+                            "FILTER se._id IN @inputs\n" +
+                            "RETURN { \"vertexId\" : se._id, " +
+                                     "\"dto\" : se" +
+                                    "}";
+                } else {
+                    query = "FOR se IN @@serviceEntityCollection\n" +
+                            "FILTER se._id IN @inputs\n" +
+                            "RETURN { \"vertexId\" : se._id, " +
+                                     "\"dto\" : {" +
+                                           "uuid: se.uuid," +
+                                           "oid: se.oid," +
+                                           "displayName: se.displayName," +
+                                           "state: se.state," +
+                                           "severity: se.severity," +
+                                           "entityType: se.entityType" +
+                                       "}" +
+                                     "}";
+                }
 
                 final Map<String, Object> bindVars = ImmutableMap.of(
                         "@serviceEntityCollection", ctx.entityCollectionName(),

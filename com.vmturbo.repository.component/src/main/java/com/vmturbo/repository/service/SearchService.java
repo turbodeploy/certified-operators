@@ -40,12 +40,16 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
 import com.vmturbo.repository.search.SearchHandler;
+import com.vmturbo.repository.topology.TopologyConverter.TopologyEntityMapper;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -145,10 +149,7 @@ public class SearchService extends SearchServiceImplBase {
             responseObserver.onCompleted();
             return;
         }
-        final Function<Collection<String>, List<Long>> convertToLong =
-                entityOid -> entityOid.stream()
-                        .map(Long::parseLong)
-                        .collect(Collectors.toList());
+        final Function<String, Long> convertToLong = Long::parseLong;
         final SearchEntityPagination<String> searchFunction = searchHandler::searchEntityOids;
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
         try {
@@ -194,10 +195,7 @@ public class SearchService extends SearchServiceImplBase {
                         // increase limit number by one, in order to check if there are more results left.
                         .setLimit(limit + 1)
                         .build();
-        final Function<Collection<ServiceEntityRepoDTO>, List<Entity>> convertToEntity =
-                serviceEntityRepoDTOS -> serviceEntityRepoDTOS.stream()
-                        .map(SearchDTOConverter::toSearchEntity)
-                        .collect(Collectors.toList());
+        final Function<ServiceEntityRepoDTO, Entity> convertToEntity = SearchDTOConverter::toSearchEntity;
         final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
         try {
@@ -206,7 +204,7 @@ public class SearchService extends SearchServiceImplBase {
                     ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
                     Optional.of(paginationParamsWithLimitPlusOne), searchFunction, convertToEntity)
                     : searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
-                            paginationParamsWithLimitPlusOne);
+                    Optional.of(paginationParamsWithLimitPlusOne), convertToEntity);
             final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
                     // need to remove last element from result lists.
                     .addAllEntities(entities.subList(0, Math.min(limit, entities.size())));
@@ -224,6 +222,41 @@ public class SearchService extends SearchServiceImplBase {
             responseObserver.onCompleted();
         } catch (Throwable e) {
             logger.error("Search entity failed for request {} with exception", request, e);
+            final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
+            responseObserver.onError(status.asRuntimeException());
+        }
+    }
+
+    @Override
+    public void searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest request,
+            StreamObserver<SearchTopologyEntityDTOsResponse> responseObserver) {
+        logger.debug("Searching for TopologyEntityDTOs with request: {}", request);
+
+        // Return empty result if current topology doesn't exist.
+        if (!lifecycleManager.getRealtimeDatabase().isPresent()) {
+            logger.warn("No real-time topology exists for searching request");
+            responseObserver.onCompleted();
+            return;
+        }
+
+        final List<SearchParameters> searchParameters = request.getSearchParametersList();
+        try {
+            final SearchTopologyEntityDTOsResponse.Builder responseBuilder =
+                    SearchTopologyEntityDTOsResponse.newBuilder();
+            final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction =
+                    searchHandler::searchEntitiesFull;
+            final Function<ServiceEntityRepoDTO, TopologyEntityDTO> convertToTopologyEntityDTO =
+                    TopologyEntityMapper::convert;
+            final List<TopologyEntityDTO> entities = (searchParameters.size() == 1) ?
+                    searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
+                            Optional.empty(), searchFunction, convertToTopologyEntityDTO) :
+                    searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
+                            Optional.empty(), convertToTopologyEntityDTO);
+            responseBuilder.addAllTopologyEntityDtos(entities);
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+        } catch (Throwable e) {
+            logger.error("Search TopologyEntityDTOs failed for request {} with exception", request, e);
             final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
         }
@@ -369,7 +402,7 @@ public class SearchService extends SearchServiceImplBase {
             @Nonnull final SearchParameters searchParameter,
             @Nonnull final Optional<PaginationParameters> paginationParams,
             @Nonnull final SearchEntityPagination searchEntityPagination,
-            @Nonnull final Function<Collection<TYPE>, List<RET>> convert) throws Throwable {
+            @Nonnull final Function<TYPE, RET> convert) throws Throwable {
         // if search query only has one search parameter, then it can apply pagination directly.
         final List<String> candidateEntityOids = entityOidList.stream()
                 .map(String::valueOf)
@@ -382,8 +415,7 @@ public class SearchService extends SearchServiceImplBase {
         if (result.isLeft()) {
             throw result.getLeft();
         }
-        final List<RET> searchResult = convert.apply(result.get());
-        return searchResult;
+        return result.get().stream().map(convert).collect(Collectors.toList());
     }
 
     /**
@@ -399,24 +431,34 @@ public class SearchService extends SearchServiceImplBase {
      *
      * @param entityOidList a list of entity oids.
      * @param searchParametersList a list of {@link SearchParameters}.
-     * @param paginationParams a {@link PaginationParameters}.
+     * @param optionalPaginationParams optional {@link PaginationParameters}.
      * @return a list of {@link Entity}.
      * @throws Throwable if query failed.
      */
-    private List<Entity> searchEntitiesMultiParameters(
+    private <RET> List<RET> searchEntitiesMultiParameters(
             @Nonnull final List<Long> entityOidList,
             @Nonnull final List<SearchParameters> searchParametersList,
-            @Nonnull final PaginationParameters paginationParams) throws Throwable {
+            @Nonnull final Optional<PaginationParameters> optionalPaginationParams,
+            @Nonnull final Function<ServiceEntityRepoDTO, RET> convert) throws Throwable {
         final List<Long> sortedCandidateOids =
                 searchEntityOidMultiParametersWithoutPagination(entityOidList, searchParametersList,
-                        Optional.of(paginationParams));
-        final long skipCount = paginationParams.hasCursor()
-                ? Long.parseLong(paginationParams.getCursor())
-                : 0;
-        final List<Long> nextPageOids = sortedCandidateOids.stream()
+                        optionalPaginationParams);
+
+        // pagination params may or may not be provided
+        final List<Long> nextPageOids;
+        if (optionalPaginationParams.isPresent()) {
+            PaginationParameters paginationParams = optionalPaginationParams.get();
+            final long skipCount = paginationParams.hasCursor()
+                    ? Long.parseLong(paginationParams.getCursor())
+                    : 0;
+            nextPageOids = sortedCandidateOids.stream()
                     .skip(skipCount)
                     .limit(paginationParams.getLimit())
                     .collect(Collectors.toList());
+        } else {
+            nextPageOids = sortedCandidateOids;
+        }
+
         final Either<Throwable, Collection<ServiceEntityRepoDTO>> entities =
                 searchHandler.getEntitiesByOids(Sets.newHashSet(nextPageOids),
                         lifecycleManager.getRealtimeTopologyId());
@@ -427,9 +469,8 @@ public class SearchService extends SearchServiceImplBase {
         // The results of the entity search are not guaranteed to be in the order specified in the
         // pagination parameters. So we record them in a map, and use this map to
         // convert the sorted list of entity IDs from the first phase to Entity objects.
-        final Map<Long, Entity> entitiesById = entities.get().stream()
-                .map(SearchDTOConverter::toSearchEntity)
-                .collect(Collectors.toMap(Entity::getOid, Function.identity()));
+        final Map<Long, RET> entitiesById = entities.get().stream()
+                .collect(Collectors.toMap(dto -> Long.parseLong(dto.getOid()), convert));
         // Need to make sure to preserve the order.
         return nextPageOids.stream()
                 .map(entitiesById::get)
@@ -465,10 +506,21 @@ public class SearchService extends SearchServiceImplBase {
                     .clearLimit()
                     .build())
                 : Optional.empty();
+
+        // this is needed since searchParametersList may be empty, otherwise entityOidList will be ignored
+        if (searchParametersList.isEmpty()) {
+            final Either<Throwable, List<String>> result = searchHandler.searchEntityOids(
+                    Collections.emptyList(), db, paginationParamOnlySort, candidateEntityOids);
+            if (result.isLeft()) {
+                throw result.getLeft();
+            }
+            return result.get().stream().map(Long::parseLong).collect(Collectors.toList());
+        }
+
         for (SearchParameters searchParameters : searchParametersList) {
             final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
-            final Either<Throwable, List<String>> result =
-                    searchHandler.searchEntityOids(aqlReprs, db, paginationParamOnlySort, candidateEntityOids);
+            final Either<Throwable, List<String>> result = searchHandler.searchEntityOids(aqlReprs,
+                    db, paginationParamOnlySort, candidateEntityOids);
 
             if (result.isLeft()) {
                 throw result.getLeft();

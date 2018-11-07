@@ -241,6 +241,20 @@ message SearchEntitiesResponse {
     optional common.PaginationResponse pagination_response = 2;
 }
 
+message SearchTopologyEntityDTOsRequest {
+    repeated SearchParameters searchParameters = 1;
+
+    // If the entity oids list is not empty, it means the search parameters will be only applied to those
+    // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
+    // it means the search parameters will be applied to global entities.
+    repeated int64 entity_oid = 2;
+}
+
+message SearchTopologyEntityDTOsResponse {
+    // A list of matched entities.
+    repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
+}
+
 message CountEntitiesRequest {
     repeated SearchParameters searchParameters = 1;
 }
@@ -278,6 +292,9 @@ service SearchService {
 
     // Search for entities based on the search parameters and return entity objects
     rpc SearchEntities(SearchEntitiesRequest) returns (SearchEntitiesResponse);
+
+    // Search for TopologyEntityDTOs based on the search parameters and return TopologyEntityDTO objects
+    rpc SearchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest) returns (SearchTopologyEntityDTOsResponse);
 
     rpc CountEntities(CountEntitiesRequest) returns (EntityCountResponse);
 

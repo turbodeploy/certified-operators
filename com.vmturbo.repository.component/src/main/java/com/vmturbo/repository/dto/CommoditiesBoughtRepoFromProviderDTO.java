@@ -21,6 +21,8 @@ public class CommoditiesBoughtRepoFromProviderDTO {
 
     private List<CommodityBoughtRepoDTO> commodityBoughtRepoDTOs;
 
+    private Long volumeId;
+
     public Long getProviderId() {
         return providerId;
     }
@@ -45,12 +47,21 @@ public class CommoditiesBoughtRepoFromProviderDTO {
         this.commodityBoughtRepoDTOs = commodityBoughtRepoDTOs;
     }
 
+    public Long getVolumeId() {
+        return volumeId;
+    }
+
+    public void setVolumeId(@Nullable Long volumeId) {
+        this.volumeId = volumeId;
+    }
+
     @Override
     public String toString() {
         return "CommoditiesBoughtRepoFromProviderDTO{" +
                 "providerId=" + providerId +
                 ", providerEntityType=" + providerEntityType +
                 ", commodityBoughtRepoDTOs=" + commodityBoughtRepoDTOs +
+                ", volumeId=" + volumeId +
                 '}';
     }
 
@@ -61,13 +72,14 @@ public class CommoditiesBoughtRepoFromProviderDTO {
 
         final CommoditiesBoughtRepoFromProviderDTO that = (CommoditiesBoughtRepoFromProviderDTO) o;
 
-        if (!providerId.equals(that.providerId)) return false;
-        if (!providerEntityType.equals(that.providerEntityType)) return false;
-        return commodityBoughtRepoDTOs.equals(that.commodityBoughtRepoDTOs);
+        return Objects.equals(providerId, that.providerId) &&
+                Objects.equals(providerEntityType, that.providerEntityType) &&
+                Objects.equals(volumeId, that.volumeId) &&
+                Objects.equals(commodityBoughtRepoDTOs, that.commodityBoughtRepoDTOs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(providerId, providerEntityType, commodityBoughtRepoDTOs);
+        return Objects.hash(providerId, providerEntityType, commodityBoughtRepoDTOs, volumeId);
     }
 }

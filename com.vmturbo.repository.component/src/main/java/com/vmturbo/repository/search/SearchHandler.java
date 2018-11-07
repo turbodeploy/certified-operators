@@ -121,7 +121,7 @@ public class SearchHandler {
         final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
 
         try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()){
-            return pipeline(fusedAQLReprs).run(context(arangoDB, database), oidsWithPrefix);
+            return pipeline(fusedAQLReprs).run(context(arangoDB, database, false), oidsWithPrefix);
         }
     }
 
@@ -143,8 +143,32 @@ public class SearchHandler {
         final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
 
         try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()) {
-            return pipeline(fusedAQLReprs).run(context(arangoDB, database),
+            return pipeline(fusedAQLReprs).run(context(arangoDB, database, false),
                                    ArangoDBSearchComputation.toEntities, oidsWithPrefix);
+        }
+    }
+
+    /**
+     * Given a list of {@link AQLRepr}, query the database. And return full ServiceEntityRepoDTOs
+     * with all fields populated.
+     *
+     * @param aqlReprs The list of {@link AQLRepr}.
+     * @param database The database to search for entities.
+     * @return The result of {@link ServiceEntityRepoDTO} list from database or an exception.
+     */
+    public Either<Throwable, List<ServiceEntityRepoDTO>> searchEntitiesFull(
+            @Nonnull final List<AQLRepr> aqlReprs,
+            @Nonnull final String database,
+            @Nonnull final Optional<PaginationParameters> paginationParams,
+            @Nonnull final List<String> oids) {
+        final List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs, paginationParams);
+
+        final ArangoDB arangoDB = arangoDatabaseFactory.getArangoDriver();
+        final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
+
+        try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()) {
+            return pipeline(fusedAQLReprs).run(context(arangoDB, database, true),
+                    ArangoDBSearchComputation.toEntities, oidsWithPrefix);
         }
     }
 
@@ -193,7 +217,8 @@ public class SearchHandler {
         return new SearchPipeline<>(stages.collect(Collectors.toList()), graphDefinition.getServiceEntityVertex());
     }
 
-    private SearchComputationContext context(final ArangoDB arangoDB, final String db) {
+    private SearchComputationContext context(final ArangoDB arangoDB, final String db,
+            final boolean fullEntity) {
         final SearchComputationContext context = ImmutableSearchComputationContext.builder()
                 .summary(SEARCH_STAGE_DURATION_SUMMARY)
                 .graphName(graphDefinition.getGraphName())
@@ -202,6 +227,7 @@ public class SearchHandler {
                 .entityCollectionName(graphDefinition.getServiceEntityVertex())
                 .allKeyword(ALL_ENTITIES)
                 .executorService(executorService)
+                .fullEntity(fullEntity)
                 .build();
 
         return context;

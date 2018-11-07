@@ -72,4 +72,11 @@ public abstract class SearchComputationContext {
      * @return Collect metrics for each {@link SearchStage}.
      */
     public abstract DataMetricSummary summary();
+
+    /**
+     * Whether or not to retrieve all info of an entity from ArangoDB.
+     *
+     * @return boolean value indicating whether or not to retrieve all info of an entity
+     */
+    public abstract boolean fullEntity();
 }
