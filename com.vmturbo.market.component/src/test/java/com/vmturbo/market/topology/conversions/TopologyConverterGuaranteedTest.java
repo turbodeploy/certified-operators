@@ -3,7 +3,6 @@ package com.vmturbo.market.topology.conversions;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
@@ -24,7 +23,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -104,10 +102,9 @@ public class TopologyConverterGuaranteedTest {
 
     /**
      * Test the converter when includeGuaranteedBuyers is false.
-     * @throws InvalidTopologyException not supposed to happen here
      */
     @Test
-    public void testExcludeVDCs() throws InvalidTopologyException {
+    public void testExcludeVDCs() {
         // includeVDC is false
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable);
@@ -126,10 +123,9 @@ public class TopologyConverterGuaranteedTest {
 
     /**
      * Test the converter when includeGuaranteedBuyers is true.
-     * @throws InvalidTopologyException not supposed to happen here
      */
     @Test
-    public void testIncludeVDCs() throws InvalidTopologyException {
+    public void testIncludeVDCs() {
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable);
         Set<TraderTO> traders = converter.convertToMarket(entities);

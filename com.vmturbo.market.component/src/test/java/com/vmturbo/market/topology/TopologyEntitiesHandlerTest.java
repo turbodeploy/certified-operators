@@ -302,7 +302,8 @@ public class TopologyEntitiesHandlerTest {
                 SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
 
         Set<TraderTO> traderDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable).convertToMarket(topoDTOs.stream()
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable)
+                    .convertToMarket(topoDTOs.stream()
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
@@ -341,10 +342,12 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void shopTogetherTest() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> nonShopTogetherProbeDTOs = messagesFromJsonFile("protobuf/messages/nonShopTogetherEntities.json",
-            EntityDTO::newBuilder);
+        List<CommonDTO.EntityDTO> nonShopTogetherProbeDTOs =
+                messagesFromJsonFile("protobuf/messages/nonShopTogetherEntities.json",
+                        EntityDTO::newBuilder);
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, nonShopTogetherProbeDTOs.size()).forEach(i -> map.put((long)i, nonShopTogetherProbeDTOs.get(i)));
+        IntStream.range(0, nonShopTogetherProbeDTOs.size()).forEach(i ->
+                map.put((long)i, nonShopTogetherProbeDTOs.get(i)));
 
         Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs =
                 SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map).stream()
@@ -417,8 +420,9 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void testInvalidTopology() throws IOException {
-        List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile("protobuf/messages/invalid-topology.json",
-            EntityDTO::newBuilder);
+        List<CommonDTO.EntityDTO> probeDTOs =
+                messagesFromJsonFile("protobuf/messages/invalid-topology.json",
+                        EntityDTO::newBuilder);
 
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
@@ -455,9 +459,9 @@ public class TopologyEntitiesHandlerTest {
             // Set the shopTogether flag
             vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
             Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
-                    .map(builder -> builder.build()).collect(Collectors.toSet());
+                    .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
 
-            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto -> 
+            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto ->
             (!entityTypesToSkip.contains(dto.getEntityType())))
                 .collect(Collectors.toSet());
 
@@ -560,8 +564,8 @@ public class TopologyEntitiesHandlerTest {
             // Set the shopTogether flag
             db.getAnalysisSettingsBuilder().setShopTogether(false);
             Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
-                    .map(builder -> builder.build()).collect(Collectors.toSet());
-            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto -> 
+                    .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
+            Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto ->
                         (!entityTypesToSkip.contains(dto.getEntityType())))
                             .collect(Collectors.toSet());
             // Get handle to the templates, region and BA TopologyEntityDTO

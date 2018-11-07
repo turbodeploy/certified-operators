@@ -1,0 +1,33 @@
+package com.vmturbo.topology.processor.conversions.typespecific;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+
+/**
+ * Populate the {@link TypeSpecificInfo} unique to a VirtualVolume - i.e. {@link VirtualVolumeInfo}
+ **/
+public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
+
+    @Override
+    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(final EntityDTOOrBuilder sdkEntity) {
+        if (!sdkEntity.hasVirtualVolumeData()) {
+            return TypeSpecificInfo.getDefaultInstance();
+        }
+        final VirtualVolumeData vvData = sdkEntity.getVirtualVolumeData();
+        VirtualVolumeInfo.Builder vvInfo = VirtualVolumeInfo.newBuilder();
+        final TypeSpecificInfo.Builder retBuilder = TypeSpecificInfo.newBuilder();
+        if (vvData.hasStorageAccessCapacity()) {
+            vvInfo.setStorageAccessCapacity(vvData.getStorageAccessCapacity());
+        }
+        if (vvData.hasStorageAmountCapacity()) {
+            vvInfo.setStorageAmountCapacity(vvData.getStorageAmountCapacity());
+        }
+        if (vvData.hasRedundancyType()) {
+            vvInfo.setRedundancyType(vvData.getRedundancyType());
+        }
+        retBuilder.setVirtualVolume(vvInfo.build());
+        return retBuilder.build();
+    }
+}

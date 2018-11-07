@@ -11,9 +11,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -61,8 +58,6 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.Commodit
  */
 @NotThreadSafe
 public class TopologyStitchingGraph {
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A map permitting lookup from the original entity builder to its corresponding stitching entity.

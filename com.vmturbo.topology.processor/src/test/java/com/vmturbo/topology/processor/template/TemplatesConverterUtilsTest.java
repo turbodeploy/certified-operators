@@ -58,7 +58,7 @@ public class TemplatesConverterUtilsTest {
     }
 
     @Test
-    public void testUpdateRelatedEntityAccesses() throws Exception {
+    public void testUpdateRelatedEntityAccesses() {
         assertEquals(1, storage.getEntityBuilder().getCommoditySoldListCount());
 
         // Should add an extra DSPM commodity to the storage that accesses the replacementHost.

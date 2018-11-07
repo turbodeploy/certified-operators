@@ -8,7 +8,6 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;

@@ -1,10 +1,18 @@
 package com.vmturbo.topology.processor.conversions;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.APPLICATION_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.COMPUTE_TIER_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.PHYSICAL_MACHINE_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_MACHINE_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_VOLUME_DATA;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -16,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -25,46 +34,65 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.PhysicalMachineInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * Convert entity DTOs produced by SDK probes to topology processor's entity DTOs
- *
  */
 public class SdkToTopologyEntityConverter {
 
-    private static final Logger logger = LogManager.getLogger();
+    /**
+     * Map from an {@link EntityDataCase} to a {@link TypeSpecificInfoMapper} instance  that will
+     * extract the relevent data from an @link EntityDTO} and populate a {@link TypeSpecificInfo}.
+     *
+     * This map has placeholders in comments for the full set of TypeSpecificInfo we may want for the future
+     */
+    private static final Map<EntityDataCase, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
+            ImmutableMap.<EntityDataCase, TypeSpecificInfoMapper>builder()
+                    .put(APPLICATION_DATA, new ApplicationInfoMapper())
+                    // BUSINESS_ACCOUNT_DATA
+                    .put(COMPUTE_TIER_DATA, new ComputeTierInfoMapper())
+                    // CONTAINER_DATA
+                    // CONTAINER_POD_DATA
+                    // DISK_ARRAY_DATA
+                    // LOGICAL_POOL_DATA
+                    .put(PHYSICAL_MACHINE_DATA, new PhysicalMachineInfoMapper())
+                    // PROCESSOR_POOL_DATA
+                    // RESERVED_INSTANCE_DATA
+                    // STORAGE_CONTROLLER_DATA
+                    .put(STORAGE_DATA, new StorageInfoMapper())
+                    // VIRTUAL_APPLICATION_DATA
+                    // VIRTUAL_DATACENTER_DATA
+                    .put(VIRTUAL_MACHINE_DATA, new VirtualMachineInfoMapper())
+                    .put(VIRTUAL_VOLUME_DATA, new VirtualVolumeInfoMapper())
+                    .build();
 
-    public static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
+    private static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
+
+    private static final Logger logger = LogManager.getLogger();
 
     // TODO: this string constant should change, because the feature of entity tags is not VC-specific
     // The property should just be "TAGS".  We should create a task for this.
@@ -91,7 +119,7 @@ public class SdkToTopologyEntityConverter {
             Map<Long, CommonDTO.EntityDTO> entityDTOs) {
         // Map from provider ID to OID, to handle forward references in the list of DTOs
         Map<String, Long> providerOIDs = Maps.newHashMap();
-        // Cache the oids. Using entrySet().stream() to void parallelism.
+        // Cache the oids. Warning: Using entrySet().stream().forEach to void parallelism.
         entityDTOs.entrySet().stream().forEach(entry -> providerOIDs.put(entry.getValue().getId(), entry.getKey()));
         ImmutableList.Builder<TopologyDTO.TopologyEntityDTO.Builder> builder = ImmutableList.builder();
         entityDTOs.forEach((oid, dto) -> builder.add(
@@ -129,23 +157,23 @@ public class SdkToTopologyEntityConverter {
         // list of commodities bought from different providers (there may be multiple
         // CommoditiesBoughtFromProvider for same provider)
         List<CommoditiesBoughtFromProvider> boughtList =
-                entity.getCommodityBoughtListByProvider().entrySet().stream()
-                        .flatMap(entry -> entry.getValue().stream()
-                                .map(commodityBought -> {
-                                    CommoditiesBoughtFromProvider.Builder cbBuilder =
-                                            CommoditiesBoughtFromProvider.newBuilder()
-                                                    .setProviderId(entry.getKey().getOid())
-                                                    .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                                                            .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
-                                                            .collect(Collectors.toList()))
-                                                    .setProviderEntityType(entry.getKey().getEntityType().getNumber());
-                                    Long volumeId = commodityBought.getVolumeId();
-                                    if (volumeId != null) {
-                                        cbBuilder.setVolumeId(volumeId);
-                                    }
-                                    return cbBuilder.build();
-                                }))
-                        .collect(Collectors.toList());
+            entity.getCommodityBoughtListByProvider().entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream()
+                    .map(commodityBought -> {
+                        CommoditiesBoughtFromProvider.Builder cbBuilder =
+                            CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(entry.getKey().getOid())
+                                .addAllCommodityBought(commodityBought.getBoughtList().stream()
+                                    .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
+                                    .collect(Collectors.toList()))
+                                .setProviderEntityType(entry.getKey().getEntityType().getNumber());
+                        Long volumeId = commodityBought.getVolumeId();
+                        if (volumeId != null) {
+                            cbBuilder.setVolumeId(volumeId);
+                        }
+                        return cbBuilder.build();
+                    }))
+                .collect(Collectors.toList());
 
         // create the list of connected-to entities
         List<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
@@ -154,7 +182,8 @@ public class SdkToTopologyEntityConverter {
                                 // create a ConnectedEntity to represent this connection
                                 ConnectedEntity.newBuilder()
                                         .setConnectedEntityId(stitchingEntity.getOid())
-                                        .setConnectedEntityType(stitchingEntity.getEntityType().getNumber())
+                                        .setConnectedEntityType(stitchingEntity.getEntityType()
+                                                .getNumber())
                                         .setConnectionType(entry.getKey())
                                         .build()))
                 .collect(Collectors.toList());
@@ -165,24 +194,35 @@ public class SdkToTopologyEntityConverter {
         Map<String, String> entityPropertyMap = dto.getEntityPropertiesList().stream()
             .collect(Collectors.toMap(EntityProperty::getName, EntityProperty::getValue,
                 (valueA, valueB) -> {
-                    logger.warn("Duplicate entity property with values \"{}\", \"{}\" detected on entity {} (name: {}).",
+                    logger.warn("Duplicate entity property with values \"{}\", \"{}" +
+                                    "\" detected on entity {} (name: {}).",
                         valueA, valueB, entity.getOid(), displayName);
                     return valueA;
                 }));
 
         // Add properties of related data to the entity property map - using reflection
         Lists.newArrayList(
-            dto.getApplicationData(),
-            dto.getDiskArrayData(),
-            dto.getPhysicalMachineData(),
-            dto.getPhysicalMachineRelatedData(),
-            dto.getStorageControllerRelatedData(),
-            dto.getReplacementEntityData(),
-            dto.getStorageData(),
-            dto.getVirtualDatacenterData(),
-            dto.getVirtualMachineData()
-        )
-            .stream().forEach(
+                dto.getApplicationData(),
+                dto.getDiskArrayData(),
+                dto.getPhysicalMachineData(),
+                dto.getPhysicalMachineRelatedData(),
+                dto.getStorageControllerRelatedData(),
+                dto.getReplacementEntityData(),
+                dto.getStorageData(),
+                dto.getVirtualDatacenterData(),
+                dto.getVirtualMachineData(),
+                dto.getProcessorPoolData(),
+                dto.getStorageControllerData(),
+                dto.getLogicalPoolData(),
+                dto.getVirtualApplicationData(),
+                dto.getProcessorPoolData(),
+                dto.getReservedInstanceData(),
+                dto.getContainerPodData(),
+                dto.getContainerData(),
+                dto.getBusinessAccountData(),
+                dto.getComputeTierData(),
+                dto.getVirtualVolumeData()
+        ).forEach(
             data -> data.getAllFields().forEach(
                 // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
                 (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
@@ -209,114 +249,24 @@ public class SdkToTopologyEntityConverter {
             calculateSuspendabilityWithStitchingEntity(entity)
         );
 
-        retBuilder.setTypeSpecificInfo(convertTypeSpecificInfo(dto));
+        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto));
         return retBuilder;
     }
 
     /**
-     * Convert the entity-specific data contained in an {@link EntityDTO} to a
+     * Map the entity-specific data contained in an {@link EntityDTO} to a
      * {@link TypeSpecificInfo} object that can be embedded into a {@link TopologyEntityDTO}.
      *
      * @param sdkEntity The {@link EntityDTO} containing the entity-specific data.o
      * @return The {@link TypeSpecificInfo} contained in the input {@link EntityDTO}.
      */
     @Nonnull
-    private static TypeSpecificInfo convertTypeSpecificInfo(@Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity) {
-        final TypeSpecificInfo.Builder retBuilder = TypeSpecificInfo.newBuilder();
-        switch (sdkEntity.getEntityDataCase()) {
-            case VIRTUAL_MACHINE_DATA:
-                final VirtualMachineData vmData = sdkEntity.getVirtualMachineData();
-                retBuilder.setVirtualMachine(VirtualMachineInfo.newBuilder()
-                        // We're not currently sending tenancy via the SDK
-                        .setTenancy(Tenancy.DEFAULT)
-                        .setGuestOsType(parseOsType(vmData.getGuestName()))
-                        .addAllIpAddresses(parseIpAddressInfo(vmData))
-                        .build());
-                break;
-            case COMPUTE_TIER_DATA:
-                final ComputeTierData ctData = sdkEntity.getComputeTierData();
-                retBuilder.setComputeTier(ComputeTierInfo.newBuilder()
-                        .setFamily(ctData.getFamily())
-                        .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
-                        .setNumCoupons(ctData.getNumCoupons())
-                        .build());
-                break;
-            case APPLICATION_DATA:
-                final ApplicationData appData = sdkEntity.getApplicationData();
-                if (appData.hasDbData()) {
-                    final DatabaseData dbData = appData.getDbData();
-                    retBuilder.setDatabase(DatabaseInfo.newBuilder()
-                            .setEdition(parseDbEdition(dbData.getEdition()))
-                            .setEngine(parseDbEngine(dbData.getEngine()))
-                            .build());
-                }
-                break;
-            case VIRTUAL_VOLUME_DATA:
-                final VirtualVolumeData vvData = sdkEntity.getVirtualVolumeData();
-                VirtualVolumeInfo.Builder vvInfo = VirtualVolumeInfo.newBuilder();
-                if (vvData.hasStorageAccessCapacity()) {
-                    vvInfo.setStorageAccessCapacity(vvData.getStorageAccessCapacity());
-                }
-                if (vvData.hasStorageAmountCapacity()) {
-                    vvInfo.setStorageAmountCapacity(vvData.getStorageAmountCapacity());
-                }
-                if (vvData.hasRedundancyType()) {
-                    vvInfo.setRedundancyType(vvData.getRedundancyType());
-                }
-                retBuilder.setVirtualVolume(vvInfo.build());
-                break;
-        }
-        return retBuilder.build();
-    }
-
-    @Nonnull
-    private static OSType parseOsType(@Nonnull final String guestName) {
-        // These should come from the OSType enum in com.vmturbo.mediation.hybrid.cloud.utils.
-        // Really, the SDK should be setting the num.
-        // This is actually a problem for non cloud targets as the guestName coming in will
-        // not match  OSType and hence all guestNames will match OSType.OTHER.
-        // TODO Add smarter logic here to convert the guestName properly.   See OM-39287
-        final String upperCaseOsName = guestName.toUpperCase();
-        try {
-            return OSType.valueOf(upperCaseOsName);
-        } catch (IllegalArgumentException e) {
-            return OSType.UNKNOWN_OS;
-        }
-    }
-
-    @Nonnull
-    private static DatabaseEdition parseDbEdition(@Nonnull final String dbEdition) {
-        final String upperCaseDbEdition = dbEdition.toUpperCase();
-        try {
-            return DatabaseEdition.valueOf(upperCaseDbEdition);
-        } catch (IllegalArgumentException e) {
-            return DatabaseEdition.NONE;
-        }
-    }
-
-    @Nonnull
-    private static DatabaseEngine parseDbEngine(@Nonnull final String dbEngine) {
-        final String upperCaseDbEngine = dbEngine.toUpperCase();
-        try {
-            return DatabaseEngine.valueOf(upperCaseDbEngine);
-        } catch (IllegalArgumentException e) {
-            return DatabaseEngine.UNKNOWN;
-        }
-    }
-
-    @Nonnull
-    private static List<IpAddress> parseIpAddressInfo(VirtualMachineData vmData) {
-        int numberElasticIps = vmData.getNumElasticIps();
-        List<IpAddress> returnValue = Lists.newArrayList();
-        // TODO we just randomly make numberElasticIps have elastic==true.  The probe should tell
-        // us which IpAddresses are actually elastic.
-        for (String ipAddr : vmData.getIpAddressList()) {
-            returnValue.add(IpAddress.newBuilder()
-                    .setIpAddress(ipAddr)
-                    .setIsElastic(numberElasticIps-- > 0)
-                    .build());
-        }
-        return returnValue;
+    private static TypeSpecificInfo mapToTypeSpecificInfo(
+            @Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity) {
+        Objects.requireNonNull(sdkEntity, "sdkEntity parameter must not be null");
+        return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityDataCase()))
+                .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(sdkEntity))
+                .orElse(TypeSpecificInfo.getDefaultInstance());
     }
 
     /**
@@ -408,8 +358,7 @@ public class SdkToTopologyEntityConverter {
                 dto.getStorageData(),
                 dto.getVirtualDatacenterData(),
                 dto.getVirtualMachineData()
-        )
-        .stream().forEach(
+        ).forEach(
                 data -> data.getAllFields().forEach(
                         // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
                         (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
@@ -438,7 +387,7 @@ public class SdkToTopologyEntityConverter {
                 calculateSuspendability(dto)
         );
 
-        retBuilder.setTypeSpecificInfo(convertTypeSpecificInfo(dto));
+        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto));
         return retBuilder;
     }
 

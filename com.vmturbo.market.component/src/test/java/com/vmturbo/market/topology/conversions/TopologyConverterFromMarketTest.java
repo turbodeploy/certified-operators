@@ -3,7 +3,6 @@ package com.vmturbo.market.topology.conversions;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ENTITY_VALUE;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -274,9 +273,6 @@ public class TopologyConverterFromMarketTest {
                 .setType(CPU_TYPE_ID)
                 .build();
 
-        final CommodityDTOs.CommoditySoldTO economyCPUSold = CommodityDTOs.CommoditySoldTO.newBuilder()
-                .setSpecification(cpuCommSpecTO)
-                .build();
         final CommodityDTOs.CommoditySoldTO economyDSPMSold = CommodityDTOs.CommoditySoldTO.newBuilder()
                 .setSpecification(CommoditySpecificationTO.newBuilder()
                         .setBaseType(BICLIQUE_TYPE_ID)

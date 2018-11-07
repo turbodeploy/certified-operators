@@ -210,7 +210,8 @@ public class SdkToTopologyEntityConverterTest {
      * @throws IOException when the file is not found
      */
     public static CommonDTO.EntityDTO messageFromJsonFile(String fileName) throws IOException {
-        URL fileUrl = SdkToTopologyEntityConverterTest.class.getClassLoader().getResources(fileName).nextElement();
+        URL fileUrl = SdkToTopologyEntityConverterTest.class.getClassLoader().getResources(fileName)
+                .nextElement();
         CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder();
         JsonFormat.parser().merge(new InputStreamReader(fileUrl.openStream()), builder);
         CommonDTO.EntityDTO message = builder.build();
@@ -330,7 +331,7 @@ public class SdkToTopologyEntityConverterTest {
                 .build();
         TopologyStitchingEntity pmStitchingEntity = new TopologyStitchingEntity(pmEntity);
         pmEntityDto.getCommoditiesSoldList().stream()
-                .map(commodity -> commodity.toBuilder())
+                .map(CommodityDTO::toBuilder)
                 .forEach(commodity -> pmStitchingEntity.addCommoditySold(commodity, Optional.empty()));
         final TopologyEntityDTO.Builder pmBuilder = SdkToTopologyEntityConverter.newTopologyEntityDTO(pmStitchingEntity);
         assertEquals(2L, pmBuilder.getCommoditySoldListCount());
