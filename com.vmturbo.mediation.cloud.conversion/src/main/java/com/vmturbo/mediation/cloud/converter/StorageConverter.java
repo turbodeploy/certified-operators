@@ -9,9 +9,12 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.cloud.IEntityConverter;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
+import com.vmturbo.mediation.cloud.util.ConverterUtils.CommodityCapacityWrapper;
 import com.vmturbo.platform.common.builders.CommodityBuilderIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RatioDependency;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -90,11 +93,50 @@ public class StorageConverter implements IEntityConverter {
         List<CommodityDTO> soldCommodities = mergeCommodities(entity.getCommoditiesSoldList(),
                 storageTierEntity.getCommoditiesSoldList());
         storageTierEntity.clearCommoditiesSold();
+        List<CommodityDTO> storageAmountDTO = soldCommodities.stream()
+                        .filter(c -> c.getCommodityType() == CommodityType.STORAGE_AMOUNT)
+                        .collect(Collectors.toList());
+        List<CommodityDTO> storageAccessDTO = soldCommodities.stream()
+                        .filter(c -> c.getCommodityType() == CommodityType.STORAGE_ACCESS)
+                        .collect(Collectors.toList());
+        CommodityCapacityWrapper commCapacityWrapper = ConverterUtils.cloudStorageCapacityMap.get(storageTier);
+        // if the entity has commodity capacity constraint
+        if (storageAmountDTO.size() == 1 && storageAccessDTO.size() == 1 && commCapacityWrapper != null) {
+            CommodityDTO storageAmount = storageAmountDTO.get(0);
+            CommodityDTO storageAccess = storageAccessDTO.get(0);
+            // add storage amount min and max capacity for consumer
+            CommodityDTO.Builder newStAmt = storageAmount.toBuilder()
+                            .setMinAmountForConsumer(commCapacityWrapper.storageAmountMinCapacity)
+                            .setMaxAmountForConsumer(commCapacityWrapper.storageAmountMaxCapacity);
+            CommodityDTO.Builder newStAcc = storageAccess.toBuilder();
+            // set storage amount and storage access ratio constraint which will be used to populate
+            // ResourceDpendencyLimitation in costDTO
+            if (storageTier.equals(ConverterUtils.GP2)) {
+                newStAcc.setRatioDependency(RatioDependency.newBuilder()
+                                            .setBaseCommodity(CommodityType.STORAGE_AMOUNT)
+                                            .setRatio(ConverterUtils.GP2_IOPS_TO_STORAGE_AMOUNT_RATIO)
+                                            .build())
+                .setMinAmountForConsumer(commCapacityWrapper.storageAccessMinCapacity)
+                .setMaxAmountForConsumer(commCapacityWrapper.storageAccessMaxCapacity);
+            } else if (storageTier.equals(ConverterUtils.IO1)) {
+                newStAcc.setRatioDependency(RatioDependency.newBuilder()
+                                            .setBaseCommodity(CommodityType.STORAGE_AMOUNT)
+                                            .setRatio(ConverterUtils.IO1_IOPS_TO_STORAGE_AMOUNT_RATIO)
+                                            .build())
+                .setMinAmountForConsumer(commCapacityWrapper.storageAccessMinCapacity)
+                .setMaxAmountForConsumer(commCapacityWrapper.storageAccessMaxCapacity);
+            } else {
+                newStAcc.setMinAmountForConsumer(commCapacityWrapper.storageAccessMinCapacity)
+                .setMaxAmountForConsumer(commCapacityWrapper.storageAccessMaxCapacity);
+            }
+            soldCommodities.remove(storageAmount);
+            soldCommodities.remove(storageAccess);
+            soldCommodities.add(newStAmt.build());
+            soldCommodities.add(newStAcc.build());
+        }
         storageTierEntity.addAllCommoditiesSold(soldCommodities);
-
         // StorageTier owned by CloudService
         converter.ownedByCloudService(EntityType.STORAGE_TIER, storageTierId);
-
         return false;
     }
 

@@ -592,6 +592,23 @@ message CommoditySoldDTO {
 
     // A scale factor to multiply this commodity by before analysis, if present
     optional double scaling_factor = 13;
+
+    // The min amount resource can be provided to consumer
+    optional double min_amount_for_consumer = 14;
+
+    // The max amount resource can be provided to consumer
+    optional double max_amount_for_consumer = 15;
+
+    // The max ratio between this commodity and a base commodity
+    optional RatioDependency ratio_dependency = 16;
+
+    // The max amount resource will be decided by another commodity's usage on the consumer
+    message RatioDependency {
+        // the type of commodity whose usage will be used as a factor
+        optional CommodityType base_commodity = 100;
+        // the ratio which will be used to multiply with base commodity's usage
+        optional int32 ratio = 101;
+    }
 }
 
 message IpAddress {

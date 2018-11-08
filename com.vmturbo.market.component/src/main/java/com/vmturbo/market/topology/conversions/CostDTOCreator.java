@@ -22,6 +22,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -207,6 +208,25 @@ public class CostDTOCreator {
         }
         tier.getCommoditySoldListList().forEach(c ->  {
             CommodityType commType = c.getCommodityType();
+            // populates the min and max capacity for a given commodity
+            if (c.hasMaxAmountForConsumer() && c.hasMinAmountForConsumer()) {
+                storageDTO.addStorageResourceLimitation(StorageTierCostDTO
+                        .StorageResourceLimitation.newBuilder()
+                        .setResourceType(commodityConverter.commoditySpecification(commType))
+                        .setMaxCapacity(c.getMaxAmountForConsumer())
+                        .setMinCapacity(c.getMinAmountForConsumer())
+                        .build());
+            }
+            // populates the ratio dependency between max this commodity and its base commodity
+            if (c.hasRatioDependency()) {
+                storageDTO.addStorageResourceDependency(StorageTierCostDTO
+                        .StorageResourceDependency.newBuilder()
+                        .setBaseResourceType(commodityConverter
+                                .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
+                        .setDependentResourceType(commodityConverter.commoditySpecification(commType))
+                        .setRatio(c.getRatioDependency().getRatio())
+                        .build());
+            }
             if (!storageCostBundle.getPrices(commType).isEmpty()) {
                 StorageTierCostDTO.StorageResourceCost.Builder builder = StorageTierCostDTO.StorageResourceCost
                                 .newBuilder()
@@ -228,6 +248,27 @@ public class CostDTOCreator {
      * @return ComputeResourceDependency
      */
     public ComputeResourceDependency createComputeResourceDependency(TopologyEntityDTO tier) {
-        return ComputeResourceDependency.newBuilder().build();
+        ComputeResourceDependency.Builder dependency = ComputeResourceDependency.newBuilder();
+        // if the compute tier has dedicated storage network state as configured disabled or not supported,
+        // the sum of netTpUsed and ioTpUsed should be within the netTpSold capacity so we populate a
+        // ComputeResourceDependencyDTO to represent the netTpUsed and ioTpUsed constraint
+        if (tier.getTypeSpecificInfo().hasComputeTier()
+                && (tier.getTypeSpecificInfo().getComputeTier().getDedicatedStorageNetworkState()
+                == CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState.CONFIGURED_DISABLED
+                || tier.getTypeSpecificInfo().getComputeTier().getDedicatedStorageNetworkState()
+                == CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState.NOT_SUPPORTED)) {
+            List<CommoditySoldDTO> netThruPut = tier.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE)
+                    .collect(Collectors.toList());
+            List<CommoditySoldDTO> ioThruPut = tier.getCommoditySoldListList().stream()
+                            .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE)
+                            .collect(Collectors.toList());
+            if (netThruPut.size() == 1 && ioThruPut.size() == 1) {
+                dependency.setBaseResourceType(commodityConverter.commoditySpecification(netThruPut.get(0).getCommodityType()))
+                        .setDependentResourceType(commodityConverter.commoditySpecification(ioThruPut.get(0).getCommodityType()))
+                        .build();
+            }
+        }
+        return dependency.build();
     }
 }

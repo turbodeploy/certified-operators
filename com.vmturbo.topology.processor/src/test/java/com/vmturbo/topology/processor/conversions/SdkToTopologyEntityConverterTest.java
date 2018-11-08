@@ -138,6 +138,16 @@ public class SdkToTopologyEntityConverterTest {
         // check failover pm
         TopologyEntityDTO pmFailoverTopologyDTO = findEntity(topologyDTOs, PM_FAILOVER_OID);
         assertTrue(pmFailoverTopologyDTO.getEntityState() == EntityState.FAILOVER);
+
+        // check for st capacity constraint
+        TopologyEntityDTO stTopologyDTO = findEntity(topologyDTOs, DS_OID);
+        stTopologyDTO.getCommoditySoldListList().forEach(c -> {
+            if (c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
+                assertEquals(10000, c.getMaxAmountForConsumer(), 0.0);
+                assertEquals(100, c.getMinAmountForConsumer(), 0.0);
+                assertEquals(3, c.getRatioDependency().getRatio(), 0.0);
+            }
+        });
     }
 
     private TopologyEntityDTO findEntity(List<TopologyEntityDTO> dtos, long oid) {

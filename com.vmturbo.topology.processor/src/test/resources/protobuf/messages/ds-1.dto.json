@@ -6,6 +6,16 @@
     {
       "commodityType": "STORAGE_AMOUNT",
       "capacity": 777216.0
+    },
+    {
+      "commodityType": "STORAGE_ACCESS",
+      "capacity": 1000,
+      "max_amount_for_consumer": 10000,
+      "min_amount_for_consumer" : 100,
+      "ratio_dependency" : {
+        "base_commodity": "STORAGE_AMOUNT",
+        "ratio" : 3
+      }
     }
   ],
   "powerState": "POWERED_ON"

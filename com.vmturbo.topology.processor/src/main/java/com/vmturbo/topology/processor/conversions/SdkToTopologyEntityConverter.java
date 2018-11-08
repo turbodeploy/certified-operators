@@ -510,7 +510,20 @@ public class SdkToTopologyEntityConverter {
         if (commDTO.hasUsedIncrement()) {
             retCommSoldBuilder.setCapacityIncrement((float)commDTO.getUsedIncrement());
         }
-
+        if (commDTO.hasMaxAmountForConsumer()) {
+            retCommSoldBuilder.setMaxAmountForConsumer(commDTO.getMaxAmountForConsumer());
+        }
+        if (commDTO.hasMinAmountForConsumer()) {
+            retCommSoldBuilder.setMinAmountForConsumer(commDTO.getMinAmountForConsumer());
+        }
+        if (commDTO.hasRatioDependency()) {
+            retCommSoldBuilder.setRatioDependency(TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
+                    .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
+                            .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
+                            .build())
+                    .setRatio(commDTO.getRatioDependency().getRatio())
+                    .build());
+        }
         return retCommSoldBuilder;
     }
 
