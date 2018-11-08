@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
@@ -32,7 +34,11 @@ import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfi
  * the relationship between templates with deployment profiles is many to many.
  */
 public class DiscoveredTemplateDeploymentProfileDaoImpl {
+
+    private final Logger logger = LogManager.getLogger();
+
     private final DSLContext dsl;
+
 
     public DiscoveredTemplateDeploymentProfileDaoImpl(@Nonnull final DSLContext dsl) {
         this.dsl = dsl;
@@ -205,7 +211,22 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
         final Map<String, DeploymentProfileInfo> recordsToUpdateByProbeIdMap = deploymentProfileInfos.stream()
             .filter(deploymentProfile ->
                 existingDeploymentProfileProbeIds.contains(deploymentProfile.getProbeDeploymentProfileId()))
-            .collect(Collectors.toMap(profile -> profile.getProbeDeploymentProfileId(), Function.identity()));
+            .collect(Collectors.toMap(profile -> profile.getProbeDeploymentProfileId(), Function.identity(),
+                // bifunction to resolve the key duplicates
+                (profile1, profile2) -> {
+                    // we are keeping the 1st profile only, using profile name lexicographic ordering,
+                    // so that every discovery the same profile is maintained and is consistent (and we
+                    // are not ping-ponging between profiles).
+                    if (profile1.getName().compareTo(profile2.getName()) > 0) {
+                        // 2nd profile name is after 1st one. Invert them
+                        DeploymentProfileInfo profileTmp = profile1;
+                        profile1 = profile2;
+                        profile2 = profileTmp;
+                    }
+                    logger.error("Two deployment profiles have the same ProfileID: {}. Keeping: {}, dropping: {}",
+                        profile1.getProbeDeploymentProfileId(), profile1.getName(), profile2.getName());
+                    return profile1;
+                }));
 
         final List<DeploymentProfileRecord> recordsToUpdate = existingRecords.stream()
             .filter(deploymentProfile ->
