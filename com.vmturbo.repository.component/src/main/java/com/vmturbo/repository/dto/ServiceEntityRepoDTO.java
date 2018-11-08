@@ -38,10 +38,13 @@ public class ServiceEntityRepoDTO {
 
     private List<Long> targetIds;
 
-    private VirtualMachineInfoRepoDTO virtualMachineInfo;
-
+    // TODO: consider having only one of these with a supertype - any entity will have at most one
+    private ApplicationInfoRepoDTO applicationInfoRepoDTO;
+    private DatabaseInfoRepoDTO databaseInfoRepoDTO;
     private ComputeTierInfoRepoDTO computeTierInfo;
-
+    private PhysicalMachineInfoRepoDTO physicalMachineInfoRepoDTO;
+    private StorageInfoRepoDTO storageInfoRepoDTO;
+    private VirtualMachineInfoRepoDTO virtualMachineInfo;
     private VirtualVolumeInfoRepoDTO virtualVolumeInfo;
 
     public String getUuid() {
@@ -164,27 +167,27 @@ public class ServiceEntityRepoDTO {
         this.targetIds = targetIds;
     }
 
-    public VirtualMachineInfoRepoDTO getVirtualMachineInfo() {
+    public VirtualMachineInfoRepoDTO getVirtualMachineInfoRepoDTO() {
         return virtualMachineInfo;
     }
 
-    public void setVirtualMachineInfo(final VirtualMachineInfoRepoDTO virtualMachineInfo) {
+    public void setVirtualMachineInfoRepoDTO(final VirtualMachineInfoRepoDTO virtualMachineInfo) {
         this.virtualMachineInfo = virtualMachineInfo;
     }
 
-    public ComputeTierInfoRepoDTO getComputeTierInfo() {
+    public ComputeTierInfoRepoDTO getComputeTierInfoRepoDTO() {
         return computeTierInfo;
     }
 
-    public void setComputeTierInfo(final ComputeTierInfoRepoDTO computeTierInfoRepoDTO) {
+    public void setComputeTierInfoRepoDTO(final ComputeTierInfoRepoDTO computeTierInfoRepoDTO) {
         this.computeTierInfo = computeTierInfoRepoDTO;
     }
 
-    public VirtualVolumeInfoRepoDTO getVirtualVolumeInfo() {
+    public VirtualVolumeInfoRepoDTO getVirtualVolumeInfoRepoDTO() {
         return virtualVolumeInfo;
     }
 
-    public void setVirtualVolumeInfo(final VirtualVolumeInfoRepoDTO virtualVolumeInfo) {
+    public void setVirtualVolumeInfoRepoDTO(final VirtualVolumeInfoRepoDTO virtualVolumeInfo) {
         this.virtualVolumeInfo = virtualVolumeInfo;
     }
 
@@ -241,5 +244,37 @@ public class ServiceEntityRepoDTO {
                 + ", computerTierInfo=" + computeTierInfo
                 + ", virtualVolumeInfo=" + virtualVolumeInfo
                 + "]";
+    }
+
+    public ApplicationInfoRepoDTO getApplicationInfoRepoDTO() {
+        return applicationInfoRepoDTO;
+    }
+
+    public void setApplicationInfoRepoDTO(final ApplicationInfoRepoDTO applicationInfoRepoDTO) {
+        this.applicationInfoRepoDTO = applicationInfoRepoDTO;
+    }
+
+    public DatabaseInfoRepoDTO getDatabaseInfoRepoDTO() {
+        return databaseInfoRepoDTO;
+    }
+
+    public void setDatabaseInfoRepoDTO(final DatabaseInfoRepoDTO databaseInfoRepoDTO) {
+        this.databaseInfoRepoDTO = databaseInfoRepoDTO;
+    }
+
+    public StorageInfoRepoDTO getStorageInfoRepoDTO() {
+        return storageInfoRepoDTO;
+    }
+
+    public void setStorageInfoRepoDTO(final StorageInfoRepoDTO storageInfoRepoDTO) {
+        this.storageInfoRepoDTO = storageInfoRepoDTO;
+    }
+
+    public PhysicalMachineInfoRepoDTO getPhysicalMachineInfoRepoDTO() {
+        return physicalMachineInfoRepoDTO;
+    }
+
+    public void setPhysicalMachineInfoRepoDTO(final PhysicalMachineInfoRepoDTO physicalMachineInfoRepoDTO) {
+        this.physicalMachineInfoRepoDTO = physicalMachineInfoRepoDTO;
     }
 }

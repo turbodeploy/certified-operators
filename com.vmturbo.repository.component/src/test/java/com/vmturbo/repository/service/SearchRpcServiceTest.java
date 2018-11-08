@@ -48,9 +48,9 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 
 @RunWith(MockitoJUnitRunner.class)
-public class SearchServiceTest {
+public class SearchRpcServiceTest {
 
-    private SearchService searchService;
+    private SearchRpcService searchRpcService;
 
     @Mock
     private SupplyChainService supplyChainService;
@@ -128,7 +128,7 @@ public class SearchServiceTest {
 
     @Before
     public void setUp() throws Throwable {
-        searchService = new SearchService(supplyChainService,
+        searchRpcService = new SearchRpcService(supplyChainService,
                                           topologyManager,
                                           searchHandler, 100, 500);
 
@@ -169,7 +169,7 @@ public class SearchServiceTest {
         given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(), Collections.emptyList()))
                 .willReturn(Either.left(new Exception()));
 
-        searchService.searchEntityOids(searchEntityOidsRequest, mockObserver);
+        searchRpcService.searchEntityOids(searchEntityOidsRequest, mockObserver);
 
         verify(mockObserver).onError(any(Exception.class));
         verify(mockObserver, never()).onCompleted();
@@ -182,7 +182,7 @@ public class SearchServiceTest {
 
         given(topologyManager.getRealtimeDatabase()).willReturn(Optional.empty());
 
-        searchService.searchEntityOids(searchEntityOidsRequest, mockObserver);
+        searchRpcService.searchEntityOids(searchEntityOidsRequest, mockObserver);
 
         // The result should be empty as no topology available for search.
         verify(mockObserver).onNext(
@@ -199,7 +199,7 @@ public class SearchServiceTest {
         given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(),
                 Collections.emptyList())).willReturn(Either.right(Arrays.asList("1", "2")));
 
-        searchService.searchEntityOids(searchEntityOidsRequest, mockObserver);
+        searchRpcService.searchEntityOids(searchEntityOidsRequest, mockObserver);
 
         verify(mockObserver).onNext(SearchEntityOidsResponse.newBuilder().addAllEntities(oids).build());
         verify(mockObserver).onCompleted();
@@ -215,7 +215,7 @@ public class SearchServiceTest {
         given(searchHandler.searchEntityOids(multiReprs.get(1), db, Optional.empty(),
                 Collections.emptyList())).willReturn(Either.right(Arrays.asList("2", "3")));
 
-        searchService.searchEntityOids(searchEntityOidsWithMultiParameters, mockObserver);
+        searchRpcService.searchEntityOids(searchEntityOidsWithMultiParameters, mockObserver);
 
         verify(mockObserver).onNext(SearchEntityOidsResponse.newBuilder()
                 .addAllEntities(Lists.newArrayList(2L)).build());
@@ -231,7 +231,7 @@ public class SearchServiceTest {
         given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(), entityOids)).willReturn(
                 Either.right(Arrays.asList("1", "2")));
 
-        searchService.searchEntityOids(requestWithEntityOids, mockObserver);
+        searchRpcService.searchEntityOids(requestWithEntityOids, mockObserver);
 
         verify(mockObserver).onNext(SearchEntityOidsResponse.newBuilder().addAllEntities(oids).build());
         verify(mockObserver).onCompleted();
@@ -243,7 +243,7 @@ public class SearchServiceTest {
         given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(), Collections.emptyList()))
                 .willReturn(Either.right(Arrays.asList("1", "2")));
 
-        searchService.countEntities(countEntitiesRequest, mockObserver);
+        searchRpcService.countEntities(countEntitiesRequest, mockObserver);
 
         verify(mockObserver).onNext(EntityCountResponse.newBuilder().setEntityCount(2).build());
         verify(mockObserver).onCompleted();
@@ -257,7 +257,7 @@ public class SearchServiceTest {
         given(searchHandler.searchEntities(singleReprs.get(0), db, Optional.empty(),
                 Collections.emptyList())).willReturn(Either.left(new Exception()));
 
-        searchService.searchEntities(simpleRequestWithPagination, mockObserver);
+        searchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
 
         verify(mockObserver).onError(any(Exception.class));
         verify(mockObserver, never()).onCompleted();
@@ -270,7 +270,7 @@ public class SearchServiceTest {
 
         given(topologyManager.getRealtimeDatabase()).willReturn(Optional.empty());
 
-        searchService.searchEntities(simpleRequestWithPagination, mockObserver);
+        searchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
 
         // There shouldn't be any entity sent as no topology available for search.
         verify(mockObserver, never()).onNext(any());
@@ -292,7 +292,7 @@ public class SearchServiceTest {
                 Either.right(Arrays.asList(vmRepoDto)));
         final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
                 .addEntities(vmEntity);
-        searchService.searchEntities(searchEntitiesRequest, mockObserver);
+        searchRpcService.searchEntities(searchEntitiesRequest, mockObserver);
 
         verify(mockObserver, never()).onError(any());
         verify(mockObserver).onNext(responseBuilder
@@ -316,7 +316,7 @@ public class SearchServiceTest {
                 Either.right(Arrays.asList(vmRepoDto)));
         final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
                 .addEntities(vmEntity);
-        searchService.searchEntities(simpleRequestWithPagination, mockObserver);
+        searchRpcService.searchEntities(simpleRequestWithPagination, mockObserver);
 
         verify(mockObserver, never()).onError(any());
         verify(mockObserver).onNext(
@@ -341,7 +341,7 @@ public class SearchServiceTest {
         given(topologyManager.getRealtimeTopologyId()).willReturn(topologyID);
         given(searchHandler.getEntitiesByOids(Sets.newHashSet(123L), topologyID))
                 .willReturn(Either.right(serviceEntityRepoDTOs));
-        searchService.searchEntities(searchEntitiesWithMultiParameters, mockObserver);
+        searchRpcService.searchEntities(searchEntitiesWithMultiParameters, mockObserver);
         verify(mockObserver).onNext(SearchEntitiesResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.newBuilder().build())
                 .addAllEntities(Lists.newArrayList(vmEntity)).build());

@@ -17,7 +17,7 @@ import io.swagger.annotations.ApiParam;
 
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.utils.ParamStrings;
-import com.vmturbo.repository.service.SearchService;
+import com.vmturbo.repository.service.SearchRpcService;
 
 @Api("SearchController")
 @RequestMapping("/repository/search")
@@ -25,10 +25,10 @@ public class SearchController {
 
     private final Logger logger = LoggerFactory.getLogger(SearchController.class);
 
-    private final SearchService searchService;
+    private final SearchRpcService searchRpcService;
 
-    public SearchController(final SearchService searchService) {
-        this.searchService = searchService;
+    public SearchController(final SearchRpcService searchRpcService) {
+        this.searchRpcService = searchRpcService;
     }
 
     /**
@@ -54,6 +54,6 @@ public class SearchController {
                                                    @ApiParam(value = "GroupType", required=false) @RequestParam(value = ParamStrings.GROUP_TYPE, required=false) String groupType,
                                                    @ApiParam(value = "Get all related entities across supply chain", required=false, defaultValue="false")
                                                    @RequestParam(value=ParamStrings.RELATED, required=false, defaultValue="false") Boolean related) throws Exception {
-        return searchService.getSearchResults(query, types, scope, state, related, groupType);
+        return searchRpcService.getSearchResults(query, types, scope, state, related, groupType);
     }
 }

@@ -49,14 +49,14 @@ import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
 import com.vmturbo.repository.search.SearchHandler;
-import com.vmturbo.repository.topology.TopologyConverter.TopologyEntityMapper;
+import com.vmturbo.repository.topology.ServiceEntityRepoDTOConverter;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
-public class SearchService extends SearchServiceImplBase {
+public class SearchRpcService extends SearchServiceImplBase {
 
-    private final Logger logger = LoggerFactory.getLogger(SearchService.class);
+    private final Logger logger = LoggerFactory.getLogger(SearchRpcService.class);
     private final SupplyChainService supplyChainService;
     private final TopologyLifecycleManager lifecycleManager;
     private final SearchHandler searchHandler;
@@ -64,11 +64,11 @@ public class SearchService extends SearchServiceImplBase {
     private final int maxPaginationLimit;
 
 
-    public SearchService(final SupplyChainService supplyChainService,
-                         final TopologyLifecycleManager lifecycleManager,
-                         final SearchHandler searchHandler,
-                         final int defaultPaginationLimit,
-                         final int maxPaginationLimit) {
+    public SearchRpcService(final SupplyChainService supplyChainService,
+                            final TopologyLifecycleManager lifecycleManager,
+                            final SearchHandler searchHandler,
+                            final int defaultPaginationLimit,
+                            final int maxPaginationLimit) {
         this.supplyChainService = checkNotNull(supplyChainService);
         this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
@@ -246,7 +246,7 @@ public class SearchService extends SearchServiceImplBase {
             final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction =
                     searchHandler::searchEntitiesFull;
             final Function<ServiceEntityRepoDTO, TopologyEntityDTO> convertToTopologyEntityDTO =
-                    TopologyEntityMapper::convert;
+                    ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO;
             final List<TopologyEntityDTO> entities = (searchParameters.size() == 1) ?
                     searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
                             Optional.empty(), searchFunction, convertToTopologyEntityDTO) :
@@ -315,7 +315,7 @@ public class SearchService extends SearchServiceImplBase {
 
         final long contextId = lifecycleManager.getRealtimeTopologyId().get().getContextId();
         Flux<ScopedEntity> scopedEntities = supplyChainService.scopedEntities(contextId, scope, types);
-        return scopedEntities.toStream().map(SearchService::convert).collect(Collectors.toList());
+        return scopedEntities.toStream().map(SearchRpcService::convert).collect(Collectors.toList());
     }
 
     private static ServiceEntityApiDTO convert(ScopedEntity se) {

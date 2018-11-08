@@ -33,6 +33,9 @@ public class ResultsConverter {
     /**
      * Convert a {@link ServiceEntityRepoDTO} into a {@link ServiceEntityApiDTO}.
      *
+     * This is a minimal subset of ServiceEntityApiDTO fields. In particular, Aspects are
+     * not handled here.
+     *
      * The {@link ServiceEntityRepoDTO} contains similar set of fields as {@link ServiceEntityApiDTO}.
      *
      * @param repoDTO The {@link ServiceEntityRepoDTO} to be converted.

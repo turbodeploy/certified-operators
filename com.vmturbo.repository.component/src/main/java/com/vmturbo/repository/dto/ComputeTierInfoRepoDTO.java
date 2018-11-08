@@ -2,18 +2,22 @@ package com.vmturbo.repository.dto;
 
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.Lists;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 
 /**
  * Class that encapsulates the compute tier data from TopologyEntityDTO.TypeSpecificInfo
  */
 @JsonInclude(Include.NON_EMPTY)
-public class ComputeTierInfoRepoDTO {
+public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private String family;
 
@@ -23,6 +27,33 @@ public class ComputeTierInfoRepoDTO {
                                   int numCoupons) {
         this.family = family;
         this.numCoupons = numCoupons;
+    }
+
+    @Override
+    public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
+                                         @Nonnull final ServiceEntityRepoDTO serviceEntityRepoDTO) {
+        if (!typeSpecificInfo.hasComputeTier()) {
+            return;
+        }
+        ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
+
+        setFamily(computeTierInfo.hasFamily() ? computeTierInfo.getFamily() : null);
+        setNumCoupons(computeTierInfo.hasNumCoupons() ? computeTierInfo.getNumCoupons() : 0);
+
+        serviceEntityRepoDTO.setComputeTierInfoRepoDTO(this);
+    }
+
+    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+        final ComputeTierInfo.Builder computeTierBuilder = ComputeTierInfo.newBuilder();
+
+        if (getFamily() != null) {
+            computeTierBuilder.setFamily(getFamily());
+        }
+        computeTierBuilder.setNumCoupons(getNumCoupons());
+
+        return TypeSpecificInfo.newBuilder()
+                .setComputeTier(computeTierBuilder)
+                .build();
     }
 
     public ComputeTierInfoRepoDTO() {

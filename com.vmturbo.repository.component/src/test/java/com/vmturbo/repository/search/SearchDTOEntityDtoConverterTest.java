@@ -9,14 +9,13 @@ import java.util.List;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
 @SuppressWarnings("unchecked")
-public class SearchDTOConverterTest {
+public class SearchDTOEntityDtoConverterTest {
 
     private static final String CAPACITY = "capacity";
     private static final String ENTITY_TYPE = "entityType";
@@ -223,36 +222,36 @@ public class SearchDTOConverterTest {
     @Test
     public void testToSearchEntityVM() {
         final String name = "vm-foo";
-        final Long oid = 123L;
+        final long oid = 123L;
         ServiceEntityRepoDTO serviceEntityRepoDTO = new ServiceEntityRepoDTO();
         serviceEntityRepoDTO.setDisplayName(name);
         serviceEntityRepoDTO.setEntityType("VirtualMachine");
         serviceEntityRepoDTO.setState("ACTIVE");
-        serviceEntityRepoDTO.setOid(oid.toString());
+        serviceEntityRepoDTO.setOid(Long.toString(oid));
 
         Search.Entity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
 
         assertEquals(name, entity.getDisplayName());
         assertEquals(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber(), entity.getType());
         assertEquals(TopologyDTO.EntityState.POWERED_ON.getNumber(), entity.getState());
-        assertEquals((long)oid, entity.getOid());
+        assertEquals(oid, entity.getOid());
     }
 
     @Test
     public void testToSearchEntityPM() {
         final String name = "pm-foo";
-        final Long oid = 456L;
+        final long oid = 456L;
         ServiceEntityRepoDTO serviceEntityRepoDTO = new ServiceEntityRepoDTO();
         serviceEntityRepoDTO.setDisplayName(name);
         serviceEntityRepoDTO.setEntityType("PhysicalMachine");
         serviceEntityRepoDTO.setState("SUSPENDED");
-        serviceEntityRepoDTO.setOid(oid.toString());
+        serviceEntityRepoDTO.setOid(Long.toString(oid));
 
         Search.Entity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
 
         assertEquals(name, entity.getDisplayName());
         assertEquals(EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), entity.getType());
         assertEquals(TopologyDTO.EntityState.SUSPENDED.getNumber(), entity.getState());
-        assertEquals((long)oid, entity.getOid());
+        assertEquals(oid, entity.getOid());
     }
 }

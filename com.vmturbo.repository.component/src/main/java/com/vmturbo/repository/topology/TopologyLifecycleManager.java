@@ -180,7 +180,7 @@ public class TopologyLifecycleManager implements Diagnosable {
                 graphDatabaseDriverBuilder,
                 this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
-                TopologyConverter::convert);
+                TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs);
     }
 
     public ProjectedTopologyCreator newProjectedTopologyCreator(@Nonnull final TopologyID topologyID) {
@@ -190,7 +190,7 @@ public class TopologyLifecycleManager implements Diagnosable {
                 topologyProtobufsManager,
                 this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
-                TopologyConverter::convert,
+                TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs,
                 realtimeTopologyContextId);
     }
 

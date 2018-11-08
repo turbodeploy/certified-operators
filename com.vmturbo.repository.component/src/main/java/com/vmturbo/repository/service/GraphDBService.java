@@ -35,7 +35,7 @@ import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsConverter;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
-import com.vmturbo.repository.topology.TopologyConverter;
+import com.vmturbo.repository.topology.ServiceEntityRepoDTOConverter;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
@@ -244,7 +244,8 @@ public class GraphDBService {
 
         return Match(seResults).of(
                 Case(Success($()), repoDtos -> timedValue(
-                        () -> Either.right(TopologyConverter.convertToTopologyEntity(repoDtos)),
+                        () -> Either.right(ServiceEntityRepoDTOConverter
+                            .convertToTopologyEntityDTOs(repoDtos)),
                         SEARCH_CONVERSION_DURATION_SUMMARY)),
                 Case(Failure($()), exc -> Either.left(exc.getMessage()))
         );
@@ -272,7 +273,8 @@ public class GraphDBService {
 
             return Match(seResults).of(
                     Case(Success($()), repoDtos -> timedValue(
-                            () -> Either.right(TopologyConverter.convertToTopologyEntity(repoDtos)),
+                            () -> Either.right(ServiceEntityRepoDTOConverter
+                                .convertToTopologyEntityDTOs(repoDtos)),
                             SEARCH_CONVERSION_DURATION_SUMMARY)),
                     Case(Failure($()), exc -> Either.left(exc.getMessage()))
             );

@@ -77,7 +77,7 @@ import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.GraphTopologyService;
 import com.vmturbo.repository.service.RepositoryRpcService;
-import com.vmturbo.repository.service.SearchService;
+import com.vmturbo.repository.service.SearchRpcService;
 import com.vmturbo.repository.service.SupplyChainRpcService;
 import com.vmturbo.repository.service.SupplyChainService;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -372,8 +372,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public SearchService searchService() throws InterruptedException, CommunicationException, URISyntaxException {
-        return new SearchService(supplyChainService(),
+    public SearchRpcService searchRpcService() throws InterruptedException, CommunicationException,
+            URISyntaxException {
+        return new SearchRpcService(supplyChainService(),
                                  topologyManager(),
                                  searchHandler(),
                 repositorySearchPaginationDefaultLimit,
@@ -400,14 +401,14 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     // The controller generated with gRPC service
     @Bean
-    public SearchServiceController searchServiceController(final SearchService searchService) {
-        return new SearchServiceController(searchService);
+    public SearchServiceController searchServiceController(final SearchRpcService searchRpcService) {
+        return new SearchServiceController(searchRpcService);
     }
 
     // The regular REST controller
     @Bean
-    public SearchController searchController(final SearchService searchService) {
-        return new SearchController(searchService);
+    public SearchController searchController(final SearchRpcService searchRpcService) {
+        return new SearchController(searchRpcService);
     }
 
     @Bean
@@ -500,7 +501,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
             return Optional.of(builder
                 .addService(ServerInterceptors.intercept(repositoryRpcService(), monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(searchService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(searchRpcService(), monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(supplyChainRpcService(), monitoringInterceptor))
                 .build());
         } catch (InterruptedException | CommunicationException

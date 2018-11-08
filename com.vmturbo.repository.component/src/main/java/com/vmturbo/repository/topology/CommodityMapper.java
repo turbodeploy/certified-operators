@@ -1,0 +1,183 @@
+package com.vmturbo.repository.topology;
+
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
+import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
+import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
+
+/**
+ * Convert between CommodityBoughtRepoDTO and CommodityBoughtDTO.
+ **/
+class CommodityMapper {
+
+    /**
+     * Convert from {@link CommodityBoughtDTO} protobuf to {@link CommodityBoughtRepoDTO}.
+     *
+     * @param ownerOid the OID of the SE buying this commodity
+     * @param providerOid the OID of the SE selling this commodity - may be null if unsatisfied
+     * @param comm the {@link CommodityBoughtDTO} being bought
+     * @return a {@link CommodityBoughtRepoDTO} initialized from the given {@link CommodityBoughtDTO}
+     */
+    public static CommodityBoughtRepoDTO convertToCommodityBoughtRepoDTO(
+            @Nonnull String ownerOid,
+            @Nullable String providerOid,
+            @Nonnull CommodityBoughtDTO comm) {
+        CommodityBoughtRepoDTO commRepo = new CommodityBoughtRepoDTO();
+
+        commRepo.setUuid(UUID.randomUUID().toString());
+        commRepo.setProviderOid(providerOid);
+        commRepo.setOwnerOid(ownerOid);
+        commRepo.setType(mapCommodityType(comm.getCommodityType().getType()));
+
+        commRepo.setKey(comm.getCommodityType().getKey());
+        commRepo.setUsed(comm.getUsed());
+        commRepo.setPeak(comm.getPeak());
+        commRepo.setScalingFactor(comm.getScalingFactor());
+
+        return commRepo;
+    }
+
+    /**
+     * Convert from the {@link CommodityBoughtRepoDTO} to the protobuf {@link CommodityBoughtDTO}
+     *
+     * @param commodityBoughtRepoDTO the {@link CommodityBoughtRepoDTO} to be converted
+     * @return a {@link CommodityBoughtDTO} initialized from the given RepoDTO
+     */
+    public static CommodityBoughtDTO convertToCommodityBoughtDTO(CommodityBoughtRepoDTO commodityBoughtRepoDTO) {
+        CommodityBoughtDTO.Builder commodityBoughtBuilder = CommodityBoughtDTO.newBuilder();
+        commodityBoughtBuilder.setUsed(commodityBoughtRepoDTO.getUsed());
+        commodityBoughtBuilder.setPeak(commodityBoughtRepoDTO.getPeak());
+        CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
+        if (commodityBoughtRepoDTO.getType() != null) {
+            commodityTypeBuilder.setType(mapCommodityType(commodityBoughtRepoDTO.getType()));
+        }
+        if (commodityBoughtRepoDTO.getKey() != null) {
+            commodityTypeBuilder.setKey(commodityBoughtRepoDTO.getKey());
+        }
+        commodityBoughtBuilder.setCommodityType(commodityTypeBuilder);
+        commodityBoughtBuilder.setScalingFactor(commodityBoughtRepoDTO.getScalingFactor());
+        return commodityBoughtBuilder.build();
+    }
+
+    /**
+     * Convert from a {@link CommoditySoldDTO} protobuf to a {@link CommoditySoldRepoDTO}.
+     *
+     * @param ownerOid the OID of the SE that sells this commodity
+     * @param comm the commodity being sold
+     * @return a {@link CommoditySoldRepoDTO} initialized from the given {@link CommoditySoldDTO}
+     */
+    public static CommoditySoldRepoDTO convertToCommoditySoldRepoDTO(String ownerOid,
+            CommoditySoldDTO comm) {
+        CommoditySoldRepoDTO commRepo = new CommoditySoldRepoDTO();
+
+        commRepo.setUuid(UUID.randomUUID().toString());
+        commRepo.setProviderOid(ownerOid);
+        commRepo.setOwnerOid(ownerOid);
+        commRepo.setType(mapCommodityType(comm.getCommodityType().getType()));
+
+        commRepo.setKey(comm.getCommodityType().getKey());
+        commRepo.setUsed(comm.getUsed());
+        commRepo.setPeak(comm.getPeak());
+
+        commRepo.setCapacity(comm.getCapacity());
+        commRepo.setEffectiveCapacityPercentage(comm.getEffectiveCapacityPercentage());
+        commRepo.setReservedCapacity(comm.getReservedCapacity());
+        commRepo.setResizeable(comm.getIsResizeable());
+        commRepo.setThin(comm.getIsThin());
+        commRepo.setCapacityIncrement(comm.getCapacityIncrement());
+        commRepo.setMaxQuantity(comm.getMaxQuantity());
+        commRepo.setScalingFactor(comm.getScalingFactor());
+        return commRepo;
+    }
+
+    /**
+     * Convert a {@link CommoditySoldRepoDTO} to a {@link CommoditySoldDTO} protobuf.
+     *
+     * @param commoditySoldRepoDTO the {@link CommoditySoldRepoDTO} to convert
+     * @return a new {@link CommoditySoldDTO} initialized from the given {@link CommoditySoldRepoDTO}
+     */
+    public static CommoditySoldDTO convertToCommoditySoldDTO(CommoditySoldRepoDTO commoditySoldRepoDTO) {
+        CommoditySoldDTO.Builder commoditySoldDTOBuilder = CommoditySoldDTO.newBuilder();
+        commoditySoldDTOBuilder.setUsed(commoditySoldRepoDTO.getUsed());
+        commoditySoldDTOBuilder.setPeak(commoditySoldRepoDTO.getPeak());
+        commoditySoldDTOBuilder.setCapacity(commoditySoldRepoDTO.getCapacity());
+        commoditySoldDTOBuilder.setEffectiveCapacityPercentage(
+                commoditySoldRepoDTO.getEffectiveCapacityPercentage());
+        commoditySoldDTOBuilder.setReservedCapacity(commoditySoldRepoDTO.getReservedCapacity());
+        commoditySoldDTOBuilder.setIsResizeable(commoditySoldRepoDTO.isResizeable());
+        commoditySoldDTOBuilder.setIsThin(commoditySoldRepoDTO.isThin());
+        commoditySoldDTOBuilder.setScalingFactor(commoditySoldRepoDTO.getScalingFactor());
+        CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
+
+        if (commoditySoldRepoDTO.getType() != null) {
+            commodityTypeBuilder.setType(mapCommodityType(commoditySoldRepoDTO.getType()));
+        }
+        if (commoditySoldRepoDTO.getKey() != null) {
+            commodityTypeBuilder.setKey(commoditySoldRepoDTO.getKey());
+        }
+
+        commoditySoldDTOBuilder.setCommodityType(commodityTypeBuilder.build());
+        return commoditySoldDTOBuilder.build();
+    }
+
+    private static String mapCommodityType(int type) {
+        return RepoObjectType.mapCommodityType(type);
+    }
+
+    private static int mapCommodityType(String type) {
+        return RepoObjectType.mapCommodityType(type);
+    }
+
+    public static CommoditiesBoughtRepoFromProviderDTO convertToRepoBoughtFromProviderDTO(
+            CommoditiesBoughtFromProvider commoditiesBoughtFromProvider, String seOid) {
+        final String provId = commoditiesBoughtFromProvider.hasProviderId() ?
+                Long.toString(commoditiesBoughtFromProvider.getProviderId())
+                : null;
+        CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO =
+                new CommoditiesBoughtRepoFromProviderDTO();
+        commoditiesBoughtRepoFromProviderDTO.setCommodityBoughtRepoDTOs(
+                commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+                        .map(comm -> convertToCommodityBoughtRepoDTO(seOid, provId, comm))
+                        .collect(Collectors.toList()));
+        commoditiesBoughtRepoFromProviderDTO.setProviderId(commoditiesBoughtFromProvider.hasProviderId() ?
+                commoditiesBoughtFromProvider.getProviderId() : null);
+        commoditiesBoughtRepoFromProviderDTO.setProviderEntityType(commoditiesBoughtFromProvider.hasProviderEntityType() ?
+                commoditiesBoughtFromProvider.getProviderEntityType() : null);
+        commoditiesBoughtRepoFromProviderDTO.setVolumeId(commoditiesBoughtFromProvider.hasVolumeId() ?
+                commoditiesBoughtFromProvider.getVolumeId() : null);
+        return commoditiesBoughtRepoFromProviderDTO;
+    }
+
+    public static CommoditiesBoughtFromProvider convertToCommoditiesBoughtFromProvider(
+            CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO) {
+        CommoditiesBoughtFromProvider.Builder commodityBoughtFromProviderBuilder =
+                CommoditiesBoughtFromProvider.newBuilder();
+        commodityBoughtFromProviderBuilder.addAllCommodityBought(
+                commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs().stream()
+                        .map(CommodityMapper::convertToCommodityBoughtDTO)
+                        .collect(Collectors.toList()));
+        if (commoditiesBoughtRepoFromProviderDTO.getProviderId() != null) {
+            commodityBoughtFromProviderBuilder.setProviderId(
+                    commoditiesBoughtRepoFromProviderDTO.getProviderId());
+        }
+        if (commoditiesBoughtRepoFromProviderDTO.getProviderEntityType() != null) {
+            commodityBoughtFromProviderBuilder.setProviderEntityType(
+                    commoditiesBoughtRepoFromProviderDTO.getProviderEntityType());
+        }
+        if (commoditiesBoughtRepoFromProviderDTO.getVolumeId() != null) {
+            commodityBoughtFromProviderBuilder.setVolumeId(
+                    commoditiesBoughtRepoFromProviderDTO.getVolumeId());
+        }
+        return commodityBoughtFromProviderBuilder.build();
+    }
+}

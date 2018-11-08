@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,9 +41,9 @@ import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
- * Unit tests for {@link TopologyConverter}.
+ * Unit tests for {@link TopologyEntityDtoConverterTest}.
  */
-public class TopologyConverterTest {
+public class TopologyEntityDtoConverterTest {
 
     private static double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
 
@@ -71,7 +72,7 @@ public class TopologyConverterTest {
         vmServiceEntity.setState(UIEntityState.ACTIVE.getValue());
         final Map<String, List<String>> tagsMap = new HashMap<>();
         tagsMap.put("key1", Arrays.asList("value1", "value2"));
-        tagsMap.put("key2", Arrays.asList("value1"));
+        tagsMap.put("key2", Collections.singletonList("value1"));
         vmServiceEntity.setTags(tagsMap);
         VirtualMachineInfoRepoDTO virtualMachineInfoRepoDTO = new VirtualMachineInfoRepoDTO();
         IpAddressRepoDTO ipAddressRepoDTO = new IpAddressRepoDTO();
@@ -86,7 +87,7 @@ public class TopologyConverterTest {
                 ipAddressRepoDTO2, ipAddressRepoDTO3));
         virtualMachineInfoRepoDTO.setTenancy("DEFAULT");
         virtualMachineInfoRepoDTO.setGuestOsType("WINDOWS");
-        vmServiceEntity.setVirtualMachineInfo(virtualMachineInfoRepoDTO);
+        vmServiceEntity.setVirtualMachineInfoRepoDTO(virtualMachineInfoRepoDTO);
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
         commoditySoldRepoDTO.setKey("test-sold-key");
@@ -133,74 +134,73 @@ public class TopologyConverterTest {
 
     @Test
     public void testConvertDTOs() {
-        assertEquals(0, TopologyConverter.convert(Arrays.asList()).size());
+        assertEquals(0, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.emptyList()).size());
 
-        assertEquals(1, TopologyConverter.convert(Arrays.asList(vmTopoDTO)).size());
-        assertEquals(5, TopologyConverter.convert(
-                Arrays.asList(vmTopoDTO, pmTopoDTO, dsTopoDTO, vdcTopoDTO, networkTopoDTO)).size());
+        assertEquals(1, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vmTopoDTO)).size());
+        assertEquals(5, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Arrays.asList(vmTopoDTO, pmTopoDTO, dsTopoDTO, vdcTopoDTO, networkTopoDTO)).size());
     }
 
     @Test
     public void testConvertDTOSE() {
-        ServiceEntityRepoDTO vdcRepoDTO = TopologyConverter.convert(Arrays.asList(vdcTopoDTO))
+        ServiceEntityRepoDTO vdcRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vdcTopoDTO))
                 .iterator().next();
         verifySE(vdcTopoDTO, vdcRepoDTO);
 
-        ServiceEntityRepoDTO vmRepoDTO = TopologyConverter.convert(Arrays.asList(vmTopoDTO))
+        ServiceEntityRepoDTO vmRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vmTopoDTO))
                 .iterator().next();
         verifySE(vmTopoDTO, vmRepoDTO);
 
-        ServiceEntityRepoDTO pmRepoDTO = TopologyConverter.convert(Arrays.asList(pmTopoDTO))
+        ServiceEntityRepoDTO pmRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(pmTopoDTO))
                 .iterator().next();
         verifySE(pmTopoDTO, pmRepoDTO);
 
-        ServiceEntityRepoDTO dsRepoDTO = TopologyConverter.convert(Arrays.asList(dsTopoDTO))
+        ServiceEntityRepoDTO dsRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(dsTopoDTO))
                 .iterator().next();
         verifySE(dsTopoDTO, dsRepoDTO);
 
-        ServiceEntityRepoDTO networkRepoDTO = TopologyConverter.convert(Arrays.asList(networkTopoDTO))
+        ServiceEntityRepoDTO networkRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(networkTopoDTO))
                 .iterator().next();
         verifySE(networkTopoDTO, networkRepoDTO);
     }
 
     @Test
     public void testConvertDTOCommoditiesBought() {
-        ServiceEntityRepoDTO vdcRepoDTO = TopologyConverter.convert(Arrays.asList(vdcTopoDTO))
+        ServiceEntityRepoDTO vdcRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vdcTopoDTO))
                 .iterator().next();
         verifyCommodityBought(vdcTopoDTO, vdcRepoDTO);
 
-        ServiceEntityRepoDTO vmRepoDTO = TopologyConverter.convert(Arrays.asList(vmTopoDTO))
+        ServiceEntityRepoDTO vmRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vmTopoDTO))
                 .iterator().next();
         verifyCommodityBought(vmTopoDTO, vmRepoDTO);
 
-        ServiceEntityRepoDTO pmRepoDTO = TopologyConverter.convert(Arrays.asList(pmTopoDTO))
+        ServiceEntityRepoDTO pmRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(pmTopoDTO))
                 .iterator().next();
         verifyCommodityBought(pmTopoDTO, pmRepoDTO);
 
-        ServiceEntityRepoDTO dsRepoDTO = TopologyConverter.convert(Arrays.asList(dsTopoDTO))
+        ServiceEntityRepoDTO dsRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(dsTopoDTO))
                 .iterator().next();
         verifyCommodityBought(dsTopoDTO, dsRepoDTO);
 
-        ServiceEntityRepoDTO networkRepoDTO = TopologyConverter.convert(Arrays.asList(networkTopoDTO))
+        ServiceEntityRepoDTO networkRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(networkTopoDTO))
                 .iterator().next();
         verifyCommodityBought(networkTopoDTO, networkRepoDTO);
     }
 
     @Test
     public void testConvertDTOCommoditiesSold() {
-        ServiceEntityRepoDTO vdcRepoDTO = TopologyConverter.convert(Arrays.asList(vdcTopoDTO))
+        ServiceEntityRepoDTO vdcRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vdcTopoDTO))
                 .iterator().next();
         verifyCommoditySold(vdcTopoDTO, vdcRepoDTO);
 
-        ServiceEntityRepoDTO vmRepoDTO = TopologyConverter.convert(Arrays.asList(vmTopoDTO))
+        ServiceEntityRepoDTO vmRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vmTopoDTO))
                 .iterator().next();
         verifyCommoditySold(vmTopoDTO, vmRepoDTO);
 
-        ServiceEntityRepoDTO pmRepoDTO = TopologyConverter.convert(Arrays.asList(pmTopoDTO))
+        ServiceEntityRepoDTO pmRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(pmTopoDTO))
                 .iterator().next();
         verifyCommoditySold(pmTopoDTO, pmRepoDTO);
 
-        ServiceEntityRepoDTO dsRepoDTO = TopologyConverter.convert(Arrays.asList(dsTopoDTO))
+        ServiceEntityRepoDTO dsRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(dsTopoDTO))
                 .iterator().next();
         verifyCommoditySold(dsTopoDTO, dsRepoDTO);
     }
@@ -208,7 +208,7 @@ public class TopologyConverterTest {
     @Test
     public void testConvertRepoToDTO() {
         TopologyEntityDTO topologyEntityDTO =
-                TopologyConverter.convertToTopologyEntity(Arrays.asList(vmServiceEntity))
+                ServiceEntityRepoDTOConverter.convertToTopologyEntityDTOs(Collections.singletonList(vmServiceEntity))
                         .iterator().next();
         verifySE(topologyEntityDTO, vmServiceEntity);
         verifyCommodityBought(topologyEntityDTO, vmServiceEntity);
@@ -217,9 +217,9 @@ public class TopologyConverterTest {
 
     private static void verifySE(
             final TopologyEntityDTO seTopoDTO, final ServiceEntityRepoDTO seRepoDTO) {
-        final String expectedState = UIEntityState.fromEntityState(seTopoDTO.getEntityState()).getValue();
-        final String expectedType = TopologyConverter.ServiceEntityMapper.mapEntityType(
-                seTopoDTO.getEntityType());
+        final String expectedState = UIEntityState.fromEntityState(seTopoDTO.getEntityState())
+                .getValue();
+        final String expectedType = RepoObjectType.mapEntityType(seTopoDTO.getEntityType());
 
         assertEquals(Long.toString(seTopoDTO.getOid()), seRepoDTO.getOid());
         assertEquals(seTopoDTO.getDisplayName(), seRepoDTO.getDisplayName());
@@ -229,23 +229,23 @@ public class TopologyConverterTest {
 
         // compare tags
         assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTagsMap().size());
-        seRepoDTO.getTags().entrySet().forEach(t ->
-                assertEquals(t.getValue(), seTopoDTO.getTagsMap().get(t.getKey()).getValuesList()));
+        seRepoDTO.getTags().forEach((key, value) -> assertEquals(value,
+                seTopoDTO.getTagsMap().get(key).getValuesList()));
 
         // compare virtual machine info
-        if (seRepoDTO.getVirtualMachineInfo() != null) {
+        if (seRepoDTO.getVirtualMachineInfoRepoDTO() != null) {
             assertTrue(seTopoDTO.hasTypeSpecificInfo());
             assertTrue(seTopoDTO.getTypeSpecificInfo().hasVirtualMachine());
             VirtualMachineInfo vmInfo = seTopoDTO.getTypeSpecificInfo().getVirtualMachine();
-            assertEquals(seRepoDTO.getVirtualMachineInfo().getTenancy(),
+            assertEquals(seRepoDTO.getVirtualMachineInfoRepoDTO().getTenancy(),
                     vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null);
-            assertEquals(seRepoDTO.getVirtualMachineInfo().getGuestOsType(),
+            assertEquals(seRepoDTO.getVirtualMachineInfoRepoDTO().getGuestOsType(),
                     vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null);
-            if (seRepoDTO.getVirtualMachineInfo().getIpAddressInfoList() != null) {
+            if (seRepoDTO.getVirtualMachineInfoRepoDTO().getIpAddressInfoList() != null) {
                 // remove null Ip Address entries Repo DTO since those would have been skipped
                 // when converting to TopologyEntityDTO
                 List<IpAddressRepoDTO> ipAddressRepoList =
-                        seRepoDTO.getVirtualMachineInfo().getIpAddressInfoList().stream()
+                        seRepoDTO.getVirtualMachineInfoRepoDTO().getIpAddressInfoList().stream()
                         .filter(ipAddressRepoDTO -> ipAddressRepoDTO.getIpAddress() != null)
                         .collect(Collectors.toList());
                 assertEquals(ipAddressRepoList.size(), vmInfo.getIpAddressesCount());

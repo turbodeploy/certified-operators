@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEntityState;
 
 @RunWith(MockitoJUnitRunner.class)
-public class SupplyChainResultsConverterTest {
+public class SupplyChainResultsEntityDtoConverterTest {
 
     private Multimap<String, String> providerRels;
 
