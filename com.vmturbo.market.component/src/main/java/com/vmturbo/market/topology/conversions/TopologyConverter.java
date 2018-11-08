@@ -553,7 +553,6 @@ public class TopologyConverter {
                     .setOid(traderTO.getOid())
                     .setEntityState(entityState)
                     .setDisplayName(displayName)
-                    .setEnvironmentType(originalEntity.getEnvironmentType())
                     .addAllCommoditySoldList(retrieveCommSoldList(traderTO, originalEntity))
                     .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
                     .addAllConnectedEntityList(getConnectedEntities(traderTO))
@@ -562,9 +561,17 @@ public class TopologyConverter {
             // this is a clone trader
             originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
         } else {
-            // copy the origin story from the original entity
+            // copy environmentType
+            if (originalEntity.hasEnvironmentType()) {
+                entityDTO.setEnvironmentType(originalEntity.getEnvironmentType());
+            }
+            // copy the origin from the original entity
             if (originalEntity.hasOrigin()) {
                 entityDTO.setOrigin(originalEntity.getOrigin());
+            }
+            // copy the TypeSpecificInfo from the original entity
+            if (originalEntity.hasTypeSpecificInfo()) {
+                entityDTO.setTypeSpecificInfo(originalEntity.getTypeSpecificInfo());
             }
         }
         // get dspm and datastore commodity sold from the original trader, add

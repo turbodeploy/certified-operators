@@ -164,4 +164,11 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     List<ENTITY_CLASS> getAllRegions();
+
+    /*
+     * Get all entities of a particular type in the topology.
+     */
+    @Nonnull
+    List<ENTITY_CLASS> getAllEntitesOfType(int entityType);
+
 }

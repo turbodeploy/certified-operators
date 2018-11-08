@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -28,7 +29,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -336,11 +336,22 @@ public class Analysis {
                     realTopologyDTOs,
                     results.getPriceIndexMsg());
 
+                // retrieve region DTOs from the original entities topology
+                Stream<TopologyEntityDTO> entitiesFromOriginalTopo =
+                        originalCloudTopology.getAllEntitesOfType(EntityType.REGION_VALUE).stream();
+                // retrieve businessAccount DTOs from the original entities topology
+                Stream.concat(entitiesFromOriginalTopo,
+                        originalCloudTopology.getAllEntitesOfType(EntityType.BUSINESS_ACCOUNT_VALUE).stream());
+                Stream<TopologyEntityDTO> projectedEntityDTOs = projectedEntities.stream()
+                        .filter(ProjectedTopologyEntity::hasEntity)
+                        .map(ProjectedTopologyEntity::getEntity);
                 // Calculate the projected entity costs.
                 final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
-                        cloudTopologyFactory.newCloudTopology(projectedEntities.stream()
-                                .filter(ProjectedTopologyEntity::hasEntity)
-                                .map(ProjectedTopologyEntity::getEntity));
+                        cloudTopologyFactory.newCloudTopology(projectedEntityDTOs.count() != 0 ?
+                                Stream.concat(
+                                    projectedEntityDTOs,
+                                    // pass region and businessAccount from the original topo
+                                    entitiesFromOriginalTopo) : projectedEntityDTOs);
                 projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology);
             }
 
