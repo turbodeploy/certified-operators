@@ -16,9 +16,9 @@ public class ArangoDBQueries {
         "       OUTBOUND '<startingId>'\n" +
         "       <edgeCollection>\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
-        "       <if(hasEnvType)>FILTER v.env == '<envType>'<endif>\n" +
+        "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
         // Filter on edge type (consumes or connected)
-        "       FILTER e.type == '${edgeType}'\n" +
+        "       FILTER e.type == '<edgeType>'\n" +
         // From are starting vertices on the directed edges (the consumers).
         "       LET from = FIRST(\n" +
         "           FOR fv IN <vertexCollection>\n" +
@@ -58,9 +58,9 @@ public class ArangoDBQueries {
         "       INBOUND '<startingId>'\n" +
         "       <edgeCollection>\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
-        "       <if(hasEnvType)>FILTER v.env == '<envType>'<endif>\n" +
+        "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
         // Filter on edge type (consumes or connected)
-        "       FILTER e.type == '${edgeType}'\n" +
+        "       FILTER e.type == '<edgeType>'\n" +
         // From are starting vertices on the directed edges (the consumers).
         "       LET from = FIRST(\n" +
         "           FOR fv IN <vertexCollection>\n" +
