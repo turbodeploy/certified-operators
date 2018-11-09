@@ -1,6 +1,7 @@
 package com.vmturbo.repository.graph.result;
 
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.da;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.lp;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.nodeMapFor;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.storage;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.subgraphFor;
@@ -153,6 +154,83 @@ public class SupplyChainSubgraphTest {
             .getConnectedConsumerTypesList(), contains(RepoEntityType.APPLICATION.getValue()));
         assertThat(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
                 .getConnectedProviderTypesList(), contains(RepoEntityType.VIRTUAL_DATACENTER.getValue()));
+    }
+
+    /**
+     * This tests the situation, in which an entity type can be found in two (or more) different depths.
+     * Let A, B, and C represent entity types.  Let A1, A2 be entities of type A, B1 entity of type B,
+     * and C1 entity of type C.  Let A1 consume from B1 and A2 from C2.  Consider the supply chain validation
+     * graph generated with C1 as a starting point.
+     *
+     * Since C1 has a direct consumer A2, the indirect consumer A1 must be ignored.
+     * In this test, we should see in the final graph all 3 entity types each having exactly one entity.
+     */
+    @Test
+    public void testOneEntityTypeInMultipleDepths() {
+        /*                 A (2 entities; one consumes from C and one from B)
+         *               / |
+         *   (1 entity) B  |
+         *               \ |
+         *                 C (1 entity)
+         */
+        final SubgraphResult providersResult =
+                subgraphFor(3)
+                        .providerEdges(
+                                vm(1).consumesFrom(storage(2)),
+                                vm(11).consumesFrom(da(3)))
+                        .providerEdges(
+                                storage(2).consumesFrom(da(3)))
+                        .build();
+
+        final ResultVertex origin = da(3).vertex;
+        final SupplyChainSubgraph subgraph =
+                new SupplyChainSubgraph(
+                        providersResult, new SubgraphResult(origin, Collections.emptyList()));
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
+
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(
+                supplyChainNodes.get(RepoEntityType.DISKARRAY.getValue())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(
+                supplyChainNodes.get(RepoEntityType.STORAGE.getValue())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(
+                supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
+    }
+
+    /**
+     * This test is similar to {@link #testOneEntityTypeInMultipleDepths()}, but with a twist.  The
+     * entities are now as follows: C=DiskArray, B=LogicalPool, A=Storage.  Since edges between
+     * LogicalPool and DiskArray are mandatory, neither the direct consumer A2 nor the indirect consumer
+     * A1 must be ignored.  The graph must contain 1 disk array, 1 logical pool, and 2 storage.
+     */
+    @Test
+    public void testMandatoryEdges() {
+        /*                 Storage (2 entities; one consumes from LogicalPool and one from DiskArray)
+         *               /           |
+         *(1 entity) LogicalPool     |
+         *               \           |
+         *              DiskArray (1 entity)
+         */
+        final SubgraphResult providersResult =
+                subgraphFor(3)
+                        .providerEdges(
+                                storage(1).consumesFrom(lp(2)),
+                                storage(11).consumesFrom(da(3)))
+                        .providerEdges(
+                                lp(2).consumesFrom(da(3)))
+                        .build();
+
+        final ResultVertex origin = da(3).vertex;
+        final SupplyChainSubgraph subgraph =
+                new SupplyChainSubgraph(
+                        providersResult, new SubgraphResult(origin, Collections.emptyList()));
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
+
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(
+                supplyChainNodes.get(RepoEntityType.DISKARRAY.getValue())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(
+                supplyChainNodes.get(RepoEntityType.LOGICALPOOL.getValue())));
+        assertEquals(2, RepositoryDTOUtil.getMemberCount(
+                supplyChainNodes.get(RepoEntityType.STORAGE.getValue())));
     }
 
     @Test

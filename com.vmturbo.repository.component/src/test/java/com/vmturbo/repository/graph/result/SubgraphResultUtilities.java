@@ -121,39 +121,75 @@ public class SubgraphResultUtilities {
         }
     }
 
-    public static ResultVertexBuilder app(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
-                RepoEntityType.APPLICATION.getValue(),
-                UIEntityState.ACTIVE.getValue()));
-    }
-
-    public static ResultVertexBuilder vm(@Nonnull final long oid) {
+    /**
+     * Build a VM vertex.
+     *
+     * @param oid the oid of the entity.
+     * @return the built entity.
+     */
+    public static ResultVertexBuilder vm(final long oid) {
         return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
                 RepoEntityType.VIRTUAL_MACHINE.getValue(),
                 UIEntityState.ACTIVE.getValue()));
     }
 
-    public static ResultVertexBuilder host(@Nonnull final long oid) {
+    /**
+     * Build a physical host vertex.
+     *
+     * @param oid the oid of the entity.
+     * @return the built entity.
+     */
+    public static ResultVertexBuilder host(final long oid) {
         return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
                 RepoEntityType.PHYSICAL_MACHINE.getValue(),
                 UIEntityState.ACTIVE.getValue()));
     }
 
-    public static ResultVertexBuilder dc(@Nonnull final long oid) {
+    /**
+     * Build a data center vertex.
+     *
+     * @param oid the oid of the entity.
+     * @return the built entity.
+     */
+    public static ResultVertexBuilder dc(final long oid) {
         return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
                 RepoEntityType.DATACENTER.getValue(),
                 UIEntityState.ACTIVE.getValue()));
     }
 
-    public static ResultVertexBuilder storage(@Nonnull final long oid) {
+    /**
+     * Build a storage vertex.
+     *
+     * @param oid the oid of the entity.
+     * @return the built entity.
+     */
+    public static ResultVertexBuilder storage(final long oid) {
         return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
                 RepoEntityType.STORAGE.getValue(),
                 UIEntityState.ACTIVE.getValue()));
     }
 
-    public static ResultVertexBuilder da(@Nonnull final long oid) {
+    /**
+     * Build a disk array vertex.
+     *
+     * @param oid the oid of the entity.
+     * @return the built entity.
+     */
+    public static ResultVertexBuilder da(final long oid) {
         return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
                 RepoEntityType.DISKARRAY.getValue(),
+                UIEntityState.ACTIVE.getValue()));
+    }
+
+    /**
+     * Build a logical pool vertex.
+     *
+     * @param oid the oid of the entity.
+     * @return the built entity.
+     */
+    public static ResultVertexBuilder lp(final long oid) {
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.LOGICALPOOL.getValue(),
                 UIEntityState.ACTIVE.getValue()));
     }
 

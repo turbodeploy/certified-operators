@@ -18,18 +18,56 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 
 /**
  * An in-memory graph built from supply chain queries used for traversal in order to compute the actual
- * supply chain for display.
+ * supply chain for display.<p/>
  *
  * The graph is actually a subgraph of the whole topology consisting of the vertices reachable from
- * a particular starting point in the supply chain.
+ * a particular starting point in the supply chain.  It is constructed by computing the transitive closure
+ * of the consumers of the starting point and composing it with the transitive closure of the providers
+ * of the starting point.<p/>
+ *
+ * In some cases, an entity type may be consumer (or producer) of another in a direct and indirect way.
+ * For example, VMs consume directly from Storage, but they can also be found indirectly in the supply
+ * chain: VDCs consume from Storage and VMs consume from VDCs.  It is usually undesirable to include in
+ * the supply chain the entities that come from the indirect way.  In our example, if our starting point
+ * is an entity of type Storage, we only wish to include the VMs that directly consume from it; not the
+ * ones that consume from any VCD that consumes from that storage.<p/>
+ *
+ * To satisfy this requirement, we keep a record of visited entity types.  As soon as an entity type is
+ * seen once, we mark it visited.  No more entities of that type will be added if they are found in the
+ * transitive closure again.  In our example, if we find two VMs consuming from our Storage, we will add
+ * them to the graph, we will mark VM as a "visited entity type" and we will ignore all other VMs that we
+ * will encounter while computing the transitive closure.<p/>
+ *
+ * Of course, this requirement has its exceptions.  For example, starting from a DiskArray entity, we want
+ * to find all Storage entities consuming from it, regardless of whether they consume directly from
+ * it or through a LogicalPool entity.  In another example, consider VDCs.  A VDC can consume from another
+ * VDC (VDCs form hierarchies with unbounded height).  When we encounter a VDC, we want to compute the full
+ * hierarchy of its consumer (or producer) VDCs<p/>
+ *
+ * To allow for these exceptions, we define the concept of "mandatory edges."  If an edge is mandatory, the
+ * algorithm is forced to traverse it, regardless of whether the destination entity type has been visited
+ * before.  For the time being, we define two cases of mandatory edges:
+ * <ul>
+ *     <il>Edges between a VDC and a VDC</il>
+ *     <il>Edges between a Storage and a LogicalPool</il>
+ * </ul>
+ * More cases may be added in the future.<p/>
+ *
+ * Given the above examples of mandatory edges, it should be clear that a Storage consuming from a
+ * LogicalPool will be included in the supply chain of the underlying DiskArray entity, even if there are
+ * other Storage entities consuming directly from the disk array.  Similarly, starting from the lowest
+ * level of VDCs in a hierarchy and going up, we will include all of them in the supply chain, together
+ * with their consumers.
  */
 @Immutable
 public class SupplyChainSubgraph {
@@ -44,25 +82,37 @@ public class SupplyChainSubgraph {
     private final String startingVertexId;
 
     /**
-     * The entity type of the startingVertex.
+     * Supply chain nodes of this graph
      */
-    private final String startingVertexEntityType;
+    private final List<SupplyChainNode> supplyChainNodes;
 
     /**
-     * A function that, given a vertex, returns the neighbors for that vertex in a particular direction
-     * (ie providers or consumers).
+     * This maps entity type names to their corresponding supply chain nodes,
+     * during the construction of the supply chain graph.
      */
-    @FunctionalInterface
-    private interface NeighborFunction {
-        @Nonnull
-        List<SupplyChainVertex> neighborsFor(@Nonnull final SupplyChainVertex vertex);
-    }
+    private final Map<String, SupplyChainNodeBuilder> nodeMap = new HashMap<>();
 
     /**
-     * Create a new subgraph instance. The subgraph contains the section of the topology topology
-     * reachable from a particular starting point in the supply chain.
-     *
-     * The origin entity on the input subgraph results must be the same.
+     * Structures to be used during the construction of the supply chain node graph.
+     */
+    private Deque<VertexAndNeighbor> frontier;
+    private final Set<String> visitedEntityTypes = new HashSet<>();
+    private final Set<SupplyChainVertex> visitedEntities = new HashSet<>();
+
+    /**
+     * This collection defines the pairs of entity types for which the edges are mandatory.
+     * Pairs are represented as sets of size 2.
+     */
+    private static final Set<Set<RepoEntityType>> mandatoryEdgeTypes =
+            ImmutableSet.of(
+                ImmutableSet.of(RepoEntityType.VIRTUAL_DATACENTER, RepoEntityType.VIRTUAL_DATACENTER),
+                ImmutableSet.of(RepoEntityType.STORAGE, RepoEntityType.LOGICALPOOL)
+            );
+
+    /**
+     * Create the supply chain graph, given two graphs between entities: one for the "produces" and one
+     * for the "consumes" relation.  Each graph specifies an origin entity.  The origin entity on the
+     * input graphs must be the same.
      *
      * @param providersResult The edges for providers leading out from the starting vertex.
      * @param consumersResult The edges for consumers leading out from the starting vertex.
@@ -73,83 +123,43 @@ public class SupplyChainSubgraph {
         Preconditions.checkArgument(providerOrigin.equals(consumersResult.getOrigin()));
 
         startingVertexId = providerOrigin.getId();
-        startingVertexEntityType = providerOrigin.getEntityType();
 
         graph = new HashMap<>();
         graph.put(startingVertexId, new SupplyChainVertex(providerOrigin));
 
         addNeighbors(providersResult);
         addNeighbors(consumersResult);
+        supplyChainNodes = constructSupplyChainNodeGraph();
     }
 
     /**
-     * Get the id of the starting vertex. The starting vertex is the vertex from which
-     * traversal was performed to build the subgraph.
+     * Return the collection of supply chain nodes as a list (a fresh list is created to avoid
+     * aliasing the internal state of the object).
      *
-     * @return the id of the starting vertex.
-     */
-    public String getStartingVertexId() {
-        return startingVertexId;
-    }
-
-    /**
-     * Get the entity type of the starting vertex. The starting vertex is the vertex from which
-     * traversal was performed to build the subgraph.
-     *
-     * @return the entity type of the starting vertex.
-     */
-    public String getStartingVertexEntityType() {
-        return startingVertexEntityType;
-    }
-
-
-    /**
-     * Get a collection of {@link SupplyChainNode}s for the supply chain starting from the starting vertex
-     * for this subgraph.
-     *
-     * The single-source supply chain algorithm can essentially be described as follows:
-     * starting from a single node in the graph, traverse outwards in both provider and
-     * consumer directions in a breadth-first fashion. The first time you encounter an
-     * entity of a given type, count the number of entities of that type which are
-     * reachable from the start and mark ALL entities of that type as counted. If you
-     * again visit an entity of a counted type, ignore it from your total count. At the
-     * end of the traversal, return the counts for each entity type that were reached
-     * during the traversal.
-     *
-     * Note that we make an exception for entities that buy from entities of the same type
-     * (ie VDC's). In the specific case where an entity buys from its same type, we do
-     * not count the depth as increasing and instead include all entities buying from
-     * each other of that same type.
-     *
-     * @return {@link SupplyChainNode}s for the supply chain starting from the starting vertex.
+     * @return the collection of supply chain nodes as a list.
      */
     public List<SupplyChainNode> toSupplyChainNodes() {
-        /**
-         * A map of entityType -> SupplyChainNode of that entity type.
-         * Entities are added to the nodes in the nodeMap as the BFS proceeds.
-         */
-        final Map<String, SupplyChainNodeBuilder> nodeMap = new HashMap<>();
+        return Collections.unmodifiableList(supplyChainNodes);
+    }
 
-        /**
-         * Perform a breadth-first-search starting from the starting node.
-         * The first time we hit an entity of a certain type, add a {@link SupplyChainNode} to our nodeMap
-         * for that type. If a node already exists for that type, it indicates we should skip entities of that
-         * type.
-         */
+    private List<SupplyChainNode> constructSupplyChainNodeGraph() {
         final SupplyChainVertex startingVertex = graph.get(startingVertexId);
 
-        final Deque<VertexAndNeighbor> frontier = new ArrayDeque<>();
-
         // Traverse outward from the starting vertex to collect supply chain providers
+        frontier = new ArrayDeque<>();
         frontier.add(new VertexAndNeighbor(startingVertex, null));
-        traverseSupplyChainBFS(nodeMap, frontier, SupplyChainVertex::getProviders, 1);
+        traverseSupplyChainBFS(SupplyChainVertex::getProviders, 1);
 
         // Traverse outward from the starting vertex to collect supply chain consumers
         // Start from the starting vertex consumers because the starting vertex itself
         // was added in the producers traversal.
-        frontier.addAll(Lists.transform(startingVertex.getConsumers(),
-            consumer -> new VertexAndNeighbor(consumer, startingVertex)));
-        traverseSupplyChainBFS(nodeMap, frontier, SupplyChainVertex::getConsumers, 1);
+        frontier =
+            new ArrayDeque<>(
+                Lists.transform(
+                    startingVertex.getConsumers(),
+                    consumer -> new VertexAndNeighbor(consumer, startingVertex))
+            );
+        traverseSupplyChainBFS(SupplyChainVertex::getConsumers, 2);
 
         return nodeMap.values().stream()
             .map(nodeBuilder -> nodeBuilder.buildNode(graph))
@@ -157,51 +167,46 @@ public class SupplyChainSubgraph {
     }
 
     /**
-     * Perform a breadth-first-search traversal starting from the nodes contained in the frontier {@link Deque}.
+     * Perform a breadth-first-search traversal starting from the nodes contained in the frontier.
      *
-     * @param nodeMap          The map of OID->SupplyChainNode builders containing the results being built
-     *                         from the BFS traversal. Vertices in the graph of a type that already has an entry in the nodeMap
-     *                         are skipped.
-     * @param frontier         The traversal frontier for the BFS.
-     *                         Frontier contains the entities being traversed at the current depth of the BFS.
      * @param neighborFunction The function that, given a vertex, can retrieve the neighbors for the vertex in
      *                         a particular direction (ie provider or consumer neighbors).
      * @param currentDepth     The current depth of the BFS (ie how many hops we are from the starting vertex).
      */
-    private void traverseSupplyChainBFS(@Nonnull final Map<String, SupplyChainNodeBuilder> nodeMap,
-                                        @Nonnull final Deque<VertexAndNeighbor> frontier,
-                                        @Nonnull final NeighborFunction neighborFunction,
-                                        final int currentDepth) {
+    private void traverseSupplyChainBFS(
+            @Nonnull final NeighborFunction neighborFunction,
+            final int currentDepth) {
         // nextFrontier are the entities to be traversed at depth+1.
         final Deque<VertexAndNeighbor> nextFrontier = new ArrayDeque<>();
-        final Set<String> visitedEntityTypes = new HashSet<>();
-        visitedEntityTypes.addAll(nodeMap.keySet());
+        final Set<String> visitedEntityTypesInThisDepth = new HashSet<>();
 
         while (!frontier.isEmpty()) {
             final VertexAndNeighbor vertexAndNeighbor = frontier.removeFirst();
             final SupplyChainVertex vertex = vertexAndNeighbor.vertex;
+            visitedEntities.add(vertex);
 
-            /** Only add a node when we have not already visited an entity of the same type
-             *  or if the connection corresponds to a "self-loop" where an entity buys from
-             *  or sells to an entity of the same type (see {@link #toSupplyChainNodes})
-             */
-            if (!visitedEntityTypes.contains(vertex.getEntityType()) || vertexAndNeighbor.sameEntityTypes()) {
-                nextFrontier.addAll(neighborFunction.neighborsFor(vertex).stream()
-                        .map(neighbor -> new VertexAndNeighbor(neighbor, vertex))
-                        .collect(Collectors.toList()));
+            // Only add a node when we have not already visited an entity of the same type
+            // or if the connection corresponds to a mandatory edge.
+            if (!visitedEntityTypes.contains(vertex.getEntityType()) || vertexAndNeighbor.mandatoryEdge()) {
+                nextFrontier.addAll(
+                        neighborFunction.neighborsFor(vertex).stream()
+                            .filter(neighbor -> !visitedEntities.contains(neighbor))
+                            .map(neighbor -> new VertexAndNeighbor(neighbor, vertex))
+                            .collect(Collectors.toList()));
                 final SupplyChainNodeBuilder nodeBuilder =
                         nodeMap.computeIfAbsent(vertex.getEntityType(), entityType -> new SupplyChainNodeBuilder());
+                visitedEntityTypesInThisDepth.add(vertex.getEntityType());
 
                 nodeBuilder.setSupplyChainDepth(currentDepth);
                 nodeBuilder.setEntityType(vertex.getEntityType());
                 nodeBuilder.addMember(vertex.getOid(), vertex.getState());
             }
         }
+        visitedEntityTypes.addAll(visitedEntityTypesInThisDepth);
 
-        // Recursively add nodes in the next frontier.
-        // Supply chains have small enough depth that we don't need to worry about stack overflow.
         if (!nextFrontier.isEmpty()) {
-            traverseSupplyChainBFS(nodeMap, nextFrontier, neighborFunction, currentDepth + 1);
+            frontier = nextFrontier;
+            traverseSupplyChainBFS(neighborFunction, currentDepth + 1);
         }
     }
 
@@ -230,6 +235,16 @@ public class SupplyChainSubgraph {
                     supplyChainProvider.consumers.add(supplyChainConsumer);
                 })
             );
+    }
+
+    /**
+     * A function that, given a vertex, returns the neighbors for that vertex in a particular direction
+     * (ie providers or consumers).
+     */
+    @FunctionalInterface
+    private interface NeighborFunction {
+        @Nonnull
+        List<SupplyChainVertex> neighborsFor(@Nonnull final SupplyChainVertex vertex);
     }
 
     /**
@@ -320,13 +335,17 @@ public class SupplyChainSubgraph {
         }
 
         /**
-         * Returns true if and only if the vertex and its source neighbor have the same entity type.
-         * If the source neighbor is null, returns false.
+         * Returns true if and only if the edge between the vertex and its source neighbor is mandatory.
          *
-         * @return If the vertex and its sourceNeighbor have the same entityType.
+         * @return if and only if the edge between the vertex and its source neighbor is mandatory.
          */
-        public boolean sameEntityTypes() {
-            return sourceNeighbor != null && vertex.getEntityType().equals(sourceNeighbor.getEntityType());
+        public boolean mandatoryEdge() {
+            return mandatoryEdgeTypes.contains(
+                ImmutableSet.of(
+                    RepoEntityType.fromString(vertex.getEntityType()),
+                    RepoEntityType.fromString(sourceNeighbor.getEntityType())
+                )
+            );
         }
     }
 
