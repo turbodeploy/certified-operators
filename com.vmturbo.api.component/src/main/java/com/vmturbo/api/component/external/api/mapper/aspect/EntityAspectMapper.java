@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -30,40 +29,67 @@ public class EntityAspectMapper {
 
     public EntityAspectMapper(@Nonnull final StorageTierAspectMapper storageTierAspectMapper,
                               @Nonnull final VirtualVolumeAspectMapper virtualVolumeAspectMapper,
-                              @Nonnull final CloudAspectMapper cloudAspectMapper) {
-        // todo: add more aspect mappers here when they are implemented
-        ASPECT_MAPPERS = ImmutableMap.of(
-                EntityType.STORAGE_TIER_VALUE, ImmutableList.of(
-                        storageTierAspectMapper,
-                        virtualVolumeAspectMapper,
-                        cloudAspectMapper
-                ),
-                EntityType.VIRTUAL_MACHINE_VALUE, ImmutableList.of(
-                        virtualVolumeAspectMapper
-                )
-        );
+                              @Nonnull final CloudAspectMapper cloudAspectMapper,
+                              @Nonnull final VirtualMachineAspectMapper virtualMachineMapper,
+                              @Nonnull final PhysicalMachineAspectMapper physicalMachineAspectMapper,
+                              @Nonnull final StorageAspectMapper storageAspectMapper,
+                              @Nonnull final PortsAspectMapper portsAspectMapper,
+                              @Nonnull final DiskArrayAspectMapper diskArrayAspectMapper,
+                              @Nonnull final LogicalPoolAspectMapper logicalPoolAspectMapper,
+                              @Nonnull final DatabaseAspectMapper databaseAspectMapper,
+                              @Nonnull final VirtualDisksAspectMapper virtualDisksAspectMapper) {
+
+        ASPECT_MAPPERS = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
+            .put(EntityType.DATABASE_VALUE, ImmutableList.of(
+                databaseAspectMapper,
+                cloudAspectMapper))
+            .put(EntityType.DATABASE_SERVER_VALUE, ImmutableList.of(
+                databaseAspectMapper,
+                cloudAspectMapper))
+            .put(EntityType.DISK_ARRAY_VALUE, ImmutableList.of(
+                diskArrayAspectMapper))
+            .put(EntityType.IO_MODULE_VALUE, ImmutableList.of(
+                portsAspectMapper))
+            .put(EntityType.LOGICAL_POOL_VALUE, ImmutableList.of(
+                logicalPoolAspectMapper))
+            .put(EntityType.NETWORK_VALUE, ImmutableList.of(
+                portsAspectMapper))
+            .put(EntityType.PHYSICAL_MACHINE_VALUE, ImmutableList.of(
+                physicalMachineAspectMapper))
+            .put(EntityType.STORAGE_VALUE, ImmutableList.of(
+                storageAspectMapper,
+                virtualDisksAspectMapper,
+                cloudAspectMapper))
+            .put(EntityType.STORAGE_TIER_VALUE, ImmutableList.of(
+                storageTierAspectMapper,
+                cloudAspectMapper,
+                virtualVolumeAspectMapper))
+            .put(EntityType.SWITCH_VALUE, ImmutableList.of(
+                portsAspectMapper))
+            .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableList.of(
+                virtualMachineMapper,
+                cloudAspectMapper,
+                virtualDisksAspectMapper))
+            .build();
     }
 
     /**
-     * Get all aspects for a given entity and return as a mapping from aspect name to aspect DTO.
+     * Get all aspects for a given entity.
      *
      * @param entity the entity to get aspect for
      * @return all aspects mapped by aspect name
      */
+    @Nonnull
     public Map<String, EntityAspect> getAspectsByEntity(@Nonnull TopologyEntityDTO entity) {
-        if (!ASPECT_MAPPERS.containsKey(entity.getEntityType())) {
-            logger.warn("Aspect is not supported for entity type: {}",
-                    EntityType.forNumber(entity.getEntityType()));
-            return Collections.emptyMap();
-        }
-
         final Map<String, EntityAspect> aspects = new HashMap<>();
-        ASPECT_MAPPERS.get(entity.getEntityType()).forEach(aspectMapper -> {
-            EntityAspect entityAspect = aspectMapper.map(entity);
-            if (entityAspect != null) {
-                aspects.put(aspectMapper.getAspectName(), entityAspect);
-            }
-        });
+        if (ASPECT_MAPPERS.containsKey(entity.getEntityType())) {
+            ASPECT_MAPPERS.get(entity.getEntityType()).forEach(aspectMapper -> {
+                EntityAspect entityAspect = aspectMapper.mapEntityToAspect(entity);
+                if (entityAspect != null) {
+                    aspects.put(aspectMapper.getAspectName(), entityAspect);
+                }
+            });
+        }
         return aspects;
     }
 
@@ -76,21 +102,18 @@ public class EntityAspectMapper {
      */
     @Nullable
     public EntityAspect getAspectByEntity(@Nonnull TopologyEntityDTO entity, @Nonnull String aspectName) {
-        if (!ASPECT_MAPPERS.containsKey(entity.getEntityType())) {
-            logger.warn("Aspect is not supported for entity type: {}",
-                    EntityType.forNumber(entity.getEntityType()));
+        List<IAspectMapper> aspectMappers = ASPECT_MAPPERS.get(entity.getEntityType());
+        if (aspectMappers == null) {
+            logger.warn("Aspect with name: " + aspectName + " for entity: " + entity.getOid() +
+                " not found");
             return null;
         }
-
-        Optional<IAspectMapper> aspectMapper = ASPECT_MAPPERS.get(entity.getEntityType()).stream()
-                .filter(mapper -> mapper.getAspectName().equals(aspectName))
-                .findAny();
-        if (!aspectMapper.isPresent()) {
-            logger.warn("Aspect: {} is not supported for entity type: {}", aspectName,
-                    EntityType.forNumber(entity.getEntityType()));
-            return null;
-        }
-        return aspectMapper.get().map(entity);
+        // look for the aspect by that name and apply it; or else return null
+        return aspectMappers.stream()
+            .filter(mapper -> mapper.getAspectName().equals(aspectName))
+            .findAny()
+            .map(mapper -> mapper.mapEntityToAspect(entity))
+            .orElse(null);
     }
 
     /**
@@ -99,21 +122,20 @@ public class EntityAspectMapper {
      * @param members the members of a group to get aspect for
      * @return all aspects mapped by aspect name
      */
+    @Nonnull
     public Map<String, EntityAspect> getAspectsByGroup(@Nonnull List<TopologyEntityDTO> members) {
         int entityType = members.stream().map(TopologyEntityDTO::getEntityType).findFirst().get();
-        if (!ASPECT_MAPPERS.containsKey(entityType)) {
-            return Collections.emptyMap();
-        }
-
         final Map<String, EntityAspect> aspects = new HashMap<>();
-        ASPECT_MAPPERS.get(entityType).forEach(aspectMapper -> {
-            if (aspectMapper.supportsGroup()) {
-                EntityAspect entityAspect = aspectMapper.map(members);
-                if (entityAspect != null) {
-                    aspects.put(aspectMapper.getAspectName(), entityAspect);
+        if (ASPECT_MAPPERS.containsKey(entityType)) {
+            ASPECT_MAPPERS.get(entityType).forEach(aspectMapper -> {
+                if (aspectMapper.supportsGroup()) {
+                    EntityAspect entityAspect = aspectMapper.mapEntitiesToAspect(members);
+                    if (entityAspect != null) {
+                        aspects.put(aspectMapper.getAspectName(), entityAspect);
+                    }
                 }
-            }
-        });
+            });
+        }
         return aspects;
     }
 
@@ -128,19 +150,15 @@ public class EntityAspectMapper {
     @Nullable
     public EntityAspect getAspectByGroup(@Nonnull List<TopologyEntityDTO> members, @Nonnull String aspectName) {
         int entityType = members.stream().map(TopologyEntityDTO::getEntityType).findFirst().get();
-        if (!ASPECT_MAPPERS.containsKey(entityType)) {
-            logger.warn("Aspect is not supported for group type: {} ", EntityType.forNumber(entityType));
+        List<IAspectMapper> aspectMappers = ASPECT_MAPPERS.get(entityType);
+        if (aspectMappers == null) {
+            logger.warn("Aspect: " + aspectName + " is not supported for group type: " + entityType);
             return null;
         }
-
-        Optional<IAspectMapper> aspectMapper = ASPECT_MAPPERS.get(entityType).stream()
-                .filter(mapper -> mapper.supportsGroup() && mapper.getAspectName().equals(aspectName))
-                .findAny();
-        if (!aspectMapper.isPresent()) {
-            logger.warn("Aspect: {} is not supported for group type: {}", aspectName,
-                    EntityType.forNumber(entityType));
-            return null;
-        }
-        return aspectMapper.get().map(members);
+        return aspectMappers.stream()
+            .filter(mapper -> mapper.supportsGroup() && mapper.getAspectName().equals(aspectName))
+            .findAny()
+            .map(applicableMapper -> applicableMapper.mapEntitiesToAspect(members))
+            .orElse(null);
     }
 }

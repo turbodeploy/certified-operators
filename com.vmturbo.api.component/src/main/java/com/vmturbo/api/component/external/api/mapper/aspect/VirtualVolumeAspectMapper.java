@@ -78,15 +78,15 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     }
 
     @Override
-    public EntityAspect map(@Nonnull TopologyEntityDTO entity) {
+    public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
         STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
         aspect.setDisplayName(entity.getDisplayName());
         aspect.setName(String.valueOf(entity.getOid()));
-        return map(Lists.newArrayList(entity));
+        return mapEntitiesToAspect(Lists.newArrayList(entity));
     }
 
     @Override
-    public EntityAspect map(@Nonnull List<TopologyEntityDTO> entities) {
+    public EntityAspect mapEntitiesToAspect(@Nonnull List<TopologyEntityDTO> entities) {
         if (entities.size() == 0) {
             return null;
         }

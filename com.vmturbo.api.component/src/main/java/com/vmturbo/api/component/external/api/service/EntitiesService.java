@@ -119,9 +119,19 @@ public class EntitiesService implements IEntitiesService {
 
 
     @Override
-    public ServiceEntityApiDTO getEntityByUuid(String uuid, boolean includeAspects) throws Exception {
-        // todo: implement includeAspcts
-        return repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
+    public ServiceEntityApiDTO getEntityByUuid(String uuid,
+                                               boolean includeAspects) throws Exception {
+        // TODO: move the mapping for TopologyEntityDTO from repository to API; this would remove
+        // the need for two round-trip requests; i.e. the XL internal components should not deal
+        // with the external API data forma
+        final ServiceEntityApiDTO serviceEntityForUuid =
+                repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
+        if (includeAspects) {
+            // this second call would not be required if the mapping to ServiceEntityApiDTO is in API
+            serviceEntityForUuid.setAspects(entityAspectMapper.getAspectsByEntity(
+                getTopologyEntityDTO(uuid)));
+        }
+        return serviceEntityForUuid;
     }
 
     @Override

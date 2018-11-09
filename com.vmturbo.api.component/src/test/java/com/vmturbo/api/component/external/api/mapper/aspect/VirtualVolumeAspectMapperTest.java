@@ -261,7 +261,7 @@ public class VirtualVolumeAspectMapperTest {
         when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(regionId1, regionId2)))
                 .thenReturn(Lists.newArrayList(region1, region2));
 
-        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.map(
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
                Lists.newArrayList(storageTier1, storageTier2));
 
         assertEquals(3, aspect.getVirtualDisks().size());

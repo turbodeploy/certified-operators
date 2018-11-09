@@ -14,8 +14,16 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.DiskArrayAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.LogicalPoolAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.PhysicalMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.PortsAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.StorageAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualDisksAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
@@ -159,9 +167,14 @@ public class MapperConfig {
     }
 
     @Bean
+    public VirtualDisksAspectMapper virtualDisksAspectMapper() {
+        return new VirtualDisksAspectMapper();
+    }
+
+    @Bean
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
         return new VirtualVolumeAspectMapper(communicationConfig.searchServiceBlockingStub(),
-                communicationConfig.costServiceBlockingStub());
+            communicationConfig.costServiceBlockingStub());
     }
 
     @Bean
@@ -170,10 +183,42 @@ public class MapperConfig {
     }
 
     @Bean
+    public VirtualMachineAspectMapper virtualMachineMapper() {
+        return new VirtualMachineAspectMapper();
+    }
+
+    @Bean
+    public PhysicalMachineAspectMapper physicalMachineAspectMapper() {
+        return new PhysicalMachineAspectMapper(communicationConfig.searchServiceBlockingStub());
+    }
+
+    @Bean
+    public StorageAspectMapper storageAspectMapper() {
+        return new StorageAspectMapper();
+    }
+    @Bean
+    public PortsAspectMapper portsAspectMapper() {
+        return new PortsAspectMapper();
+    }
+    @Bean
+    public DiskArrayAspectMapper diskArrayAspectMapper() {
+        return new DiskArrayAspectMapper();
+    }
+    @Bean
+    public LogicalPoolAspectMapper logicalPoolAspectMapper() {
+        return new LogicalPoolAspectMapper();
+    }
+    @Bean
+    public DatabaseAspectMapper databaseAspectMapper() {
+        return new DatabaseAspectMapper();
+    }
+
+    @Bean
     public EntityAspectMapper entityAspectMapper() {
-        return new EntityAspectMapper(storageTierAspectMapper(),
-                                      virtualVolumeAspectMapper(),
-                                      cloudAspectMapper());
+        return new EntityAspectMapper(storageTierAspectMapper(), virtualVolumeAspectMapper(),
+                cloudAspectMapper(), virtualMachineMapper(), physicalMachineAspectMapper(),
+                storageAspectMapper(), portsAspectMapper(), diskArrayAspectMapper(),
+            logicalPoolAspectMapper(), databaseAspectMapper(), virtualDisksAspectMapper());
     }
 
     @Bean(destroyMethod = "shutdownNow")

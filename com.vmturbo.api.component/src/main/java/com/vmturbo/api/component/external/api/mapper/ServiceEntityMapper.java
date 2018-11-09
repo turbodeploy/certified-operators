@@ -6,7 +6,6 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
