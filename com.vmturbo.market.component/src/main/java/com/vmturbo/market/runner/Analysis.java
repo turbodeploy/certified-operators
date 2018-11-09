@@ -340,18 +340,17 @@ public class Analysis {
                 Stream<TopologyEntityDTO> entitiesFromOriginalTopo =
                         originalCloudTopology.getAllEntitesOfType(EntityType.REGION_VALUE).stream();
                 // retrieve businessAccount DTOs from the original entities topology
-                Stream.concat(entitiesFromOriginalTopo,
+                entitiesFromOriginalTopo = Stream.concat(entitiesFromOriginalTopo,
                         originalCloudTopology.getAllEntitesOfType(EntityType.BUSINESS_ACCOUNT_VALUE).stream());
-                Stream<TopologyEntityDTO> projectedEntityDTOs = projectedEntities.stream()
-                        .filter(ProjectedTopologyEntity::hasEntity)
-                        .map(ProjectedTopologyEntity::getEntity);
                 // Calculate the projected entity costs.
                 final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
-                        cloudTopologyFactory.newCloudTopology(projectedEntityDTOs.count() != 0 ?
+                        cloudTopologyFactory.newCloudTopology(
                                 Stream.concat(
-                                    projectedEntityDTOs,
+                                    projectedEntities.stream()
+                                            .filter(ProjectedTopologyEntity::hasEntity)
+                                            .map(ProjectedTopologyEntity::getEntity),
                                     // pass region and businessAccount from the original topo
-                                    entitiesFromOriginalTopo) : projectedEntityDTOs);
+                                    entitiesFromOriginalTopo));
                 projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology);
             }
 
