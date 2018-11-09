@@ -12,7 +12,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.components.common.mapping.UIEntityState;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
@@ -38,8 +37,6 @@ public class ServiceEntityRepoDTOConverter {
         topologyEntityBuilder.setDisplayName(serviceEntityRepoDTO.getDisplayName());
         topologyEntityBuilder.setEntityType(RepoObjectType.toTopologyEntityType(
                 serviceEntityRepoDTO.getEntityType()));
-        topologyEntityBuilder.setEnvironmentType(
-            UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType()).toEnvType());
         if (serviceEntityRepoDTO.getState() != null) {
             topologyEntityBuilder.setEntityState(
                 UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState());
