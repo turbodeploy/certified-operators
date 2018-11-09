@@ -21,6 +21,8 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
+import com.vmturbo.proactivesupport.DataMetricGauge;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * DAO backed by RDBMS to hold action history.
@@ -28,6 +30,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 public class ActionHistoryDaoImpl implements ActionHistoryDao {
 
     private final Logger logger = LoggerFactory.getLogger(ActionHistoryDaoImpl.class);
+
+    private static final DataMetricGauge ACTION_HISTORY_SIZE_GAUGE = DataMetricGauge.builder()
+            .withName("ao_action_history_size")
+            .withHelp("Number of actions in action history.")
+            .build()
+            .register();
+
+    private static final DataMetricGauge ACTION_HISTORY_FETCH_TIME_SECS = DataMetricGauge.builder()
+            .withName("ao_action_history_fetch_time_secs")
+            .withHelp("Amount of time (in seconds) it takes to fetch the entire action_history table")
+            .build()
+            .register();
+
 
     /**
      * Database access context.
@@ -88,9 +103,14 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
     public List<ActionView> getAllActionHistory() {
         try (Stream<ActionHistoryRecord> stream =  dsl
                 .selectFrom(ACTION_HISTORY)
-                .stream()) {
-            return stream.map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
-                    .collect(Collectors.toList());
+                .fetchSize(Integer.MIN_VALUE) // use streaming fetch
+                .stream();
+             DataMetricTimer timer =
+                     new DataMetricTimer((ACTION_HISTORY_FETCH_TIME_SECS::setData))) {
+            List<ActionView> actionViews = stream.map(actionHistory ->
+                    mapDbActionHistoryToAction(actionHistory)).collect(Collectors.toList());
+            ACTION_HISTORY_SIZE_GAUGE.setData(Double.valueOf(actionViews.size()));
+            return  actionViews;
         }
     }
 
@@ -108,6 +128,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
         try (Stream<ActionHistoryRecord> stream =  dsl
                 .selectFrom(ACTION_HISTORY)
                 .where(ACTION_HISTORY.CREATE_TIME.between(startDate, endDate))
+                .fetchSize(Integer.MIN_VALUE) // use streaming fetch
                 .stream()) {
             return stream.map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
                     .collect(Collectors.toList());
