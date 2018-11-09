@@ -3,7 +3,7 @@ package com.vmturbo.history.stats;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_CPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE_USED;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
 import java.text.MessageFormat;

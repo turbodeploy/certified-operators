@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.rpc;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +50,7 @@ import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator;
 import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
@@ -98,6 +100,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final EntityCostStore entityCostStore;
 
+    private final ProjectedEntityCostStore projectedEntityCostStore;
+
     private final BusinessAccountHelper businessAccountHelper;
 
     private final TimeFrameCalculator timeFrameCalculator;
@@ -112,12 +116,14 @@ public class CostRpcService extends CostServiceImplBase {
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
                           @Nonnull final EntityCostStore costStoreHouse,
+                          @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                           @Nonnull final BusinessAccountHelper businessAccountHelper) {
 
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
+        this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
     }
@@ -378,13 +384,17 @@ public class CostRpcService extends CostServiceImplBase {
                 final Set<Long> filterIds = request.getEntityFilter().getEntityIdList().stream().collect(Collectors.toSet());
                 final Set<Integer> entityTypeFilterIds = request.getEntityTypeFilter().getEntityTypeIdList().stream().collect(Collectors.toSet());
 
-                final CostFilter entityCostFilter = new EntityCostFilter(filterIds, entityTypeFilterIds, request.getStartDate(), request.getEndDate(), timeFrame);
-                final Map<Long, Map<Long, EntityCost>> snapshoptToEntityCostMap =
-                        (request.hasStartDate() && request.hasEndDate()) ?
-                                entityCostStore.getEntityCosts(entityCostFilter) :
-                                entityCostStore.getLatestEntityCost(filterIds, entityTypeFilterIds);
+                final CostFilter entityCostFilter =
+                        new EntityCostFilter(filterIds, entityTypeFilterIds, request.getStartDate(), request.getEndDate(), timeFrame);
+                Map<Long, Map<Long, EntityCost>> snapshotToEntityCostMap;
+                if (request.hasStartDate() && request.hasEndDate()) {
+                    snapshotToEntityCostMap = entityCostStore.getEntityCosts(entityCostFilter);
+                    snapshotToEntityCostMap.getOrDefault(request.getEndDate(), new HashMap<>()).putAll(projectedEntityCostStore.getAllProjectedEntitiesCosts());
+                } else {
+                    snapshotToEntityCostMap = entityCostStore.getLatestEntityCost(filterIds, entityTypeFilterIds);
+                }
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-                snapshoptToEntityCostMap.forEach((time, costsByEntity) -> {
+                snapshotToEntityCostMap.forEach((time, costsByEntity) -> {
                             final List<CloudCostStatRecord.StatRecord> statRecords = Lists.newArrayList();
                             // GroupBy Cost components, e.g. compute, IP, storage, license
                             if (request.hasGroupBy()
@@ -460,23 +470,31 @@ public class CostRpcService extends CostServiceImplBase {
     private Set<AggregatedEntityCost> aggregateEntityCostByCostType(final Collection<EntityCost> values) {
         final AggregatedEntityCost costIP = new AggregatedEntityCost(CostCategory.IP);
         final AggregatedEntityCost costLicense = new AggregatedEntityCost(CostCategory.LICENSE);
-        final AggregatedEntityCost costCompute = new AggregatedEntityCost(CostCategory.COMPUTE);
+        final AggregatedEntityCost costOnDemandCompute = new AggregatedEntityCost(CostCategory.ON_DEMAND_COMPUTE);
         final AggregatedEntityCost costStorage = new AggregatedEntityCost(CostCategory.STORAGE);
+        final AggregatedEntityCost costRICompute = new AggregatedEntityCost(CostCategory.RI_COMPUTE);
         values.forEach(entityCost -> {
             entityCost.getComponentCostList().forEach(componentCost -> {
-                if (componentCost.getCategory().equals(CostCategory.IP)) {
-                    costIP.addCost(componentCost.getAmount().getAmount());
-                } else if (componentCost.getCategory().equals(CostCategory.LICENSE)) {
-                    costLicense.addCost(componentCost.getAmount().getAmount());
-                } else if (componentCost.getCategory().equals(CostCategory.COMPUTE)) {
-                    costCompute.addCost(componentCost.getAmount().getAmount());
-                } else if (componentCost.getCategory().equals(CostCategory.STORAGE)) {
-                    costStorage.addCost(componentCost.getAmount().getAmount());
+                switch(componentCost.getCategory()) {
+                    case ON_DEMAND_COMPUTE:
+                        costOnDemandCompute.addCost(componentCost.getAmount().getAmount());
+                        break;
+                    case IP:
+                        costIP.addCost(componentCost.getAmount().getAmount());
+                        break;
+                    case LICENSE:
+                        costLicense.addCost(componentCost.getAmount().getAmount());
+                        break;
+                    case STORAGE:
+                        costStorage.addCost(componentCost.getAmount().getAmount());
+                        break;
+                    case RI_COMPUTE:
+                        costRICompute.addCost(componentCost.getAmount().getAmount());
+                        break;
                 }
             });
-
         });
-        return ImmutableSet.of(costIP, costCompute, costLicense, costStorage);
+        return ImmutableSet.of(costIP, costOnDemandCompute, costLicense, costStorage, costRICompute);
     }
 
     private CloudCostStatRecord.StatRecord buildStatRecord(@Nullable final Long producerId,

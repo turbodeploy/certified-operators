@@ -277,7 +277,7 @@ public class ActionInterpreter {
         double totalCost = 0;
         if (TopologyConversionConstants.PRIMARY_TIER_ENTITY_TYPES.contains(
                 marketTier.getTier().getEntityType())) {
-            double computeCost = journal.getHourlyCostForCategory(CostCategory.COMPUTE);
+            double computeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
             double licenseCost = journal.getHourlyCostForCategory(CostCategory.LICENSE);
             double ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
             totalCost = computeCost + licenseCost + ipCost;

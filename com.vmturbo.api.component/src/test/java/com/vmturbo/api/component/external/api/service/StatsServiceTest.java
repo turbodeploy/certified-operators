@@ -105,6 +105,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -147,6 +150,8 @@ public class StatsServiceTest {
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
     private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
+
+    private SearchServiceMole searchServiceMole = spy(new SearchServiceMole());
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory =
             Mockito.mock(SupplyChainFetcherFactory.class);
@@ -203,6 +208,9 @@ public class StatsServiceTest {
                 PlanServiceGrpc.newBlockingStub(testServer.getChannel());
         final RepositoryServiceGrpc.RepositoryServiceBlockingStub repositoryRpcService =
                 RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
+        final SearchServiceBlockingStub searchServiceClient =
+                SearchServiceGrpc.newBlockingStub(testServer.getChannel());
+                RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
                 riUtilizationCoverageRpcService =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel());
@@ -211,7 +219,7 @@ public class StatsServiceTest {
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         CostServiceBlockingStub costService = CostServiceGrpc.newBlockingStub(testServer.getChannel());
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
-                repositoryRpcService, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
+                repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
                 targetsService, groupService, Duration.ofSeconds(60), costService, searchService,
                         riUtilizationCoverageRpcService,
                         reservedInstanceMapper);
@@ -314,8 +322,8 @@ public class StatsServiceTest {
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 1))
                 .build();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
@@ -394,8 +402,8 @@ public class StatsServiceTest {
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 1))
                 .build();
 
@@ -450,8 +458,8 @@ public class StatsServiceTest {
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, value1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, value2))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, value1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, value2))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, value3))
                 .build();
 
@@ -515,8 +523,8 @@ public class StatsServiceTest {
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 1))
                 .build();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();

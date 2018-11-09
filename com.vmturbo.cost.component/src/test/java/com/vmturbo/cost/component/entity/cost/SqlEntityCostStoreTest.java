@@ -57,7 +57,7 @@ public class SqlEntityCostStoreTest {
     private final LocalDateTime curTime = LocalDateTime.now();
     private final ComponentCost componentCost = ComponentCost.newBuilder()
             .setAmount(CurrencyAmount.newBuilder().setAmount(3.111).setCurrency(1))
-            .setCategory(CostCategory.COMPUTE)
+            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
             .build();
     private final ComponentCost componentCost1 =
             ComponentCost.newBuilder()
@@ -344,7 +344,7 @@ public class SqlEntityCostStoreTest {
     @Test
     public void testStoreCostJournal() throws DbException {
         final CostJournal<TopologyEntityDTO> journal1 = mockCostJournal(ID1, ASSOCIATED_ENTITY_TYPE1,
-                ImmutableMap.of(CostCategory.COMPUTE, 7.0, CostCategory.LICENSE, 3.0));
+                ImmutableMap.of(CostCategory.ON_DEMAND_COMPUTE, 7.0, CostCategory.LICENSE, 3.0));
         store.persistEntityCost(ImmutableMap.of(ID1, journal1));
 
         final Map<Long, Map<Long, EntityCost>> costs =
@@ -358,7 +358,7 @@ public class SqlEntityCostStoreTest {
         assertThat(entityCost.getComponentCostCount(), is(2));
         assertThat(entityCost.getComponentCostList(), containsInAnyOrder(
                 ComponentCost.newBuilder()
-                        .setCategory(CostCategory.COMPUTE)
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
                                 .setAmount(7.0))

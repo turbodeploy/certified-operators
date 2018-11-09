@@ -7,6 +7,7 @@ import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -49,10 +50,12 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -75,6 +78,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -98,6 +102,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -147,6 +157,17 @@ public class StatsService implements IStatsService {
 
     private static final String COSTCOMPONENT = "costComponent";
 
+    public static final String NUM_WORKLOADS = "numWorkloads";
+
+    /**
+     *
+     * Current UI only shows up RI_DISCOUNT. But soon, it will be removed in classic. InsteaActionCountsMapperTest.javad
+     * RI_COMPUTE cost will be shown in the UI.  Until then, we will map the RI_COMPUTE
+     * to the riDiscount request call from the UI.
+     * Once it is fixed in classic, we would have to change this value.
+     */
+    public static final String RI_COMPUTE = "riDiscount";
+
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
     // the +/- threshold (relative to the current time) in which a stats request specifying a time
@@ -165,6 +186,8 @@ public class StatsService implements IStatsService {
     private final RepositoryApi repositoryApi;
 
     private final RepositoryServiceBlockingStub repositoryRpcService;
+
+    private final SearchServiceBlockingStub searchServiceClient;
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
@@ -217,6 +240,7 @@ public class StatsService implements IStatsService {
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
                  @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
+                 @Nonnull final SearchServiceBlockingStub searchServiceClient,
                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                  @Nonnull final StatsMapper statsMapper,
                  @Nonnull final GroupExpander groupExpander,
@@ -232,6 +256,7 @@ public class StatsService implements IStatsService {
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
+        this.searchServiceClient = Objects.requireNonNull(searchServiceClient);
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
@@ -264,6 +289,7 @@ public class StatsService implements IStatsService {
     /**
      * Provides a default stat period, to be used if no period is specified in a request
      * This default stat period includes "current" stats, i.e. no historical stats and no projections
+     *
      * @return a default stat period
      */
     private static final StatPeriodApiInputDTO getDefaultStatPeriodApiInputDto() {
@@ -275,7 +301,7 @@ public class StatsService implements IStatsService {
      * {@link StatPeriodApiInputDTO} query parameter which modifies the stats search. A group is
      * expanded and the stats averaged over the group contents.
      *
-     * @param uuid unique ID of the Entity for which the stats should be gathered
+     * @param uuid         unique ID of the Entity for which the stats should be gathered
      * @param encodedQuery a uuencoded structure for the {@link StatPeriodApiInputDTO} to modify the
      *                     stats search
      * @return a List of {@link StatSnapshotApiDTO} responses containing the time-based stats
@@ -301,15 +327,15 @@ public class StatsService implements IStatsService {
     /**
      * Return stats for a {@link ServiceEntityApiDTO} given the UUID and an input
      * {@link StatPeriodApiInputDTO} object which modifies the stats search.
-     *
+     * <p>
      * Note that the ServiceEntity may be a group. In that case, we expand the given UUID into
      * a list of ServiceEntity UUID's, and the results are averaged over the ServiceEntities
      * in the expanded list.
-     *
+     * <p>
      * Some ServiceEntities, either in the input or as a result of group expansion, require
      * further expansion. For example, a DataCenter entity is replaced by the PMs in the
      * DataCenter. We use the Supply Chain fetcher to calculate that expansion.
-     *
+     * <p>
      * The inputDto object can include a list of "filters" which are keys to search for records
      * in the statistics tables. (e.g. numHosts) For the purpose of getting
      * statistics before and after a plan execution, the stats values for both before and after
@@ -318,10 +344,10 @@ public class StatsService implements IStatsService {
      * prefix (e.g. numHosts). The UI will only send in one "filter" called "numHost". To work with
      * this UI requirement, we add a filter with the "current" prefix for each of the filters.
      * (e.g. for numHosts, we will add currentNumHosts.)
-     *
+     * <p>
      * The results will be ordered such that projected stats come at the end of the list.
      *
-     * @param uuid the UUID of either a single ServiceEntity or a group.
+     * @param uuid     the UUID of either a single ServiceEntity or a group.
      * @param inputDto the parameters to further refine this search.
      * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list,
      * with projected/future stats coming at the end of the list.
@@ -355,6 +381,7 @@ public class StatsService implements IStatsService {
         // and it is handled as a special case.  If more use cases need to get cluster level
         // statistics in the future, the conditions for calling getClusterStats will need to change.
         final List<StatApiInputDTO> statsFilters = inputDto.getStatistics();
+
         final boolean isDefaultCloudGroupUuid = isDefaultCloudGroupUuid(uuid);
         if (!isDefaultCloudGroupUuid && isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
             // uuid belongs to a cluster. Call Stats service to retrieve cluster related stats.
@@ -369,7 +396,7 @@ public class StatsService implements IStatsService {
 
             // determine the list of entity OIDs to query for this operation
             final Set<Long> entityStatOids;
-            if (fullMarketRequest || isDefaultCloudGroupUuid ) {
+            if (fullMarketRequest || isDefaultCloudGroupUuid) {
                 // An empty set means a request for the full market.
                 entityStatOids = Collections.emptySet();
             } else {
@@ -404,7 +431,7 @@ public class StatsService implements IStatsService {
                         response.getSnapshot());
                 // set the time of the snapshot to "future" using the "endDate" of the request
                 projectedStatSnapshot.setDate(
-                    DateTimeUtil.toString(DateTimeUtil.parseTime(inputDto.getEndDate())));
+                        DateTimeUtil.toString(DateTimeUtil.parseTime(inputDto.getEndDate())));
                 // add to the list of stats to return
                 stats.add(projectedStatSnapshot);
             }
@@ -432,7 +459,7 @@ public class StatsService implements IStatsService {
                 // a small change we are making so we can avoid also having to change the stats API,
                 // UI code and classic API to support a new param or special value.
                 if (startTime != null
-                    && (startTime >= currentStatsTimeWindowStart)) {
+                        && (startTime >= currentStatsTimeWindowStart)) {
                     logger.trace("Clearing start and end date since start time is {}ms ago.", (clockTimeNow - startTime));
                     inputDto.setStartDate(null);
                     inputDto.setEndDate(null);
@@ -443,7 +470,7 @@ public class StatsService implements IStatsService {
                             statsFilters.stream()
                                     .filter(filter -> filter.getName() != null)
                                     .map(filter -> STAT_FILTER_PREFIX +
-                                        CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, filter.getName()))
+                                            CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, filter.getName()))
                                     .map(filterName -> {
                                         StatApiInputDTO currentFilter = new StatApiInputDTO();
                                         currentFilter.setName(filterName);
@@ -484,11 +511,49 @@ public class StatsService implements IStatsService {
                                         targetsService))
                                 .collect(Collectors.toList()));
                     } else if (uuid != null || isDefaultCloudGroupUuid || fullMarketRequest) {
-                        final List<CloudCostStatRecord> cloudStatRecords =
+                        List<CloudCostStatRecord> cloudCostStatRecords =
                                 getCloudStatRecordList(inputDto, uuid, entityStatOids, requestGroupBySet);
-                            stats.addAll(cloudStatRecords.stream()
-                                    .map(statsMapper::toCloudStatSnapshotApiDTO)
-                                    .collect(Collectors.toList()));
+                        Optional<StatRecord> riStat = Optional.empty();
+                        if (hasRequestedRICompute(inputDto)) {
+                            riStat = cloudCostStatRecords.stream()
+                                    .map(cloudStats -> cloudStats.getStatRecordsList())
+                                    .flatMap(statRecords -> statRecords.stream())
+                                    .filter(statRecord -> statRecord.getCategory() == CostCategory.RI_COMPUTE)
+                                    .findAny();
+                        }
+
+                        if (!isGroupByComponentRequest(requestGroupBySet)) {
+                            // have to aggregate as needed.
+                            cloudCostStatRecords = aggregate(cloudCostStatRecords);
+                        }
+                        List<StatSnapshotApiDTO> statSnapshots = cloudCostStatRecords.stream()
+                                .map(statsMapper::toCloudStatSnapshotApiDTO)
+                                .collect(Collectors.toList());
+                        if (hasRequestedNumWorkloads(inputDto)) {
+                            // add the numWorkloads to the same timestamp it it exists.
+                            if (statSnapshots.isEmpty()) {
+                                StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                                statSnapshotApiDTO.setDate(inputDto.getEndDate());
+                                statSnapshotApiDTO.setStatistics(Collections.singletonList(getNumWorkloadStatSnapshot()));
+                                statSnapshots.add(statSnapshotApiDTO);
+                            } else {
+                                statSnapshots.get(statSnapshots.size() - 1)
+                                        .getStatistics().add(getNumWorkloadStatSnapshot());
+                            }
+                        }
+                        if (riStat.isPresent()) {
+                            if (statSnapshots.isEmpty()) {
+                                StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                                statSnapshotApiDTO.setDate(inputDto.getEndDate());
+                                statSnapshotApiDTO.setStatistics(Collections.singletonList(createRIComputeStatApiSnapshot(riStat.get())));
+                                statSnapshots.add(statSnapshotApiDTO);
+                            } else {
+                                statSnapshots.get(statSnapshots.size() - 1)
+                                        .getStatistics().add(createRIComputeStatApiSnapshot(riStat.get()));
+                            }
+                        }
+                        stats.addAll(statSnapshots);
+
                     } else {
                         ApiUtils.notImplementedInXL();
                     }
@@ -509,7 +574,7 @@ public class StatsService implements IStatsService {
         return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
     }
 
-    // aggregate to one StatRecord per CloudClostStatRecord
+    // aggregate to one StatRecord per CloudCostStatRecord
     private List<CloudCostStatRecord> aggregate(@Nonnull final List<CloudCostStatRecord> cloudStatRecords) {
         return cloudStatRecords.stream().map(cloudCostStatRecord -> {
             final Builder builder = CloudCostStatRecord.newBuilder();
@@ -517,13 +582,13 @@ public class StatsService implements IStatsService {
             final StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
             final StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
             final List<StatRecord> statRecordsList = cloudCostStatRecord.getStatRecordsList();
-            statValueBuilder.setAvg((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+            statValueBuilder.setAvg((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
                     .mapToDouble(v -> v).average().orElse(0));
-            statValueBuilder.setMax((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+            statValueBuilder.setMax((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
                     .mapToDouble(v -> v).max().orElse(0));
-            statValueBuilder.setMin((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+            statValueBuilder.setMin((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
                     .mapToDouble(v -> v).min().orElse(0));
-            statValueBuilder.setTotal((float)statRecordsList.stream().map(record -> record.getValues().getAvg())
+            statValueBuilder.setTotal((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
                     .mapToDouble(v -> v).sum());
             statRecordBuilder.setValues(statValueBuilder.build());
             statRecordBuilder.setName("costPrice");
@@ -545,8 +610,7 @@ public class StatsService implements IStatsService {
         if (!isDefaultCloudGroupUuid(uuid) && !entityStatOids.isEmpty()) {
             builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
         }
-        final boolean isGroupByComponent = requestGroupBySet.contains(COSTCOMPONENT);
-        if (isGroupByComponent) {
+        if (isGroupByComponentRequest(requestGroupBySet)) {
             builder.setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT);
         }
         if (inputDto.getStartDate() != null && inputDto.getEndDate() != null) {
@@ -556,12 +620,61 @@ public class StatsService implements IStatsService {
         final List<CloudCostStatRecord> cloudCostStatRecords = costServiceRpc.getCloudCostStats(
                 builder.build()).getCloudStatRecordList();
 
-        if (isGroupByComponent) {
-            return cloudCostStatRecords;
-        } else {
-            // have to aggregate as needed.
-            return aggregate(cloudCostStatRecords);
-        }
+        return cloudCostStatRecords;
+    }
+
+    private boolean isGroupByComponentRequest(Set<String> requestGroupBySet) {
+        return requestGroupBySet.contains(COSTCOMPONENT);
+    }
+
+    /**
+     * Return the count of VMs + Database + DatabaseServers in the cloud.
+     */
+    private StatApiDTO getNumWorkloadStatSnapshot() {
+        CountEntitiesRequest request =
+            CountEntitiesRequest.newBuilder()
+                .addSearchParameters(
+                        SearchParameters.newBuilder()
+                                .setStartingFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName("entityType")
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("VirtualMachine")
+                                                .setStringPropertyRegex("^VirtualMachine$|^DatabaseServer$|^Database$")
+                                                .build())
+                                        .build())
+                                .addSearchFilter(SearchFilter.newBuilder()
+                                        .setPropertyFilter(PropertyFilter.newBuilder()
+                                                .setPropertyName("environmentType")
+                                                .setStringFilter(StringFilter.newBuilder()
+                                                        .setStringPropertyRegex("CLOUD"))))
+                                .build())
+                .build();
+            float numCloudVMs = (float) searchServiceClient.countEntities(request).getEntityCount();
+            final StatApiDTO statApiDTO = new StatApiDTO();
+            statApiDTO.setName(NUM_WORKLOADS);
+            statApiDTO.setValue(numCloudVMs);
+            final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+            statValueApiDTO.setAvg(numCloudVMs);
+            statValueApiDTO.setMax(numCloudVMs);
+            statValueApiDTO.setMin(numCloudVMs);
+            statValueApiDTO.setTotal(numCloudVMs);
+            statApiDTO.setValues(statValueApiDTO);
+
+            return statApiDTO;
+    }
+
+    private StatApiDTO createRIComputeStatApiSnapshot(StatRecord cloudCostStatRecord) {
+
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName(RI_COMPUTE);
+        statApiDTO.setValue(cloudCostStatRecord.getValues().getAvg());
+        final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+        statValueApiDTO.setAvg(cloudCostStatRecord.getValues().getAvg());
+        statValueApiDTO.setMax(cloudCostStatRecord.getValues().getMax());
+        statValueApiDTO.setMin(cloudCostStatRecord.getValues().getMin());
+        statValueApiDTO.setTotal(cloudCostStatRecord.getValues().getTotal());
+        statApiDTO.setValues(statValueApiDTO);
+        return statApiDTO;
     }
 
     private List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final StatPeriodApiInputDTO inputDto,
@@ -658,9 +771,27 @@ public class StatsService implements IStatsService {
      */
     private boolean isCostStats(@Nonnull final String uuid,
                                 @Nonnull final StatPeriodApiInputDTO inputDto) {
-        return inputDto.getStatistics() != null && inputDto.getStatistics()
+        return CollectionUtils.emptyIfNull(inputDto.getStatistics())
                 .stream()
                 .anyMatch(dto -> COST_PRICE.equals(dto.getName()));
+    }
+
+    /**
+     * Return true if the request DTO has {@link StatsService#NUM_WORKLOADS} else return false.
+     */
+    private boolean hasRequestedNumWorkloads(@Nonnull final StatPeriodApiInputDTO inputDto) {
+        return CollectionUtils.emptyIfNull(inputDto.getStatistics())
+                .stream()
+                .anyMatch(dto -> NUM_WORKLOADS.equals(dto.getName()));
+    }
+
+    /**
+     * Return true if the request DTO has {@link StatsService#RI_COMPUTE} else return false.
+     */
+    private boolean hasRequestedRICompute(@Nonnull final StatPeriodApiInputDTO inputDto) {
+        return CollectionUtils.emptyIfNull(inputDto.getStatistics())
+                .stream()
+                .anyMatch(dto -> RI_COMPUTE.equals(dto.getName()));
     }
 
     /**

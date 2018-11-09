@@ -3,7 +3,7 @@ package com.vmturbo.history.stats;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.date;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 

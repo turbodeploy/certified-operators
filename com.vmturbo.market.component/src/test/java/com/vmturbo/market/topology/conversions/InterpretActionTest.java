@@ -478,7 +478,7 @@ public class InterpretActionTest {
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
         // Source compute cost = 10 + 2 +3 = 15 (compute + ip + license)
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.COMPUTE)).thenReturn(10d);
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(10d);
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(2d);
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(3d);
         // Total Source cost = 20
@@ -488,7 +488,7 @@ public class InterpretActionTest {
         Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
         CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
         // Destination compute cost = 9 + 1 + 2 = 12
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.COMPUTE)).thenReturn(9d);
+        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(9d);
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(1d);
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(2d);
         // Total destination cost = 15

@@ -1,17 +1,17 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
-import static com.vmturbo.history.schema.StringConstants.CAPACITY;
-import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.history.schema.StringConstants.EFFECTIVE_CAPACITY;
-import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
-import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
-import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.history.schema.StringConstants.RELATION;
-import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.history.schema.StringConstants.UTILIZATION;
+import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
+import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
+import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
+import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
+import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
+import static com.vmturbo.components.common.utils.StringConstants.PRODUCER_UUID;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.components.common.utils.StringConstants.RELATION;
+import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.components.common.utils.StringConstants.UTILIZATION;
 
 import java.sql.Timestamp;
 import java.util.List;
@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A helper class to assemble database {@link Record}s into a {@link StatSnapshot}

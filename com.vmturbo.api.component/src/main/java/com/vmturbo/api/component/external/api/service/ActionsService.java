@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Service Layer to implement Actions
@@ -299,7 +300,7 @@ public class ActionsService implements IActionsService {
      * Send request to action orchestrator and get action counts for entities in group.
      *
      * @param inputDto contains filter criteria for getting action stats.
-     * @param groupMembers set of uuids belonging to same group.
+     * @param entityIds set of entityIds
      * @return stats collected for entities in group.
      */
     @Nonnull
@@ -331,7 +332,7 @@ public class ActionsService implements IActionsService {
             // TODO: Implement more groupBy types for gathering action stats.
             // Right now, we only implement group by action types.
             switch (groupByType) {
-                case ActionCountsMapper.ACTION_TYPES_NAME:
+                case StringConstants.ACTION_TYPES:
                     statSnapshotApiDTOS.addAll(ActionCountsMapper.countsByTypeToApi(typeCounts));
                     break;
                 default:

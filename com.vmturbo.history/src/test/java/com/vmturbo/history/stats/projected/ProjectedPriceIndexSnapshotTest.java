@@ -19,7 +19,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 public class ProjectedPriceIndexSnapshotTest {
 

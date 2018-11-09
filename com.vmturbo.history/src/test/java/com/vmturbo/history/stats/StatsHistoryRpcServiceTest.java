@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.history.schema.StringConstants.USED;
-import static com.vmturbo.history.schema.StringConstants.UTILIZATION;
+import static com.vmturbo.components.common.utils.StringConstants.USED;
+import static com.vmturbo.components.common.utils.StringConstants.UTILIZATION;
 import static com.vmturbo.history.stats.StatsTestUtils.newStatRecord;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;

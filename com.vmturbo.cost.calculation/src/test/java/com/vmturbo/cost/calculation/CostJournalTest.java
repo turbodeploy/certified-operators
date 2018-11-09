@@ -186,16 +186,17 @@ public class CostJournalTest {
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
         final CostJournal<TestEntityClass> journal =
             CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
-                .recordOnDemandCost(CostCategory.COMPUTE, payee, computePrice, 1)
+                .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice, 1)
                 .recordOnDemandCost(CostCategory.LICENSE, payee, licensePrice, 1)
-                .recordRiCost(CostCategory.COMPUTE, riData, 1, CurrencyAmount.newBuilder()
+                .recordRiCost(riData, 1, CurrencyAmount.newBuilder()
                     .setAmount(25.0)
                     .build())
                 .build();
 
         assertThat(journal.getTotalHourlyCost(), is(135.0));
         assertThat(journal.getEntity(), is(entity));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(125.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(100.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.RI_COMPUTE), is(25.0));
         assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(10.0));
     }
 
@@ -215,7 +216,7 @@ public class CostJournalTest {
         final CostJournal<TestEntityClass> childCostJournal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         // One cost category that is also present in the test entity.
-                        .recordOnDemandCost(CostCategory.COMPUTE, payee, price, 1)
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price, 1)
                         // One cost category that is NOT present in the test entity.
                         .recordOnDemandCost(CostCategory.STORAGE, payee, price, 1)
                         .build();
@@ -226,13 +227,13 @@ public class CostJournalTest {
 
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, dependentCostLookup)
-                        .recordOnDemandCost(CostCategory.COMPUTE, payee, price, 1)
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price, 1)
                         .inheritCost(childCostProvider)
                         .build();
 
         assertThat(journal.getTotalHourlyCost(), is(300.0));
         assertThat(journal.getEntity(), is(entity));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(200.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(200.0));
         assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE), is(100.0));
 
         System.out.println(journal.toString());

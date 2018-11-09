@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,8 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -66,6 +69,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
@@ -86,6 +91,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplB
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -127,12 +133,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     /**
      * Create a new ActionsRpcService.
-     * @param actionStorehouse The storehouse containing action stores.
-     * @param actionExecutor The executor for executing actions.
+     *
+     * @param actionStorehouse     The storehouse containing action stores.
+     * @param actionExecutor       The executor for executing actions.
      * @param actionTargetSelector For selecting which target/probe to execute each action against
-     * @param actionTranslator The translator for translating actions (from market to real-world).
-     * @param paginatorFactory For paginating views of actions
-     * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
+     * @param actionTranslator     The translator for translating actions (from market to real-world).
+     * @param paginatorFactory     For paginating views of actions
+     * @param workflowStore        the store for all the known {@link WorkflowDTO.Workflow} items
      */
     public ActionsRpcService(@Nonnull final ActionStorehouse actionStorehouse,
                              @Nonnull final ActionExecutor actionExecutor,
@@ -177,20 +184,19 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         final ActionStore store = optionalStore.get();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         AcceptActionResponse response = store.getAction(request.getActionId())
-            .map(action -> {
-                AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
-                        userNameAndUuid);
-                if (!action.isReady()) {
-                    store.getEntitySeverityCache()
-                        .refresh(action.getRecommendation(), store);
-                }
-                AuditLogEntry entry = new AuditLogEntry.Builder(AuditAction.EXECUTE_ACTION, action.toString(), true)
-                        .targetName(String.valueOf(action.getId()))
-                        .build();
-                AuditLogUtils.audit(entry);
-                return attemptResponse;
-            }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
-
+                .map(action -> {
+                    AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
+                            userNameAndUuid);
+                    if (!action.isReady()) {
+                        store.getEntitySeverityCache()
+                                .refresh(action.getRecommendation(), store);
+                    }
+                    AuditLogEntry entry = new AuditLogEntry.Builder(AuditAction.EXECUTE_ACTION, action.toString(), true)
+                            .targetName(String.valueOf(action.getId()))
+                            .build();
+                    AuditLogUtils.audit(entry);
+                    return attemptResponse;
+                }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
 
 
         responseObserver.onNext(response);
@@ -205,16 +211,16 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                           StreamObserver<ActionOrchestratorAction> responseObserver) {
         if (!request.hasActionId() || !request.hasTopologyContextId()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Missing required parameter actionId or topologyContextId.")
-                .asException());
+                    .withDescription("Missing required parameter actionId or topologyContextId.")
+                    .asException());
             return;
         }
 
         final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
         if (store.isPresent()) {
             final Optional<ActionSpec> optionalSpec = store.get()
-                .getActionView(request.getActionId())
-                .map(actionTranslator::translateToSpec);
+                    .getActionView(request.getActionId())
+                    .map(actionTranslator::translateToSpec);
 
             responseObserver.onNext(aoAction(request.getActionId(), optionalSpec));
             responseObserver.onCompleted();
@@ -281,8 +287,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                            StreamObserver<ActionOrchestratorAction> responseObserver) {
         if (!request.hasTopologyContextId()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Missing required parameter topologyContextId.")
-                .asException());
+                    .withDescription("Missing required parameter topologyContextId.")
+                    .asException());
             return;
         }
 
@@ -316,15 +322,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     @Override
     public void getTopologyContextInfo(TopologyContextInfoRequest request,
-                                  StreamObserver<TopologyContextResponse> responseObserver) {
+                                       StreamObserver<TopologyContextResponse> responseObserver) {
         actionStorehouse.getAllStores().entrySet()
-            .forEach(contextIdAndStore -> {
-                final ActionStore store = contextIdAndStore.getValue();
-                responseObserver.onNext(TopologyContextResponse.newBuilder()
-                        .setTopologyContextId(contextIdAndStore.getKey())
-                        .setActionCount(store.size()).build()
-                );
-            });
+                .forEach(contextIdAndStore -> {
+                    final ActionStore store = contextIdAndStore.getValue();
+                    responseObserver.onNext(TopologyContextResponse.newBuilder()
+                            .setTopologyContextId(contextIdAndStore.getKey())
+                            .setActionCount(store.size()).build()
+                    );
+                });
 
         responseObserver.onCompleted();
     }
@@ -350,7 +356,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     @Override
     public void getActionCountsByDate(GetActionCountsRequest request,
-                                StreamObserver<GetActionCountsByDateResponse> response) {
+                                      StreamObserver<GetActionCountsByDateResponse> response) {
         final Optional<ActionStore> contextStore =
                 actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
@@ -360,11 +366,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     request.hasFilter() ? Optional.of(request.getFilter()) : Optional.empty(),
                     contextStore.get());
             final Map<Long, List<ActionView>> actionsByDate =
-                translatedActionViews.collect(Collectors.groupingBy(action ->
-                    TimeUtil.localDateTimeToMilli(action
-                        .getRecommendationTime()
-                        .toLocalDate()
-                        .atStartOfDay()))); // Group by start of the Day
+                    translatedActionViews.collect(Collectors.groupingBy(action ->
+                            TimeUtil.localDateTimeToMilli(action
+                                    .getRecommendationTime()
+                                    .toLocalDate()
+                                    .atStartOfDay()))); // Group by start of the Day
             observeActionCountsByDate(actionsByDate, response);
         } else {
             contextNotFoundError(response, request.getTopologyContextId());
@@ -377,11 +383,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                         StreamObserver<GetActionCountsByEntityResponse> response) {
         if (!request.hasFilter() || !request.getFilter().hasInvolvedEntities()) {
             response.onError(Status.INVALID_ARGUMENT
-                .withDescription("Get action counts by entity need provide a action filter and entities.")
-                .asException());
+                    .withDescription("Get action counts by entity need provide a action filter and entities.")
+                    .asException());
         }
         final Optional<ActionStore> contextStore =
-            actionStorehouse.getStore(request.getTopologyContextId());
+                actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
             final Multimap<Long, ActionView> actionsByEntity = ArrayListMultimap.create();
             // If there are no involved entities in the request we return an empty map.
@@ -421,8 +427,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                               StreamObserver<DeleteActionsResponse> responseObserver) {
         if (!request.hasTopologyContextId()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Missing required parameter topologyContextId.")
-                .asException());
+                    .withDescription("Missing required parameter topologyContextId.")
+                    .asException());
             return;
         }
 
@@ -430,8 +436,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         try {
             // Get the store size before deleting because the deleting clears the store.
             final int storeSize = actionStorehouse.getStore(contextId)
-                .map(ActionStore::size)
-                .orElse(-1);
+                    .map(ActionStore::size)
+                    .orElse(-1);
             final Optional<ActionStore> actionStore = actionStorehouse.deleteStore(contextId);
 
             if (actionStore.isPresent()) {
@@ -445,12 +451,12 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             }
         } catch (IllegalStateException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Operation not permitted for context " + contextId)
-                .asException());
+                    .withDescription("Operation not permitted for context " + contextId)
+                    .asException());
         } catch (StoreDeletionException e) {
             responseObserver.onError(Status.INTERNAL
-                .withDescription("Attempt to delete actions for context " + contextId + " failed.")
-                .asException());
+                    .withDescription("Attempt to delete actions for context " + contextId + " failed.")
+                    .asException());
         }
     }
 
@@ -458,13 +464,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * Sets to responseObserver probe priorities for the certain action type if request
      * contains this type. Otherwise sets probe priorities for all types.
      *
-     * @param request may contain the certain action type.
+     * @param request          may contain the certain action type.
      * @param responseObserver to set probe priorities in.
      */
     @Override
     @Nonnull
     public void getActionPriorities(@Nonnull GetActionPrioritiesRequest request,
-            @Nonnull StreamObserver<GetActionPrioritiesResponse> responseObserver) {
+                                    @Nonnull StreamObserver<GetActionPrioritiesResponse> responseObserver) {
         final GetActionPrioritiesResponse.Builder responseBuilder =
                 GetActionPrioritiesResponse.newBuilder();
         if (request.hasActionType()) {
@@ -476,6 +482,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         responseObserver.onCompleted();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void cancelQueuedActions(
             CancelQueuedActionsRequest request,
@@ -483,9 +492,77 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
         responseObserver.onNext(
                 CancelQueuedActionsResponse.newBuilder()
-                    .setCancelledCount(
-                            actionStorehouse.cancelQueuedActions())
-                    .build());
+                        .setCancelledCount(
+                                actionStorehouse.cancelQueuedActions())
+                        .build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getActionCategoryStats(GetActionCategoryStatsRequest request,
+                                       StreamObserver<GetActionCategoryStatsResponse> responseObserver) {
+
+        Optional<ActionStore> actionStore =
+                actionStorehouse.getStore(request.getTopologyContextId());
+        if (!actionStore.isPresent()) {
+            // Nothing to return
+            responseObserver.onNext(GetActionCategoryStatsResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        Map<ActionCategory, ActionCategoryStats> actionCategoryStatsMap =
+                new EnumMap<>(ActionCategory.class);
+        Set<Integer> entityTypesToInclude = new HashSet<>();
+        entityTypesToInclude.addAll(request.getEntityTypeList());
+        // if no entity type set in request, include all entity types.
+        if (entityTypesToInclude.isEmpty()) {
+            for (EntityType type : EntityType.values()) {
+                entityTypesToInclude.add(type.getNumber());
+            }
+        }
+
+        for (ActionCategory actionCategory : ActionCategory.values()) {
+            actionCategoryStatsMap.put(actionCategory, new ActionCategoryStats(entityTypesToInclude));
+        }
+
+        // group by {ActionCategory, numAction|numEntities, costPrice(savings|investment)}
+        actionTranslator.translateToSpecs(actionStore.get().getActionViews().values().stream())
+                .forEach(actionSpec -> {
+                    ActionCategory category = actionSpec.getCategory();
+                    switch (category) {
+                        case PERFORMANCE_ASSURANCE:
+                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                            break;
+                        case PREVENTION:
+                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                            break;
+                        case COMPLIANCE:
+                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                            break;
+                        case UNKNOWN:
+                            logger.error("Unknown action category for {}", actionSpec);
+                            break;
+                    }
+                });
+
+        GetActionCategoryStatsResponse.Builder actionCategoryStatsResponse =
+                GetActionCategoryStatsResponse.newBuilder();
+
+        actionCategoryStatsMap.forEach((actionCategory, actionCategoryStats) -> {
+            actionCategoryStatsResponse.addActionStatsByCategory(
+                    ActionDTO.ActionCategoryStats.newBuilder()
+                            .setActionCategory(actionCategory)
+                            .setActionsCount(actionCategoryStats.getNumActions())
+                            .setEntitiesCount(actionCategoryStats.getNumEntities())
+                            .setSavings(actionCategoryStats.getTotalSavings())
+                            .setInvestment(actionCategoryStats.getTotalInvestment())
+                            .build());
+        });
+        responseObserver.onNext(actionCategoryStatsResponse.build());
         responseObserver.onCompleted();
     }
 
@@ -500,7 +577,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private ActionProbePriorities getProbePrioritiesFor(@Nonnull ActionType actionType) {
         final ActionTypeCase actionTypeCase = ActionTypeToActionTypeCaseConverter
                 .getActionTypeCaseFor(actionType);
-        final List<String> probePriorities =  ActionTargetByProbeCategoryResolver
+        final List<String> probePriorities = ActionTargetByProbeCategoryResolver
                 .getProbePrioritiesFor(actionTypeCase);
         return ActionProbePriorities.newBuilder().setActionType(actionType)
                 .addAllProbeCategory(probePriorities).build();
@@ -534,11 +611,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                                         final long targetId,
                                                         @Nonnull final Optional<FailureEvent> failure) {
         return failure
-            .map(failureEvent -> {
-                action.receive(failureEvent);
-                return acceptanceError(failureEvent.getErrorDescription());
-                // TODO (roman, Sep 1, 2016): Figure out criteria for when to begin execution
-            }).orElseGet(() -> attemptActionExecution(action, targetId));
+                .map(failureEvent -> {
+                    action.receive(failureEvent);
+                    return acceptanceError(failureEvent.getErrorDescription());
+                    // TODO (roman, Sep 1, 2016): Figure out criteria for when to begin execution
+                }).orElseGet(() -> attemptActionExecution(action, targetId));
     }
 
     private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
@@ -547,14 +624,14 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             action.receive(new BeginExecutionEvent());
             actionTranslator.translate(action);
             final Optional<ActionDTO.Action> translatedRecommendation =
-                action.getActionTranslation().getTranslatedRecommendation();
+                    action.getActionTranslation().getTranslatedRecommendation();
             if (translatedRecommendation.isPresent()) {
                 // execute the action, passing the workflow override (if any)
                 actionExecutor.execute(targetId, translatedRecommendation.get(),
                         action.getWorkflow(workflowStore));
                 return AcceptActionResponse.newBuilder()
-                    .setActionSpec(actionTranslator.translateToSpec(action))
-                    .build();
+                        .setActionSpec(actionTranslator.translateToSpec(action))
+                        .build();
             } else {
                 final String errorMsg = String.format("Failed to translate action %d for execution.", action.getId());
                 logger.error(errorMsg);
@@ -569,19 +646,19 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     }
 
     static void observeActionCounts(@Nonnull final Stream<ActionView> actionViewStream,
-                                     @Nonnull final StreamObserver<GetActionCountsResponse> responseObserver) {
+                                    @Nonnull final StreamObserver<GetActionCountsResponse> responseObserver) {
         final Map<ActionType, Long> actionsByType = getActionsByType(actionViewStream);
 
         final GetActionCountsResponse.Builder respBuilder = GetActionCountsResponse.newBuilder()
-            .setTotal(actionsByType.values().stream()
-                .mapToLong(count -> count)
-                .sum());
+                .setTotal(actionsByType.values().stream()
+                        .mapToLong(count -> count)
+                        .sum());
 
         actionsByType.entrySet().stream()
-            .map(typeCount -> TypeCount.newBuilder()
-                .setType(typeCount.getKey())
-                .setCount(typeCount.getValue()))
-            .forEach(respBuilder::addCountsByType);
+                .map(typeCount -> TypeCount.newBuilder()
+                        .setType(typeCount.getKey())
+                        .setCount(typeCount.getValue()))
+                .forEach(respBuilder::addCountsByType);
 
         responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
@@ -591,11 +668,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     /**
      * Count action types for each available date.
      *
-     * @param actionViewsMap Key is date in long, value is its related actions.
+     * @param actionViewsMap   Key is date in long, value is its related actions.
      * @param responseObserver contains final relationship between date with action type.
      */
     static void observeActionCountsByDate(@Nonnull final Map<Long, List<ActionView>> actionViewsMap,
-                                    @Nonnull final StreamObserver<GetActionCountsByDateResponse> responseObserver) {
+                                          @Nonnull final StreamObserver<GetActionCountsByDateResponse> responseObserver) {
         Builder respBuilder = getActionCountsByDateResponseBuilder(actionViewsMap);
         responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
@@ -639,27 +716,27 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * for each action type, it could have a few actions.
      *
      * @param actionViewsMap Key is entity Id, value is its related action views.
-     * @param response contains final relationship between entity with action type.
+     * @param response       contains final relationship between entity with action type.
      */
     static void observeActionCountsByEntity(@Nonnull final Multimap<Long, ActionView> actionViewsMap,
                                             @Nonnull StreamObserver<GetActionCountsByEntityResponse> response) {
         GetActionCountsByEntityResponse.Builder actionCountsByEntityResponseBuilder =
-            GetActionCountsByEntityResponse.newBuilder();
+                GetActionCountsByEntityResponse.newBuilder();
         actionViewsMap.asMap().entrySet().stream()
-            .forEach(entry -> {
-                // TODO: implement more group mechanism such as group by mode, state.
-                final Map<ActionType, Long> actionsByType = getActionsByType(entry.getValue().stream());
+                .forEach(entry -> {
+                    // TODO: implement more group mechanism such as group by mode, state.
+                    final Map<ActionType, Long> actionsByType = getActionsByType(entry.getValue().stream());
 
-                final ActionCountsByEntity.Builder actionCountsByEntityBuilder = ActionCountsByEntity.newBuilder()
-                    .setEntityId(entry.getKey());
+                    final ActionCountsByEntity.Builder actionCountsByEntityBuilder = ActionCountsByEntity.newBuilder()
+                            .setEntityId(entry.getKey());
 
-                actionsByType.entrySet().stream()
-                    .map(typeCount -> TypeCount.newBuilder()
-                        .setType(typeCount.getKey())
-                        .setCount(typeCount.getValue()))
-                    .forEach(actionCountsByEntityBuilder::addCountsByType);
-                actionCountsByEntityResponseBuilder.addActionCountsByEntity(actionCountsByEntityBuilder.build());
-            });
+                    actionsByType.entrySet().stream()
+                            .map(typeCount -> TypeCount.newBuilder()
+                                    .setType(typeCount.getKey())
+                                    .setCount(typeCount.getValue()))
+                            .forEach(actionCountsByEntityBuilder::addCountsByType);
+                    actionCountsByEntityResponseBuilder.addActionCountsByEntity(actionCountsByEntityBuilder.build());
+                });
         response.onNext(actionCountsByEntityResponseBuilder.build());
         response.onCompleted();
     }
@@ -669,9 +746,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * do this for all actions that go out to the user.
      *
      * @param requestFilter An {@link Optional} containing the filter for actions.
-     * @param actionStore The action store to query.
+     * @param actionStore   The action store to query.
      * @return A stream of post-translation {@link ActionView}s. Any actions that fail translation
-     *         will not be in this stream.
+     * will not be in this stream.
      */
     @Nonnull
     private Stream<ActionView> filteredTranslatedActionViews(Optional<ActionQueryFilter> requestFilter,
@@ -682,29 +759,29 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {
         return actionViewStream
-            .map(ActionView::getRecommendation)
-            .collect(Collectors.groupingBy(
-                ActionDTOUtil::getActionInfoActionType,
-                Collectors.counting()));
+                .map(ActionView::getRecommendation)
+                .collect(Collectors.groupingBy(
+                        ActionDTOUtil::getActionInfoActionType,
+                        Collectors.counting()));
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
         return AcceptActionResponse.newBuilder()
-            .setError(error)
-            .build();
+                .setError(error)
+                .build();
     }
 
     private static void contextNotFoundError(@Nonnull final StreamObserver<?> responseObserver,
                                              final long topologyContextId) {
         responseObserver.onError(Status.NOT_FOUND
-            .withDescription("Context: " + topologyContextId + " not found.")
-            .asException());
+                .withDescription("Context: " + topologyContextId + " not found.")
+                .asException());
     }
 
     private static ActionOrchestratorAction aoAction(final long actionId,
                                                      final Optional<ActionSpec> optionalSpec) {
         ActionOrchestratorAction.Builder builder = ActionOrchestratorAction.newBuilder()
-            .setActionId(actionId);
+                .setActionId(actionId);
         optionalSpec.ifPresent(builder::setActionSpec);
 
         return builder.build();
@@ -712,8 +789,85 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private static ActionOrchestratorAction aoAction(@Nonnull final ActionSpec spec) {
         return ActionOrchestratorAction.newBuilder()
-            .setActionId(spec.getRecommendation().getId())
-            .setActionSpec(spec)
-            .build();
+                .setActionId(spec.getRecommendation().getId())
+                .setActionSpec(spec)
+                .build();
+    }
+
+    /**
+     *  A helper class for accumulating the stats for each action category.
+     */
+    private class ActionCategoryStats {
+
+        private int numActions;
+
+        private Set<Long> entities;
+
+        private double totalSavings;
+
+        private double totalInvestment;
+
+        Set<Integer> entityTypesToInclude;
+
+        public ActionCategoryStats(@Nonnull  Set<Integer> entityTypesToInclude) {
+            this.entities = new HashSet<>();
+            this.entityTypesToInclude = Objects.requireNonNull(entityTypesToInclude);
+        }
+
+        public void addAction(@Nonnull final ActionDTO.Action action) {
+            numActions++;
+            try {
+                ActionEntity targetEntity = ActionDTOUtil.getPrimaryEntity(action);
+                if (entityTypesToInclude.contains(targetEntity.getType())) {
+                    entities.add(targetEntity.getId());
+                }
+            } catch (UnsupportedActionException e) {
+                logger.error("Exception while get targetEntityId from the action {}", action);
+            }
+            if (action.hasSavingsPerHour()) {
+                double savings = action.getSavingsPerHour().getAmount();
+                if (savings >= 0) {
+                    totalSavings += savings;
+                } else {
+                    totalInvestment += Math.abs(action.getSavingsPerHour().getAmount());
+                }
+            }
+        }
+
+        public int getNumActions() {
+            return numActions;
+        }
+
+        public int getNumEntities() {
+            return entities.size();
+        }
+
+        public double getTotalSavings() {
+            return totalSavings;
+        }
+
+        public double getTotalInvestment() {
+            return totalInvestment;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(numActions, entities, totalSavings, totalInvestment);
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (!(obj instanceof ActionCategoryStats)) {
+                return false;
+            }
+            ActionCategoryStats that = (ActionCategoryStats) obj;
+            return (numActions == that.numActions &&
+                    Objects.equals(entities, that.entities) &&
+                    totalSavings == that.totalSavings &&
+                    totalInvestment == that.totalInvestment);
+        }
     }
 }

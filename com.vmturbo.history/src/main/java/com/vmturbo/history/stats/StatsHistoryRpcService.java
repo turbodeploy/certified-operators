@@ -81,7 +81,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;

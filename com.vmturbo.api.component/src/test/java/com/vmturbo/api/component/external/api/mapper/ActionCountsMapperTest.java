@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Unit tests for the {@link ActionSpecMapper}.
@@ -150,9 +151,9 @@ public class ActionCountsMapperTest {
     }
 
     private void checkStat(@Nonnull final StatApiDTO stat, float val, ActionType actionType) {
-        Assert.assertEquals(ActionCountsMapper.ACTION_COUNT_STAT_NAME, stat.getName());
+        Assert.assertEquals(StringConstants.NUM_ACTIONS, stat.getName());
         Assert.assertEquals(1, stat.getFilters().size());
-        Assert.assertEquals(ActionCountsMapper.ACTION_TYPES_NAME, stat.getFilters().get(0).getType());
+        Assert.assertEquals(StringConstants.ACTION_TYPES, stat.getFilters().get(0).getType());
         Assert.assertEquals(ActionTypeMapper.toApiApproximate(actionType).name(), stat.getFilters().get(0).getValue());
         Assert.assertEquals(Float.valueOf(val), stat.getValue());
         Assert.assertEquals(Float.valueOf(val), stat.getValues().getAvg());

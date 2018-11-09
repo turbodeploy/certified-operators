@@ -1,19 +1,14 @@
 package com.vmturbo.repository.graph.result;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 
-import javaslang.Value;
 import javaslang.collection.Stream;
 
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.graph.result.SupplyChainSubgraph.EdgeCollectionResult;
-import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
 
 public class ResultsFixture {
 

@@ -54,6 +54,7 @@ public class CostConfig {
         return new CostRpcService(discountConfig.discountStore(),
                 accountExpensesStore(),
                 entityCostConfig.entityCostStore(),
+                entityCostConfig.projectedEntityCostStore(),
                 reservedInstanceConfig.timeFrameCalculator(),
                 businessAccountHelper());
     }

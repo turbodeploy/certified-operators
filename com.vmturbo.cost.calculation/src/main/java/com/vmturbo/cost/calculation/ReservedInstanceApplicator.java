@@ -95,7 +95,7 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                             .setCurrency(CostProtoUtil.getRiCurrency(riData.getReservedInstanceBought()))
                             .setAmount(calculateEffectiveHourlyCost(riBoughtPercentage, riData))
                             .build();
-                        journal.recordRiCost(CostCategory.COMPUTE, riData, coveredCoupons, cost);
+                        journal.recordRiCost(riData, coveredCoupons, cost);
                     } else {
                         // If we don't know about this reserved instance, we can't calculate a cost for
                         // it and we shouldn't include it in the cost calculation.

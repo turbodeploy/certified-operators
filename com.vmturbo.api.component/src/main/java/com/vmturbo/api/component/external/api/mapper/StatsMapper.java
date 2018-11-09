@@ -695,14 +695,22 @@ public class StatsMapper {
                         final List<StatFilterApiDTO> filters = new ArrayList<>();
                         final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
                         resultsTypeFilter.setType(COST_COMPONENT);
-                        if (statRecord.getCategory() == CostCategory.COMPUTE) {
-                            resultsTypeFilter.setValue(CostCategory.COMPUTE.name());
-                        } else if (statRecord.getCategory() == CostCategory.IP) {
-                            resultsTypeFilter.setValue(CostCategory.IP.name());
-                        } else if (statRecord.getCategory() == CostCategory.STORAGE) {
-                            resultsTypeFilter.setValue(CostCategory.STORAGE.name());
-                        } else if (statRecord.getCategory() == CostCategory.LICENSE) {
-                            resultsTypeFilter.setValue(CostCategory.LICENSE.name());
+                        switch(statRecord.getCategory()) {
+                            case ON_DEMAND_COMPUTE:
+                                resultsTypeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
+                                break;
+                            case IP:
+                                resultsTypeFilter.setValue(CostCategory.IP.name());
+                                break;
+                            case LICENSE:
+                                resultsTypeFilter.setValue(CostCategory.LICENSE.name());
+                                break;
+                            case STORAGE:
+                                resultsTypeFilter.setValue(CostCategory.STORAGE.name());
+                                break;
+                            case RI_COMPUTE:
+                                resultsTypeFilter.setValue(CostCategory.RI_COMPUTE.name());
+                                break;
                         }
                         filters.add(resultsTypeFilter);
 

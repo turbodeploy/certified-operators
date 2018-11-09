@@ -24,7 +24,7 @@ public class ProjectedEntityCostStoreTest {
     private static final EntityCost COST = EntityCost.newBuilder()
             .setAssociatedEntityId(7L)
             .addComponentCost(ComponentCost.newBuilder()
-                    .setCategory(CostCategory.COMPUTE)
+                    .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                     .setAmount(CurrencyAmount.newBuilder()
                             .setAmount(100)))
             .build();

@@ -1016,7 +1016,7 @@ public class TopologyConverter {
     /**
      * Create a shopping list for a specified buyer and the entity it is buying from.
      *
-     * @param buyerOid the OID of the buyer of the shopping list
+     * @param buyer The buyer of the shopping list
      * @param entityType the entity type of the buyer
      * @param shopTogether whether the entity supports the shop-together feature
      * @param providerOid the oid of the seller of the shopping list

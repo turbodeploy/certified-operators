@@ -314,7 +314,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         // amount of "compute" bought from the tier is the percentage
                         // of the hour filled by on-demand coverage (i.e. 1 - % RI coverage).
                         final double unitsBought = 1 - riComputeCoveragePercent;
-                        journal.recordOnDemandCost(CostCategory.COMPUTE, computeTier,
+                        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
                                 basePrice.getPricesList().get(0), unitsBought);
                         if (computeConfig.getOs() != basePrice.getGuestOsType()) {
                             computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
@@ -371,7 +371,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     if (dbPriceList != null) {
                         final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
                         final double amountBought = 1;
-                        journal.recordOnDemandCost(CostCategory.COMPUTE, databaseTier,
+                        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
                                 basePrice.getPricesList().get(0), amountBought);
                         dbPriceList.getConfigurationPriceAdjustmentsList().stream()
                                 .filter(databaseConfig::matchesPriceTableConfig)

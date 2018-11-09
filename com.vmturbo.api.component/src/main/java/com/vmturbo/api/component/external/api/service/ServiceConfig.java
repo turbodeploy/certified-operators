@@ -355,6 +355,7 @@ public class ServiceConfig {
                 communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.repositoryRpcService(),
+                communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.statsMapper(),
                 communicationConfig.groupExpander(),

@@ -1,10 +1,10 @@
 package com.vmturbo.history.db;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.vmturbo.history.schema.StringConstants.INTERNAL_NAME;
-import static com.vmturbo.history.schema.StringConstants.RECORDED_ON;
-import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.history.schema.StringConstants.UUID;
+import static com.vmturbo.components.common.utils.StringConstants.INTERNAL_NAME;
+import static com.vmturbo.components.common.utils.StringConstants.RECORDED_ON;
+import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.APP_SPEND_BY_MONTH;
@@ -95,7 +95,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 public enum EntityType {
     CLUSTER

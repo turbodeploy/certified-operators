@@ -558,6 +558,7 @@ public class CostJournal<ENTITY_CLASS> {
                 logger.trace("On-demand {} purchase of {} from payee {} (id: {}) at price {}",
                         category, amount, infoExtractor.getName(payee), infoExtractor.getId(payee), price);
             }
+            Preconditions.checkArgument(category != CostCategory.RI_COMPUTE);
             final List<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new ArrayList<>());
             prices.add(new OnDemandJournalEntry<>(payee, price, amount));
             return this;
@@ -577,22 +578,21 @@ public class CostJournal<ENTITY_CLASS> {
          * Record a reserved instance cost for an entity. RI costs are for demands that are filled
          * by reserved instances, instead of providers in the topology.
          *
-         * @param category The category for the cost.
          * @param payee Data about the RI the cost is going to.
          * @param hourlyCost The hourly cost for using the RI.
          * @return The builder, for method chaining.
          */
         @Nonnull
         public Builder<ENTITY_CLASS_> recordRiCost(
-                @Nonnull final CostCategory category,
                 @Nonnull final ReservedInstanceData payee,
                 final double couponsCovered,
                 @Nonnull final CurrencyAmount hourlyCost) {
             if (logger.isTraceEnabled()) {
-                logger.trace("RI {} coverage by {} at cost {}", category,
+                logger.trace("RI {} coverage by {} at cost {}",
                         payee.getReservedInstanceBought().getId(), hourlyCost);
             }
-            final List<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new ArrayList<>());
+            final List<JournalEntry<ENTITY_CLASS_>> prices =
+                    costEntries.computeIfAbsent(CostCategory.RI_COMPUTE, k -> new ArrayList<>());
             prices.add(new RIJournalEntry<>(payee, couponsCovered, hourlyCost));
             return this;
         }

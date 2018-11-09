@@ -28,7 +28,7 @@ import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;

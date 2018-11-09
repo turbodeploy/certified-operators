@@ -168,7 +168,7 @@ public class CloudCostCalculatorTest {
         // assert
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
         assertThat(journal.getTotalHourlyCost(), is((basePrice + suseAdjustment) * (1 - riCoverage) + ipAdjustment));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice * (1 - riCoverage)));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(basePrice * (1 - riCoverage)));
         assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(suseAdjustment * (1 - riCoverage)));
         assertThat(journal.getHourlyCostForCategory(CostCategory.IP), is(ipAdjustment));
 
@@ -483,7 +483,7 @@ public class CloudCostCalculatorTest {
 
         // assert
         assertThat(journal.getTotalHourlyCost(), is(basePrice + mysqlAdjustment));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(basePrice));
         assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(mysqlAdjustment));
 
         // Once for the compute, once for the license, because both costs are "paid to" the

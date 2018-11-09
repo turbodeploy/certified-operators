@@ -337,7 +337,7 @@ message EntityCost {
     // list of component costs, e.g. Compute and Storage costs.
     repeated ComponentCost component_cost = 2;
 
-    // A pre-calcuate hourly total entity cost for speeding up calculation.
+    // A pre-calcuated hourly total entity cost for speeding up calculation.
     // It's the summation of the list of component costs.
     optional common_dto.CurrencyAmount total_amount = 3;
 
@@ -388,13 +388,15 @@ message ProjectedEntityCosts {
 // Cost category represents the possible breakdown of an entity cost into separate components
 // like Compute, Network, Storage, licensing and so on.
 // As we increase support for more breakdowns this enum will be extended to support them.
-// It's closly matched with the legacy definition in
+// It's closely matched with the legacy definition in
 // com.vmturbo.platform.VMTRoot.ManagedEntities.Abstraction.CostType class.
-// Note: the RI_COMPUTE type is covered by ReservedInstance.proto
 enum CostCategory {
-    // Represents the compute cost associated with an entity.
+    // Compute cost of an entity = On_Demand_Compute cost + Ri_compute cost
+
+    // Represents the on-demand compute cost associated with an entity.
     // For example the cost of a cloud template or for the CPU and memory resources
-    COMPUTE = 0;
+    // Business Account discount is already applied to this cost.
+    ON_DEMAND_COMPUTE = 0;
 
     // Represents the storage cost associated with an entity.
     // For example the cost of a cloud 100 GB storage
@@ -407,6 +409,11 @@ enum CostCategory {
     // Represents the licensing related costs associated with an entity.
     // For example OS pricing, application licensing, DB licenses and so on.
     LICENSE = 3;
+
+    // Represents the RI compute cost associated with an entity.
+    // i.e. how much of the total entity compute cost is being contributed by RI.
+    // Business Account discount is already applied to this cost.
+    RI_COMPUTE = 4;
 }
 
 // A request containing a snapshot of cost data to be stored by the cost service.
@@ -696,7 +703,7 @@ message GetCloudCostStatsRequest {
     }
 }
 
-// Bottom up Cloud cost stats reponse
+// Bottom up Cloud cost stats response
 message GetCloudCostStatsResponse {
     repeated CloudCostStatRecord cloud_stat_record = 1;
 }

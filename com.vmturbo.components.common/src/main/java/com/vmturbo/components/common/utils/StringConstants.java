@@ -1,4 +1,4 @@
-package com.vmturbo.history.schema;
+package com.vmturbo.components.common.utils;
 
 public class StringConstants {
 	public static final String ALL_GROUP_MEMBERS = "AllGroupMembers";

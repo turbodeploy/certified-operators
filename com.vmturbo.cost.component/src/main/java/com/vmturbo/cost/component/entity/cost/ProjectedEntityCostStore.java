@@ -69,4 +69,9 @@ public class ProjectedEntityCostStore {
             .filter(Objects::nonNull)
             .collect(Collectors.toMap(EntityCost::getAssociatedEntityId, Function.identity()));
     }
+
+    @Nonnull
+    public Map<Long, EntityCost> getAllProjectedEntitiesCosts() {
+        return projectedEntityCostByEntity;
+    }
 }

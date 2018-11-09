@@ -251,7 +251,7 @@ public class ActionSpecMapper {
      * @return A string representing the action category that will be understandable by the UI.
      */
     @Nonnull
-    private String mapXlActionCategoryToApi(@Nonnull final ActionDTO.ActionCategory category) {
+    public static String mapXlActionCategoryToApi(@Nonnull final ActionDTO.ActionCategory category) {
         switch (category) {
             case PERFORMANCE_ASSURANCE:
                 return API_CATEGORY_PERFORMANCE_ASSURANCE;

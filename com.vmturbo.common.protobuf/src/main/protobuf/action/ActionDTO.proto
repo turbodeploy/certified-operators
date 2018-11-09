@@ -252,7 +252,7 @@ message Action {
     required Explanation explanation = 4;
 
     // Indicates whether the market considers the action to be executable based on its dependency
-    // ordering of actions. There is a high liklihood of non-executable actions not succeeding
+    // ordering of actions. There is a high likelihood of non-executable actions not succeeding
     // because another action should be executed first.
     optional bool executable = 5;
 
@@ -313,9 +313,6 @@ message ActionPlan {
         BUY_RI = 2;
     }
 
-    // The order of the actions is important, and the recommendations
-    // are based on actions executing in the order they appear
-    // in this list.
     repeated Action action = 17;
 }
 
@@ -846,6 +843,36 @@ message CancelQueuedActionsResponse {
     optional int32 cancelled_count = 1;
 }
 
+message GetActionCategoryStatsRequest{
+    // The topology context for which to retrieve the actions category stats.
+    optional int64 topology_context_id = 1;
+
+    // Type of entities to include in the stats
+    repeated int32 entity_type = 2;
+}
+
+message GetActionCategoryStatsResponse {
+
+    repeated ActionCategoryStats action_stats_by_category = 1;
+}
+
+// Stats for actions based on ActionCategory type.
+message ActionCategoryStats {
+
+    optional ActionCategory action_category = 1;
+
+    // Number of actions of 'action_category' type.
+    optional int32 actions_count = 2;
+
+    // Number of target entities which are affected by the the actions
+    // of 'action_category' type.
+    optional int32 entities_count = 3;
+
+    optional double savings = 4;
+
+    optional double investment = 5;
+}
+
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
     // Accepts an action, queueing it for execution.
@@ -902,4 +929,7 @@ service ActionsService {
     // actions are no longer valid as their execution state has changed. So we need to
     // cancel such actions.
     rpc CancelQueuedActions(CancelQueuedActionsRequest) returns (CancelQueuedActionsResponse);
+
+    // Return the stats grouped by Action Category.
+    rpc GetActionCategoryStats(GetActionCategoryStatsRequest) returns (GetActionCategoryStatsResponse);
 }

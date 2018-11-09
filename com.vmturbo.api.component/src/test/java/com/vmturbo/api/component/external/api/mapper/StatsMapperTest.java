@@ -681,23 +681,26 @@ public class StatsMapperTest {
     public void testToCloudStatSnapshotApiDTO() throws Exception{
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(getStatRecordBuilder(CostCategory.COMPUTE, 1l, Optional.empty()))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.LICENSE, 3l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.STORAGE, 4l, Optional.empty()))
+                .addStatRecords(getStatRecordBuilder(CostCategory.RI_COMPUTE, 5l, Optional.empty()))
                 .build();
         final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
         assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(4, cloudStatRecord.getStatRecordsCount());
+        assertEquals(5, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() != null ));
-        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.COMPUTE.name())
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.ON_DEMAND_COMPUTE.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.IP.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.LICENSE.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.STORAGE.name())
+                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.RI_COMPUTE.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
     }
 

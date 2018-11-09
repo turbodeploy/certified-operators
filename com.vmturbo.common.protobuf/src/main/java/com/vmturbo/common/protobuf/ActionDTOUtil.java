@@ -20,6 +20,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -108,28 +109,43 @@ public class ActionDTOUtil {
      * that the action is acting upon.
      *
      * @param action The action in question.
-     * @return The ID of the entity targetted by the action.
+     * @return The ActionEntity of the entity targeted by the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
-    public static long getPrimaryEntityId(@Nonnull final Action action) throws UnsupportedActionException {
+    public static ActionEntity getPrimaryEntity(@Nonnull final Action action)
+            throws UnsupportedActionException {
         final ActionInfo actionInfo = action.getInfo();
 
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return actionInfo.getMove().getTarget().getId();
+                return actionInfo.getMove().getTarget();
             case RECONFIGURE:
-                return actionInfo.getReconfigure().getTarget().getId();
+                return actionInfo.getReconfigure().getTarget();
             case PROVISION:
-                return actionInfo.getProvision().getEntityToClone().getId();
+                return actionInfo.getProvision().getEntityToClone();
             case RESIZE:
-                return actionInfo.getResize().getTarget().getId();
+                return actionInfo.getResize().getTarget();
             case ACTIVATE:
-                return actionInfo.getActivate().getTarget().getId();
+                return actionInfo.getActivate().getTarget();
             case DEACTIVATE:
-                return actionInfo.getDeactivate().getTarget().getId();
+                return actionInfo.getDeactivate().getTarget();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
+    }
+
+    /**
+     * Get the ID of the "main" entity targeted by a specific action.
+     * This will be one of the entities involved in the action. It can be thought of as the entity
+     * that the action is acting upon.
+     *
+     * @param action The action in question.
+     * @return The ID of the entity targeted by the action.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    public static long getPrimaryEntityId(@Nonnull final Action action)
+            throws UnsupportedActionException {
+        return getPrimaryEntity(action).getId();
     }
 
     /**

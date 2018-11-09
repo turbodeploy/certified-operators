@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +20,10 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategoryStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Static utility responsible for mapping {@link TypeCount}s to the appropriate
@@ -29,30 +33,7 @@ public class ActionCountsMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * This is the name the API/UI expects for counts filtered by type.
-     */
-    @VisibleForTesting
-    public static final String ACTION_TYPES_NAME = "actionTypes";
-
-    /**
-     * This is the name the API/UI expects for counts filtered by state.
-     */
-    @VisibleForTesting
-    public static final String ACTION_STATE_NAME = "actionStates";
-
-    /**
-     * This is the name the API/UI expects for counts filtered by mode.
-     */
-    @VisibleForTesting
-    public static final String ACTION_MODE_NAME = "actionModes";
-
-    /**
-     * This is the name the API/UI expect when returning action stats values.
-     *
-     */
-    @VisibleForTesting
-    public static final String ACTION_COUNT_STAT_NAME = "numActions";
+    private final static String PROPERTY_NAME = "property";
 
     private ActionCountsMapper() {}
 
@@ -66,14 +47,14 @@ public class ActionCountsMapper {
                     .map(typeCount -> {
                         final float floatVal = new Long(typeCount.getCount()).floatValue();
                         final StatApiDTO statDto = new StatApiDTO();
-                        statDto.setName(ACTION_COUNT_STAT_NAME);
+                        statDto.setName(StringConstants.NUM_ACTIONS);
 
                         // (roman, May 30 2017) There is currently only one type of filtering
                         // supported here. In the future we may have to support
                         // some kind of "real" group-by functionality, but that will
                         // also require a redesign of the TypeCount API in the Action Orchestrator.
                         final StatFilterApiDTO typeFilter = new StatFilterApiDTO();
-                        typeFilter.setType(ACTION_TYPES_NAME);
+                        typeFilter.setType(StringConstants.ACTION_TYPES);
                         typeFilter.setValue(ActionTypeMapper.toApiApproximate(typeCount.getType()).name());
 
                         statDto.setFilters(Collections.singletonList(typeFilter));
@@ -112,14 +93,14 @@ public class ActionCountsMapper {
                         .map(stateAndModeCount -> {
                             final float floatVal = new Long(stateAndModeCount.getCount()).floatValue();
                             final StatApiDTO statDto = new StatApiDTO();
-                            statDto.setName(ACTION_COUNT_STAT_NAME);
+                            statDto.setName(StringConstants.NUM_ACTIONS);
 
                             final StatFilterApiDTO stateFilter = new StatFilterApiDTO();
-                            stateFilter.setType(ACTION_STATE_NAME);
+                            stateFilter.setType(StringConstants.ACTION_STATES);
                             stateFilter.setValue(stateAndModeCount.getState().toString());
 
                             final StatFilterApiDTO modeFilter = new StatFilterApiDTO();
-                            modeFilter.setType(ACTION_MODE_NAME);
+                            modeFilter.setType(StringConstants.ACTION_MODES);
                             modeFilter.setValue(stateAndModeCount.getMode().name());
 
 
@@ -143,4 +124,74 @@ public class ActionCountsMapper {
         return retList;
     }
 
+    @Nonnull
+    public static List<StatSnapshotApiDTO> convertActionCategoryStatsToApiStatSnapshot(
+            @Nonnull final List<ActionCategoryStats> actionCategoryStats) {
+
+        List<StatSnapshotApiDTO> statSnapshotApiDTOList = Lists.newArrayList();
+        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
+        List<StatApiDTO> statApiDtos = Lists.newArrayList();
+
+        for (ActionCategoryStats stat : actionCategoryStats) {
+            statApiDtos.addAll(createStatApiDTOs(stat));
+        }
+        statSnapshotApiDTO.setStatistics(statApiDtos);
+        statSnapshotApiDTOList.add(statSnapshotApiDTO);
+        return statSnapshotApiDTOList;
+    }
+
+    private static List<StatApiDTO> createStatApiDTOs(@Nonnull final ActionCategoryStats stat) {
+
+        List<StatApiDTO> statApiDTOS = Lists.newArrayList();
+
+        final StatFilterApiDTO riskCategoryFilter = new StatFilterApiDTO();
+        riskCategoryFilter.setType(StringConstants.RISK_SUB_CATEGORY);
+        riskCategoryFilter.setValue(ActionSpecMapper.mapXlActionCategoryToApi(stat.getActionCategory()));
+
+        final StatFilterApiDTO savingsFilter = new StatFilterApiDTO();
+        savingsFilter.setType(PROPERTY_NAME);
+        savingsFilter.setValue(StringConstants.SAVINGS);
+
+        final StatFilterApiDTO investmentFilter = new StatFilterApiDTO();
+        investmentFilter.setType(PROPERTY_NAME);
+        investmentFilter.setValue(StringConstants.INVESTMENT);
+
+        statApiDTOS.add(createStatApiDTO(StringConstants.NUM_ACTIONS,
+                    Collections.singletonList(riskCategoryFilter),
+                    stat.getActionsCount()));
+
+        statApiDTOS.add(createStatApiDTO(StringConstants.NUM_ENTITIES,
+                Collections.singletonList(riskCategoryFilter),
+                stat.getEntitiesCount()));
+
+        statApiDTOS.add(createStatApiDTO(StringConstants.COST_PRICE,
+                Arrays.asList(riskCategoryFilter, savingsFilter),
+                stat.getEntitiesCount()));
+
+        statApiDTOS.add(createStatApiDTO(StringConstants.COST_PRICE,
+                Arrays.asList(riskCategoryFilter, investmentFilter),
+                stat.getEntitiesCount()));
+
+        return statApiDTOS;
+    }
+
+    private static StatApiDTO createStatApiDTO(@Nonnull String statName,
+                                               @Nonnull List<StatFilterApiDTO> filters,
+                                               float statValue) {
+
+        final StatApiDTO statDto = new StatApiDTO();
+        statDto.setName(statName);
+        statDto.setFilters(filters);
+
+        statDto.setValue(statValue);
+        final StatValueApiDTO valueDto = new StatValueApiDTO();
+        valueDto.setAvg(statValue);
+        valueDto.setMax(statValue);
+        valueDto.setMin(statValue);
+        valueDto.setTotal(statValue);
+        statDto.setValues(valueDto);
+
+        return  statDto;
+    }
 }

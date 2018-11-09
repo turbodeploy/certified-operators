@@ -1,6 +1,6 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.history.schema.StringConstants.NUM_HOSTS;
+import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.eq;
