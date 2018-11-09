@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.SchedulerREST;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
+import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
@@ -28,6 +29,9 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 public class SchedulerConfig {
     @Autowired
     private TargetConfig targetConfig;
+
+    @Autowired
+    private ProbeConfig probeConfig;
 
     @Autowired
     private OperationConfig operationConfig;
@@ -48,6 +52,7 @@ public class SchedulerConfig {
     public Scheduler scheduler() {
         return new Scheduler(operationConfig.operationManager(),
             targetConfig.targetStore(),
+            probeConfig.probeStore(),
             topologyConfig.topologyHandler(),
             kvConfig.keyValueStore(),
             stitchingConfig.stitchingJournalFactory(),

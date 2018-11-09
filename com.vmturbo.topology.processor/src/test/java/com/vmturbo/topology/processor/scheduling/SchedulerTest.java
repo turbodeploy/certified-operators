@@ -38,8 +38,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -56,6 +58,7 @@ public class SchedulerTest {
     private final OperationManager operationManager = Mockito.mock(OperationManager.class);
     private final ScheduledExecutorService scheduledExecutorSpy = Mockito.spy(new DelegationExecutor());
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TopologyHandler topologyHandler = Mockito.mock(TopologyHandler.class);
     private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
     private final StitchingJournalFactory journalFactory = StitchingJournalFactory.emptyStitchingJournalFactory();
@@ -65,6 +68,7 @@ public class SchedulerTest {
     public static final long SCHEDULED_TIMEOUT_SECONDS = 10;
     public static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
     private final long targetId = 1234;
+    private final long probeId = 1L;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -77,16 +81,17 @@ public class SchedulerTest {
     public void setup() throws Exception {
         Target target = Mockito.mock(Target.class);
         when(target.getId()).thenReturn(targetId);
+        when(target.getProbeId()).thenReturn(probeId);
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
+        when(probeStore.getProbe(Mockito.anyLong())).thenAnswer(answer -> Optional.of(ProbeInfo.getDefaultInstance()));
         when(keyValueStore.get(anyString())).thenReturn(Optional.empty());
 
         when(operationManager.getActionTimeoutMs()).thenReturn(2000L);
         when(operationManager.getDiscoveryTimeoutMs()).thenReturn(1000L);
         when(operationManager.getValidationTimeoutMs()).thenReturn(4000L);
 
-        scheduler = new Scheduler(operationManager, targetStore, topologyHandler,
-            keyValueStore, journalFactory,
-            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
+            keyValueStore, journalFactory, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
     }
 
     @Test
@@ -389,7 +394,8 @@ public class SchedulerTest {
     @Test
     public void testIllegalInitialBroadcastInterval() throws Exception {
         final Scheduler schedulerWithIllegalInitialInterval = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy, -1);
+            targetStore, probeStore, topologyHandler, keyValueStore, journalFactory,
+                scheduledExecutorSpy, -1);
 
         assertEquals(
             Scheduler.FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES,
@@ -402,9 +408,9 @@ public class SchedulerTest {
         when(keyValueStore.get(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY)))
             .thenReturn(Optional.of(new Gson().toJson(new ScheduleData(TEST_SCHEDULE_MILLIS))));
 
-        Scheduler scheduler = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, journalFactory,
-            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+        Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
+                topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy,
+                INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         TopologyBroadcastSchedule schedule = scheduler.getBroadcastSchedule().get();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
@@ -542,9 +548,9 @@ public class SchedulerTest {
         Target target = targetStore.getTarget(targetId).get();
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target));
 
-        Scheduler scheduler = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, journalFactory,
-            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+        Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
+                topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy,
+                INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
         assertEquals(INITIAL_BROADCAST_INTERVAL_MINUTES, schedule.getScheduleInterval(TimeUnit.MINUTES));
@@ -558,9 +564,9 @@ public class SchedulerTest {
         when(keyValueStore.get(scheduleKey(Long.toString(targetId))))
             .thenReturn(Optional.of(new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))));
 
-        Scheduler scheduler = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, journalFactory,
-            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+        Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
+                topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy,
+                INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
@@ -573,13 +579,40 @@ public class SchedulerTest {
         when(operationManager.getDiscoveryTimeoutMs()).thenReturn(20L);
         when(operationManager.getValidationTimeoutMs()).thenReturn(30L);
 
-        scheduler = new Scheduler(operationManager, targetStore, topologyHandler,
+        scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
             keyValueStore, journalFactory,
             scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         // A schedule should be added that checks for timeouts based on the shortest timeout among
         // action, discovery, and validation operations.
         Mockito.verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), eq(10L), eq(10L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void testProbeDiscoveryInterval() {
+        ProbeInfo standardProbeInfo = ProbeInfo.newBuilder()
+                .setProbeType("TestProbe")
+                .setProbeCategory("Test")
+                .build();
+        Assert.assertEquals(60000, scheduler.getProbeDiscoveryInterval(standardProbeInfo));
+
+        // test with longer discovery interval
+        ProbeInfo slowDiscoveryProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
+                .setFullRediscoveryIntervalSeconds(999999).build();
+        Assert.assertEquals(999999000, scheduler.getProbeDiscoveryInterval(slowDiscoveryProbeInfo));
+
+        // test with longer discovery interval and performance discovery interval
+        ProbeInfo slowFullFastPerformanceProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
+                .setFullRediscoveryIntervalSeconds(999999)
+                .setPerformanceRediscoveryIntervalSeconds(99).build();
+        Assert.assertEquals(99000, scheduler.getProbeDiscoveryInterval(slowFullFastPerformanceProbeInfo));
+
+        // test with performance discovery interval slower than full discovery interval
+        ProbeInfo fastFullSlowPerformanceProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
+                .setFullRediscoveryIntervalSeconds(99)
+                .setPerformanceRediscoveryIntervalSeconds(9999).build();
+        Assert.assertEquals(99000, scheduler.getProbeDiscoveryInterval(fastFullSlowPerformanceProbeInfo));
+
     }
 
     /**

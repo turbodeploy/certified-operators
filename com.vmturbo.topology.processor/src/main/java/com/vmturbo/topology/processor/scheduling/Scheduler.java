@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.scheduling;
 
-import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,15 +14,17 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.gson.Gson;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.gson.Gson;
-
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -65,6 +66,7 @@ public class Scheduler implements TargetStoreListener {
     private final Map<Long, TargetDiscoverySchedule> discoveryTasks;
     private final IOperationManager operationManager;
     private final TargetStore targetStore;
+    private final ProbeStore probeStore;
     private final TopologyHandler topologyHandler;
     private final KeyValueStore scheduleStore;
     private final StitchingJournalFactory journalFactory;
@@ -79,8 +81,10 @@ public class Scheduler implements TargetStoreListener {
 
     /**
      * Create a {@link Scheduler} for scheduling discoveries on a per-target basis.
+     *
      * @param operationManager The {@link OperationManager} for performing scheduled discoveries.
      * @param targetStore The {@link TargetStore} to use to find targets.
+     * @param probeStore The {@link ProbeStore} to use for finding probe info.
      * @param topologyHandler The {@link TopologyHandler} to use for broadcasting topologies to other services.
      * @param scheduleStore The store used for saving and loading data data from/to persistent storage.
      * @param journalFactory The factory for constructing stitching journals to be used in tracing changes
@@ -90,6 +94,7 @@ public class Scheduler implements TargetStoreListener {
      */
     public Scheduler(@Nonnull final IOperationManager operationManager,
                      @Nonnull final TargetStore targetStore,
+                     @Nonnull final ProbeStore probeStore,
                      @Nonnull final TopologyHandler topologyHandler,
                      @Nonnull final KeyValueStore scheduleStore,
                      @Nonnull final StitchingJournalFactory journalFactory,
@@ -97,6 +102,7 @@ public class Scheduler implements TargetStoreListener {
                      final long initialBroadcastIntervalMinutes) {
         this.operationManager = Objects.requireNonNull(operationManager);
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.journalFactory = Objects.requireNonNull(journalFactory);
         this.schedulerExecutor = Objects.requireNonNull(scheduleExecutor);
@@ -166,6 +172,15 @@ public class Scheduler implements TargetStoreListener {
      * those 3 elapsed minutes will count against the new discovery (ie it will be 2 minutes until
      * the next discovery, and then discoveries will be requested at every 5 minute interval after that.
      *
+     * UPDATE: As of OM-39776, the discovery schedule is based primarily on the probe configuration.
+     * They are no longer synched to the broadcast as closely as this method header describes. The
+     * broadcast interval is still used as a fallback setting, but if a probe configuration specifies
+     * a discovery interval that is greater (i.e. longer delay between discovery events) than the
+     * broadcast cycle, then the probe discovery interval setting will be used to schedule the
+     * discovery instead of the broadcast interval. This was done to support the probe types that
+     * discover less frequently and retrieve more data (e.g. the AWS cost probe) than regular
+     * probe discoveries do.
+     *
      * @param targetId The ID of the target to discover.
      * @throws TargetNotFoundException when the targetId is not associated with any known target.
      * @return The discovery schedule for the input target.
@@ -173,16 +188,74 @@ public class Scheduler implements TargetStoreListener {
     @Nonnull
     public synchronized TargetDiscoverySchedule setBroadcastSynchedDiscoverySchedule(final long targetId)
         throws TargetNotFoundException {
-        targetStore.getTarget(targetId).orElseThrow(
+        Target target = targetStore.getTarget(targetId).orElseThrow(
             () -> new TargetNotFoundException(targetId));
 
-        long broadcastIntervalMillis = getBroadcastIntervalMillis();
-        saveScheduleData(new TargetDiscoveryScheduleData(broadcastIntervalMillis, true), Long.toString(targetId));
+        // get the probe info so we can find the probe's preferred discovery interval.
+        ProbeInfo probeInfo = probeStore.getProbe(target.getProbeId()).orElseThrow(
+            () -> new IllegalStateException("Probe id "+ target.getProbeId() +" not found in probe store."));
+
+        long discoveryIntervalMillis = getProbeDiscoveryInterval(probeInfo);
+
+        saveScheduleData(new TargetDiscoveryScheduleData(discoveryIntervalMillis, true), Long.toString(targetId));
 
         final Optional<TargetDiscoverySchedule> existingSchedule = stopAndRemoveDiscoverySchedule(targetId);
-        final long initialDelayMillis = calculateInitialDelayMillis(broadcastIntervalMillis, existingSchedule);
+        final long initialDelayMillis = calculateInitialDelayMillis(discoveryIntervalMillis, existingSchedule);
 
-        return scheduleDiscovery(targetId, initialDelayMillis, broadcastIntervalMillis, true);
+        return scheduleDiscovery(targetId, initialDelayMillis, discoveryIntervalMillis, true);
+    }
+
+    /**
+     * Get the discovery interval to use for this probe.
+     *
+     * We will use the smaller of either the full rediscovery interval or performance rediscovery
+     * interval as our rediscovery interval. This is because XL does not support incremental
+     * discovery, which some probes rely on in classic.
+     *
+     * For example the VC Probe configures full discovery every hour, with the expectation that
+     * incremental discoveries on 30 second intervals will fill the gaps between full discoveries.
+     * It also specifies "performance" discoveries on 10 minute intervals that ensure updates to the
+     * stats on the usual broadcast cycle.
+     *
+     * XL only supports "full" rediscoveries, so our logic to determine this full discovery interval
+     * will be based on the smaller of the full discovery and performance discovery intervals, if
+     * available. This should handle the VC configuration (and any other probe using the same full +
+     * incremental discovery config), while also respecting the full discovery interval values
+     * configured in the probes.
+     *
+     * In this method, we will also only accept probe discovery intervals that are greater than the
+     * broadcast interval. If a probe configures discovery at a higher frequency than the broadcast
+     * cycle, we will fall back to the broadcast time. There isn't much point to discovering more
+     * frequently than the broadcast time, since any results wouldn't be shown until the next
+     * broadcast cycle anyways.
+     *
+     * @param probeInfo The {@link ProbeInfo} to read the discovery interval properties frrom.
+     * @return The discovery interval to use (in milliseconds)
+     */
+    public long getProbeDiscoveryInterval(ProbeInfo probeInfo) {
+        // set the default discovery interval to the broadcast interval.
+        long broadcastIntervalMillis = getBroadcastIntervalMillis();
+        long discoveryIntervalMillis = broadcastIntervalMillis;
+
+        // as per discussion with Ron, use the smaller of the performance discovery interval or
+        // full discovery interval, if both are specified.
+        if (probeInfo.getFullRediscoveryIntervalSeconds() > 0) {
+            discoveryIntervalMillis = TimeUnit.SECONDS.toMillis(probeInfo.getFullRediscoveryIntervalSeconds());
+        }
+        // if there is a performance discovery setting, use that if it's less than the current
+        // discovery interval.
+        if (probeInfo.getPerformanceRediscoveryIntervalSeconds() > 0) {
+            long performanceRediscoveryMillis = TimeUnit.SECONDS.toMillis(probeInfo.getPerformanceRediscoveryIntervalSeconds());
+            if (performanceRediscoveryMillis < discoveryIntervalMillis) {
+                // we're falling back to the performance discovery interval -- log it.
+                logger.info("Setting discovery interval based on performance discovery interval"
+                        +" of {} ms for probe type {}", performanceRediscoveryMillis, probeInfo.getProbeType());
+                discoveryIntervalMillis = performanceRediscoveryMillis;
+            }
+        }
+
+        // the final discovery interval should be at least as long as the broadcast cycle
+        return Math.max(discoveryIntervalMillis, broadcastIntervalMillis);
     }
 
     /**
