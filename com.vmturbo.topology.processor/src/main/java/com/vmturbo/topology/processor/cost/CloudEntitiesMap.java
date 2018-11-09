@@ -67,7 +67,7 @@ public class CloudEntitiesMap implements Map<String, Long> {
             AtomicInteger counter = new AtomicInteger(0);
             stitchingContext.getEntitiesOfType(entityType).forEach(entity -> {
                 cloudEntityOidByLocalId.put(entity.getLocalId(), entity.getOid());
-                if (entityType == EntityType.DATABASE_TIER) {
+                if (entityType == EntityType.DATABASE_TIER || entityType == EntityType.DATABASE_SERVER_TIER) {
                     // TODO: we are going to put data base tiers in here by display name too
                     // this is a workaround for a mapping issue, where the price tables refer to
                     // db tiers by "model" or "display name", while the discovery and billing probes
