@@ -235,6 +235,8 @@ message ScenarioChange {
 
         optional UtilizationLevel utilization_level = 3;
 
+        optional MaxUtilizationLevel max_utilization_level = 6;
+
         // User specified multiple constraints for initial placement, the logic between them is AND.
         repeated ReservationConstraintInfo initial_placement_constraints = 4;
 
@@ -276,6 +278,16 @@ message ScenarioChange {
         // Since we apply this setting only for VMs we need only percentage field.
         message UtilizationLevel {
             required int32 percentage = 2;
+        }
+
+        // Represents the max utilization level a group of entities should support. This is used to
+        // model HA allocation in a plan.
+        // TODO: Can this be modeled as a SettingOverride instead, once we expand that message to
+        // allow scoping the override to a group?
+        message MaxUtilizationLevel {
+            required int32 percentage = 2;
+            // the group to apply this to. This is expected to be a group of hosts or storages.
+            optional int64 group_oid = 3;
         }
 
         // Represents baseline date selected from UI. It is used to get the used and peak values from historical data
@@ -345,6 +357,8 @@ message ScenarioChange {
         // If present, the entity type to override the setting for.
         // This is one of the ways to narrow down setting overrides.
         optional int32 entity_type = 2;
+        // TODO: extends this to support other ways to specify the override scope, such as for
+        // a group.
     }
 }
 

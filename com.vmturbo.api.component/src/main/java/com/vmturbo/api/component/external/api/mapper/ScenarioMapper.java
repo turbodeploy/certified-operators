@@ -18,11 +18,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -30,6 +25,11 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -45,6 +45,7 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
+import com.vmturbo.api.dto.scenario.MaxUtilizationApiDTO;
 import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
@@ -75,6 +76,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
@@ -311,8 +313,14 @@ public class ScenarioMapper {
 
         // Set utilization changes.
         List<UtilizationApiDTO> utilizationList = loadChangesApiDTO.getUtilizationList();
-        if (!CollectionUtils.isEmpty(utilizationList)) {
+        if (CollectionUtils.isNotEmpty(utilizationList)) {
             changes.add(getUtilizationChanges(utilizationList));
+        }
+
+        // get max utilization changes
+        List<MaxUtilizationApiDTO> maxUtilizationList = loadChangesApiDTO.getMaxUtilizationList();
+        if (CollectionUtils.isNotEmpty(maxUtilizationList)) {
+            changes.addAll(getMaxUtilizationChanges(maxUtilizationList));
         }
 
         // Set baseline changes
@@ -349,6 +357,29 @@ public class ScenarioMapper {
                     .setUtilizationLevel(utilizationLevel))
                 .build();
         return change;
+    }
+
+    /**
+     * Convert any {@link MaxUtilizationApiDTO} objects to {@link ScenarioChange} objects capturing
+     * the effects of the max utilization setting.
+     *
+     * @param maxUtilizations a list of the max utilization settings from the UI
+     * @return a list of matching {@link ScenarioChange} objects
+     */
+    @Nonnull
+    private List<ScenarioChange> getMaxUtilizationChanges(@Nonnull final List<MaxUtilizationApiDTO> maxUtilizations) {
+        List<ScenarioChange> scenarioChanges = new ArrayList<>(maxUtilizations.size());
+        for (MaxUtilizationApiDTO maxUtilization : maxUtilizations) {
+            // get the target oid for this change
+            scenarioChanges.add(ScenarioChange.newBuilder()
+                    .setPlanChanges(PlanChanges.newBuilder()
+                        .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
+                                .setGroupOid(Long.parseLong(maxUtilization.getTarget().getUuid()))
+                                .setPercentage(maxUtilization.getMaxPercentage())
+                        ))
+                    .build());
+        }
+        return scenarioChanges;
     }
 
     /**
@@ -491,6 +522,9 @@ public class ScenarioMapper {
                 .map(ScenarioMapper::createUtilizationApiDto).collect(Collectors.toList());
         loadChanges.setUtilizationList(utilizationApiDTOS);
 
+        // convert max utilization changes too
+        loadChanges.setMaxUtilizationList(getMaxUtilizationApiDTOs(changes));
+
         // Set historical baseline date from scenario
         changes.stream()
             .filter(change -> change.hasPlanChanges() &&
@@ -499,6 +533,27 @@ public class ScenarioMapper {
             .ifPresent(c -> loadChanges.setBaselineDate(DateTimeUtil.toString(c.getPlanChanges()
                 .getHistoricalBaseline().getBaselineDate())));
         return loadChanges;
+    }
+
+    @Nonnull
+    private static List<MaxUtilizationApiDTO> getMaxUtilizationApiDTOs(List<ScenarioChange> changes) {
+        return changes.stream()
+                .filter(change -> change.getPlanChanges().hasMaxUtilizationLevel())
+                .map(ScenarioChange::getPlanChanges)
+                .map(PlanChanges::getMaxUtilizationLevel)
+                .map(maxUtilizationLevel -> {
+                    MaxUtilizationApiDTO maxUtilization = new MaxUtilizationApiDTO();
+                    // TODO: how to handle the projection day? Seems to be always set to 0 in the UI.
+                    // Leaving it unset for now, since it's not in the source object, and we aren't
+                    // handling these anyways.
+                    maxUtilization.setMaxPercentage(maxUtilizationLevel.getPercentage());
+                    BaseApiDTO groupTarget = new BaseApiDTO();
+                    groupTarget.setUuid(String.valueOf(maxUtilizationLevel.getGroupOid()));
+                    // TODO: do we need display name?
+                    maxUtilization.setTarget(groupTarget);
+                    return maxUtilization;
+                })
+                .collect(Collectors.toList());
     }
 
     @Nonnull
