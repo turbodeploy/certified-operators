@@ -75,6 +75,13 @@
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vappsByName"}]
     },
 
+    "DataCenter": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "datacentersByName"},
+            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag"}
+        ]
+    },
+
     "Cluster" : {
         "criteria" : [
           {"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"},
