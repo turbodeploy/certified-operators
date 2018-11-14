@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
  * An interface for collecting data needed for action execution
@@ -36,9 +38,10 @@ public interface ActionExecutionContext {
      *   the action.
      *
      * @return a list of {@link ActionItemDTO} to send to the probe for action execution.
+     * @throws ContextCreationException when the context cannot successfully create the action items
      */
     @Nonnull
-    List<ActionItemDTO> getActionItems();
+    List<ActionItemDTO> getActionItems() throws ContextCreationException;
 
     /**
      * Get the SDK (probe-facing) type of the over-arching action being executed
@@ -88,4 +91,14 @@ public interface ActionExecutionContext {
      */
     @Nonnull
     Set<Long> getAffectedEntities();
+
+    /**
+     * Get the ID of the secondary target involved in this action, or null if no secondary target is
+     * involved
+     *
+     * @return the secondary target involved in this action, or null if no secondary target is
+     *         involved
+     */
+    @Nullable
+    Long getSecondaryTargetId() throws TargetNotFoundException;
 }

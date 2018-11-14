@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
@@ -39,6 +40,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest.Builder;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -209,6 +211,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public synchronized Action requestActions(final long actionId,
                                               final long targetId,
+                                              @Nullable Long secondaryTargetId,
                                               @Nonnull final ActionType actionType,
                                               @Nonnull final List<ActionItemDTO> actionDtos,
                                               @Nonnull Set<Long> affectedEntities,
@@ -231,11 +234,20 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // and include it in the ActionExecution to be sent to the target
         workflowInfoOpt.ifPresent(workflowInfo ->
                 actionExecutionBuilder.setWorkflow(buildWorkflowNonMarketEntity(workflowInfo)));
-        final ActionRequest request = ActionRequest.newBuilder()
+        final Builder actionRequestBuilder = ActionRequest.newBuilder()
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
-                .setActionExecutionDTO(actionExecutionBuilder)
-                .build();
+                .setActionExecutionDTO(actionExecutionBuilder);
+        // If a secondary target is defined, at it to the ActionRequest
+        if (secondaryTargetId != null) {
+            // This action requires interaction with a second target.
+            // Secondary account values must be set.
+            final Target secondaryTarget = targetStore.getTarget(secondaryTargetId)
+                    .orElseThrow(() -> new TargetNotFoundException(secondaryTargetId));
+            actionRequestBuilder.addAllSecondaryAccountValue(
+                    secondaryTarget.getMediationAccountVals(groupScopeResolver));
+        }
+        final ActionRequest request = actionRequestBuilder.build();
         final ActionMessageHandler messageHandler = new ActionMessageHandler(this,
                 action,
                 remoteMediationServer.getMessageHandlerExpirationClock(),

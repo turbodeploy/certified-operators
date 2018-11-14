@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -19,12 +20,12 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
  * A super-class for action execution context implementations.
@@ -73,7 +74,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     /**
      * Retrieves and converts an entity in order to provide the full entity data for action execution.
      */
-    private final EntityRetriever entityRetriever;
+    protected final EntityRetriever entityRetriever;
 
     /**
      * A list of {@link ActionItemDTO} to send to the probe for action execution.
@@ -82,13 +83,12 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *   action being executed, as well as include any additional ContextData needed to execute
      *   the action.
      */
-    protected final List<ActionItemDTO> actionItems = new ArrayList<>();
+    protected List<ActionItemDTO> actionItems;
 
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
-                                             @Nonnull final EntityRetriever entityRetriever)
-            throws ActionExecutionException {
+                                             @Nonnull final EntityRetriever entityRetriever) {
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
@@ -97,13 +97,14 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
+    }
 
+    protected void buildActionItems() throws ContextCreationException {
         // Build the action items, the primary data carrier to the probe for action execution
-        List<ActionItemDTO.Builder> actionItemBuilders = initActionItems();
-        List<ActionItemDTO> actions = actionItemBuilders.stream()
+        List<ActionItemDTO.Builder> actionItemBuilders = initActionItemBuilders();
+        actionItems = actionItemBuilders.stream()
                 .map(Builder::build)
                 .collect(Collectors.toList());
-        actionItems.addAll(actions);
     }
 
     /**
@@ -145,6 +146,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      */
     @Override
     public List<ActionItemDTO> getActionItems() {
+        if (actionItems == null) {
+            buildActionItems();
+        }
         return actionItems;
     }
 
@@ -162,6 +166,18 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     }
 
     /**
+     * Get the secondary target involved in this action, or null if no secondary target is involved
+     *
+     * @return the secondary target involved in this action, or null if no secondary target is
+     * involved
+     */
+    @Nullable
+    @Override
+    public Long getSecondaryTargetId() throws TargetNotFoundException {
+        return null;
+    }
+
+    /**
      * By convention, the first ActionItem in the list will declare the overarching type of the
      * action being executed, as well as include any additional ContextData needed to execute
      * the action.
@@ -173,14 +189,12 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *
      * @param actionItemBuilders the full list of action items, from which the primary one will be extracted
      * @return the primary {@link ActionItemDTO.Builder} for this action
-     * @throws ActionExecutionException when no action items are found
      */
     protected ActionItemDTO.Builder getPrimaryActionItemBuilder(
-            @Nonnull List<ActionItemDTO.Builder> actionItemBuilders)
-            throws ActionExecutionException {
+            @Nonnull List<ActionItemDTO.Builder> actionItemBuilders) {
         return actionItemBuilders.stream()
                 .findFirst()
-                .orElseThrow(() -> new ActionExecutionException("No action item builders found. "
+                .orElseThrow(() -> new ContextCreationException("No action item builders found. "
                         + "An action should have at least one action item."));
     }
 
@@ -212,9 +226,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * The default implementation creates a single {@link ActionItemDTO.Builder}
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
-     * @throws ActionExecutionException if the data required for action execution cannot be retrieved
      */
-    protected List<ActionItemDTO.Builder> initActionItems() throws ActionExecutionException {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
         // Get the full entity, including a combination of both stitched and raw data
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
@@ -229,32 +242,33 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         // Right now, this is treated as a fourth entity (hostedBySE) on the ActionItemDTO
         getHost(fullEntityDTO).ifPresent(actionItemBuilder::setHostedBySE);
 
+        // Using an ArrayList in order to ensure the returned list is mutable so that subclasses
+        // can add additional items
         List<ActionItemDTO.Builder> builders = new ArrayList<>();
         builders.add(actionItemBuilder);
         return builders;
     }
 
-    protected EntityDTO getFullEntityDTO(long entityId) throws ActionExecutionException {
+    protected EntityDTO getFullEntityDTO(long entityId) {
         try {
             return entityRetriever.fetchAndConvertToEntityDTO(entityId);
         } catch (EntityRetrievalException e) {
-            throw new ActionExecutionException("Unable to execute action because the full entity"
+            throw new ContextCreationException("Unable to execute action because the full entity"
                     + "data for entity " + entityId + " could not be retrieved.", e);
         }
     }
 
     protected PerTargetInfo getPerTargetInfo(final long targetId,
                                              final long entityId,
-                                             final String entityType)
-            throws ActionExecutionException {
+                                             final String entityType) {
         return entityStore.getEntity(entityId)
-                .orElseThrow(() -> ActionExecutionException.noEntity(entityType, entityId))
+                .orElseThrow(() -> ContextCreationException.noEntity(entityType, entityId))
                 .getEntityInfo(targetId)
-                .orElseThrow(() -> ActionExecutionException.noEntityTargetInfo(
+                .orElseThrow(() -> ContextCreationException.noEntityTargetInfo(
                         entityType, entityId, targetId));
     }
 
-    protected Optional<EntityDTO> getHost(final EntityDTO entity) throws ActionExecutionException {
+    protected Optional<EntityDTO> getHost(final EntityDTO entity) {
         // Right now hosted by only gets set for VM -> PM and Container -> Pod relationships.
         // Hosted by for VM -> PM relationships is most notably required by the HyperV probe.
         // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.

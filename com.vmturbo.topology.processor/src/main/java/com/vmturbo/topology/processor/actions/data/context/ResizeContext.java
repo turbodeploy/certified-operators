@@ -14,7 +14,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -27,8 +26,7 @@ public class ResizeContext extends AbstractActionExecutionContext {
     public ResizeContext(@Nonnull final ExecuteActionRequest request,
                          @Nonnull final ActionDataManager dataManager,
                          @Nonnull final EntityStore entityStore,
-                         @Nonnull final EntityRetriever entityRetriever)
-            throws ActionExecutionException {
+                         @Nonnull final EntityRetriever entityRetriever) {
         super(request, dataManager, entityStore, entityRetriever);
     }
 
@@ -80,11 +78,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
      * This implementation additionally sets commodity data needed for resize action execution.
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
-     * @throws ActionExecutionException if the data required for action execution cannot be retrieved
      */
     @Override
-    protected List<ActionItemDTO.Builder> initActionItems() throws ActionExecutionException {
-        List<ActionItemDTO.Builder> builders = super.initActionItems();
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+        List<ActionItemDTO.Builder> builders = super.initActionItemBuilders();
         ActionItemDTO.Builder actionItemBuilder = getPrimaryActionItemBuilder(builders);
         Resize resizeInfo = getActionInfo().getResize();
 

@@ -44,6 +44,7 @@ import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContex
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class ActionExecutionRpcServiceTest {
 
@@ -55,10 +56,13 @@ public class ActionExecutionRpcServiceTest {
 
     private EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
 
+    private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
+
     private ActionExecutionContextFactory actionExecutionContextFactory =
             new ActionExecutionContextFactory(actionDataManager,
                     entityStore,
-                    entityRetriever);
+                    entityRetriever,
+                    targetStoreMock);
 
     private ActionExecutionRpcService actionExecutionBackend =
             new ActionExecutionRpcService(operationManager,
@@ -132,6 +136,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.MOVE_TOGETHER),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Stream.of(1L, 2L, 3L, 4L, 5L)
@@ -223,6 +228,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.MOVE),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Stream.of(1L, 2L, 3L)
@@ -278,6 +284,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.MOVE),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Stream.of(1L, 2L, 3L)
@@ -362,6 +369,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.RIGHT_SIZE),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Collections.singleton(1L)),
@@ -470,6 +478,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.START),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Collections.singleton(1L)),
@@ -511,6 +520,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.START),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Collections.singleton(1L)),
@@ -601,6 +611,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.SUSPEND),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Collections.singleton(entityId)),
@@ -643,6 +654,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
+                Mockito.anyLong(),
                 Mockito.eq(ActionType.SUSPEND),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Collections.singleton(entityId)),

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
@@ -188,9 +189,15 @@ public interface IOperationManager {
      * throws exceptions if the action can't initiate (i.e. in case of an error
      * sending the action to the probe).
      *
+     * Secondary targets are targets that have discovered the destination entity in the case of a
+     * cross-target move (where the destination was not discovered by the same target that
+     * discovered the source entity).
+     *
      * @param actionId The id of the overarching action. This is the ID that gets
      * assigned by the Action Orchestrator.
      * @param targetId The id of the target containing the entities for the action.
+     * @param secondaryTargetId the secondary target involved in this action, or null if no secondary
+     *                          target is involved
      * @param actionType The type of the overarching action
      * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
      * @param affectedEntities A set of entities directly affected by this action
@@ -205,6 +212,7 @@ public interface IOperationManager {
      */
     Action requestActions(long actionId,
                           long targetId,
+                          @Nullable Long secondaryTargetId,
                           @Nonnull final ActionType actionType,
                           @Nonnull List<ActionExecution.ActionItemDTO> actionDtos,
                           @Nonnull Set<Long> affectedEntities,

@@ -656,6 +656,7 @@ public class OperationManagerTest {
 
         final Action action = operationManager.requestActions(0,
                 targetId,
+                null,
                 ActionType.MOVE,
                 actionItemDtos,
                 Collections.singleton(targetId),
@@ -671,6 +672,7 @@ public class OperationManagerTest {
 
         final Action action = operationManager.requestActions(0,
                 targetId,
+                null,
                 ActionType.MOVE,
                 actionItemDtos,
                 Collections.singleton(targetId),
@@ -694,6 +696,7 @@ public class OperationManagerTest {
 
         final Action action = operationManager.requestActions(0,
                 targetId,
+                null,
                 ActionType.MOVE,
                 actionItemDtos,
                 Collections.singleton(targetId),
@@ -720,6 +723,7 @@ public class OperationManagerTest {
 
         final Action action = operationManager.requestActions(0,
                 targetId,
+                null,
                 ActionType.MOVE,
                 actionItemDtos,
                 Collections.singleton(targetId),
@@ -747,6 +751,7 @@ public class OperationManagerTest {
 
         final Action action = operationManager.requestActions(0,
                 targetId,
+                null,
                 ActionType.MOVE,
                 actionItemDtos,
                 Collections.singleton(targetId),

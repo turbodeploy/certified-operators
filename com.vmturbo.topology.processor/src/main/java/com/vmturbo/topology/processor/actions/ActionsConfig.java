@@ -65,7 +65,8 @@ public class ActionsConfig {
     public ActionExecutionContextFactory actionExecutionContextFactory() {
         return new ActionExecutionContextFactory(actionDataManager(),
                 entityConfig.entityStore(),
-                entityRetriever());
+                entityRetriever(),
+                targetConfig.targetStore());
     }
 
     @Bean

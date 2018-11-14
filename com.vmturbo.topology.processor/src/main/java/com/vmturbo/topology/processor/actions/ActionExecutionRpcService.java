@@ -20,11 +20,9 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
-import com.vmturbo.topology.processor.actions.data.ActionDataManager;
-import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContext;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
-import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.actions.data.context.ContextCreationException;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
@@ -83,6 +81,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
             logger.debug("Start action {}", sdkActions);
             operationManager.requestActions(request.getActionId(),
                     request.getTargetId(),
+                    actionExecutionContext.getSecondaryTargetId(),
                     actionType,
                     sdkActions,
                     actionExecutionContext.getAffectedEntities(),
@@ -96,7 +95,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
         } catch (InterruptedException e) {
             responseObserver.onError(Status.ABORTED
                     .withDescription(e.getMessage()).asException());
-        } catch (ActionExecutionException | TargetNotFoundException e) {
+        } catch (ActionExecutionException | TargetNotFoundException | ContextCreationException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         } catch (CommunicationException e) {

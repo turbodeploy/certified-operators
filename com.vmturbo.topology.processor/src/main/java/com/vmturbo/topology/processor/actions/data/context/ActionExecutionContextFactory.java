@@ -6,10 +6,10 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.topology.processor.actions.ActionExecutionException;
 import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Constructs instances of ActionExecutionContext, an interface for collecting data needed for
@@ -36,12 +36,19 @@ public class ActionExecutionContextFactory {
      */
     private final EntityRetriever entityRetriever;
 
+    /**
+     * Used for determining the target type of a given target
+     */
+    private final TargetStore targetStore;
+
     public ActionExecutionContextFactory(@Nonnull final ActionDataManager actionDataManager,
                                          @Nonnull final EntityStore entityStore,
-                                         @Nonnull final EntityRetriever entityRetriever) {
+                                         @Nonnull final EntityRetriever entityRetriever,
+                                         @Nonnull final TargetStore targetStore) {
         this.actionDataManager = Objects.requireNonNull(actionDataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
+        this.targetStore = Objects.requireNonNull(targetStore);
     }
 
     /**
@@ -51,16 +58,16 @@ public class ActionExecutionContextFactory {
      * @param request an request containing an action to be executed
      * @return an {@link ActionExecutionContext} to collect additional data needed in order to
      *         execute the provided action.
-     * @throws ActionExecutionException
      */
     @Nonnull
     public ActionExecutionContext getActionExecutionContext(
-            @Nonnull final ExecuteActionRequest request) throws ActionExecutionException {
+            @Nonnull final ExecuteActionRequest request) {
         return ActionExecutionContextFactory.getActionExecutionContext(
                 Objects.requireNonNull(request),
                 actionDataManager,
                 entityStore,
-                entityRetriever);
+                entityRetriever,
+                targetStore);
     }
 
     /**
@@ -74,15 +81,14 @@ public class ActionExecutionContextFactory {
      *                        data for action execution
      * @return an {@link ActionExecutionContext} to collect additional data needed in order to
      *         execute the provided action.
-     * @throws ActionExecutionException
      */
     @Nonnull
     private static ActionExecutionContext getActionExecutionContext(
             @Nonnull final ExecuteActionRequest request,
             @Nonnull final ActionDataManager dataManager,
             @Nonnull final EntityStore entityStore,
-            @Nonnull final EntityRetriever entityRetriever)
-            throws ActionExecutionException {
+            @Nonnull final EntityRetriever entityRetriever,
+            @Nonnull final TargetStore targetStore) {
         if( ! request.hasActionInfo()) {
             throw new IllegalArgumentException("Cannot execute action with no action info. "
                     + "Action request: " + request.toString());
@@ -90,7 +96,7 @@ public class ActionExecutionContextFactory {
         ActionInfo actionInfo = request.getActionInfo();
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return new MoveContext(request, dataManager, entityStore, entityRetriever);
+                return new MoveContext(request, dataManager, entityStore, entityRetriever, targetStore);
             case RESIZE:
                 return new ResizeContext(request, dataManager, entityStore, entityRetriever);
             case ACTIVATE:

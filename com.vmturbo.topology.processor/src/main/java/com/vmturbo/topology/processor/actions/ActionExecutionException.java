@@ -15,15 +15,4 @@ public class ActionExecutionException extends Exception {
         super(message, cause);
     }
 
-    public static ActionExecutionException noEntity(final String entityType, final long entityId) {
-        return new ActionExecutionException("Missing " + entityType +
-                " entity (ID " + entityId + ")");
-    }
-
-    public static ActionExecutionException noEntityTargetInfo(final String entityType, final long entityId, final long targetId) {
-        return new ActionExecutionException("Missing target info for " + entityType +
-                " entity (ID " + entityId + "). This means that target " + targetId +
-                " has not discovered this entity.");
-
-    }
 }

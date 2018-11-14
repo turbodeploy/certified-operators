@@ -69,7 +69,7 @@ public class EntityRetriever {
      * @param entityId the ID of the entity to fetch data about
      * @return stitched entity data corresponding to the provided entity
      */
-    private Optional<TopologyEntityDTO> retrieveTopologyEntity(final long entityId) {
+    public Optional<TopologyEntityDTO> retrieveTopologyEntity(final long entityId) {
         return repositoryClient.retrieveTopologyEntities(
                 Collections.singletonList(Long.valueOf(entityId)), realtimeTopologyContextId)
                 .getEntitiesList()
