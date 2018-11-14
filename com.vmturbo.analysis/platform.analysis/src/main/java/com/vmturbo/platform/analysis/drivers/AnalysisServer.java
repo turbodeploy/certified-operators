@@ -399,6 +399,8 @@ public class AnalysisServer implements AutoCloseable {
                         builder.addActions(actionTO);
                     }
                 }
+                builder.addAllNewShoppingListToBuyerEntry(AnalysisToProtobuf
+                                                    .createNewShoppingListToBuyerMap(lastComplete));
                 results = builder.build();
             }
             if (isReplayOrRealTime) {
