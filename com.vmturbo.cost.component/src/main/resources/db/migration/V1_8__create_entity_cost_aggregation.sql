@@ -167,14 +167,14 @@ CREATE TRIGGER entity_cost_keys BEFORE INSERT ON entity_cost
       /* HOURLY AGGREGATION */
 
       if (last_aggregated_by_hour_time='0000-00-00 00:00:00' OR last_aggregated_by_hour_time IS NULL) THEN
-        SET last_aggregated_by_hour_time = '1970-01-01 00:00:00';
+        SET last_aggregated_by_hour_time = '1970-01-01 00:00:01';
       end if;
       SET @last_hourly = last_aggregated_by_hour_time;
 
       /* Create a view containing the entity_cost rows which have not been aggregated to the hourly table */
-      SET @sql=concat('CREATE OR REPLACE VIEW ENTITY_COST_HOURLY_INS_VW AS
+      SET @sql=concat('CREATE OR REPLACE VIEW entity_cost_hourly_ins_vw AS
       SELECT hour_key, day_key, month_key,
-      DATE_FORMAT(created_time,"%Y-%m-%d %H:00:00") as created_time,
+      TIMESTAMP(DATE_FORMAT(created_time,"%Y-%m-%d %H:00:00")) as created_time,
       associated_entity_id,
       associated_entity_type,
       cost_type,
@@ -206,14 +206,14 @@ CREATE TRIGGER entity_cost_keys BEFORE INSERT ON entity_cost
       /* DAILY AGGREGATION */
 
       if (last_aggregated_by_day_time='0000-00-00 00:00:00' OR last_aggregated_by_day_time IS NULL) THEN
-        SET last_aggregated_by_day_time = '1970-01-01 00:00:00';
+        SET last_aggregated_by_day_time = '1970-01-01 00:00:01';
       end if;
 
       SET @last_daily = last_aggregated_by_day_time;
 
-      SET @sql=concat('CREATE OR REPLACE VIEW ENTITY_COST_DAILY_INS_VW AS
+      SET @sql=concat('CREATE OR REPLACE VIEW entity_cost_daily_ins_vw AS
       SELECT day_key, month_key,
-      DATE_FORMAT(created_time,"%Y-%m-%d 00:00:00") as created_time,
+      TIMESTAMP(DATE_FORMAT(created_time,"%Y-%m-%d 00:00:00")) as created_time,
       associated_entity_id,
       associated_entity_type,
       cost_type,
@@ -240,14 +240,14 @@ CREATE TRIGGER entity_cost_keys BEFORE INSERT ON entity_cost
       /* MONTHLY AGGREGATION */
 
       if (last_aggregated_by_month_time='0000-00-00 00:00:00' OR last_aggregated_by_month_time IS NULL) THEN
-        SET last_aggregated_by_month_time = '1970-01-01 00:00:00';
+        SET last_aggregated_by_month_time = '1970-01-01 00:00:01';
       end if;
 
       SET @last_monthly = last_aggregated_by_month_time;
 
-      SET @sql=concat('CREATE OR REPLACE VIEW ENTITY_COST_MONTHLY_INS_VW AS
+      SET @sql=concat('CREATE OR REPLACE VIEW entity_cost_monthly_ins_vw AS
       SELECT month_key,
-      DATE_FORMAT(last_day(created_time),"%Y-%m-%d 00:00:00") as created_time,
+      TIMESTAMP(DATE_FORMAT(last_day(created_time),"%Y-%m-%d 00:00:00")) as created_time,
       associated_entity_id,
       associated_entity_type,
       cost_type,
