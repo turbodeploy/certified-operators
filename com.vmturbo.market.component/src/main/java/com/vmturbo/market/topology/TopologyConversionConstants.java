@@ -6,9 +6,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Any constants which need to be shared across the classes in TopologyConversions can be
@@ -50,6 +52,10 @@ public class TopologyConversionConstants {
     public static final float ACCESS_COMMODITY_CAPACITY = 1.0E9f;
 
     public static final String BICLIQUE = "BICLIQUE";
+
+    // TODO: This information should not be stored here. It should come from outside market
+    public static final Set<OSType> INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS = ImmutableSet.of(
+            OSType.LINUX, OSType.RHEL, OSType.SUSE);
 
     // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
     // the resizable commodity sold

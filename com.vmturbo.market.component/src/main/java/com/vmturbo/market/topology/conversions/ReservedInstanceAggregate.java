@@ -1,10 +1,12 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -21,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -42,7 +45,7 @@ public class ReservedInstanceAggregate {
     ReservedInstanceKey riKey;
 
     // list of bought RIs that have the same ReservedInstanceKey
-    List<ReservedInstanceData> constituentRIs = new ArrayList<>();
+    Set<ReservedInstanceData> constituentRIs = new HashSet<>();
 
     // largest compute tier for in the family that this RI belongs to
     TopologyEntityDTO largestTier = null;
@@ -58,11 +61,16 @@ public class ReservedInstanceAggregate {
         return riKey;
     }
 
-    public List<ReservedInstanceData> getConstituentRIs() {
+    public Set<ReservedInstanceData> getConstituentRIs() {
         return constituentRIs;
     }
 
     void addConstituentRi(ReservedInstanceData riData) {
+        if (!riKey.isInstanceSizeFlexible() && !constituentRIs.isEmpty()) {
+            logger.error("Attempting to add more than 1 constituent RI to {} which is " +
+                    "not instance size flexible", getDisplayName());
+            return;
+        }
         constituentRIs.add(riData);
         riCouponInfoMap.put(riData.getReservedInstanceBought().getId(), new RICouponInfo(
                 riData.getReservedInstanceBought()));
@@ -231,34 +239,35 @@ public class ReservedInstanceAggregate {
      *
      */
     class ReservedInstanceKey {
-        Tenancy tenancy;
-        OSType os;
-        long regionId;
-        long zoneId;
-        long accountId;
-        String family;
+        private final Tenancy tenancy;
+        private final OSType os;
+        private final long regionId;
+        private final long zoneId;
+        private final long accountId;
+        private final String family;
+        private final long riBoughtId;
 
-        public Tenancy getTenancy() {
+        Tenancy getTenancy() {
             return tenancy;
         }
 
-        public OSType getOs() {
+        OSType getOs() {
             return os;
         }
 
-        public long getRegionId() {
+        long getRegionId() {
             return regionId;
         }
 
-        public String getFamily() {
+        String getFamily() {
             return family;
         }
 
-        public long getAccount() {
+        long getAccount() {
             return accountId;
         }
 
-        public long getZoneId() {
+        long getZoneId() {
             return zoneId;
         }
 
@@ -271,11 +280,20 @@ public class ReservedInstanceAggregate {
             this.family = topology.get(riSpec.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily();
             this.zoneId = riBoughtInfo.getAvailabilityZoneId();
             this.accountId = riBoughtInfo.getBusinessAccountId();
+            if (!isInstanceSizeFlexible()) {
+                this.riBoughtId = riData.getReservedInstanceBought().getId();
+            } else {
+                this.riBoughtId = -1l;
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(tenancy, os, regionId, family, zoneId, accountId);
+            if (isInstanceSizeFlexible()) {
+                return Objects.hash(tenancy, os, regionId, family, zoneId, accountId);
+            } else {
+                return Objects.hash(riBoughtId);
+            }
         }
 
         @Override
@@ -290,14 +308,24 @@ public class ReservedInstanceAggregate {
                 return false;
             }
 
-            // compares the tenancy, os, region, zone, family to check if 2 RIAggregates are the same
+            // In case of instance size flexible operating systems, compares the tenancy, os,
+            // region, zone, family to check if 2 RIAggregates are the same. Otherwise checks if
+            // the RIBoughtIds are the same.
             ReservedInstanceKey other = (ReservedInstanceKey)obj;
-            return this.tenancy == other.tenancy &&
-                    this.os == other.os &&
-                    this.regionId == other.regionId &&
-                    this.family == other.family &&
-                    this.zoneId == other.zoneId &&
-                    this.accountId == other.accountId;
+            if (isInstanceSizeFlexible()) {
+                return this.tenancy == other.tenancy &&
+                        this.os == other.os &&
+                        this.regionId == other.regionId &&
+                        this.family.equals(other.family) &&
+                        this.zoneId == other.zoneId &&
+                        this.accountId == other.accountId;
+            } else {
+                return this.riBoughtId == other.riBoughtId;
+            }
+        }
+
+        private boolean isInstanceSizeFlexible() {
+            return TopologyConversionConstants.INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS.contains(os);
         }
     }
 

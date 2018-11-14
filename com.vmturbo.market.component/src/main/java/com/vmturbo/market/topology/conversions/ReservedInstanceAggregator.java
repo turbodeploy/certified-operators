@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,8 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -31,17 +34,18 @@ public class ReservedInstanceAggregator {
 
     Map<Long, TopologyEntityDTO> topology;
 
+    // Map of riBoughtId to ReservedInstanceData
     Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
 
     // This map contains a list of providers that exists in every computeTier family
     Map<String, List<TopologyEntityDTO>> familyToComputeTiers;
 
-    // List of distinct {@link ReservedInstanceAggregate} objects
-    List<ReservedInstanceAggregate> riAggregates;
+    // Map of Reserved instance key to {@link ReservedInstanceAggregate} objects
+    Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates;
 
     ReservedInstanceAggregator(@Nonnull CloudCostData cloudCostData,
             @Nonnull Map<Long, TopologyEntityDTO> topology) {
-        riAggregates = new ArrayList();
+        riAggregates = Maps.newHashMap();
         familyToComputeTiers = new HashMap<>();
         this.cloudCostData = cloudCostData;
         this.topology = topology;
@@ -53,7 +57,7 @@ public class ReservedInstanceAggregator {
      * computeTier in each family for every distinct ReservedInstanceAggregate that was created.
      *
      */
-    public List<ReservedInstanceAggregate> aggregate() {
+    public Collection<ReservedInstanceAggregate> aggregate() {
         // aggregate RIs into distinct ReservedInstanceAggregate objects based on RIKey
         boolean success = aggregateRis();
 
@@ -64,8 +68,7 @@ public class ReservedInstanceAggregator {
             // assign the largest computeTier for each ReservedInstanceAggregate
             updateRiAggregateWithLargestComputeTier();
         }
-
-        return riAggregates;
+        return riAggregates.values();
     }
 
     /**
@@ -78,19 +81,12 @@ public class ReservedInstanceAggregator {
         for (ReservedInstanceData riData : cloudCostData.getAllRiBought()) {
             riDataMap.put(riData.getReservedInstanceBought().getId(), riData);
             ReservedInstanceAggregate riAggregate = new ReservedInstanceAggregate(riData, topology);
-            int indexOfAggregate = riAggregates.indexOf(riAggregate);
-            // if riAggregate not in list of aggregates, create a new one
-            if (riAggregates.indexOf(riAggregate) != -1) {
-                riAggregate = riAggregates.get(indexOfAggregate);
-            } else {
-                riAggregates.add(riAggregate);
-            }
-            // add the riData in the right riAggregate
+            riAggregates.putIfAbsent(riAggregate.getRiKey(), riAggregate);
+            riAggregate = riAggregates.get(riAggregate.getRiKey());
             riAggregate.addConstituentRi(riData);
             success = true;
         }
         return success;
-
     }
 
     /**
@@ -114,7 +110,7 @@ public class ReservedInstanceAggregator {
      *
      */
     void updateRiAggregateWithLargestComputeTier() {
-        for (ReservedInstanceAggregate riAggregate : riAggregates) {
+        for (ReservedInstanceAggregate riAggregate : riAggregates.values()) {
             ReservedInstanceKey key = riAggregate.getRiKey();
             List<TopologyEntityDTO> computeTiers = familyToComputeTiers.get(key.getFamily());
             if (computeTiers == null) {
@@ -132,5 +128,4 @@ public class ReservedInstanceAggregator {
     public Map<Long, ReservedInstanceData> getRIDataMap() {
         return riDataMap;
     }
-
 }

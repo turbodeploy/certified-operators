@@ -57,7 +57,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
 
         ReservedInstanceAggregator aggregator = new ReservedInstanceAggregator(cloudCostData, topology);
         // create RI aggregates from the RIs bought
-        List<ReservedInstanceAggregate> riAggregates = aggregator.aggregate();
+        Collection<ReservedInstanceAggregate> riAggregates = aggregator.aggregate();
         riDataMap = aggregator.getRIDataMap();
 
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
