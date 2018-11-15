@@ -736,7 +736,7 @@
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
-                                        <argument>${project.basedir}/../build/saveImage.sh</argument>
+                                        <argument>${maven.multiModuleProjectDirectory}/saveImage.sh</argument>
                                         <argument>${artifactId}</argument>
                                         <argument>${project.version}</argument>
                                         <argument>${project.basedir}</argument>
