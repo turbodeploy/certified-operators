@@ -424,8 +424,9 @@ public class TopologyConverter {
         logger.info("Converting projectedTraders to topologyEntityDTOs");
         projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
         relinquishCoupons(projectedTraders, cloudCostData);
-        // Perform lazy transformation, so do not store all the TopologyEntityDTOs in memory
-        return Lists.transform(projectedTraders, projectedTrader -> {
+        List <ProjectedTopologyEntity> projectedTopologyEntities = new ArrayList<>(
+                projectedTraders.size());
+        for (TraderTO projectedTrader : projectedTraders) {
             final TopologyDTO.TopologyEntityDTO projectedEntity =
                     traderTOtoTopologyDTO(projectedTrader, originalTopology);
             final ProjectedTopologyEntity.Builder projectedEntityBuilder =
@@ -446,8 +447,9 @@ public class TopologyConverter {
                         .getRiCoverageForEntity(originalTraderTO.getOid());
             }
             calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
-            return projectedEntityBuilder.build();
-        });
+            projectedTopologyEntities.add(projectedEntityBuilder.build());
+        }
+        return projectedTopologyEntities;
     }
 
     /**
