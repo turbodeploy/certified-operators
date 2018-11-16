@@ -141,10 +141,9 @@ case "$args" in
     component_yaml_filepath=$(find ${xlYamlDir} -name ${component_name}.yaml)
     component_package_from_yaml=$(cat ${component_yaml_filepath} | grep 'image: ' | cut -f3 -d '/' | cut -f1 -d ':')
     ${registryctlCommand} load ${component_package_from_yaml} ${component_version}
-    ${registryctlCommand} push ${component_package_from_yaml} ${component_version}
     sed -i "s#image: .*#image: localhost:5000/turbonomic/${component_package_from_yaml}:${component_version}#" ${component_yaml_filepath}
     # Check for deployment
-    [ ! -z $(${kubeCommand} get deployments -o name | grep "deployments/${component_name}") ] && ${kubeCommand} delete deployment ${component_name}
+    [ ! -z $(${kubeCommand} get deployments -o name | grep "${component_name}") ] && ${kubeCommand} delete deployment ${component_name}
     ${kubeCommand} create -f ${component_yaml_filepath}
     ;;
   start)
