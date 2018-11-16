@@ -136,8 +136,12 @@ public class DiscoveredCloudCostUploader {
                                 @Nonnull final List<NonMarketEntityDTO> nonMarketEntityDTOS,
                                 @Nonnull final List<CostDataDTO> costDataDTOS,
                                 @Nullable final PriceTable priceTable) {
-        SDKProbeType probeType = targetStore.getProbeTypeForTarget(targetId)
-                .orElseThrow(() -> new IllegalStateException("Probe type for target id "+ targetId +" not found."));
+        SDKProbeType probeType = targetStore.getProbeTypeForTarget(targetId).orElse(null);
+        if (probeType == null) {
+            logger.warn("Skipping price tables for unknown probeType for targetId {}.", targetId);
+            return;
+        }
+
         // add the probe type to our discovered probe types list
         probeTypesForTargetId.put(targetId, probeType);
 
