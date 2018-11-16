@@ -272,8 +272,13 @@ public class Analysis {
 
                 // save the scoped topology for later broadcast
                 scopeEntities = traderTOs.stream()
-                        .collect(Collectors.toMap(TraderTO::getOid,
-                                trader -> topologyDTOs.get(trader.getOid())));
+                    // convert the traders in the scope into topologyEntities
+                    .map(trader -> topologyDTOs.get(trader.getOid()))
+                    // remove the topologyEntities that were created as fake because of suspension throttling
+                    .filter(topologyEntityDTO -> !fakeEntityDTOs.containsKey(topologyEntityDTO.getOid()))
+                    // convert it to a map
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid,
+                        trader -> topologyDTOs.get(trader.getOid())));
             }
 
             // remove any (scoped) traders that may have been flagged for removal
@@ -316,26 +321,28 @@ public class Analysis {
 
             List<TraderTO> projectedTraderDTO = new ArrayList<>();
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                Map<Long, TopologyEntityDTO> realTopologyDTOs = new HashMap<>();
                 if (enableThrottling) {
-                    // remove the fake entities used in suspension throttling from projected topology
-                    for (Entry<Long, TopologyEntityDTO> entry : topologyDTOs.entrySet()) {
-                        if (!fakeEntityDTOs.containsKey(entry.getKey())) {
-                            realTopologyDTOs.put(entry.getKey(), entry.getValue());
-                        }
+                    // remove the fake entities used in suspension throttling
+                    // we need to remove it both from the projected topology and the source topology
+
+                    // source, non scoped topology
+                    for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
+                        topologyDTOs.remove(fakeEntityOid);
                     }
+
+                    // projected topology
                     for(TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
                         if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
                             projectedTraderDTO.add(projectedDTO);
                         }
                     }
                 } else {
-                    realTopologyDTOs = topologyDTOs;
                     projectedTraderDTO = results.getProjectedTopoEntityTOList();
                 }
+
                 projectedEntities = converter.convertFromMarket(
                     projectedTraderDTO,
-                    realTopologyDTOs,
+                    topologyDTOs,
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
 
                 // retrieve region DTOs from the original entities topology
