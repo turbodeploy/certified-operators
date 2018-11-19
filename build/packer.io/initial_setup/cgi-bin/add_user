@@ -29,6 +29,9 @@ fi
 # Remove the special user.
 /sbin/userdel neteditor
 rm -rf /home/neteditor
+systemctl enable sshd
+systemctl daemon-reload
+systemctl start sshd
 # Remove the netuser login binary and copies of the /etc/sudoers
 # which were put into /opt
 rm -f /opt/netedit
