@@ -7,8 +7,8 @@ import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -167,6 +167,11 @@ public class StatsService implements IStatsService {
      * Once it is fixed in classic, we would have to change this value.
      */
     public static final String RI_COMPUTE = "riDiscount";
+
+    // Internally generated stat name when stats period are not set.
+    private static final String CURRENT_COST_PRICE = "currentCostPrice";
+
+    private static final Set<String> COST_STATS_SET = ImmutableSet.of(COST_PRICE, CURRENT_COST_PRICE);
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
@@ -414,14 +419,14 @@ public class StatsService implements IStatsService {
                 }
             }
 
-            final boolean isCostStats = isCostStats(uuid, inputDto);
+            final StatRequestParsedResultTuple requestStatsParsedResultPair = parseStats(inputDto);
             // OM-37484: give the startTime a +/- 60 second window for delineating between "current"
             // and "projected" stats requests. Without this window, the stats retrieval is too
             // sensitive to clock skew issues between the browser and the server, leading to incorrect
             // results in the UI.
             long currentStatsTimeWindowStart = clockTimeNow - liveStatsRetrievalWindow.toMillis();
             long currentStatsTimeWindowEnd = clockTimeNow + liveStatsRetrievalWindow.toMillis();
-            if (!isCostStats && inputDto.getEndDate() != null
+            if (!requestStatsParsedResultPair.hasCostStat && inputDto.getEndDate() != null
                     && DateTimeUtil.parseTime(inputDto.getEndDate()) > currentStatsTimeWindowEnd) {
                 ProjectedStatsResponse response =
                         statsServiceRpc.getProjectedStats(statsMapper.toProjectedStatsRequest(entityStatOids,
@@ -490,7 +495,7 @@ public class StatsService implements IStatsService {
                 // move the get targets here, so they can be passed to building Cloud expense API dto
                 final List<TargetApiDTO> finalTargets = targets = getTargets();
                 //TODO refactor conditions (probably Strategy pattern)
-                if (isCostStats) {
+                if (requestStatsParsedResultPair.hasCostStat) {
                     final Set<String> requestGroupBySet = parseGroupBy(inputDto);
                     if (isTopDownRequest(requestGroupBySet) && finalTargets != null && !finalTargets.isEmpty()) {
                         final Function<TargetApiDTO, String> valueFunction = getValueFunction(requestGroupBySet);
@@ -557,7 +562,11 @@ public class StatsService implements IStatsService {
                     } else {
                         ApiUtils.notImplementedInXL();
                     }
-                } else {
+                }
+
+                // Return if the input DTO has stats other than "cloudCost", retrieve them from other components, e.g. History
+                // TODO: combine both Cloud cost and non-Cloud stats for plan when plan is enabled in Cost component.
+                if ((uuid != null && !isDefaultCloudGroupUuid) || requestStatsParsedResultPair.hasNonCostStat) {
                     final GetAveragedEntityStatsRequest request =
                             statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
 
@@ -766,14 +775,27 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     *if the request DTO has name "costPrice", the stats will be provided by Cost component.
-     *TODO support scope
+     * Parse input DTO to get:
+     * 1. Does it requires Cost stats?
+     * 2. Does it requires Non-Cost stats?
+     * @param inputDto StatPeriodApiInputDTO
+     * @return both answer in Pair
      */
-    private boolean isCostStats(@Nonnull final String uuid,
-                                @Nonnull final StatPeriodApiInputDTO inputDto) {
-        return CollectionUtils.emptyIfNull(inputDto.getStatistics())
-                .stream()
-                .anyMatch(dto -> COST_PRICE.equals(dto.getName()));
+    private StatRequestParsedResultTuple parseStats(@Nonnull final StatPeriodApiInputDTO inputDto) {
+        final Collection<StatApiInputDTO> collection = CollectionUtils.emptyIfNull(inputDto.getStatistics());
+        boolean hasCostStat = false;
+        boolean hasNonCostStat = false;
+        for (StatApiInputDTO dto: collection) {
+            if (COST_STATS_SET.contains(dto.getName())) {
+                hasCostStat = true;
+            } else {
+                hasNonCostStat = true;
+            }
+            if (hasCostStat && hasNonCostStat) {
+                break;
+            }
+        }
+        return new StatRequestParsedResultTuple(hasCostStat, hasNonCostStat);
     }
 
     /**
@@ -1497,5 +1519,16 @@ public class StatsService implements IStatsService {
             }
         }
         return false;
+    }
+
+    private class StatRequestParsedResultTuple {
+        final boolean hasCostStat;
+
+        final boolean hasNonCostStat;
+
+        public StatRequestParsedResultTuple(final boolean hasCostStat, final boolean hasNonCostStat) {
+            this.hasCostStat = hasCostStat;
+            this.hasNonCostStat = hasNonCostStat;
+        }
     }
 }
