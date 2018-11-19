@@ -467,8 +467,10 @@ if __name__ == '__main__':
     LOGGER.info("Verifying checksums")
     for name, cksum in new_checksums.iteritems():
         comp_name, ext = os.path.splitext(name)
-        if ((name not in curr_checksums) or (curr_checksums[name] != cksum
-                and ext == '.tgz')):
+        # Only upgrade docker components which are new.
+        if ext=='.tgz' and ((name not in curr_checksums) or \
+                (curr_checksums[name] != cksum)):
+
             new_version_loc = os.path.join(ISO_MOUNTPOINT, name)
             if not verify_sha256sum(new_version_loc, new_checksums.get(name)):
                 LOGGER.error("Checksum verification failed for %s"%new_version_loc)
