@@ -225,8 +225,7 @@ public class RestTest {
 
     private String constructAddDTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix,
-                                          constructPassword(suffix), "1.1.1.1",
-                null, null,
+                                          constructPassword(suffix), null, null,
                                           ImmutableList.of("ADMINISTRATOR", "USER"));
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
@@ -235,7 +234,7 @@ public class RestTest {
 
     private String constructAddSSODTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(PROVIDER.LDAP, "user" + suffix,
-                constructPassword(suffix), "1.1.1.1", null, null,
+                constructPassword(suffix), null, null,
                 ImmutableList.of("ADMINISTRATOR", "USER"));
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
@@ -520,8 +519,7 @@ public class RestTest {
 
     private MockHttpServletRequestBuilder constructInitDTO(int suffix) {
         AuthUserDTO dto =
-                new AuthUserDTO(null, "user" + suffix, constructPassword(suffix),
-                        "1.1.1.1", null, null,
+                new AuthUserDTO(null, "user" + suffix, constructPassword(suffix), null, null,
                                 ImmutableList.of("USER"));
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return post("/users/initAdmin")

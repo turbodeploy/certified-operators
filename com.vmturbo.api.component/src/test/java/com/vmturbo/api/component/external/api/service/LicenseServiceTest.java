@@ -111,7 +111,7 @@ public class LicenseServiceTest {
             grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + r.toUpperCase()));
         }
         AuthUserDTO authUserDTO = new AuthUserDTO(PROVIDER.LOCAL, "admin", "admin00",
-                "1.1.1.1", "uuid", "token", Lists.newArrayList());
+                "uuid", "token", Lists.newArrayList());
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(authUserDTO, "admin00", grantedAuths));
     }

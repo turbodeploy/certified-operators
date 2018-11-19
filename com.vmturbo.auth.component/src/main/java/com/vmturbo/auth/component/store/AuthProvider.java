@@ -462,24 +462,19 @@ public class AuthProvider {
         try {
             reloadSSOConfiguration();
             @Nonnull Collection<String> ldapServers = ssoUtil.findLDAPServersInWindowsDomain();
-            // only perform LDAP authentication where ldap server(s) are avaliable
-            if (!ldapServers.isEmpty()) {
-                String role = ssoUtil.authenticateUserInGroup(userName, password, ldapServers);
-                if (role != null) {
-                    logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    String uuid = ssoUsersToUuid_.get(userName);
-                    if (uuid == null) {
-                        uuid = String.valueOf(IdentityGenerator.next());
-                        ssoUsersToUuid_.put(userName, uuid);
-                    }
-                    return generateToken(userName, uuid, ImmutableList.of(role));
+            String role = ssoUtil.authenticateUserInGroup(userName, password, ldapServers);
+            if (role != null) {
+                logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
+                String uuid = ssoUsersToUuid_.get(userName);
+                if (uuid == null) {
+                    uuid = String.valueOf(IdentityGenerator.next());
+                    ssoUsersToUuid_.put(userName, uuid);
                 }
-                throw new AuthenticationException("Unable to authenticate the user " + userName);
+                return generateToken(userName, uuid, ImmutableList.of(role));
             }
             throw new AuthenticationException("Unable to authenticate the user " + userName);
         } catch (SecurityException e) {
-            // removed the exception stack to limit system information leakage
-            throw new AuthenticationException("Unable to authenticate the user " + userName);
+            throw new AuthenticationException("Unable to authenticate the user " + userName, e);
         }
     }
 
@@ -591,9 +586,7 @@ public class AuthProvider {
                 }
                 if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
                     if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
-                        // removed "Hash mismatch" to avoid leaking internal authentication algorithm
-                        throw new AuthenticationException("AUDIT::NEGATIVE: " +
-                                "The User Name or Password is Incorrect");
+                        throw new AuthenticationException("AUDIT::NEGATIVE: Hash mismatch");
                     }
 
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
@@ -724,7 +717,7 @@ public class AuthProvider {
         List<AuthUserDTO> list = new ArrayList<>();
         for (String jsonData : users.values()) {
             UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-            AuthUserDTO dto = new AuthUserDTO(info.provider, info.userName, null, null, info.uuid, null,
+            AuthUserDTO dto = new AuthUserDTO(info.provider, info.userName, null, info.uuid, null,
                                               info.roles);
             list.add(dto);
         }

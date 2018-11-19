@@ -32,7 +32,7 @@ public class AuthUserModifyDTO extends AuthUserDTO {
     public AuthUserModifyDTO(final @Nonnull String user, final @Nullable String password,
                              final @Nonnull List<String> roles,
                              final @Nonnull String newPassword) {
-        super(null, user, password, null, null, null, roles);
+        super(null, user, password, null, null, roles);
         this.newPassword = newPassword;
     }
 
@@ -52,7 +52,7 @@ public class AuthUserModifyDTO extends AuthUserDTO {
                              final @Nullable String uuid, final @Nullable String token,
                              final @Nonnull List<String> roles,
                              final @Nonnull String newPassword) {
-        super(provider, user, password, null, uuid, token, roles);
+        super(provider, user, password, uuid, token, roles);
         this.newPassword = newPassword;
     }
 

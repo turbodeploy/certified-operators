@@ -9,7 +9,6 @@ import javax.annotation.Nullable;
  * An AuthUserDTO represents the User object to be exchanged with the AUTH component.
  */
 public class AuthUserDTO implements Serializable {
-
     /**
      * The login provider type.
      */
@@ -83,7 +82,7 @@ public class AuthUserDTO implements Serializable {
     public AuthUserDTO(final @Nullable PROVIDER provider, final @Nonnull String user,
                        final @Nullable String uuid,
                        final @Nonnull List<String> roles) {
-        this(provider, user, null, null, uuid, null, roles);
+        this(provider, user, null, uuid, null, roles);
     }
 
     /**
@@ -92,22 +91,17 @@ public class AuthUserDTO implements Serializable {
      * @param provider The login provider.
      * @param user     The user name.
      * @param password The cleartext password.
-     * @param ipAddress The user's IP address
      * @param uuid     The user's UUID.
      * @param token    The AUTH token.
      * @param roles    The list of roles.
      */
-    public AuthUserDTO(final @Nullable PROVIDER provider,
-                       final @Nonnull String user,
+    public AuthUserDTO(final @Nullable PROVIDER provider, final @Nonnull String user,
                        final @Nullable String password,
-                       final @Nullable String ipAddress,
-                       final @Nullable String uuid,
-                       final @Nullable String token,
+                       final @Nullable String uuid, final @Nullable String token,
                        final @Nonnull List<String> roles) {
         this.provider = provider;
         this.user = user;
         this.password = password;
-        this.ipAddress = ipAddress;
         this.uuid = uuid;
         this.token = token;
         this.roles = roles;
@@ -156,15 +150,6 @@ public class AuthUserDTO implements Serializable {
      */
     public String getPassword() {
         return password;
-    }
-
-    /**
-     * Returns the user's IP address.
-     *
-     * @return The user's IP address.
-     */
-    public String getIpAddress() {
-        return ipAddress;
     }
 
     /**
