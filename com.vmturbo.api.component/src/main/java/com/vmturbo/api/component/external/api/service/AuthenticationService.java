@@ -141,8 +141,8 @@ public class AuthenticationService implements IAuthenticationService {
                                                            .host(authHost_)
                                                            .port(authPort_)
                                                            .path("/users/initAdmin");
-        AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
-                                          null, ImmutableList.of(ADMINISTRATOR));
+        final AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password,
+                null, null, null, ImmutableList.of(ADMINISTRATOR));
         try {
             restTemplate_.postForObject(builder.build().toUriString(), dto, String.class);
             UserApiDTO user = new UserApiDTO();
@@ -170,20 +170,20 @@ public class AuthenticationService implements IAuthenticationService {
         user.setUsername(username);
 
         // Change to child interface AbstractAuthenticationToken to store IP address.
-        AbstractAuthenticationToken auth = new UsernamePasswordAuthenticationToken(user, password);
+        final AbstractAuthenticationToken auth = new UsernamePasswordAuthenticationToken(user, password);
         // If client IP is not available from the request, set the IP  to local IP address.
-        String remoteIpAddress = ApiUtils.getClientIp(request).orElse(ApiUtils.getLocalIpAddress());
+        final String remoteIpAddress = ApiUtils.getClientIp(request).orElse(ApiUtils.getLocalIpAddress());
         //Pass IP address to authentication token details, so it can be retrieved later.
         //{@link org.springframework.security.core.Authentication#getDetails}
         auth.setDetails(remoteIpAddress);
 
         // authenticate
         try {
-            Authentication result = authProvider.authenticate(auth);
+            final Authentication result = authProvider.authenticate(auth);
                 // prevent session fixation attack, it should be put before setting security context.
             changeSessionId();
             SecurityContextHolder.getContext().setAuthentication(result);
-            AuthUserDTO dto = (AuthUserDTO)result.getPrincipal();
+            final AuthUserDTO dto = (AuthUserDTO)result.getPrincipal();
             user.setUuid(dto.getUuid());
             user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
             user.setAuthToken(dto.getToken());
@@ -195,7 +195,7 @@ public class AuthenticationService implements IAuthenticationService {
             setSessionMaxInactiveInterval(0);
             return user;
         } catch (AuthenticationException e) {
-            logger.warn("Authentication for user " + username + " failed", e);
+            logger.warn("Authentication for user " + username + " failed");
             throw new InvalidCredentialsException("Authentication failed");
         } catch (RestClientException e) {
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);

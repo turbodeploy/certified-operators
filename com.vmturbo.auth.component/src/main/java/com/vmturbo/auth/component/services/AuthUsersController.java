@@ -113,32 +113,23 @@ public class AuthUsersController {
 
     /**
      * Authenticates the user with IP address.
-     * Due to bug in Spring boot, we have to use "{ipaddress:.+}", instead of "{ipaddress}"
-     * {@see <a href="https://jira.springsource.org/browse/SPR-6164"/>}
+     * Nov 2018: changed this enpoint from HTTP GET to POST to avoid clear password in URL,
+     * also avoid logging the password along with URL.
      *
-     * @param userName The user name.
-     * @param password The password.
-     * @param ipAddress The user IP address.
+     * @param authUserDTO The auth user DTO.
      * @return The compact representation of the Authorization Token if successful.
-     * @throws Exception In case of an error adding user.
+     * @throws Exception In case of an error authenticating user.
      */
     @ApiOperation(value = "Authenticate user")
-    @RequestMapping(value = "/authenticate/{userName}/{password}/{ipaddress:.+}",
-                    method = RequestMethod.GET,
+    @RequestMapping(path = "authenticate",
+                    method = RequestMethod.POST,
+                    consumes = {MediaType.APPLICATION_JSON_VALUE},
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String authenticate(
-            @ApiParam(value = "The user name", required = true)
-            @PathVariable("userName") String userName,
-            @ApiParam(value = "The user password",
-                      required = true)
-            @PathVariable("password") String password,
-            @ApiParam(value = "The user ip address",
-                    required = true)
-            @PathVariable("ipaddress") String ipAddress)
+    public @Nonnull String authenticate(@RequestBody AuthUserDTO authUserDTO)
             throws Exception {
-        return targetStore_.authenticate(URLDecoder.decode(userName, "UTF-8"),
-                URLDecoder.decode(password, "UTF-8"), ipAddress).getCompactRepresentation();
+        return targetStore_.authenticate(authUserDTO.getUser(), authUserDTO.getPassword(), authUserDTO.getIpAddress())
+                .getCompactRepresentation();
     }
 
 

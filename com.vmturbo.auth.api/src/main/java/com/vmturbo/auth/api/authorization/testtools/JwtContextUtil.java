@@ -120,7 +120,8 @@ public class JwtContextUtil {
         // Setup caller authentication
         Set<GrantedAuthority> grantedAuths = new HashSet<>();
         grantedAuths.add(new SimpleGrantedAuthority("ROLE_NONADMINISTRATOR"));
-        AuthUserDTO user = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "admin", null, userOidString,
+        AuthUserDTO user = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "admin", null,
+                null, userOidString,
                 compact, new ArrayList<>());
         Authentication authentication = new UsernamePasswordAuthenticationToken(user, "***", grantedAuths);
 
