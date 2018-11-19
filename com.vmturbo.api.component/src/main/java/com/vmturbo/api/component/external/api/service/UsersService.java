@@ -263,14 +263,14 @@ public class UsersService implements IUsersService {
         final String password = provider.equals(PROVIDER.LOCAL) ? userApiDTO.getPassword() : null;
 
         // The explicitly added LDAP users will be kept in the same local database.
-        AuthUserDTO dto = new AuthUserDTO(provider, userApiDTO.getUsername(), password, null,
-                                          null, convertRolesToList(userApiDTO));
+        AuthUserDTO dto = new AuthUserDTO(provider, userApiDTO.getUsername(), password,
+                null, null, null, convertRolesToList(userApiDTO));
         // Perform the call.
         // Make sure that the currently authenticated user's token is present.
         HttpHeaders headers = composeHttpHeaders();
         HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
         restTemplate_.exchange(baseRequest().path("/users/add").build().toUriString(),
-                               HttpMethod.POST, entity, String.class);
+                HttpMethod.POST, entity, String.class);
         // Return data.
         UserApiDTO user = new UserApiDTO();
         user.setLoginProvider(userApiDTO.getLoginProvider());

@@ -1,8 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.when;
+
+import java.util.Collections;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -10,16 +14,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 /**
  * Unit tests for when {@link AuthenticationService} dependencies, in particular REST
@@ -89,7 +98,7 @@ public class AuthenticationServiceDependencyTest {
     @Test(expected = ServiceUnavailableException.class)
     public void testLoginAuthServiceDown() throws Exception {
         // Arrange
-        when(mockRestTemplate.getForEntity(anyString(), any(Class.class)))
+        when(mockRestTemplate.exchange(anyString(), anyObject(), anyObject(), any(Class.class)))
                 .thenThrow(new RestClientException("test"));
         // Act
         testAuthenticationService.login("username", "password", true);
@@ -104,7 +113,7 @@ public class AuthenticationServiceDependencyTest {
      */
     @Test
     public void testLoginFailed() throws Exception {
-        Mockito.when(mockRestTemplate.getForEntity(anyString(), any(Class.class)))
+        Mockito.when(mockRestTemplate.exchange(anyString(), anyObject(), anyObject(), any(Class.class)))
                 .thenThrow(new HttpServerErrorException(HttpStatus.UNAUTHORIZED));
 
         expectedException.expect(InvalidCredentialsException.class);

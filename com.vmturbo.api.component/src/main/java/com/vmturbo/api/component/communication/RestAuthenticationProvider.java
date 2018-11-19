@@ -128,16 +128,18 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
                                               final @Nonnull String password,
                                               final @Nonnull String remoteIpAdress)
             throws AuthenticationException {
-        final String authRequest = newUriBuilder()
-                .pathSegment(
-                        encodeValue(userName),
-                        encodeValue(password),
-                        remoteIpAdress)
-                .build()
-                .toUriString();
+        final String authRequest = newUriBuilder().build().toUriString();
         ResponseEntity<String> result;
         try {
-            result = restTemplate_.getForEntity(authRequest, String.class);
+            final AuthUserDTO authUserDTO = new AuthUserDTO(null,
+                    userName, password, remoteIpAdress, null, null, Collections.EMPTY_LIST);
+            final HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(HTTP_ACCEPT);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            final HttpEntity<AuthUserDTO> entity = new HttpEntity<>(authUserDTO, headers);
+            result = restTemplate_.exchange(authRequest,
+                    HttpMethod.POST, entity, String.class);
             return new JWTAuthorizationToken(result.getBody());
         } catch (HttpServerErrorException e) {
             throw new BadCredentialsException("Error authenticating user " + userName, e);
@@ -198,7 +200,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             roles.add(role);
             grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + role.toUpperCase()));
         }
-        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, dto.getUuid(),
+        final AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, null, dto.getUuid(),
                                            token.getCompactRepresentation(), roles);
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
     }
