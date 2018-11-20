@@ -2,7 +2,7 @@
 
 # The script will take yaml configuration as argument and adjust all memory configuration into k8s environment.
 source /opt/local/etc/turbo.conf
-K8S_DIR="/opt/xl/kubernetes"
+K8S_DIR="/opt/turbonomic/kubernetes"
 YAML_DIR="${K8S_DIR}/yaml"
 BACKUP_YAML_DIR="${K8S_DIR}/yaml_backup"
 echo "Running `basename $0` for ${turboEnv} environment"
