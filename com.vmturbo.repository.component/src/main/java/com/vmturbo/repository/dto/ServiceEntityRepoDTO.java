@@ -41,11 +41,11 @@ public class ServiceEntityRepoDTO {
     // TODO: consider having only one of these with a supertype - any entity will have at most one
     private ApplicationInfoRepoDTO applicationInfoRepoDTO;
     private DatabaseInfoRepoDTO databaseInfoRepoDTO;
-    private ComputeTierInfoRepoDTO computeTierInfo;
+    private ComputeTierInfoRepoDTO computeTierInfoRepoDTO;
     private PhysicalMachineInfoRepoDTO physicalMachineInfoRepoDTO;
     private StorageInfoRepoDTO storageInfoRepoDTO;
-    private VirtualMachineInfoRepoDTO virtualMachineInfo;
-    private VirtualVolumeInfoRepoDTO virtualVolumeInfo;
+    private VirtualMachineInfoRepoDTO virtualMachineInfoRepoDTO;
+    private VirtualVolumeInfoRepoDTO virtualVolumeInfoRepoDTO;
 
     public String getUuid() {
         return uuid;
@@ -168,27 +168,27 @@ public class ServiceEntityRepoDTO {
     }
 
     public VirtualMachineInfoRepoDTO getVirtualMachineInfoRepoDTO() {
-        return virtualMachineInfo;
+        return virtualMachineInfoRepoDTO;
     }
 
     public void setVirtualMachineInfoRepoDTO(final VirtualMachineInfoRepoDTO virtualMachineInfo) {
-        this.virtualMachineInfo = virtualMachineInfo;
+        this.virtualMachineInfoRepoDTO = virtualMachineInfo;
     }
 
     public ComputeTierInfoRepoDTO getComputeTierInfoRepoDTO() {
-        return computeTierInfo;
+        return computeTierInfoRepoDTO;
     }
 
     public void setComputeTierInfoRepoDTO(final ComputeTierInfoRepoDTO computeTierInfoRepoDTO) {
-        this.computeTierInfo = computeTierInfoRepoDTO;
+        this.computeTierInfoRepoDTO = computeTierInfoRepoDTO;
     }
 
     public VirtualVolumeInfoRepoDTO getVirtualVolumeInfoRepoDTO() {
-        return virtualVolumeInfo;
+        return virtualVolumeInfoRepoDTO;
     }
 
     public void setVirtualVolumeInfoRepoDTO(final VirtualVolumeInfoRepoDTO virtualVolumeInfo) {
-        this.virtualVolumeInfo = virtualVolumeInfo;
+        this.virtualVolumeInfoRepoDTO = virtualVolumeInfo;
     }
 
     @Override
@@ -196,7 +196,7 @@ public class ServiceEntityRepoDTO {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
             entityType, environmentType, oid, priceIndex, priceIndexProjected,
             providers, severity, state, uuid, tags, connectedEntityList, targetIds,
-            virtualMachineInfo, computeTierInfo, virtualVolumeInfo);
+                virtualMachineInfoRepoDTO, computeTierInfoRepoDTO, virtualVolumeInfoRepoDTO);
     }
 
     @Override
@@ -223,9 +223,9 @@ public class ServiceEntityRepoDTO {
                 Objects.equals(tags, that.tags) &&
                 Objects.equals(connectedEntityList, that.connectedEntityList) &&
                 Objects.equals(targetIds, that.targetIds) &&
-                Objects.equals(virtualMachineInfo, that.virtualMachineInfo) &&
-                Objects.equals(computeTierInfo, that.computeTierInfo) &&
-                Objects.equals(virtualVolumeInfo, that.virtualVolumeInfo);
+                Objects.equals(virtualMachineInfoRepoDTO, that.virtualMachineInfoRepoDTO) &&
+                Objects.equals(computeTierInfoRepoDTO, that.computeTierInfoRepoDTO) &&
+                Objects.equals(virtualVolumeInfoRepoDTO, that.virtualVolumeInfoRepoDTO);
     }
 
     @Override
@@ -240,9 +240,9 @@ public class ServiceEntityRepoDTO {
                 + ", commoditySoldList=" + commoditySoldList
                 + ", connectedEntityList=" + connectedEntityList
                 + ", targetIds=" + targetIds
-                + ", virtualMachineInfo=" + virtualMachineInfo
-                + ", computerTierInfo=" + computeTierInfo
-                + ", virtualVolumeInfo=" + virtualVolumeInfo
+                + ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO
+                + ", computerTierInfoRepoDTO=" + computeTierInfoRepoDTO
+                + ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO
                 + "]";
     }
 
