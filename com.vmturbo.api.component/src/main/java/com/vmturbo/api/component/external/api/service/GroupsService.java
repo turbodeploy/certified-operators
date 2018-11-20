@@ -56,6 +56,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -445,11 +446,14 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public Boolean deleteGroup(String uuid) throws Exception {
+    public void deleteGroup(String uuid)  throws UnknownObjectException, InvalidOperationException {
         final DeleteGroupResponse res = groupServiceRpc.deleteGroup(
                             GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
-
-        return res.getDeleted();
+        // FIXME Add detailed information to the {@link DeleteGroupResponse} structure about the deletion group status
+        // And throw out the correct exceptions declared in the controller groups
+        if (!res.getDeleted()) {
+            throw new InvalidOperationException("Failed to delete group with uuid " + uuid);
+        }
     }
 
     @Override
