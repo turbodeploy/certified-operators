@@ -91,7 +91,7 @@ metadata:
 spec:
   ports:
   - name: "vcenter-port"
-    port: 8080
+    port: 8066
     targetPort: 8080
   - name: "vcenter-debug-port"
     port: 20013
