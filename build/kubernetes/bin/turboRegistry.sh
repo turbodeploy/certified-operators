@@ -7,7 +7,7 @@
 source /opt/local/etc/turbo.conf
 
 # Set basepath for xl yaml
-yamlBasePath="/opt/turbonomic/kubernetes/yaml"
+yamlBasePath="/opt/xl/kubernetes/yaml"
 
 if [ x$registry == xlocalhost ]
 then
