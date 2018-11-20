@@ -11,7 +11,7 @@ output_zip_dir="."
 tmp_log_dir="/tmp/rsyslog"
 kubeCommand="/usr/local/bin/kubectl"
 registryctlCommand="/opt/local/bin/registryctl"
-xlYamlDir="/opt/xl/kubernetes/yaml/"
+xlYamlDir="/opt/turbonomic/kubernetes/yaml/"
 component_name=""
 component_version=""
 
