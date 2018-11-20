@@ -27,6 +27,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -160,18 +162,22 @@ public class TargetsService implements ITargetsService {
 
     private final LicenseCheckClient licenseCheckClient;
 
+    private final ApiComponentTargetListener apiComponentTargetListener;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
                           @Nonnull final Duration targetValidationPollInterval,
                           @Nonnull final Duration targetDiscoveryTimeout,
                           @Nonnull final Duration targetDiscoveryPollInterval,
-                          @Nullable final LicenseCheckClient licenseCheckClient) {
+                          @Nullable final LicenseCheckClient licenseCheckClient,
+                          @Nonnull final ApiComponentTargetListener apiComponentTargetListener) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
         this.targetDiscoveryTimeout = Objects.requireNonNull(targetDiscoveryTimeout);
         this.targetDiscoveryPollInterval = Objects.requireNonNull(targetDiscoveryPollInterval);
         this.licenseCheckClient = licenseCheckClient;
+        this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
         logger.debug("Created TargetsService with topology processor instance {}",
                         topologyProcessor);
     }
@@ -379,6 +385,8 @@ public class TargetsService implements ITargetsService {
             }
             final TargetData newtargetData = new NewTargetData(inputFields);
             try {
+                // store the target number to determine if to send notification to UI.
+                final int targetSizeBeforeValidation = topologyProcessor.getAllTargets().size() ;
                 final long targetId = topologyProcessor.addTarget(probeId, newtargetData);
 
                 // There is an edge case where discovery may not be kicked off yet by the time add target returns.
@@ -392,6 +400,14 @@ public class TargetsService implements ITargetsService {
                 // When the UI supports target-related notifications we should remove this
                 // synchronous call.
                 final TargetInfo validatedTargetInfo = validateTargetSynchronously(targetId);
+
+                // if validation is successful and this is the first target, listen to the results
+                // and send notification to UI
+                if (validatedTargetInfo != null &&
+                        TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
+                        targetSizeBeforeValidation == 0) {
+                    apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
+                }
                 return mapTargetInfoToDTO(validatedTargetInfo);
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);

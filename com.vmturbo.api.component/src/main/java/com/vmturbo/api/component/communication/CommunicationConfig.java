@@ -2,6 +2,7 @@ package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.EnumSet;
 
 import javax.annotation.Nonnull;
 
@@ -65,6 +66,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceBlockingStub;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc.WidgetsetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
@@ -83,6 +86,7 @@ import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 /**
  * Configuration for the communication between the API component
@@ -151,6 +155,11 @@ public class CommunicationConfig {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel())
                 // Intercept client call and add JWT token to the metadata
                 .withInterceptors(new JwtClientInterceptor());
+    }
+
+    @Bean
+    public TopologyServiceBlockingStub topologyService() {
+        return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean
@@ -374,5 +383,16 @@ public class CommunicationConfig {
             }
         });
         return receiver;
+    }
+
+    @Bean
+    public ApiComponentTargetListener apiComponentTargetListener() {
+        final ApiComponentTargetListener apiComponentTargetListener =
+                new ApiComponentTargetListener(topologyService(), websocketConfig.websocketHandler());
+        historyClientConfig.historyComponent().addStatsListener(apiComponentTargetListener);
+        repositoryClientConfig.repository().addListener(apiComponentTargetListener);
+        tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications))
+                .addTargetListener(apiComponentTargetListener);
+        return apiComponentTargetListener;
     }
 }

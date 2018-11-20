@@ -391,7 +391,8 @@ public class ServiceConfig {
                 Duration.ofSeconds(targetValidationPollIntervalSeconds),
                 Duration.ofSeconds(targetDiscoveryTimeoutSeconds),
                 Duration.ofSeconds(targetDiscoveryPollIntervalSeconds),
-                licenseCheckClientConfig.licenseCheckClient());
+                licenseCheckClientConfig.licenseCheckClient(),
+                communicationConfig.apiComponentTargetListener());
     }
 
     @Bean

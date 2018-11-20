@@ -23,6 +23,8 @@ import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetsNotification;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
@@ -131,6 +133,16 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
                 .setReportNotification(Objects.requireNonNull(notification))
                 .build());
     }
+
+    @Override
+    public void broadcastTargetsNotification(@Nonnull final TargetsNotification notification) {
+        logger_.debug("Broadcasting target notification: {}", notification);
+        broadcastNotification(Notification.newBuilder()
+                .setId(IdentityGenerator.next())
+                .setTime(Instant.now().toEpochMilli())
+                .setTargetsNotification(Objects.requireNonNull(notification))
+                .build());
+  }
 
     private void broadcastNotification(@Nonnull final Notification notification) {
         sessions_.forEach(session -> {

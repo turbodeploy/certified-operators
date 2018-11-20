@@ -2,6 +2,8 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.time.Duration;
@@ -53,6 +55,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
+
+import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
@@ -98,6 +102,9 @@ public class TargetsServiceTest {
     private WebApplicationContext wac;
     private static final Gson GSON = new Gson();
 
+    @Autowired
+    private ApiComponentTargetListener apiComponentTargetListener;
+
     private Map<Long, ProbeInfo> registeredProbes;
     private Map<Long, TargetInfo> registeredTargets;
     private long idCounter;
@@ -109,7 +116,7 @@ public class TargetsServiceTest {
 
         registeredTargets = new HashMap<>();
         registeredProbes = new HashMap<>();
-        Mockito.when(topologyProcessor.getProbe(Mockito.anyLong()))
+        when(topologyProcessor.getProbe(Mockito.anyLong()))
                         .thenAnswer(new Answer<ProbeInfo>() {
 
                             @Override
@@ -123,7 +130,7 @@ public class TargetsServiceTest {
                                 }
                             }
                         });
-        Mockito.when(topologyProcessor.getTarget(Mockito.anyLong()))
+        when(topologyProcessor.getTarget(Mockito.anyLong()))
                         .thenAnswer(new Answer<TargetInfo>() {
 
                             @Override
@@ -137,7 +144,7 @@ public class TargetsServiceTest {
                                 }
                             }
                         });
-        Mockito.when(topologyProcessor.addTarget(Mockito.anyLong(), Mockito.any(TargetData.class)))
+        when(topologyProcessor.addTarget(Mockito.anyLong(), Mockito.any(TargetData.class)))
                 .thenAnswer(new Answer<Long>() {
                     @Override
                     public Long answer(InvocationOnMock invocation) throws Throwable {
@@ -145,18 +152,18 @@ public class TargetsServiceTest {
                         final TargetData data = invocation.getArgumentAt(1, TargetData.class);
                         final long targetId = idCounter++;
                         final TargetInfo target = createMockTargetInfo(probeId, targetId);
-                        Mockito.when(target.getAccountData()).thenReturn(data.getAccountData());
+                        when(target.getAccountData()).thenReturn(data.getAccountData());
                         registeredTargets.put(targetId, target);
                         return targetId;
                     }
                 });
-        Mockito.when(topologyProcessor.getAllProbes()).thenAnswer(new Answer<Set<ProbeInfo>>() {
+        when(topologyProcessor.getAllProbes()).thenAnswer(new Answer<Set<ProbeInfo>>() {
             @Override
             public Set<ProbeInfo> answer(InvocationOnMock invocation) throws Throwable {
                 return new HashSet<>(registeredProbes.values());
             }
         });
-        Mockito.when(topologyProcessor.getAllTargets()).thenAnswer(new Answer<Set<TargetInfo>>() {
+        when(topologyProcessor.getAllTargets()).thenAnswer(new Answer<Set<TargetInfo>>() {
             @Override
             public Set<TargetInfo> answer(InvocationOnMock invocation) throws Throwable {
                 return new HashSet<>(registeredTargets.values());
@@ -167,15 +174,15 @@ public class TargetsServiceTest {
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
                     AccountDefEntry... entries) throws Exception {
         final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
-        Mockito.when(newProbeInfo.getId()).thenReturn(probeId);
-        Mockito.when(newProbeInfo.getType()).thenReturn(type);
-        Mockito.when(newProbeInfo.getCategory()).thenReturn(category);
-        Mockito.when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
+        when(newProbeInfo.getId()).thenReturn(probeId);
+        when(newProbeInfo.getType()).thenReturn(type);
+        when(newProbeInfo.getCategory()).thenReturn(category);
+        when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
         if (entries.length > 0) {
-            Mockito.when(newProbeInfo.getIdentifyingFields())
+            when(newProbeInfo.getIdentifyingFields())
                             .thenReturn(Collections.singletonList(entries[0].getName()));
         } else {
-            Mockito.when(newProbeInfo.getIdentifyingFields()).thenReturn(Collections.emptyList());
+            when(newProbeInfo.getIdentifyingFields()).thenReturn(Collections.emptyList());
         }
         registeredProbes.put(probeId, newProbeInfo);
         return newProbeInfo;
@@ -184,12 +191,12 @@ public class TargetsServiceTest {
     private TargetInfo createMockTargetInfo(long probeId, long targetId, AccountValue... accountValues)
             throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        Mockito.when(targetInfo.getId()).thenReturn(targetId);
-        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
-        Mockito.when(targetInfo.getAccountData()).thenReturn(
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getAccountData()).thenReturn(
                         new HashSet<>(Arrays.asList(accountValues)));
-        Mockito.when(targetInfo.getStatus()).thenReturn("Validated");
-        Mockito.when(targetInfo.isHidden()).thenReturn(false);
+        when(targetInfo.getStatus()).thenReturn("Validated");
+        when(targetInfo.isHidden()).thenReturn(false);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
@@ -197,12 +204,12 @@ public class TargetsServiceTest {
     private TargetInfo createMockHiddenTargetInfo(long probeId, long targetId, AccountValue... accountValues)
             throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        Mockito.when(targetInfo.getId()).thenReturn(targetId);
-        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
-        Mockito.when(targetInfo.getAccountData()).thenReturn(
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getAccountData()).thenReturn(
                         new HashSet<>(Arrays.asList(accountValues)));
-        Mockito.when(targetInfo.getStatus()).thenReturn("Validated");
-        Mockito.when(targetInfo.isHidden()).thenReturn(true);
+        when(targetInfo.getStatus()).thenReturn("Validated");
+        when(targetInfo.isHidden()).thenReturn(true);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
@@ -300,7 +307,7 @@ public class TargetsServiceTest {
         targets.add(createMockTargetInfo(probe.getId(), 2));
         targets.add(createMockTargetInfo(probe.getId(), 3));
         targets.add(createMockTargetInfo(probe.getId(), 4));
-        Mockito.when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
+        when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
 
         final MvcResult result = mockMvc
                         .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -329,7 +336,7 @@ public class TargetsServiceTest {
         targets.add(createMockTargetInfo(probe.getId(), 2));
         targets.add(createMockTargetInfo(probe.getId(), 3));
         targets.add(createMockHiddenTargetInfo(probe.getId(), 4));
-        Mockito.when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
+        when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
 
         final MvcResult result = mockMvc
                         .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -405,6 +412,57 @@ public class TargetsServiceTest {
                         TargetApiDTO.class);
         Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
                 resp.getUuid());
+    }
+
+
+    /**
+     * Tests first target addition, and Target Listener's setValidatedFirstTarget method
+     * should be invoked with argument "true".
+     *
+     * @throws Exception on exceptions occur.
+     */
+    @Test
+    public void testAddFirstTarget() throws Exception {
+        final long probeId = 1;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+                ("key"));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField("key", "value")));
+        final String targetString = GSON.toJson(targetDto);
+        when(topologyProcessor.getAllTargets()).thenReturn(Collections.EMPTY_SET);
+        mockMvc.perform(MockMvcRequestBuilders.post("/targets")
+                        .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                        .content(targetString)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        Mockito.verify(apiComponentTargetListener).triggerBroadcastAfterNextDiscovery();
+    }
+
+
+    /**
+     * Tests second target addition, and Target Listener's setValidatedFirstTarget
+     * method should NOT be invoked.
+     *
+     * @throws Exception on exceptions occur.
+     */
+    @Test
+    public void testAddSecondTarget() throws Exception {
+        final long probeId = 1;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+                ("key"));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField("key", "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final Set<TargetInfo> targets = ImmutableSet.of(createMockTargetInfo(probeId, 2));
+        when(topologyProcessor.getAllTargets()).thenReturn(targets);
+        mockMvc.perform(MockMvcRequestBuilders.post("/targets")
+                        .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                        .content(targetString)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        Mockito.verifyZeroInteractions(apiComponentTargetListener);
     }
 
     /**
@@ -552,17 +610,17 @@ public class TargetsServiceTest {
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-                Duration.ofMillis(50), Duration.ofMillis(100), null);
+                Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        Mockito.when(targetInfo.getId()).thenReturn(targetId);
-        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
-        Mockito.when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
 
-        Mockito.when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
+        when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo validationInfo = targetsService.validateTargetSynchronously(targetId);
 
-        Mockito.verify(topologyProcessor, Mockito.times(2)).getTarget(targetId);
+        Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
             TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
     }
@@ -575,17 +633,17 @@ public class TargetsServiceTest {
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
                 topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-                Duration.ofMillis(50), Duration.ofMillis(100), null);
+                Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        Mockito.when(targetInfo.getId()).thenReturn(targetId);
-        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
-        Mockito.when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
-        Mockito.when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
+        when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo discoveryInfo = targetsService.discoverTargetSynchronously(targetId);
 
-        Mockito.verify(topologyProcessor, Mockito.times(2)).getTarget(targetId);
+        Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
                 TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
     }
@@ -673,7 +731,7 @@ public class TargetsServiceTest {
     public void testGetProbeWrongIdentifyingFields() throws Exception {
         final ProbeInfo probe =
                         createMockProbeInfo(1, "type1", "category1", createAccountDef("targetId"));
-        Mockito.when(probe.getIdentifyingFields())
+        when(probe.getIdentifyingFields())
                         .thenReturn(Collections.singletonList("non-target-id"));
         final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.get("/targets/specs")
                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -745,9 +803,9 @@ public class TargetsServiceTest {
     @Test
     public void testDiscoveryInProgressValidationStatusNoPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        Mockito.when(targetInfo.getStatus())
+        when(targetInfo.getStatus())
             .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
-        Mockito.when(targetInfo.getLastValidationTime()).thenReturn(null);
+        when(targetInfo.getLastValidationTime()).thenReturn(null);
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
             TargetsService.mapStatusToApiDTO(targetInfo));
@@ -757,9 +815,9 @@ public class TargetsServiceTest {
     @Test
     public void testDiscoveryInProgressValidationStatusWithPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        Mockito.when(targetInfo.getStatus())
+        when(targetInfo.getStatus())
             .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
-        Mockito.when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
+        when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
             TargetsService.mapStatusToApiDTO(targetInfo));
@@ -856,9 +914,14 @@ public class TargetsServiceTest {
         }
 
         @Bean
+        public ApiComponentTargetListener apiComponentTargetListener() {
+            return Mockito.mock(ApiComponentTargetListener.class);
+        }
+
+        @Bean
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
-                    Duration.ofSeconds(60), Duration.ofSeconds(1), null);
+                    Duration.ofSeconds(60), Duration.ofSeconds(1), null, apiComponentTargetListener());
         }
 
         @Bean

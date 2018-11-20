@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetsNotification;
 
 /**
  * This is the channel that API services use to push notifications to UI listeners
@@ -32,4 +33,12 @@ public interface UINotificationChannel {
      * @param notification The notification to send.
      */
     void broadcastReportNotification(@Nonnull final ReportNotification notification);
+
+
+    /**
+     * Broadcast a notification related to targets notification to the UI.
+     *
+     * @param notification The notification to send.
+     */
+    void broadcastTargetsNotification(@Nonnull final TargetsNotification notification);
 }
