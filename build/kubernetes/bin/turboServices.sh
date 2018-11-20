@@ -7,7 +7,7 @@
 source /opt/local/etc/turbo.conf
 
 # Set basepath for xl yaml
-yamlBasePath="/opt/xl/kubernetes/yaml"
+yamlBasePath="/opt/turbonomic/kubernetes/yaml"
 logBasePath="/opt/local/logs"
 
 # Get current image (this will have to be adjusted if we move to individual versioning
