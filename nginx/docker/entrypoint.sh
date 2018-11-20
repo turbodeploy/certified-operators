@@ -24,7 +24,9 @@ mkdir -p /tmp/certs
 if [[ -f "/etc/nginx/certs/key.pkcs12" ]]; then
     # extract a cert and key from the pkcs12 file
     echo "Extracting cert from key.pkcs12" 2>&1 | ${LOGGER_COMMAND}
-    KEYPASS="jumpy-crazy-experience"
+    if [ -z "$KEYPASS" ]; then
+        KEYPASS="jumpy-crazy-experience"
+    fi
     pushd /etc/nginx/certs
     openssl pkcs12 -in key.pkcs12 -nocerts -nodes -out /tmp/certs/cert.key -passin pass:${KEYPASS}
     openssl pkcs12 -in key.pkcs12 -nokeys -out /tmp/certs/cert.pem -passin pass:${KEYPASS}
