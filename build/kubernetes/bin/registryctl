@@ -29,9 +29,9 @@ declare -a turboEnv=(${turboEnv})
 echo "Running `basename $0` for ${turboEnv} environment"
 if [ "${turboEnv}" == "dev" ]
 then
-	imageBasePath="/opt/turbonomic/kubernetes/images/dev"
+	imageBasePath="/opt/xl/kubernetes/images/dev"
 else
-	imageBasePath="/opt/turbonomic/kubernetes/images/${version}"
+	imageBasePath="/opt/xl/kubernetes/images/${version}"
 fi
 
 # Get registry ip

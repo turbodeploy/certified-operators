@@ -7,8 +7,8 @@
 source /opt/local/etc/turbo.conf
 
 # Set basepath for xl yaml
-yamlBasePath="/opt/turbonomic/kubernetes/yaml"
-imageBasePath="/opt/turbonomic/kubernetes/images"
+yamlBasePath="/opt/xl/kubernetes/yaml"
+imageBasePath="/opt/xl/kubernetes/images"
 
 declare -a node=(${node})
 
