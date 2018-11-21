@@ -59,7 +59,12 @@ rm -f /consul/data/serf/* >/dev/null 2>&1
 
 ###hack
 # To handle changing host IP's always set up to set the 'peers' list so election will succeed
-echo  "[\"${CONSUL_BIND_ADDRESS}:8300\"]" > /consul/data/raft/peers.json
+if [ -d /consul/data/raft ]
+then
+  echo  "[\"${CONSUL_BIND_ADDRESS}:8300\"]" > /consul/data/raft/peers.json
+else
+  mkdir /consul/data/raft
+fi
 ###/hack
 
 # The first argument is used to decide which mode we are running in. All the
