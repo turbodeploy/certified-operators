@@ -12,9 +12,9 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     private double reservedCapacity;
 
-    private boolean isResizeable;
+    private boolean resizeable;
 
-    private boolean isThin;
+    private boolean thin;
 
     private float capacityIncrement;
 
@@ -45,19 +45,19 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
     }
 
     public boolean isResizeable() {
-        return isResizeable;
+        return resizeable;
     }
 
     public void setResizeable(boolean isResizeable) {
-        this.isResizeable = isResizeable;
+        this.resizeable = isResizeable;
     }
 
     public boolean isThin() {
-        return isThin;
+        return thin;
     }
 
     public void setThin(boolean isThin) {
-        this.isThin = isThin;
+        this.thin = isThin;
     }
 
     public void setCapacityIncrement(float increment) {
@@ -82,8 +82,8 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
                 .add("capacity", capacity)
                 .add("effectiveCapacityPercentage", effectiveCapacityPercentage)
                 .add("reservedCapacity", reservedCapacity)
-                .add("isResizeable", isResizeable)
-                .add("isThin", isThin)
+                .add("resizeable", resizeable)
+                .add("thin", thin)
                 .add("capacityIncrement", capacityIncrement)
                 .add("maxQuantity", maxQuantity)
                 .toString();
