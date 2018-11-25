@@ -103,7 +103,7 @@ dns_strict="docker_dns_servers_strict: true"
 dns_not_strick="docker_dns_servers_strict: false"
 dns_not_strick_group="#docker_dns_servers_strict: false"
 sed -i "s/${dns_strict}/${dns_not_strick}/g" ${kubesprayPath}/roles/docker/defaults/main.yml
-sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all.yml
+sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all/all.yml
 
 # Run ansible kubespray install
 ansible-playbook -i inventory/turbocluster/hosts.ini -b --become-user=root cluster.yml
