@@ -1,6 +1,8 @@
 #!/bin/sh
 echo turbonomic > /etc/hostname
 yum install -y yum-utils
+# Disable SSH service for all users
+systemctl disable sshd
 # Add network user
 authconfig --disablemd5 --enableshadow --passalgo=sha512 --update
 chmod +x /opt/netedit
