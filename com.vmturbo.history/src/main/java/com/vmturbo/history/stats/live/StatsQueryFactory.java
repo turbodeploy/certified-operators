@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.components.common.utils.StringConstants.ENVIRONMENT_TYPE;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
 import static com.vmturbo.history.db.jooq.JooqUtils.number;
@@ -226,6 +227,9 @@ public interface StatsQueryFactory {
                                     propertyValueFilter.getValue());
                             commodityTest = commodityTest.and(relation(dField(table, RELATION))
                                     .eq(desiredRelation));
+                            break;
+                        case ENVIRONMENT_TYPE:
+                            // TODO (roman, Nov 21 2018) OM-40569: Add proper support for this.
                             break;
                         default:
                             // default is to use 'property' as column name and perform a string match

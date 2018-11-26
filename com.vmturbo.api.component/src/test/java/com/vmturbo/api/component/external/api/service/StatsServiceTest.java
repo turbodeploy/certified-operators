@@ -58,6 +58,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -67,6 +68,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -171,6 +173,8 @@ public class StatsServiceTest {
 
     private ReservedInstanceMapper reservedInstanceMapper = Mockito.mock(ReservedInstanceMapper.class);
 
+    private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
+
     private final String oid1 = "1";
     private final ApiId apiId1 = mock(ApiId.class);
     private final String oid2 = "2";
@@ -201,7 +205,7 @@ public class StatsServiceTest {
             groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy, riUtilizationCoverageSpy);
 
     @Before
-    public void setUp() throws IOException {
+    public void setUp() throws IOException, OperationFailedException {
         final StatsHistoryServiceBlockingStub statsServiceRpc =
                 StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
@@ -218,11 +222,15 @@ public class StatsServiceTest {
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         CostServiceBlockingStub costService = CostServiceGrpc.newBlockingStub(testServer.getChannel());
+
+        when(magicScopeGateway.enter(anyString())).thenAnswer(invocation -> invocation.getArgumentAt(0, String.class));
+        when(magicScopeGateway.enter(anyList())).thenAnswer(invocation -> invocation.getArgumentAt(0, List.class));
+
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
                 repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
                 targetsService, groupService, Duration.ofSeconds(60), costService, searchService,
                         riUtilizationCoverageRpcService,
-                        reservedInstanceMapper);
+                        reservedInstanceMapper, magicScopeGateway);
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);

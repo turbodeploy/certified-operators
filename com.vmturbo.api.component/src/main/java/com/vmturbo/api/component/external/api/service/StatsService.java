@@ -45,6 +45,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -72,6 +73,7 @@ import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
@@ -94,6 +96,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -212,6 +215,8 @@ public class StatsService implements IStatsService {
 
     private final ReservedInstanceMapper reservedInstanceMapper;
 
+    private final MagicScopeGateway magicScopeGateway;
+
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
     // with an extra entry for headroom vm's, which is also a cluster-level stat calculated in the
@@ -256,7 +261,8 @@ public class StatsService implements IStatsService {
                  @Nonnull final CostServiceBlockingStub costService,
                  @Nonnull final SearchService searchService,
                  @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
-                 @Nonnull final ReservedInstanceMapper reservedInstanceMapper) {
+                 @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
+                 @Nonnull final MagicScopeGateway magicScopeGateway) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -274,6 +280,7 @@ public class StatsService implements IStatsService {
         this.searchService = Objects.requireNonNull(searchService);
         this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
+        this.magicScopeGateway = Objects.requireNonNull(magicScopeGateway);
     }
 
     /**
@@ -306,7 +313,7 @@ public class StatsService implements IStatsService {
      * {@link StatPeriodApiInputDTO} query parameter which modifies the stats search. A group is
      * expanded and the stats averaged over the group contents.
      *
-     * @param uuid         unique ID of the Entity for which the stats should be gathered
+     * @param originalUuid         unique ID of the Entity for which the stats should be gathered
      * @param encodedQuery a uuencoded structure for the {@link StatPeriodApiInputDTO} to modify the
      *                     stats search
      * @return a List of {@link StatSnapshotApiDTO} responses containing the time-based stats
@@ -352,14 +359,15 @@ public class StatsService implements IStatsService {
      * <p>
      * The results will be ordered such that projected stats come at the end of the list.
      *
-     * @param uuid     the UUID of either a single ServiceEntity or a group.
+     * @param originalUuid     the UUID of either a single ServiceEntity or a group.
      * @param inputDto the parameters to further refine this search.
      * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list,
      * with projected/future stats coming at the end of the list.
      */
     @Override
-    public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid, StatPeriodApiInputDTO inputDto)
+    public List<StatSnapshotApiDTO> getStatsByEntityQuery(String originalUuid, StatPeriodApiInputDTO inputDto)
             throws Exception {
+        final String uuid = magicScopeGateway.enter(originalUuid);
 
         logger.debug("fetch stats for {} requestInfo: {}", uuid, inputDto);
 
@@ -1225,6 +1233,9 @@ public class StatsService implements IStatsService {
     public EntityStatsPaginationResponse getStatsByUuidsQuery(@Nonnull StatScopesApiInputDTO inputDto,
                                                   EntityStatsPaginationRequest paginationRequest)
             throws Exception {
+        // All scopes must enter the magic gateway before they can proceed!
+        inputDto.setScopes(magicScopeGateway.enter(inputDto.getScopes()));
+
         final Optional<PlanInstance> planInstance = getRequestedPlanInstance(inputDto);
         if (planInstance.isPresent()) {
             return getPlanEntityStats(planInstance.get(), inputDto, paginationRequest);
@@ -1380,17 +1391,31 @@ public class StatsService implements IStatsService {
      *         otherwise return empty option.
      */
     private Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Group> groupOptional) {
-        final boolean isGlobalTempGroup = groupOptional.isPresent() && groupOptional.get().hasTempGroup()
-                && groupOptional.get().getTempGroup().getIsGlobalScopeGroup();
+        if (!groupOptional.isPresent() || !groupOptional.get().hasTempGroup()) {
+            return Optional.empty();
+        }
+
+        final TempGroupInfo tempGroup = groupOptional.get().getTempGroup();
+        final boolean isGlobalTempGroup = tempGroup.getIsGlobalScopeGroup()
+                // TODO (roman, Nov 21 2018) OM-40569: Add proper support for environment type for
+                // the global scope optimization.
+                //
+                // Right now we treat "on-prem" groups as "global" groups to avoid
+                // performance regressions in large customer environments. However, this will give
+                // incorrect results for entity types that can appear in both cloud an on-prem
+                // environments (e.g. VMs). Since no customers of XL currently use the cloud
+                // capabilities, this is ok as a short-term fix.
+                && (!tempGroup.hasEnvironmentType() || tempGroup.getEnvironmentType() == EnvironmentType.ON_PREM);
+
         // if it is global temp group and need to expand, should return target expand entity type.
-        if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(ServiceEntityMapper.toUIEntityType(
-                groupOptional.get().getTempGroup().getEntityType()))) {
+        if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
+                ServiceEntityMapper.toUIEntityType(tempGroup.getEntityType()))) {
             return Optional.of(ServiceEntityMapper.fromUIEntityType(
-                    ENTITY_TYPES_TO_EXPAND.get(ServiceEntityMapper.toUIEntityType(
-                            groupOptional.get().getTempGroup().getEntityType()))));
+                ENTITY_TYPES_TO_EXPAND.get(
+                    ServiceEntityMapper.toUIEntityType(tempGroup.getEntityType()))));
         } else if (isGlobalTempGroup) {
             // if it is global temp group and not need to expand.
-            return Optional.of(groupOptional.get().getTempGroup().getEntityType());
+            return Optional.of(tempGroup.getEntityType());
         } else {
             return Optional.empty();
         }

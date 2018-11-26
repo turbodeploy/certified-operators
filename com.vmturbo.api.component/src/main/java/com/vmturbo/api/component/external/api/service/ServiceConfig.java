@@ -21,7 +21,7 @@ import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
-import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
+import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -45,9 +45,14 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  * For readability purposes, the services should appear in alphabetical order.
  */
 @Configuration
-@Import({SpringSecurityConfig.class, MapperConfig.class, CommunicationConfig.class,
-        RepositoryClientConfig.class, ReportingClientConfig.class, PublicKeyStoreConfig.class,
-        SAMLConfigurationStoreConfig.class, LicenseCheckClientConfig.class})
+@Import({SpringSecurityConfig.class,
+        MapperConfig.class,
+        CommunicationConfig.class,
+        RepositoryClientConfig.class,
+        ReportingClientConfig.class,
+        PublicKeyStoreConfig.class,
+        SAMLConfigurationStoreConfig.class,
+        LicenseCheckClientConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -366,7 +371,8 @@ public class ServiceConfig {
                 communicationConfig.costServiceBlockingStub(),
                 searchService(),
                 communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
-                mapperConfig.reservedInstanceMapper());
+                mapperConfig.reservedInstanceMapper(),
+                magicScopeGateway());
     }
 
     @Bean
@@ -424,16 +430,20 @@ public class ServiceConfig {
     @Bean
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
-                targetService(), workflowMapper());
-    }
-
-    @Bean
-    public WorkflowMapper workflowMapper() {
-        return new WorkflowMapper();
+                targetService(), mapperConfig.workflowMapper());
     }
 
     @Bean
     public ComponentJwtStore targetStore() {
         return new ComponentJwtStore(publicKeyStoreConfig.publicKeyStore());
+    }
+
+    @Bean
+    public MagicScopeGateway magicScopeGateway() {
+        final MagicScopeGateway gateway = new MagicScopeGateway(groupsService(),
+            communicationConfig.groupRpcService(),
+            communicationConfig.getRealtimeTopologyContextId());
+        repositoryClientConfig.repository().addListener(gateway);
+        return gateway;
     }
 }

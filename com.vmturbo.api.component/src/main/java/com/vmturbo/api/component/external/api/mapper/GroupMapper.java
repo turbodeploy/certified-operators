@@ -36,6 +36,7 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -267,13 +268,20 @@ public class GroupMapper {
             throw new InvalidOperationException("No scope/member list for temp group " + apiDTO.getDisplayName());
         }
 
-        return TempGroupInfo.newBuilder()
+        final TempGroupInfo.Builder tempGroupBuilder = TempGroupInfo.newBuilder()
                 .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
                 .setMembers(StaticGroupMembers.newBuilder()
                         .addAllStaticMemberOids(groupMembers))
                 .setName(apiDTO.getDisplayName())
-                .setIsGlobalScopeGroup(isGlobalScopeGroup)
-                .build();
+                .setIsGlobalScopeGroup(isGlobalScopeGroup);
+        if (apiDTO.getEnvironmentType() != null &&
+                apiDTO.getEnvironmentType() != EnvironmentType.HYBRID) {
+            tempGroupBuilder.setEnvironmentType(
+                apiDTO.getEnvironmentType() == EnvironmentType.CLOUD ?
+                    EnvironmentTypeEnum.EnvironmentType.CLOUD :
+                    EnvironmentTypeEnum.EnvironmentType.ON_PREM);
+        }
+        return tempGroupBuilder.build();
     }
 
     /**

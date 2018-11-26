@@ -221,6 +221,11 @@ public class MapperConfig {
             logicalPoolAspectMapper(), databaseAspectMapper(), virtualDisksAspectMapper());
     }
 
+    @Bean
+    public WorkflowMapper workflowMapper() {
+        return new WorkflowMapper();
+    }
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService executorService() {
         return Executors.newCachedThreadPool(new ThreadFactoryBuilder()

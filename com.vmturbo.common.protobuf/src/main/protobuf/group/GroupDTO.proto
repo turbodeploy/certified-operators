@@ -3,6 +3,7 @@ package group;
 
 option java_package = "com.vmturbo.common.protobuf.group";
 
+import "common/EnvironmentTypeEnum.proto";
 import "search/Search.proto";
 import "setting/Setting.proto";
 
@@ -120,6 +121,11 @@ message TempGroupInfo {
     // If true, means the temp group contains all entities with same entity type in global scope.
     // This field will speed up stats query for global scope.
     optional bool is_global_scope_group = 4;
+
+    // If set, the environment type of entities in the group.
+    // This field should be combined with entity_type and is_global_scope_group to optimize
+    // stats queries for all entity types in an environment when navigating the supply chain.
+    optional .common.EnvironmentType environment_type = 5;
 }
 
 // The properties of a cluster.

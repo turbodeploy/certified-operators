@@ -115,6 +115,8 @@
         <!-- docker registry for turbonomic -->
         <docker.registry>registry.turbonomic.com</docker.registry>
         <docker.image.prefix>turbonomic</docker.image.prefix>
+
+        <immutables.version>2.7.3</immutables.version>
     </properties>
 
     <prerequisites>
@@ -1778,6 +1780,13 @@
                 <groupId>org.antlr</groupId>
                 <artifactId>ST4</artifactId>
                 <version>${st4.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.immutables</groupId>
+                <artifactId>value</artifactId>
+                <version>${immutables.version}</version>
+                <scope>provided</scope>
             </dependency>
 
             <dependency>
