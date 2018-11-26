@@ -77,6 +77,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.Const
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
@@ -370,13 +371,17 @@ public class ScenarioMapper {
     private List<ScenarioChange> getMaxUtilizationChanges(@Nonnull final List<MaxUtilizationApiDTO> maxUtilizations) {
         List<ScenarioChange> scenarioChanges = new ArrayList<>(maxUtilizations.size());
         for (MaxUtilizationApiDTO maxUtilization : maxUtilizations) {
-            // get the target oid for this change
+            final Builder maxUtilLevelBuilder = MaxUtilizationLevel.newBuilder();
+            maxUtilLevelBuilder.setPercentage(maxUtilization.getMaxPercentage());
+            // if the UUID is null or "Market", we don't set the Group OID, since by default the scope is "Market"
+            if (maxUtilization.getTarget().getUuid() != null
+                    && !(MarketMapper.MARKET.equals(maxUtilization.getTarget().getUuid()))) {
+                // get the target oid for this change
+                maxUtilLevelBuilder.setGroupOid(Long.parseLong(maxUtilization.getTarget().getUuid()));
+            }
             scenarioChanges.add(ScenarioChange.newBuilder()
                     .setPlanChanges(PlanChanges.newBuilder()
-                        .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
-                                .setGroupOid(Long.parseLong(maxUtilization.getTarget().getUuid()))
-                                .setPercentage(maxUtilization.getMaxPercentage())
-                        ))
+                            .setMaxUtilizationLevel(maxUtilLevelBuilder))
                     .build());
         }
         return scenarioChanges;
