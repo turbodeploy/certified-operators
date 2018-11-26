@@ -35,13 +35,6 @@ public class ActionOrchestratorGlobalConfig {
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
 
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService tpClientExecutorService() {
-        final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("action-orchestrator-tp-api-srv-%d").build();
-        return Executors.newCachedThreadPool(threadFactory);
-    }
-
     @Bean
     public TopologyProcessor topologyProcessor() {
         return tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications));

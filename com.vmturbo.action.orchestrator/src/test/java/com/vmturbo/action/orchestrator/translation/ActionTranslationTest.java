@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.action;
+package com.vmturbo.action.orchestrator.translation;
 
 import static org.junit.Assert.*;
 
@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 

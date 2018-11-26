@@ -38,12 +38,12 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
-import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -113,11 +113,13 @@ public class LiveActionStoreTest {
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
 
+    private LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
-                entitySettingsCache, actionHistoryDao);
+                entitySettingsCache, actionHistoryDao, actionsStatistician);
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
@@ -189,7 +191,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter,
-                        entitySettingsCache, actionHistoryDao);
+                        entitySettingsCache, actionHistoryDao, actionsStatistician);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

@@ -37,7 +37,7 @@ import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
@@ -403,7 +403,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 // In the final Map, there will be one entry: key Host2 and Value is Action 1.
                 translatedActionViews.forEach(actionView -> {
                     try {
-                        ActionDTOUtil.getInvolvedEntities(actionView.getRecommendation()).stream()
+                        ActionDTOUtil.getInvolvedEntityIds(actionView.getRecommendation()).stream()
                                 // We only care about actions that involve the target entities.
                                 .filter(targetEntities::contains)
                                 .forEach(entityId -> actionsByEntity.put(entityId, actionView));

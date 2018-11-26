@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -129,7 +128,7 @@ public class QueryFilter {
         if (filter.hasInvolvedEntities()) {
             Set<Long> involvedEntities;
             try {
-                involvedEntities = ActionDTOUtil.getInvolvedEntities(
+                involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
                     actionView.getRecommendation());
             } catch (UnsupportedActionException e) {
                 return false;

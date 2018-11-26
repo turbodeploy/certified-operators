@@ -161,7 +161,7 @@ public class AnalysisDebuggingTest {
         final Map<Long, Set<Action>> relatedActions = new HashMap<>();
         for (Action action : analysis.getActionPlan().get().getActionList()) {
             try {
-                ActionDTOUtil.getInvolvedEntities(action).forEach(involvedEntityId -> {
+                ActionDTOUtil.getInvolvedEntityIds(action).forEach(involvedEntityId -> {
                     final Set<Action> actionsForEntity = relatedActions.computeIfAbsent(involvedEntityId, k -> new HashSet<>());
                     actionsForEntity.add(action);
                 });
@@ -201,7 +201,7 @@ public class AnalysisDebuggingTest {
         return analysis.getActionPlan().get().getActionList().stream()
                 .filter(action -> {
                     try {
-                        return ActionDTOUtil.getInvolvedEntities(action).contains(oid);
+                        return ActionDTOUtil.getInvolvedEntityIds(action).contains(oid);
                     } catch (UnsupportedActionException e) {
                         return false;
                     }

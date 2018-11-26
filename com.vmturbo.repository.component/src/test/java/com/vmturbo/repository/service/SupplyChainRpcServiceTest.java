@@ -1,15 +1,21 @@
 package com.vmturbo.repository.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,19 +25,26 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -44,7 +57,7 @@ public class SupplyChainRpcServiceTest {
     private SupplyChainService supplyChainService = mock(SupplyChainService.class);
 
     private SupplyChainRpcService supplyChainBackend =
-        new SupplyChainRpcService(graphDBService, supplyChainService);
+        Mockito.spy(new SupplyChainRpcService(graphDBService, supplyChainService));
 
     private SupplyChainServiceBlockingStub supplyChainStub;
 
@@ -75,6 +88,103 @@ public class SupplyChainRpcServiceTest {
         MockitoAnnotations.initMocks(this);
 
         supplyChainStub = SupplyChainServiceGrpc.newBlockingStub(server.getChannel());
+    }
+
+    @Test
+    public void testGetMultiSupplyChainsSuccess() throws Exception {
+        final long contextId = 123L;
+        final SupplyChainSeed seed1 = SupplyChainSeed.newBuilder()
+                .setSeedOid(1L)
+                .addStartingEntityOid(1L)
+                .build();
+        final SupplyChainNode node1 = SupplyChainNode.newBuilder()
+                .setEntityType("foo")
+                .build();
+        final SupplyChainSeed seed2 = SupplyChainSeed.newBuilder()
+                .setSeedOid(2L)
+                .addStartingEntityOid(2L)
+                .build();
+        final SupplyChainNode node2 = SupplyChainNode.newBuilder()
+                .setEntityType("bar")
+                .build();
+
+        // Right now the multi-supply-chains request just calls the regular supply chains request.
+        // Override the behaviour to return the nodes we want.
+        doAnswer(invocation -> {
+            final SupplyChainRequest request = invocation.getArgumentAt(0, SupplyChainRequest.class);
+            final StreamObserver<SupplyChainNode> nodeObserver =
+                    invocation.getArgumentAt(1, StreamObserver.class);
+            if (request.getStartingEntityOidList().equals(seed1.getStartingEntityOidList())) {
+                nodeObserver.onNext(node1);
+                nodeObserver.onCompleted();;
+            } else if (request.getStartingEntityOidList().equals(seed2.getStartingEntityOidList())) {
+                nodeObserver.onNext(node2);
+                nodeObserver.onCompleted();;
+            }
+            return null;
+        }).when(supplyChainBackend).getSupplyChain(any(), any());
+
+
+        final Map<Long, MultiSupplyChainsResponse> responseBySeedOid = new HashMap<>();
+        supplyChainStub.getMultiSupplyChains(MultiSupplyChainsRequest.newBuilder()
+                .setContextId(contextId)
+                .addSeeds(seed1)
+                .addSeeds(seed2)
+                .build()).forEachRemaining(resp -> responseBySeedOid.put(resp.getSeedOid(), resp));
+        assertThat(responseBySeedOid.size(), is(2));
+        assertThat(responseBySeedOid.get(seed1.getSeedOid()).getSupplyChainNodesList(), contains(node1));
+        assertThat(responseBySeedOid.get(seed2.getSeedOid()).getSupplyChainNodesList(), contains(node2));
+    }
+
+    @Test
+    public void testGetMultiSupplyChainsError() throws Exception {
+        final long contextId = 123L;
+        final SupplyChainSeed seed1 = SupplyChainSeed.newBuilder()
+                .setSeedOid(1L)
+                .addStartingEntityOid(1L)
+                .build();
+        final SupplyChainSeed seed2 = SupplyChainSeed.newBuilder()
+                .setSeedOid(2L)
+                .addStartingEntityOid(2L)
+                .build();
+        final SupplyChainNode node2 = SupplyChainNode.newBuilder()
+                .setEntityType("bar")
+                .build();
+
+        final String errorDescription = "one two three";
+
+        // Right now the multi-supply-chains request just calls the regular supply chains request.
+        // Override the behaviour to return the nodes we want.
+        doAnswer(invocation -> {
+            final SupplyChainRequest request = invocation.getArgumentAt(0, SupplyChainRequest.class);
+            final StreamObserver<SupplyChainNode> nodeObserver =
+                    invocation.getArgumentAt(1, StreamObserver.class);
+            // The first seed will result in an error, and the second seed will work fine.
+            // But we shouldn't make it to the second seed - we should error out as soon as we
+            // encounter an error!
+            if (request.getStartingEntityOidList().equals(seed1.getStartingEntityOidList())) {
+                nodeObserver.onError(Status.INVALID_ARGUMENT.withDescription(errorDescription).asException());
+            } else if (request.getStartingEntityOidList().equals(seed2.getStartingEntityOidList())) {
+                nodeObserver.onNext(node2);
+                nodeObserver.onCompleted();;
+            }
+            return null;
+        }).when(supplyChainBackend).getSupplyChain(any(), any());
+
+        final Map<Long, MultiSupplyChainsResponse> responseBySeedOid = new HashMap<>();
+        try {
+            supplyChainStub.getMultiSupplyChains(MultiSupplyChainsRequest.newBuilder()
+                    .setContextId(contextId)
+                    .addSeeds(seed1)
+                    .addSeeds(seed2)
+                    .build()).forEachRemaining(resp -> responseBySeedOid.put(resp.getSeedOid(), resp));
+        } catch (StatusRuntimeException e) {
+            // We shouldn't have gotten ANY responses.
+            assertThat(responseBySeedOid.size(), is(0));
+            assertTrue(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains(errorDescription)
+                .matches(e));
+        }
     }
 
     @Test

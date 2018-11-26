@@ -19,6 +19,7 @@ action-orchestrator:
   grpcPingIntervalSeconds: 300
   actionPaginationDefaultLimit: 100
   actionPaginationMaxLimit: 500
+  actionStatsWriteBatchSize: 500
   mariadbHealthCheckIntervalSeconds: 60
   <<: &repository_conn_info
     repositoryHost: 'repository'

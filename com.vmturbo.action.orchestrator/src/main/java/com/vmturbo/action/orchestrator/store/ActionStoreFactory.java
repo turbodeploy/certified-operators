@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.EntityAndActionTypeBasedEntitySelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -48,6 +49,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ActionCapabilitiesStore actionCapabilitiesStore;
 
+    private final LiveActionsStatistician actionsStatistician;
+
     /**
      * Create a new ActionStoreFactory.
      *  @param actionFactory The actionFactory to be passed to all store instances created
@@ -65,7 +68,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final Channel topologyProcessorChannel,
                               @Nonnull final TopologyProcessor topologyProcessor,
                               @Nonnull final EntitySettingsCache entitySettingsCache,
-                              @Nonnull final RepositoryClient repositoryClient) {
+                              @Nonnull final RepositoryClient repositoryClient,
+                              @Nonnull final LiveActionsStatistician actionsStatistician) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -76,6 +80,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.repositoryClient = repositoryClient;
+        this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
     }
 
     /**
@@ -95,7 +100,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     topologyContextId);
             return new LiveActionStore(actionFactory, topologyContextId,
                     new ActionSupportResolver(actionCapabilitiesStore, actionTargetSelector), entitySettingsCache,
-                    new ActionHistoryDaoImpl(databaseDslContext));
+                    new ActionHistoryDaoImpl(databaseDslContext),
+                    actionsStatistician);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }

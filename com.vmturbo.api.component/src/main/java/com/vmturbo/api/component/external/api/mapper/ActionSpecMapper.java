@@ -161,7 +161,7 @@ public class ActionSpecMapper {
                         .map(ActionSpec::getRecommendation)
                         .collect(Collectors.toList());
 
-        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(recommendations);
+        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(recommendations);
 
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
         final Future<Map<Long, Optional<ServiceEntityApiDTO>>> entities = executorService
@@ -235,7 +235,7 @@ public class ActionSpecMapper {
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
         final Set<Long> involvedEntities =
-                    ActionDTOUtil.getInvolvedEntities(actionSpec.getRecommendation());
+                    ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation());
 
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
         final Future<Map<Long, Optional<ServiceEntityApiDTO>>> entities = executorService

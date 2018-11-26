@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -89,6 +90,8 @@ public class LiveActionStore implements ActionStore {
 
     private final ActionSupportResolver actionSupportResolver;
 
+    private final LiveActionsStatistician actionsStatistician;
+
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
      * if it's not disabled and has either had a decision, or is executable.
@@ -117,13 +120,15 @@ public class LiveActionStore implements ActionStore {
                            final long topologyContextId,
                            @Nonnull final ActionSupportResolver actionSupportResolver,
                            @Nonnull final EntitySettingsCache entitySettingsCache,
-                           @Nonnull final ActionHistoryDao actionHistoryDao) {
+                           @Nonnull final ActionHistoryDao actionHistoryDao,
+                           @Nonnull final LiveActionsStatistician liveActionsStatistician) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
         this.actionSupportResolver = actionSupportResolver;
         this.entitySettingsCache = entitySettingsCache;
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
+        this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
     }
 
     /**
@@ -282,6 +287,7 @@ public class LiveActionStore implements ActionStore {
         // It is generally not safe to call synchronized on a complex object not dedicated
         // to the purpose of locking because of the possibility of deadlock, but
         // SynchronizedCollections are an exception to this rule.
+        final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
         synchronized (actionsLock) {
 
             // Only retain IN-PROGRESS, QUEUED and READY actions which are re-recommended.
@@ -294,6 +300,11 @@ public class LiveActionStore implements ActionStore {
                         break;
                     case READY:
                         recommendations.add(action);
+                        actionsToRemove.add(action.getId());
+                        break;
+                    case SUCCEEDED:
+                    case FAILED:
+                        completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action.getId());
                         break;
                     default:
@@ -329,7 +340,7 @@ public class LiveActionStore implements ActionStore {
 
                 if (action.getState() == ActionState.READY) {
                     try {
-                        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntities(recommendedAction));
+                        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(recommendedAction));
                         actions.put(action.getId(), action);
                     } catch (UnsupportedActionException e) {
                         logger.error("Recommendation contains unsupported action", e);
@@ -359,6 +370,16 @@ public class LiveActionStore implements ActionStore {
                 ).forEach((actionType, count) -> ACTION_COUNTS_SUMMARY
                     .labels(actionType.name())
                     .observe((double)count));
+
+            // Record the action stats.
+            // TODO (roman, Nov 15 2018): For actions completed since the last snapshot, it may make
+            // sense to use the last snapshot's time instead of the current snapshot's time.
+            // Not doing it for now because of the extra complexity - and it's not clear if anyone
+            // cares if the counts are off by ~10 minutes.
+            actionsStatistician.recordActionStats(actionPlan.getTopologyId(),
+                    // Only record user-visible actions.
+                    Stream.concat(completedSinceLastPopulate.stream(), actions.values().stream())
+                            .filter(VISIBILITY_PREDICATE));
         }
 
         return true;

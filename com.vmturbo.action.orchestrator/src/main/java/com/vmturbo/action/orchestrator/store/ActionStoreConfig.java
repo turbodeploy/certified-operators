@@ -13,8 +13,9 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
-import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
+import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -25,8 +26,13 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * Configuration for the ActionStore package.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class, ActionOrchestratorGlobalConfig.class,
-        ActionExecutionConfig.class, GroupClientConfig.class, RepositoryClientConfig.class})
+@Import({SQLDatabaseConfig.class,
+    ActionOrchestratorGlobalConfig.class,
+    ActionExecutionConfig.class,
+    GroupClientConfig.class,
+    RepositoryClientConfig.class,
+    ActionStatsConfig.class,
+    ActionTranslationConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -45,6 +51,12 @@ public class ActionStoreConfig {
     private ActionExecutionConfig actionExecutionConfig;
 
     @Autowired
+    private ActionStatsConfig actionStatsConfig;
+
+    @Autowired
+    private ActionTranslationConfig actionTranslationConfig;
+
+    @Autowired
     WorkflowConfig workflowConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
@@ -59,26 +71,15 @@ public class ActionStoreConfig {
     }
 
     @Bean
-    public ActionTranslator actionTranslator() {
-        return new ActionTranslator(actionOrchestratorGlobalConfig.topologyProcessorChannel());
-    }
-
-    @Bean
     public EntitySettingsCache entitySettingsCache() {
         return new EntitySettingsCache(groupClientConfig.groupChannel());
-    }
-
-    @Bean
-    public RestTemplate serviceRestTemplate() {
-        // for communication with repository component
-        return ComponentRestTemplate.create();
     }
 
     @Bean
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 Executors.newSingleThreadExecutor(),
-                actionTranslator(),
+                actionTranslationConfig.actionTranslator(),
                 workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector());
     }
@@ -91,7 +92,8 @@ public class ActionStoreConfig {
             actionOrchestratorGlobalConfig.topologyProcessorChannel(),
             actionOrchestratorGlobalConfig.topologyProcessor(),
             entitySettingsCache(),
-            repositoryClientConfig.repositoryClient());
+            repositoryClientConfig.repositoryClient(),
+            actionStatsConfig.actionsStatistician());
     }
 
     @Bean

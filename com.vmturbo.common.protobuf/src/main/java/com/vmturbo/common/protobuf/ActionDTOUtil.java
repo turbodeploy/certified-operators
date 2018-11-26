@@ -1,11 +1,12 @@
 package com.vmturbo.common.protobuf;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -15,8 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.CaseFormat;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -26,7 +25,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -158,11 +156,11 @@ public class ActionDTOUtil {
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
     @Nonnull
-    public static Set<Long> getInvolvedEntities(@Nonnull final Collection<Action> actions)
+    public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions)
             throws UnsupportedActionException {
         final Set<Long> involvedEntitiesSet = new HashSet<>();
         for (final Action action : actions) {
-            involvedEntitiesSet.addAll(ActionDTOUtil.getInvolvedEntities(action));
+            involvedEntitiesSet.addAll(ActionDTOUtil.getInvolvedEntityIds(action));
         }
         return involvedEntitiesSet;
     }
@@ -178,34 +176,42 @@ public class ActionDTOUtil {
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
     @Nonnull
-    public static Set<Long> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
+    public static Set<Long> getInvolvedEntityIds(@Nonnull final ActionDTO.Action action)
+            throws UnsupportedActionException {
+        return getInvolvedEntities(action)
+            .map(ActionEntity::getId)
+            .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    public static Stream<ActionEntity> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
             throws UnsupportedActionException {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
                 final ActionDTO.Move move = action.getInfo().getMove();
-                Set<Long> involvedEntities = Sets.newHashSet(move.getTarget().getId());
+                Stream.Builder<ActionEntity> retBuilder = Stream.<ActionEntity>builder()
+                        .add(move.getTarget());
                 for (ChangeProvider change : move.getChangesList()) {
-                    long sourceId = change.getSource().getId();
-                    if (sourceId != 0) {
-                        involvedEntities.add(sourceId);
+                    if (change.getSource().getId() != 0) {
+                        retBuilder.accept(change.getSource());
                     }
-                    involvedEntities.add(change.getDestination().getId());
+                    retBuilder.accept(change.getDestination());
                 }
-                return ImmutableSet.copyOf(involvedEntities);
+                return retBuilder.build();
             case RESIZE:
-                return ImmutableSet.of(action.getInfo().getResize().getTarget().getId());
+                return Stream.of(action.getInfo().getResize().getTarget());
             case ACTIVATE:
-                return ImmutableSet.of(action.getInfo().getActivate().getTarget().getId());
+                return Stream.of(action.getInfo().getActivate().getTarget());
             case DEACTIVATE:
-                return ImmutableSet.of(action.getInfo().getDeactivate().getTarget().getId());
+                return Stream.of(action.getInfo().getDeactivate().getTarget());
             case PROVISION:
-                return ImmutableSet.of(action.getInfo().getProvision().getEntityToClone().getId());
+                return Stream.of(action.getInfo().getProvision().getEntityToClone());
             case RECONFIGURE:
                 final ActionDTO.Reconfigure reconfigure = action.getInfo().getReconfigure();
                 if (reconfigure.hasSource()) {
-                    return ImmutableSet.of(reconfigure.getTarget().getId(), reconfigure.getSource().getId());
+                    return Stream.of(reconfigure.getTarget(), reconfigure.getSource());
                 } else {
-                    return ImmutableSet.of(reconfigure.getTarget().getId());
+                    return Stream.of(reconfigure.getTarget());
                 }
             default:
                 throw new UnsupportedActionException(action);

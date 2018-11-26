@@ -29,10 +29,14 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
+import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -106,6 +110,65 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         }
     }
 
+    @Override
+    public void getMultiSupplyChains(MultiSupplyChainsRequest request,
+                                     StreamObserver<MultiSupplyChainsResponse> responseObserver) {
+        final Optional<Long> contextId = request.hasContextId() ?
+                Optional.of(request.getContextId()) : Optional.empty();
+        final SetOnce<Throwable> error = new SetOnce<>();
+        // For now we essentially call the individual supply chain RPC multiple times.
+        // In the future we can try to optimize this.
+        for (SupplyChainSeed supplyChainSeed : request.getSeedsList()) {
+            final SupplyChainRequest supplyChainRequest =
+                    supplyChainSeedToRequest(contextId, supplyChainSeed);
+
+            getSupplyChain(supplyChainRequest, new StreamObserver<SupplyChainNode>() {
+                private final List<SupplyChainNode> nodes = new ArrayList<>();
+
+                @Override
+                public void onNext(final SupplyChainNode supplyChainNode) {
+                    nodes.add(supplyChainNode);
+                }
+
+                @Override
+                public void onError(final Throwable throwable) {
+                    error.trySetValue(throwable);
+                }
+
+                @Override
+                public void onCompleted() {
+                    responseObserver.onNext(MultiSupplyChainsResponse.newBuilder()
+                            .setSeedOid(supplyChainSeed.getSeedOid())
+                            .addAllSupplyChainNodes(nodes)
+                            .build());
+                }
+            });
+
+            if (error.getValue().isPresent()) {
+                break;
+            }
+        }
+
+        if (error.getValue().isPresent()) {
+            responseObserver.onError(error.getValue().get());
+        } else {
+            responseObserver.onCompleted();
+        }
+    }
+
+    @Nonnull
+    private SupplyChainRequest supplyChainSeedToRequest(final Optional<Long> contextId,
+                                                        @Nonnull final SupplyChainSeed supplyChainSeed) {
+        SupplyChainRequest.Builder reqBuilder = SupplyChainRequest.newBuilder();
+        if (supplyChainSeed.hasEnvironmentType()) {
+            reqBuilder.setEnvironmentType(supplyChainSeed.getEnvironmentType());
+        }
+        reqBuilder.addAllEntityTypesToInclude(supplyChainSeed.getEntityTypesToIncludeList());
+        reqBuilder.addAllStartingEntityOid(supplyChainSeed.getStartingEntityOidList());
+        contextId.ifPresent(reqBuilder::setContextId);
+        return reqBuilder.build();
+    }
+
     /**
      * Get the global supply chain. While technically not a supply chain, return a stream of the
      * same supply chain information ({@link SupplyChainNode} calculated over all the
@@ -119,9 +182,9 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
-                                      @Nonnull final Optional<UIEnvironmentType> environmentType,
-                                      @Nonnull final Optional<Long> contextId,
-                                      @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
+                                                        @Nonnull final Optional<UIEnvironmentType> environmentType,
+                                                        @Nonnull final Optional<Long> contextId,
+                                                        @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             supplyChainService.getGlobalSupplyChain(contextId, environmentType)
                 .subscribe(supplyChainNodes -> {

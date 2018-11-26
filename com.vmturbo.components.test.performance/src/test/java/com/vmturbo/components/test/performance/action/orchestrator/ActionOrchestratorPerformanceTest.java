@@ -297,7 +297,7 @@ public class ActionOrchestratorPerformanceTest {
 
         public void loadEntitiesForActionPlan(ActionPlan actionPlan) throws UnsupportedActionException {
             // create simple entities for each action in the plan
-            entitiesForActionPlan = ActionDTOUtil.getInvolvedEntities(actionPlan.getActionList()).stream()
+            entitiesForActionPlan = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()).stream()
                     .map(entityId -> EntityInfo.newBuilder()
                         .putTargetIdToProbeId(1L, 2L)
                         .setEntityId(entityId).build())

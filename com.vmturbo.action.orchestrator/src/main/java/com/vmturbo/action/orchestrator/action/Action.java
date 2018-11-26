@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -67,7 +68,7 @@ public class Action implements ActionView {
      *
      * Actions are translated from the market's domain-agnostic action recommendations into
      * domain-specific actions that make sense in the real world. See
-     * {@link com.vmturbo.action.orchestrator.execution.ActionTranslator} for more details.
+     * {@link ActionTranslator} for more details.
      */
     @Nonnull
     @GuardedBy("recommendationLock")

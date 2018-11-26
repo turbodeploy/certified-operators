@@ -1782,6 +1782,14 @@
                 <version>${st4.version}</version>
             </dependency>
 
+            <!-- Immutables - for generation of value objects -->
+            <dependency>
+                <groupId>org.immutables</groupId>
+                <artifactId>value</artifactId>
+                <version>${immutables.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
             <dependency>
                 <groupId>org.immutables</groupId>
                 <artifactId>value</artifactId>

@@ -116,7 +116,7 @@ public class ActionDTOUtilTest {
      */
     @Test
     public void testInvolvedEntities() throws UnsupportedActionException {
-        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(action);
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(action);
         assertEquals(Sets.newHashSet(TARGET, SOURCE_1, DEST_1, SOURCE_2, DEST_2), involvedEntities);
     }
 
@@ -146,7 +146,7 @@ public class ActionDTOUtilTest {
      */
     private static Map<Long, EntityType> entityTypes(Long... pmOids) throws UnsupportedActionException {
         List<Long> pmOidsList = Arrays.asList(pmOids);
-        return ActionDTOUtil.getInvolvedEntities(action).stream()
+        return ActionDTOUtil.getInvolvedEntityIds(action).stream()
                         .collect(Collectors.toMap(Function.identity(),
                             oid -> pmOidsList.contains(oid)
                                 ? EntityType.PHYSICAL_MACHINE

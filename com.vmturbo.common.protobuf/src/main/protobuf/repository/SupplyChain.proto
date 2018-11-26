@@ -61,10 +61,60 @@ message SupplyChainNode {
     repeated int64 __member_oids = 5 [deprecated = true];
 }
 
+// A supply chain seed defines the starting point of a supply chain query,
+// and provides ways to limit the entities considered to be part of the
+// supply chain.
+message SupplyChainSeed {
+    // The OID of the seed. This can be any arbitrary number.
+    // Use this number to identify which response corresponds to which seed.
+    optional int64 seed_oid = 1;
+
+    // The OIDs of the vertices to start from when constructing the supply chain.
+    // The supply chains from each individual OID are merged into a single result.
+    // If no starting vertex is specified, the global supply chain is retrieved.
+    repeated int64 starting_entity_oid = 2;
+
+    // The list of entity types to include in the resultant supplychain. If this
+    // list is empty, then no filtering is done and SupplyChainNodes pertaining
+    // to any entity type are included.
+    repeated string entity_types_to_include = 3;
+
+    // Only include entities in a particular environment type in the supply chain.
+    // If not set, return all entities regardless of environment type.
+    optional .common.EnvironmentType environment_type = 4;
+}
+
+message MultiSupplyChainsRequest {
+    // The ID of the topology context whose supply chains are being requested.
+    // If no context is supplied, returns the supply chain for the current live context.
+    optional int64 context_id = 1;
+
+    // A list of "supply chain seeds" - each seed is a request for a supply chain.
+    repeated SupplyChainSeed seeds = 2;
+}
+
+// The response to a MultiSupplyChainsRequest.
+// There is one response for every seed in the request.
+message MultiSupplyChainsResponse {
+
+    // The OID of the SupplyChainSeed this response pertains to.
+    optional int64 seed_oid = 1;
+
+    // The supply chain for the SupplyChainSeed in the request.
+    repeated SupplyChainNode supply_chain_nodes = 2;
+}
+
 // A service for fetching information about supply chains.
 // The supply chain is a concept that expresses the links between entities in a topology.
 service SupplyChainService {
     // Retrieve the supply chain.
     // The response streams back each node in the supply chain graph.
     rpc GetSupplyChain(SupplyChainRequest) returns (stream SupplyChainNode);
+
+    // Retrieve multiple supply chains in one call.
+    // This is equivalent to calling GetSupplyChain multiple times, but it provides an easier way
+    // to do it from the client's perspective and allows for optimizations on the server.
+    //
+    // The response streams back each supply chain once it's computed.
+    rpc GetMultiSupplyChains(MultiSupplyChainsRequest) returns (stream MultiSupplyChainsResponse);
 }
