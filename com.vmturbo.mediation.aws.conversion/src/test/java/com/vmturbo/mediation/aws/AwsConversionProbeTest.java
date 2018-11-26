@@ -43,11 +43,10 @@ public class AwsConversionProbeTest {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 15 different entity types in new topology
-        assertEquals(15, entitiesByType.size());
+        // verify there are 14 different entity types in new topology
+        assertEquals(14, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(9, entitiesByType.get(EntityType.DATABASE).size());
         assertEquals(9, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(129, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(175, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
@@ -81,11 +80,10 @@ public class AwsConversionProbeTest {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 15 different entity types in new topology
-        assertEquals(15, entitiesByType.size());
+        // verify there are 14 different entity types in new topology
+        assertEquals(14, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(1, entitiesByType.get(EntityType.DATABASE).size());
         assertEquals(1, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(15, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(16, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());

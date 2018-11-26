@@ -217,26 +217,10 @@ public class AwsCloudDiscoveryConverterTest {
     @Test
     public void testDatabaseConverter() {
         IEntityConverter converter = new DatabaseConverter(SDKProbeType.AWS);
-        rawEntitiesByType.get(EntityType.DATABASE).forEach(entity -> {
-            String dbId = entity.getId();
-            EntityDTO oldEntity = awsConverter.getRawEntityDTO(dbId);
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(dbId);
-
-            // check db not removed
-            assertTrue(converter.convert(newEntity, awsConverter));
-
-            // check unmodified fields
-            verifyUnmodifiedFields(oldEntity, newEntity);
-
-            // connected to AZ
-            assertEquals(0, oldEntity.getLayeredOverCount());
-            assertEquals(1, newEntity.getLayeredOverCount());
-            assertEquals(EntityType.AVAILABILITY_ZONE, awsConverter.getNewEntityBuilder(
-                    newEntity.getLayeredOver(0)).getEntityType());
-
-            // check db owned by BusinessAccount
-            assertThat(awsConverter.getNewEntityBuilder(masterAccountId).getConsistsOfList(), hasItem(dbId));
-        });
+        newEntitiesByType.get(EntityType.DATABASE).forEach(newEntity ->
+            // check that db is removed for AWS
+            assertFalse(converter.convert(newEntity, awsConverter))
+        );
     }
 
     @Test

@@ -13,10 +13,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
- * Rewirer for DatabaseServer from AWS/Azure. The relationship is as following:
+ * Converter for DatabaseServer from AWS/Azure. The original relationship is as following:
  *
- * AWS:   DB -> DBServer -> VM [profileId is in DBServer, DB is fake]
- * Azure: DB -> DBServer -> DC [profileId is in DB, DBServer is fake]
+ * AWS:   DB (fake) -> DBServer -> VM [profileId is in DBServer]
+ * Azure: DB -> DBServer (fake) -> DC [profileId is in DB]
  *
  * For Azure, it just returns true since DBServer is fake and need to be removed.
  * For AWS, it finds or creates ComputeTier for each distinct DBServer profile, changes bought

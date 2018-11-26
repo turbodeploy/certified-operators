@@ -15,12 +15,12 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 /**
  * CloudDiscoveryConverter for Database from cloud targets. The relationship for AWS/Azure is as following:
  *
- * AWS:   DB -> DBServer -> VM [profileId is in DBServer]
+ * AWS:   DB (fake) -> DBServer -> VM [profileId is in DBServer]
  * Azure: DB -> DBServer -> DC [profileId is in DB]
  *
- * For AWS, we keep DB and DBServer, create DatabaseTier for each distinct DBServer profile,
- * switch provider of DB from VM to DatabaseTier and then remove fake VM. Also we connect DB
- * and DBServer to Region.
+ * For AWS, we remove fake DB and keep DBServer, create DatabaseTier for each distinct DBServer
+ * profile, switch provider of DB from VM to DatabaseTier and then remove fake VM. Also we
+ * connect DB and DBServer to Region.
  *
  * For Azure, we keep DB, create DatabaseTier for each distinct DB profile, switch provider of
  * DB from DBServer to DatabaseTier and then remove fake DBServer. We may change it if we want
@@ -37,20 +37,8 @@ public class DatabaseConverter implements IEntityConverter {
     @Override
     public boolean convert(@Nonnull EntityDTO.Builder entity, @Nonnull CloudDiscoveryConverter converter) {
         if (probeType == SDKProbeType.AWS) {
-            // find AZ and connect it to AZ: DB -> DBServer -> VM -> AZ
-            entity.getCommoditiesBoughtList().stream()
-                    .filter(c -> converter.getRawEntityDTO(c.getProviderId()).getEntityType() ==
-                            EntityType.DATABASE_SERVER)
-                    .flatMap(c -> converter.getRawEntityDTO(c.getProviderId())
-                            .getCommoditiesBoughtList().stream())
-                    .filter(c -> converter.getRawEntityDTO(c.getProviderId()).getEntityType() ==
-                            EntityType.VIRTUAL_MACHINE)
-                    .flatMap(c -> converter.getRawEntityDTO(c.getProviderId())
-                            .getCommoditiesBoughtList().stream())
-                    .filter(c -> converter.getRawEntityDTO(c.getProviderId()).getEntityType() ==
-                            EntityType.PHYSICAL_MACHINE)
-                    .findAny()
-                    .ifPresent(c -> entity.addLayeredOver(c.getProviderId()));
+            // remove Database for AWS, since it is fake
+            return false;
         } else if (probeType == SDKProbeType.AZURE) {
             // if it is from Azure, then DB has profileId, DB -> DBServer -> DC
             List<CommodityBought> newCommodityBoughtList = entity.getCommoditiesBoughtList().stream()
