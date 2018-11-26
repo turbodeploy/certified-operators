@@ -80,7 +80,7 @@ public class ProbeControllerTest {
      */
     @Test
     public void testGetProbe() throws Exception {
-        when(probesService.getProbe(any())).thenReturn(mock(ProbeApiDTO.class));
+        when(probesService.getProbe(any())).thenReturn(new ProbeApiDTO());
         mockMvc
             .perform(get("/probes/100"))
             .andExpect(status().isOk())
