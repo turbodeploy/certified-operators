@@ -155,6 +155,7 @@
                         <apiSource>
                             <locations>
                                 <location>com.vmturbo.topology.processor</location>
+                                <location>com.vmturbo.common.protobuf.probe</location>
                                 <location>com.vmturbo.common.protobuf.topology</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>

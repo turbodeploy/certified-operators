@@ -19,6 +19,8 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
+import com.vmturbo.api.component.external.api.service.ProbesService;
+import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -57,6 +59,8 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc;
+import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -149,7 +153,6 @@ public class CommunicationConfig {
         return actionsListener;
     }
 
-
     @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel())
@@ -215,6 +218,13 @@ public class CommunicationConfig {
     @Bean
     public TopologyProcessor topologyProcessor() {
         return tpClientConfig.topologyProcessorRpcOnly();
+    }
+
+    @Bean
+    public ProbeRpcServiceBlockingStub probeRpcService() {
+        return
+            ProbeRpcServiceGrpc.newBlockingStub(
+                tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean

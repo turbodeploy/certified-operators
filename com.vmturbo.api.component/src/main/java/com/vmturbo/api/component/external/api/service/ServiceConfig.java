@@ -21,6 +21,7 @@ import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
+import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
@@ -252,6 +253,11 @@ public class ServiceConfig {
         return new PoliciesService(
                 communicationConfig.policyRpcService(),
                 communicationConfig.groupRpcService(), mapperConfig.policyMapper());
+    }
+
+    @Bean
+    public IProbesService probeService() {
+        return new ProbesService(communicationConfig.probeRpcService());
     }
 
     @Bean

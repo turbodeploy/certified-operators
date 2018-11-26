@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.api.component.controller.ProbesController;
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
@@ -124,6 +125,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public NotificationsController notificationsController() {
         return new NotificationsController();
+    }
+
+    @Bean
+    public ProbesController probeController() {
+        return new ProbesController();
     }
 
     @Bean

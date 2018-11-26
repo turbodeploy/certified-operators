@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.probe.ProbeDTOREST.ProbeRpcServiceController;
 import com.vmturbo.common.protobuf.topology.ProbeREST.ProbeActionCapabilitiesServiceController;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -36,6 +37,16 @@ public class ProbeConfig {
                 identityProviderConfig.identityProvider(),
                 stitchingConfig.stitchingOperationStore(),
                 compatibilityChecker());
+    }
+
+    @Bean
+    public ProbeRpcService probeService() {
+        return new ProbeRpcService(probeStore(), keyValueStoreConfig.keyValueStore());
+    }
+
+    @Bean
+    public ProbeRpcServiceController probeServiceController() {
+        return new ProbeRpcServiceController(probeService());
     }
 
     @Bean

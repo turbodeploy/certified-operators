@@ -23,6 +23,7 @@ import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.api.component.controller.DBAdminController;
+import com.vmturbo.api.component.controller.ProbesController;
 import com.vmturbo.api.component.diagnostics.ApiDiagnosticsConfig;
 import com.vmturbo.api.component.external.api.ExternalApiConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerConfig;
@@ -43,8 +44,9 @@ import com.vmturbo.components.common.BaseVmtComponent;
     ApiComponentGlobalConfig.class,
     ApiWebsocketConfig.class,
     ExternalApiConfig.class,
-    SwaggerConfig.class,
     DBAdminController.class,
+    ProbesController.class,
+    SwaggerConfig.class,
     ServiceConfig.class,
     ApiDiagnosticsConfig.class
 })

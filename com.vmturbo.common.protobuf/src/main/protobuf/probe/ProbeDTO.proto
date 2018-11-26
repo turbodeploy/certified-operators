@@ -1,0 +1,154 @@
+syntax = "proto2";
+
+package probe;
+
+option java_package = "com.vmturbo.common.protobuf.probe";
+
+// This record refers to either a probe or a target in the system.
+message ProbeOrTarget {
+    // The oid of the referenced probe, or the oid of the probe that discovers the referenced target.
+    // Must be set.
+    optional int64 probe_id = 1;
+
+    // The oid of the referenced target.  If not set, then the record refers to a probe.
+    optional int64 target_id = 2;
+}
+
+// This message assigns a string value to a string name.
+message ProbePropertyNameValuePair {
+    // Name of the probe property. Must be set.
+    optional string name = 1;
+
+    // Value of the probe property.  Must be set.
+    optional string value = 2;
+}
+
+// Full information about a single probe property.  A probe property is a name/value pair that exists
+// in a probe property table.  A probe property table belongs to either a probe or a target and it is
+// fully identified by it.
+message ProbePropertyInfo {
+    // Identifies the probe property table that contains this probe property.  Must be set.
+    optional ProbeOrTarget probe_property_table = 1;
+
+    // The name and value of this probe property.  Must be set.
+    optional ProbePropertyNameValuePair probe_property_name_and_value = 2;
+}
+
+// Request for information about a probe.
+message GetProbeInfoRequest {
+    // The OID of the probe.  Must be set.
+    optional int64 oid = 1;
+}
+
+// Response to the GetProbeInfoRequest message, with information about the probe.
+message GetProbeInfoResponse {
+    // The OID of the probe.
+    optional int64 oid = 1;
+
+    // The probe type.
+    optional string type = 2;
+
+    // The probe category.
+    optional string category = 3;
+}
+
+// Empty message to serve as input to a GetAllProbeProperties message.
+message GetAllProbePropertiesRequest {
+}
+
+// Response to a GetAllPropertiesRequest message.
+message GetAllProbePropertiesResponse {
+    // List of all probe properties.
+    repeated ProbePropertyInfo probe_properties = 1;
+}
+
+// Read all probe properties in a table or a specific probe property table.
+message GetTableOfProbePropertiesRequest {
+    // Probe property table to search.  Must be set.
+    optional ProbeOrTarget probe_property_table = 1;
+}
+
+// Response to a GetTableOfProbePropertiesRequest message.
+message GetTableOfProbePropertiesResponse {
+    // List of all name/value pairs related to the request.
+    repeated ProbePropertyNameValuePair probe_properties = 1;
+}
+
+// Read the value of a single probe property
+message GetProbePropertyValueRequest {
+    // Probe property table to search.  Must be set.
+    optional ProbeOrTarget probe_property_table = 1;
+
+    // Name of the probe property whose value is to be returned.  Must be set.
+    optional string name = 2;
+}
+
+// Response to a GetProbePropertyValueRequest message.
+message GetProbePropertyValueResponse {
+    // Value of the probe property.  Not set if the property does not exist.
+    optional string value = 1;
+}
+
+// Request to update a table of probe properties in the system.  All probe properties in that table will be
+// substituted with the new probe properties.
+message UpdateProbePropertyTableRequest {
+    // References the table to update.  Must be set.
+    optional ProbeOrTarget probe_property_table = 1;
+
+    // The new contents of the table.
+    repeated ProbePropertyNameValuePair new_probe_properties = 2;
+}
+
+// Acknowledgment that an UpdateProbePropertyTableRequest has been succesfully carried out.
+message UpdateProbePropertyTableResponse {
+}
+
+// Request to update a probe property.
+message UpdateOneProbePropertyRequest {
+    // Information about the probe property under update, including its new value.  Must be set.
+    optional ProbePropertyInfo new_probe_property = 1;
+}
+
+// Acknowledgment that an UpdateOneProbePropertyRequest has been succesfully carried out.
+message UpdateOneProbePropertyResponse {
+}
+
+// Request to delete a probe property.
+message DeleteProbePropertyRequest {
+    // References the table in which the probe property exists.  Must be set.
+    optional ProbeOrTarget probe_property_table = 1;
+
+    // Name of property to delete.  Must be set.
+    optional string name = 2;
+}
+
+// Acknowledgment that an DeleteOneProbePropertyRequest has been succesfully carried out.
+message DeleteProbePropertyResponse {
+}
+
+
+// This RPC API is dedicated to the communication between the API component and the Topology Processor
+// with respect to info about probes and probe properties.
+service ProbeRpcService {
+    // Get basic information about a probe.
+    rpc GetProbeInfo(GetProbeInfoRequest) returns (GetProbeInfoResponse);
+
+    // Get all probe properties.
+    rpc GetAllProbeProperties(GetAllProbePropertiesRequest) returns (GetAllProbePropertiesResponse);
+
+    // Get information about a specified table of probe properties.
+    rpc GetTableOfProbeProperties(GetTableOfProbePropertiesRequest)
+        returns (GetTableOfProbePropertiesResponse);
+
+    // Get the value of one probe property.
+    rpc GetProbePropertyValue(GetProbePropertyValueRequest) returns (GetProbePropertyValueResponse);
+
+    // Replace a table of probe properties with new probe properties.
+    rpc UpdateProbePropertyTable(UpdateProbePropertyTableRequest) returns (UpdateProbePropertyTableResponse);
+
+    // Update the value of one probe property.
+    rpc UpdateOneProbeProperty(UpdateOneProbePropertyRequest) returns (UpdateOneProbePropertyResponse);
+
+    // Delete one probe property.
+    rpc DeleteProbeProperty(DeleteProbePropertyRequest) returns (DeleteProbePropertyResponse);
+}
