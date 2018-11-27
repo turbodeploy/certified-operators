@@ -1538,8 +1538,8 @@ public class StatsService implements IStatsService {
         if (inputDto != null && inputDto.getStatistics() != null) {
             final List<StatApiInputDTO> statApiInputDTOS = inputDto.getStatistics();
             if (statApiInputDTOS.size() == 1
-                    && statApiInputDTOS.get(0).getName().equals(StringConstants.RI_COUPON_COVERAGE)
-                    && statApiInputDTOS.get(0).getRelatedEntityType().equals(StringConstants.VIRTUAL_MACHINE)) {
+                    && StringConstants.RI_COUPON_COVERAGE.equals(statApiInputDTOS.get(0).getName())
+                    && StringConstants.VIRTUAL_MACHINE.equals(statApiInputDTOS.get(0).getRelatedEntityType())) {
                 return true;
             }
         }
