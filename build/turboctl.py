@@ -21,6 +21,7 @@ It is assumed that this file lives in the Turbonomic Install directory which inc
 DOCKER_COMMAND = "docker"
 DOCKER_COMPOSE_COMMAND = "docker-compose"
 
+
 def main():
     """
     Parse the arguments and call the designated sub-command.
@@ -80,6 +81,7 @@ def shell_to_component(parsed_args):
     call_shell_cmd([DOCKER_COMPOSE_COMMAND, "exec", component] +
                    command_to_exec)
 
+
 def execute_mysql_command(parsed_args):
     """
     Execute command as an SQL command on the DB component
@@ -91,6 +93,7 @@ def execute_mysql_command(parsed_args):
 
     call_shell_cmd([DOCKER_COMPOSE_COMMAND, "exec", "db", "mysql", "-u" + user, "-p" + password,
                    "-D" + database, "-e", " ".join(command_to_exec)])
+
 
 def logs_display(parsed_args):
     """
@@ -112,8 +115,14 @@ def logs_display(parsed_args):
         grep_command = ["|", "grep", pattern]
     else:
         grep_command = []
-    full_command = string.join([DOCKER_COMMAND, "logs"] + follow_arg + tail_arg +
-                               ["%s_rsyslog_1" % home] + grep_command, ' ')
+    # find the rsyslog container ID
+    rsyslog_command = [DOCKER_COMMAND, "ps", "|", "grep", "rsyslog", "|", "awk", "'{print $1}'"]
+    # construct an xargs command to substitute the container ID for the '.' in the following
+    xargs_command = ["|", "xargs", "-I."]
+    # list the logs for the rsyslog container
+    logs_command = [DOCKER_COMMAND, "logs", "."]
+    full_command = string.join(rsyslog_command + xargs_command + logs_command +
+                               follow_arg + tail_arg + grep_command, ' ')
     call_shell_cmd(full_command, shell=True)
 
 
@@ -154,6 +163,7 @@ def show_processes(parsed_args):
     If no components are specified, then all components will be listed.
     """
     call_shell_cmd([DOCKER_COMPOSE_COMMAND, "ps"] + parsed_args.components)
+
 
 def get_diag(parsed_args):
     """
@@ -219,7 +229,7 @@ def parse_args(args=sys.argv[1:]):
 
     # version
     version_parser = subparsers.add_parser("version", help="Display Platform Versions:\n"
-                                                     "  version")
+                                                         "  version")
     version_parser.set_defaults(func=version_display)
 
     # stats
@@ -257,13 +267,14 @@ def parse_args(args=sys.argv[1:]):
     logs_parser.set_defaults(func=logs_display)
 
     # diag
-    diag_parser = subparsers.add_parser("diag", help="Get a zip file of host system log files and"
-                                                      "all log files from the rsyslog component: \n"
-                                                      "diag [-f <zip file name>] [-p <regex pattern>]"
-                                                      "[-s <host system logs directory>]")
+    diag_parser = subparsers.add_parser("diag",
+                                        help="Get a zip file of host system log files and"
+                                             "all log files from the rsyslog component: \n"
+                                             "diag [-f <zip file name>] [-p <regex pattern>]"
+                                             "[-s <host system logs directory>]")
     diag_parser.add_argument("-f", "--file", default="")
-    diag_parser.add_argument("-p", "--pattern", default="^messages", help="The regex pattern for host "
-                                                                          "system log files names")
+    diag_parser.add_argument("-p", "--pattern", default="^messages",
+                             help="The regex pattern for host system log files names")
     diag_parser.add_argument("-s", "--hostlogdir", default="/var/log", help="The directory of host"
                                                                             "system logs")
     diag_parser.set_defaults(func=get_diag)
@@ -333,8 +344,8 @@ def zipdir(path, ziph):
     """
     rootdir = os.path.basename(path)
     for root, dirs, files in os.walk(path):
-        for file in files:
-            filepath = os.path.join(root, file)
+        for aFile in files:
+            filepath = os.path.join(root, aFile)
             parentpath = os.path.relpath(filepath, path)
             arcname = os.path.join(rootdir, parentpath)
             ziph.write(filepath, arcname)
@@ -351,10 +362,11 @@ def zip_with_file_pattern(path, ziph, pattern, arc_dir_name):
     :param pattern: file name pattern, will only zip files which name matches with pattern.
     :param arc_dir_name: the directory name of generated zip files.
     """
-    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and re.match(pattern, f)]
-    for file in files:
-        file_path = os.path.join(path, file)
-        arcname = os.path.join(arc_dir_name, file)
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and
+             re.match(pattern, f)]
+    for aFile in files:
+        file_path = os.path.join(path, aFile)
+        arcname = os.path.join(arc_dir_name, aFile)
         ziph.write(file_path, arcname)
 
 
