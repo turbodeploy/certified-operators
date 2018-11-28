@@ -345,12 +345,12 @@ public class Analysis {
                     topologyDTOs,
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
 
-                // retrieve region DTOs from the original entities topology
-                Stream<TopologyEntityDTO> entitiesFromOriginalTopo =
-                        originalCloudTopology.getAllEntitesOfType(EntityType.REGION_VALUE).stream();
-                // retrieve businessAccount DTOs from the original entities topology
-                entitiesFromOriginalTopo = Stream.concat(entitiesFromOriginalTopo,
-                        originalCloudTopology.getAllEntitesOfType(EntityType.BUSINESS_ACCOUNT_VALUE).stream());
+                // retrieve regions, business accounts and virtual volumes from the original
+                // entities topology
+                Stream<TopologyEntityDTO> entitiesFromOriginalTopo = getOriginalEntitiesOfTypes(
+                        Lists.newArrayList(EntityType.REGION_VALUE,
+                                EntityType.BUSINESS_ACCOUNT_VALUE,
+                                EntityType.VIRTUAL_VOLUME_VALUE)).stream();
                 // Calculate the projected entity costs.
                 final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
                         cloudTopologyFactory.newCloudTopology(
@@ -405,6 +405,15 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    @Nonnull
+    private List<TopologyEntityDTO> getOriginalEntitiesOfTypes(@Nonnull List<Integer> entityTypes) {
+        List<TopologyEntityDTO> entitiesFromOriginalTopo = new ArrayList<>();
+        for (Integer type : entityTypes) {
+            entitiesFromOriginalTopo.addAll(originalCloudTopology.getAllEntitesOfType(type));
+        }
+        return entitiesFromOriginalTopo;
     }
 
     /**

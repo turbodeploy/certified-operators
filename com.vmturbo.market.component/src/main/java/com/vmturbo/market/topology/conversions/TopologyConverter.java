@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -94,6 +95,11 @@ public class TopologyConverter {
 
     private static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
             MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
+
+    private Map<Integer, Set<Integer>> projectedConnectedEntityTypesToCompute = ImmutableMap.of(
+            EntityType.VIRTUAL_MACHINE_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE),
+            EntityType.DATABASE_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE),
+            EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE));
 
     private static final Set<Integer> CONTAINER_TYPES = ImmutableSet.of(
         // TODO: Add container collection
@@ -820,34 +826,47 @@ public class TopologyConverter {
     @Nonnull
     private List<ConnectedEntity> getConnectedEntities(TraderTO traderTO) {
         List<ConnectedEntity> connectedEntities = new ArrayList<>();
-        if (cloudTc.isTraderConsumingFromMaketTier(traderTO)) {
-            // Primary market tier refers to Compute market tier / database market tier
-            MarketTier destinationPrimaryMarketTier = cloudTc.getPrimaryMarketTier(traderTO);
-            if (destinationPrimaryMarketTier == null) {
-                logger.error("Could not fetch primary market tier for {}",
-                        traderTO.getDebugInfoNeverUseInCode());
-                return connectedEntities;
-            }
-            TopologyEntityDTO originalCloudConsumer = entityOidToDto.get(traderTO.getOid());
-            TopologyEntityDTO sourceRegion = cloudTc.getRegionOfCloudConsumer(originalCloudConsumer);
-            if (sourceRegion == destinationPrimaryMarketTier.getRegion()) {
-                // cloud consumer (VM / DB) did NOT move to a different region
-                TopologyEntityDTO sourceAZ = cloudTc.getAZOfCloudConsumer(originalCloudConsumer);
-                if (sourceAZ != null) {
-                    ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(sourceAZ.getOid())
-                            .setConnectedEntityType(sourceAZ.getEntityType())
-                            .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                    connectedEntities.add(az);
+        TopologyEntityDTO originalCloudConsumer = entityOidToDto.get(traderTO.getOid());
+        // Copy the connected entities of original entity into the projected entity except for the
+        // ones which need to be computed like Availability zone because the AZ might have changed.
+        if (originalCloudConsumer != null) {
+            Set<Integer> connectionsToCompute = projectedConnectedEntityTypesToCompute
+                    .get(originalCloudConsumer.getEntityType());
+            originalCloudConsumer.getConnectedEntityListList().stream()
+                    .filter(ce -> connectionsToCompute == null ||
+                            !connectionsToCompute.contains(ce.getConnectedEntityType()))
+                    .forEach(ce -> connectedEntities.add(ConnectedEntity.newBuilder()
+                            .setConnectedEntityId(ce.getConnectedEntityId())
+                            .setConnectedEntityType(ce.getConnectedEntityType())
+                            .setConnectionType(ce.getConnectionType()).build()));
+            if (cloudTc.isTraderConsumingFromMaketTier(traderTO)) {
+                // Primary market tier refers to Compute market tier / database market tier
+                MarketTier destinationPrimaryMarketTier = cloudTc.getPrimaryMarketTier(traderTO);
+                if (destinationPrimaryMarketTier == null) {
+                    logger.error("Could not fetch primary market tier for {}",
+                            traderTO.getDebugInfoNeverUseInCode());
+                } else {
+                    TopologyEntityDTO sourceRegion = cloudTc.getRegionOfCloudConsumer(originalCloudConsumer);
+                    if (sourceRegion == destinationPrimaryMarketTier.getRegion()) {
+                        // cloud consumer (VM / DB) did NOT move to a different region
+                        TopologyEntityDTO sourceAZ = cloudTc.getAZOfCloudConsumer(originalCloudConsumer);
+                        if (sourceAZ != null) {
+                            ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(sourceAZ.getOid())
+                                    .setConnectedEntityType(sourceAZ.getEntityType())
+                                    .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                            connectedEntities.add(az);
+                        }
+                    } else {
+                        // cloud consumer (VM / DB) has moved to a different region
+                        // Pick the first AZ in the destination region
+                        TopologyEntityDTO destAZ = TopologyDTOUtil.getConnectedEntitiesOfType(sourceRegion,
+                                EntityType.AVAILABILITY_ZONE_VALUE, unmodifiableEntityOidToDtoMap).get(0);
+                        ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(destAZ.getOid())
+                                .setConnectedEntityId(destAZ.getEntityType())
+                                .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                        connectedEntities.add(az);
+                    }
                 }
-            } else {
-                // cloud consumer (VM / DB) has moved to a different region
-                // Pick the first AZ in the destination region
-                TopologyEntityDTO destAZ = TopologyDTOUtil.getConnectedEntitiesOfType(sourceRegion,
-                        EntityType.AVAILABILITY_ZONE_VALUE, unmodifiableEntityOidToDtoMap).get(0);
-                ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(destAZ.getOid())
-                        .setConnectedEntityId(destAZ.getEntityType())
-                        .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                connectedEntities.add(az);
             }
         }
         return connectedEntities;

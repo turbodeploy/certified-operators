@@ -39,7 +39,7 @@ public class TopologyConversionConstants {
             Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE,
                     EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE,
                     EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
-                    EntityType.BUSINESS_ACCOUNT_VALUE));
+                    EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
 
     public static final String COMMODITY_TYPE_KEY_SEPARATOR = "|";
 
