@@ -7,11 +7,11 @@
 source /opt/local/etc/turbo.conf
 
 # Set basepath for xl yaml
-yamlBasePath="/opt/xl/kubernetes/yaml"
-imageBasePath="/opt/xl/kubernetes/images"
+yamlBasePath="/opt/turbonomic/kubernetes/yaml"
+imageBasePath="/opt/turbonomic/kubernetes/images"
 
 # Determine if the registry is set properly
-registryValue=$(grep "image: localhost" /opt/xl/kubernetes/yaml/base/api.yaml | awk -F: '{print $2}' | tr -d '[:space:]')
+registryValue=$(grep "image: localhost" ${yamlBasePath}/base/api.yaml | awk -F: '{print $2}' | tr -d '[:space:]')
 if [ ! ${registryValue} == ${registry} ]
 then
   if [ "x$registry" == "xlocalhost" ]
