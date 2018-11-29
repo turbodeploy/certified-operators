@@ -129,6 +129,12 @@ public class TopologyConverter {
 
     private final NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
 
+    // used in double comparision
+    public static final double EPSILON = 1e-5;
+
+    // used in double comparision
+    private static final double ZERO = 0.0;
+
     /**
      * Map from entity OID to original topology entity DTO.
      */
@@ -1649,7 +1655,7 @@ public class TopologyConverter {
                 .filter(originalCommodity ->
                         originalCommodity.getCommodityType().equals(commType) &&
                                 originalCommodity.hasScalingFactor() &&
-                                originalCommodity.getScalingFactor() != 0)
+                                Math.abs(originalCommodity.getScalingFactor() - ZERO) > EPSILON)
                 .findFirst()
                 .map(matchingCommodity -> {
                     // found the matching commodity - divide by scalingFactor

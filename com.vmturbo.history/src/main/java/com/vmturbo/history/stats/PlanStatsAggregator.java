@@ -326,10 +326,12 @@ public class PlanStatsAggregator {
         commodityRecord.setMktSnapshotId(topologyContextId);
         commodityRecord.setPropertyType(propertyType);
         commodityRecord.setPropertySubtype(propertySubtype);
-        commodityRecord.setMinValue(used);
-        commodityRecord.setMaxValue(used);
-        commodityRecord.setAvgValue(used);
-        commodityRecord.setCapacity(capacity);
+        commodityRecord.setMinValue(historydbIO.clipValue(used));
+        commodityRecord.setMaxValue(historydbIO.clipValue(used));
+        commodityRecord.setAvgValue(historydbIO.clipValue(used));
+        if (capacity != null) {
+            commodityRecord.setCapacity(historydbIO.clipValue(capacity));
+        }
         commodityRecord.setProjectionTime(snapshotTimestamp);
         return commodityRecord;
     }
