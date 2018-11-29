@@ -41,6 +41,7 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IActionsService;
+import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -83,15 +84,13 @@ public class ActionsService implements IActionsService {
         this.groupExpander = groupExpander;
     }
 
-    /**
-     * This API call is not spec'ed correctly - it doesn't return all actions.
-     * @return
-     * @throws Exception
-     */
     @Override
     public ActionApiDTO getActions() throws Exception {
-        // this is a placeholder.
-        return new ActionApiDTO();
+        final ActionApiDTO actionApiDTO = new ActionApiDTO();
+        // This method doesn't return actions, but returns information about
+        // which routes to call to get actions for different kinds of objects
+        UrlsHelp.setActionHelp(actionApiDTO);
+        return actionApiDTO;
     }
 
     /**
