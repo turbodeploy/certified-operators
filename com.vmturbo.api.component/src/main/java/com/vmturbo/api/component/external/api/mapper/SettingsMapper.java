@@ -520,7 +520,7 @@ public class SettingsMapper {
                     .addAllId(involvedGroups)
                     .build())
                     .forEachRemaining(group -> groupNames.put(group.getId(),
-                            GroupProtoUtil.getGroupName(group)));
+                            GroupProtoUtil.getGroupDisplayName(group)));
         }
 
         return settingPolicies.stream()

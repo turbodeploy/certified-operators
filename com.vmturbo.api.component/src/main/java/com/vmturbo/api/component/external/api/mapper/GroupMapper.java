@@ -420,7 +420,7 @@ public class GroupMapper {
                 throw new IllegalArgumentException("Unrecognized group type: " + group.getType());
         }
 
-        outputDTO.setDisplayName(GroupProtoUtil.getGroupName(group));
+        outputDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(group));
         outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(group)));
         outputDTO.setUuid(Long.toString(group.getId()));
 

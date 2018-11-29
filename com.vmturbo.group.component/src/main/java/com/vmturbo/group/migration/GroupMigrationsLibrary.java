@@ -32,6 +32,8 @@ public class GroupMigrationsLibrary {
         return ImmutableSortedMap.<String, Migration>naturalOrder()
             .put(V_01_00_00__Group_Table_Add_Entity_Type.class.getSimpleName(),
                  new V_01_00_00__Group_Table_Add_Entity_Type(dslContext))
+            .put(V_01_00_01__Drop_Discovered_Groups_Policies.class.getSimpleName(),
+                    new V_01_00_01__Drop_Discovered_Groups_Policies(dslContext))
             .build();
     }
 }

@@ -19,15 +19,13 @@ public class DiscoveredGroupPolicyUtil {
      */
     @Nonnull
     public static String extractGroupName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
-        if (sdkDTO.hasDisplayName()) {
-            return sdkDTO.getDisplayName();
-        } else if (sdkDTO.hasGroupName()) {
+        if (sdkDTO.hasGroupName()) {
             return sdkDTO.getGroupName();
         } else if (sdkDTO.hasConstraintInfo() && sdkDTO.getConstraintInfo().hasConstraintName()) {
             return sdkDTO.getConstraintInfo().getConstraintName();
         } else {
             throw new IllegalArgumentException(
-                    "One of displayName, groupName or constraintName must be present in groupDTO");
+                    "GroupName or ConstraintName must be present in groupDTO");
         }
     }
 }

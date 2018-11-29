@@ -78,7 +78,7 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Get the display name of a {@link Group}.
+     * Get the name of a {@link Group}.
      *
      * @param group The {@link Group}.
      * @return The name of the {@link Group}.
@@ -99,6 +99,39 @@ public class GroupProtoUtil {
                 break;
             case TEMP_GROUP:
                 Preconditions.checkArgument(group.hasTempGroup() && group.getTempGroup().hasName());
+                name = group.getTempGroup().getName();
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown group type: " + group.getType());
+        }
+        return name;
+    }
+
+    /**
+     * Get the display name of a {@link Group}.
+     *
+     * @param group The {@link Group}.
+     * @return The display name of the {@link Group}.
+     * @throws IllegalArgumentException If the {@link Group} is not properly formatted.
+     */
+    @Nonnull
+    public static String getGroupDisplayName(@Nonnull final Group group) {
+        final String name;
+        switch (group.getType()) {
+            case GROUP:
+                Preconditions.checkArgument(group.hasGroup());
+                name = group.getGroup().hasDisplayName() ?
+                    group.getGroup().getDisplayName() :
+                    group.getGroup().getName();
+                break;
+            case CLUSTER:
+                Preconditions.checkArgument(group.hasCluster());
+                name = group.getCluster().hasDisplayName() ?
+                    group.getCluster().getDisplayName() :
+                    group.getCluster().getName();
+                break;
+            case TEMP_GROUP:
+                Preconditions.checkArgument(group.hasTempGroup());
                 name = group.getTempGroup().getName();
                 break;
             default:

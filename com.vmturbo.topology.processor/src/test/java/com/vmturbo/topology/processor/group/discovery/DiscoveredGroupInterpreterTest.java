@@ -118,7 +118,7 @@ public class DiscoveredGroupInterpreterTest {
 
         final GroupInfo groupInfo = groupInfoOpt.get().build();
         // ID should be assigned.
-        assertEquals(DiscoveredGroupConstants.DISPLAY_NAME, groupInfo.getName());
+        assertEquals(DiscoveredGroupConstants.GROUP_NAME, groupInfo.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getEntityType());
         assertTrue(groupInfo.hasStaticGroupMembers());
         final StaticGroupMembers members = groupInfo.getStaticGroupMembers();
@@ -149,7 +149,7 @@ public class DiscoveredGroupInterpreterTest {
         assertTrue(infoOpt.isPresent());
 
         final GroupInfo info = infoOpt.get().build();
-        assertEquals(DiscoveredGroupConstants.DISPLAY_NAME, info.getName());
+        assertEquals(DiscoveredGroupConstants.GROUP_NAME, info.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, info.getEntityType());
         assertTrue(info.hasSearchParametersCollection());
         assertEquals(1, info.getSearchParametersCollection().getSearchParametersCount());
@@ -211,7 +211,7 @@ public class DiscoveredGroupInterpreterTest {
                 .build(), TARGET_ID);
         assertTrue(clusterInfo.isPresent());
         assertEquals(Type.COMPUTE, clusterInfo.get().getClusterType());
-        assertEquals(DISPLAY_NAME, clusterInfo.get().getName());
+        assertEquals(DISPLAY_NAME, clusterInfo.get().getDisplayName());
         assertEquals(1, clusterInfo.get().getMembers().getStaticMemberOidsCount());
         assertEquals(1, clusterInfo.get().getMembers().getStaticMemberOids(0));
     }
@@ -240,7 +240,7 @@ public class DiscoveredGroupInterpreterTest {
                 .build(), TARGET_ID);
         assertTrue(clusterInfo.isPresent());
         assertEquals(Type.STORAGE, clusterInfo.get().getClusterType());
-        assertEquals(DISPLAY_NAME, clusterInfo.get().getName());
+        assertEquals(DISPLAY_NAME, clusterInfo.get().getDisplayName());
         assertEquals(1, clusterInfo.get().getMembers().getStaticMemberOidsCount());
         assertEquals(1, clusterInfo.get().getMembers().getStaticMemberOids(0));
     }

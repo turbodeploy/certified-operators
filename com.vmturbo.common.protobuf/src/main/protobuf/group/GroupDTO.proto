@@ -104,6 +104,9 @@ message GroupInfo {
     // We use this field for the groups automatically created for merge data centers policy, since
     // data center is not a group, but we need the groups for the merge operation.
     optional bool is_hidden = 6 [default = false];
+
+    // User friendly name. Typically used for discovered groups.
+    optional string display_name = 7;
 }
 
 message TempGroupInfo {
@@ -149,6 +152,9 @@ message ClusterInfo {
     // The template ID that the headroom plan will use.
     // If it is empty, the default plan will be used.
     optional int64 cluster_headroom_template_id = 4;
+
+    // User friendly name. Typically used for discovered clusters.
+    optional string display_name = 7;
 }
 
 
@@ -197,7 +203,7 @@ message DiscoveredSettingPolicyInfo {
     optional int32 entity_type = 3;
 
     // The names of the discovered groups that this setting policy will be applied to.
-    // This will be convereted into a scope for the SettingPolicy to be created.
+    // This will be converted into a scope for the SettingPolicy to be created.
     // When creating a discovered setting policy, a group of the same name must exist in the
     // StoreDiscoveredGroupsRequest or the discovered setting policy creation will fail.
     repeated string discovered_group_names = 4;

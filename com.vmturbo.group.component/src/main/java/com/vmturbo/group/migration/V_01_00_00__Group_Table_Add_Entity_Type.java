@@ -25,9 +25,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.group.db.Tables;
-import com.vmturbo.group.db.tables.pojos.Grouping;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
-import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**

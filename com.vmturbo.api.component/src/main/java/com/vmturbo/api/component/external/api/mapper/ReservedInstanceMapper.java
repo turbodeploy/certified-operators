@@ -224,7 +224,7 @@ public class ReservedInstanceMapper {
         if (isGlobalScope(scope, groupOptional)) {
             return UI_REAL_TIME_MARKET_STR;
         } else if (groupOptional.isPresent()) {
-            return GroupProtoUtil.getGroupName(groupOptional.get());
+            return GroupProtoUtil.getGroupDisplayName(groupOptional.get());
         } else {
             final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(Long.valueOf(scope));
             return scopeEntity.getDisplayName();
