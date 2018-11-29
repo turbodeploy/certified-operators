@@ -50,7 +50,9 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (getStorageType() != null) {
             storageInfoBuilder.setStorageType(StorageType.valueOf(getStorageType()));
         }
-        storageInfoBuilder.addAllExternalName(getExternalNames());
+        if (getExternalNames() != null) {
+            storageInfoBuilder.addAllExternalName(getExternalNames());
+        }
         return TypeSpecificInfo.newBuilder()
                 .setStorage(storageInfoBuilder)
                 .build();
