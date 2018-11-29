@@ -123,20 +123,15 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.reports.db.StringConstants;
 
 
 /**
  * Service implementation of Stats
  **/
 public class StatsService implements IStatsService {
-
-    /**
-     * Cloud cost price constant to match UI request, also used in test case
-     */
-    public static final String COST_PRICE = "costPrice";
 
     /**
      * Market constant o match UI request, also used in test case
@@ -160,11 +155,9 @@ public class StatsService implements IStatsService {
 
     private static final String COSTCOMPONENT = "costComponent";
 
-    public static final String NUM_WORKLOADS = "numWorkloads";
-
     /**
      *
-     * Current UI only shows up RI_DISCOUNT. But soon, it will be removed in classic. InsteaActionCountsMapperTest.javad
+     * Current UI only shows up RI_DISCOUNT. But soon, it will be removed in classic. Instead 
      * RI_COMPUTE cost will be shown in the UI.  Until then, we will map the RI_COMPUTE
      * to the riDiscount request call from the UI.
      * Once it is fixed in classic, we would have to change this value.
@@ -174,7 +167,7 @@ public class StatsService implements IStatsService {
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
 
-    private static final Set<String> COST_STATS_SET = ImmutableSet.of(COST_PRICE, CURRENT_COST_PRICE);
+    private static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE, CURRENT_COST_PRICE);
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
@@ -668,7 +661,7 @@ public class StatsService implements IStatsService {
                 .build();
             float numCloudVMs = (float) searchServiceClient.countEntities(request).getEntityCount();
             final StatApiDTO statApiDTO = new StatApiDTO();
-            statApiDTO.setName(NUM_WORKLOADS);
+            statApiDTO.setName(StringConstants.NUM_WORKLOADS);
             statApiDTO.setValue(numCloudVMs);
             final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
             statValueApiDTO.setAvg(numCloudVMs);
@@ -684,7 +677,8 @@ public class StatsService implements IStatsService {
 
         final StatApiDTO statApiDTO = new StatApiDTO();
         statApiDTO.setName(RI_COMPUTE);
-        statApiDTO.setValue(cloudCostStatRecord.getValues().getAvg());
+        statApiDTO.setUnits("$/h");
+        statApiDTO.setValue(-1 * cloudCostStatRecord.getValues().getAvg());
         final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
         statValueApiDTO.setAvg(cloudCostStatRecord.getValues().getAvg());
         statValueApiDTO.setMax(cloudCostStatRecord.getValues().getMax());
@@ -812,7 +806,7 @@ public class StatsService implements IStatsService {
     private boolean hasRequestedNumWorkloads(@Nonnull final StatPeriodApiInputDTO inputDto) {
         return CollectionUtils.emptyIfNull(inputDto.getStatistics())
                 .stream()
-                .anyMatch(dto -> NUM_WORKLOADS.equals(dto.getName()));
+                .anyMatch(dto -> StringConstants.NUM_WORKLOADS.equals(dto.getName()));
     }
 
     /**

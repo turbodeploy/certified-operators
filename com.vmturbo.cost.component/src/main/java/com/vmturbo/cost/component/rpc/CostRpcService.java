@@ -3,13 +3,14 @@ package com.vmturbo.cost.component.rpc;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -46,6 +47,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
@@ -66,16 +68,6 @@ import com.vmturbo.sql.utils.DbException;
  */
 public class CostRpcService extends CostServiceImplBase {
 
-    /**
-     * Cloud cost price constant to match UI request, also used in test case
-     */
-    public static final String COST_PRICE = "costPrice";
-
-    /**
-     * Cloud VM constant to match UI request, also used in test case
-     */
-    public static final String VIRTUAL_MACHINE = "VirtualMachine";
-
     private static final String ERR_MSG = "Invalid discount deletion input: No associated account ID or discount ID specified";
 
     private static final String NO_ASSOCIATED_ACCOUNT_ID_OR_DISCOUNT_INFO_PRESENT = "No discount info present.";
@@ -91,6 +83,8 @@ public class CostRpcService extends CostServiceImplBase {
     private static final String FAILED_TO_UPDATE_DISCOUNT = "Failed to update discount ";
 
     private static final String FAILED_TO_FIND_THE_UPDATED_DISCOUNT = "Failed to find the updated discount";
+
+    private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -360,7 +354,7 @@ public class CostRpcService extends CostServiceImplBase {
         final List<StatRecord> aggregatedStatRecords = Lists.newArrayList();
         aggregatedMap.forEach((id, stats) -> {
             final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder()
-                    .setName(COST_PRICE);
+                    .setName(StringConstants.COST_PRICE);
             statRecordBuilder.setAssociatedEntityId(id);
             statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
             statRecordBuilder.setUnits("$/h");
@@ -389,7 +383,9 @@ public class CostRpcService extends CostServiceImplBase {
                 Map<Long, Map<Long, EntityCost>> snapshotToEntityCostMap;
                 if (request.hasStartDate() && request.hasEndDate()) {
                     snapshotToEntityCostMap = entityCostStore.getEntityCosts(entityCostFilter);
-                    snapshotToEntityCostMap.getOrDefault(request.getEndDate(), new HashMap<>()).putAll(projectedEntityCostStore.getAllProjectedEntitiesCosts());
+                    snapshotToEntityCostMap.put(
+                            request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS),
+                            projectedEntityCostStore.getAllProjectedEntitiesCosts());
                 } else {
                     snapshotToEntityCostMap = entityCostStore.getLatestEntityCost(filterIds, entityTypeFilterIds);
                 }
@@ -404,7 +400,7 @@ public class CostRpcService extends CostServiceImplBase {
                                         .forEach(componentCost -> {
                                             builder.setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
                                             builder.setCategory(componentCost.costCategory);
-                                            builder.setName(COST_PRICE);
+                                            builder.setName(StringConstants.COST_PRICE);
                                             builder.setUnits("$/h");
                                             builder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
                                                     .setAvg((float) componentCost.geAvg().orElse(0))
@@ -422,7 +418,7 @@ public class CostRpcService extends CostServiceImplBase {
                                                 builder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
                                                 builder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
                                                 builder.setCategory(componentCost.getCategory());
-                                                builder.setName(COST_PRICE);
+                                                builder.setName(StringConstants.COST_PRICE);
                                                 builder.setUnits("$/h");
                                                 builder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
                                                         .setAvg(amount)
@@ -443,6 +439,8 @@ public class CostRpcService extends CostServiceImplBase {
 
                         }
                 );
+                Collections.sort(cloudStatRecords,
+                        (CloudCostStatRecord rec1, CloudCostStatRecord rec2) -> rec1.getSnapshotDate().compareTo(rec2.getSnapshotDate()));
                 GetCloudCostStatsResponse response =
                         GetCloudCostStatsResponse.newBuilder()
                                 .addAllCloudStatRecord(cloudStatRecords)
@@ -500,7 +498,7 @@ public class CostRpcService extends CostServiceImplBase {
     private CloudCostStatRecord.StatRecord buildStatRecord(@Nullable final Long producerId,
                                                            @Nullable final Float avgValue) {
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder()
-                .setName(COST_PRICE);
+                .setName(StringConstants.COST_PRICE);
         if (producerId != null && producerId != 0) {
             // providerUuid, it's associated accountId except CloudService type which is serviceId
             statRecordBuilder.setAssociatedEntityId(producerId);

@@ -270,39 +270,6 @@ public class EntitiesService implements IEntitiesService {
 
         try {
 
-            // Handle cloud stats
-           // TODO : We need to support cloud stats for all scopes e.g. Stats for a group of 2 AWS VM entities.
-            if (uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) &&
-                    !inputDto.getGroupBy().isEmpty() && inputDto.getGroupBy().get(0).equals(StringConstants.RISK_SUB_CATEGORY)) {
-                    GetActionCategoryStatsResponse response =
-                            actionOrchestratorRpcService.getActionCategoryStats(
-                                    GetActionCategoryStatsRequest.newBuilder()
-                                            .setTopologyContextId(realtimeTopologyContextId)
-                                            .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                            .addEntityType(EntityType.DATABASE_VALUE)
-                                            .addEntityType(EntityType.DATABASE_SERVER_VALUE)
-                                            .build());
-                    List<StatSnapshotApiDTO> statSnapshotApiDTOS =
-                            ActionCountsMapper.convertActionCategoryStatsToApiStatSnapshot(response.getActionStatsByCategoryList());
-                    if (inputDto.getStartTime()!=null && inputDto.getEndTime()!=null) {
-                        // If the request is for ProjectedActions, set all numEntities to zero.
-                        // This hack is needed because UI expects it in this format.
-                        statSnapshotApiDTOS.stream()
-                                .flatMap(dto -> dto.getStatistics().stream())
-                                .filter(dto -> dto.getName() == StringConstants.NUM_ENTITIES)
-                                .forEach(statApiDTO -> {
-                                    final StatValueApiDTO valueDto = new StatValueApiDTO();
-                                    float statValue = 0;
-                                    valueDto.setAvg(statValue);
-                                    valueDto.setMax(statValue);
-                                    valueDto.setMin(statValue);
-                                    valueDto.setTotal(statValue);
-                                    statApiDTO.setValues(valueDto);
-                                });
-                    }
-                    return statSnapshotApiDTOS;
-            }
-
             final long entityId = Long.valueOf(uuid);
             final ActionQueryFilter filter =
                     actionSpecMapper.createActionFilter(inputDto,

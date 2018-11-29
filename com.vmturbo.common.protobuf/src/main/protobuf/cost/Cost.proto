@@ -705,6 +705,8 @@ message GetCloudCostStatsRequest {
 
 // Bottom up Cloud cost stats response
 message GetCloudCostStatsResponse {
+    // The returned stats are in sorted order(increasing order) of the snapshot date
+    // i.e. from earlier to the latest date.
     repeated CloudCostStatRecord cloud_stat_record = 1;
 }
 

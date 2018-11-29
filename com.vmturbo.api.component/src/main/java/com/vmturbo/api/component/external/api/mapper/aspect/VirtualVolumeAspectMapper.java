@@ -21,7 +21,6 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
-import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
@@ -49,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -295,7 +295,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                     .collect(Collectors.toMap(StatRecord::getAssociatedEntityId, record -> {
                         // cost stats
                         StatApiDTO costStat = new StatApiDTO();
-                        costStat.setName(StatsService.COST_PRICE);
+                        costStat.setName(StringConstants.COST_PRICE);
                         costStat.setUnits(record.getUnits());
 
                         StatValueApiDTO valueDTO = new StatValueApiDTO();

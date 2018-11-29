@@ -10,8 +10,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -50,6 +53,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
@@ -590,7 +594,7 @@ public class RIAndExpenseUploadRpcServiceTest {
         given(accountExpenseStore.getAccountExpenses(any())).willReturn(snapshotToAccountExpensesMap);
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         //  statRecordBuilder.setAssociatedEntityId(expectedEntityTypeId);
         CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
@@ -648,7 +652,7 @@ public class RIAndExpenseUploadRpcServiceTest {
 
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setAssociatedEntityId(4l);
         statRecordBuilder.setAssociatedEntityType(1);
@@ -686,29 +690,16 @@ public class RIAndExpenseUploadRpcServiceTest {
         accountIdToExpenseMap.put(2l, entityCost);
         final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap);
-        //given(entityCostStore.getLatestEntityCost()).willReturn(snapshotToAccountExpensesMap);
+        final Map<Long, EntityCost> projectedEntityCostMap =
+                ImmutableMap.of(3l, entityCost1);
         given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
-        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
+        given(projectedEntityCostStore.getAllProjectedEntitiesCosts()).willReturn(projectedEntityCostMap);
+
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4l);
-        statRecordBuilder.setAssociatedEntityType(1);
-        statRecordBuilder.setCategory(CostCategory.ON_DEMAND_COMPUTE);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-
-        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
-
-        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMax((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMin((float) ACCOUNT_EXPENSE1);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
-        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(statRecordBuilder.build())
-                .build();
-        builder.addCloudStatRecord(cloudStatRecord);
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1l));
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost1),
+                1 + TimeUnit.HOURS.toMillis(1)));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -722,34 +713,21 @@ public class RIAndExpenseUploadRpcServiceTest {
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final Map<Long, EntityCost> accountIdToExpenseMap = new HashMap<>();
         accountIdToExpenseMap.put(2l, entityCost);
-        final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
+        final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
+        snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap);
+        final Map<Long, EntityCost> projectedEntityCostMap =
+                ImmutableMap.of(3l, entityCost1);
         given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
-        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
+        given(projectedEntityCostStore.getAllProjectedEntitiesCosts()).willReturn(projectedEntityCostMap);
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4l);
-        statRecordBuilder.setAssociatedEntityType(1);
-        statRecordBuilder.setCategory(CostCategory.ON_DEMAND_COMPUTE);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-
-        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
-
-        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMax((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMin((float) ACCOUNT_EXPENSE1);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
-        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
-                .addStatRecords(statRecordBuilder.build())
-                .build();
-        builder.addCloudStatRecord(cloudStatRecord);
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1l));
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost1),
+                1 + TimeUnit.HOURS.toMillis(1)));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -759,7 +737,7 @@ public class RIAndExpenseUploadRpcServiceTest {
                                                               final CostCategory costCategory,
                                                               final int entityTypeValue,
                                                               final float amount) {
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setAssociatedEntityType(entityTypeValue);
         statRecordBuilder.setCategory(costCategory);
@@ -781,7 +759,7 @@ public class RIAndExpenseUploadRpcServiceTest {
     public void testGetCloudCostStatsWithWorkloadMultipleCategories() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
                 .setStartDate(1l)
-                .setEndDate(1l)
+                .setEndDate(1000l)
                 .build();
 
 
@@ -796,7 +774,7 @@ public class RIAndExpenseUploadRpcServiceTest {
 
         final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap1);
-        snapshotToAccountExpensesMap.put(99999999l, accountIdToExpenseMap2);
+        snapshotToAccountExpensesMap.put(500l, accountIdToExpenseMap2);
         given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
@@ -808,12 +786,14 @@ public class RIAndExpenseUploadRpcServiceTest {
                 .build();
 
         final CloudCostStatRecord cloudStatRecord1 = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(99999999l))
+                .setSnapshotDate(DateTimeUtil.toString(500l))
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .build();
         builder.addCloudStatRecord(cloudStatRecord).addCloudStatRecord(cloudStatRecord1);
+        builder.addCloudStatRecord(createCloudStatRecord(Collections.emptyList(),
+                1000 + TimeUnit.HOURS.toMillis(1)));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -821,7 +801,7 @@ public class RIAndExpenseUploadRpcServiceTest {
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory) {
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setAssociatedEntityId(4l);
         statRecordBuilder.setAssociatedEntityType(1);
@@ -910,7 +890,7 @@ public class RIAndExpenseUploadRpcServiceTest {
         given(accountExpenseStore.getAccountExpenses(any())).willReturn(snapshotToAccountExpensesMap);
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(CostRpcService.COST_PRICE);
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setAssociatedEntityId(expectedEntityTypeId);
         statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
@@ -931,5 +911,36 @@ public class RIAndExpenseUploadRpcServiceTest {
         costRpcService.getAccountExpenseStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Create Cloud Stat record from the entity cost.
+     */
+    private CloudCostStatRecord createCloudStatRecord(List<EntityCost> entityCosts,
+                                                      long snapshotTime) {
+
+        final CloudCostStatRecord.Builder cloudStatRecordBuilder =
+                CloudCostStatRecord.newBuilder()
+                        .setSnapshotDate(DateTimeUtil.toString(snapshotTime));
+        for (EntityCost entityCost : entityCosts) {
+            for (ComponentCost componentCost : entityCost.getComponentCostList()) {
+                final CloudCostStatRecord.StatRecord.Builder statRecordBuilder =
+                        CloudCostStatRecord.StatRecord.newBuilder();
+                statRecordBuilder.setName(StringConstants.COST_PRICE);
+                statRecordBuilder.setUnits("$/h");
+                statRecordBuilder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
+                statRecordBuilder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
+                statRecordBuilder.setCategory(componentCost.getCategory());
+                CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder =
+                        CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+                statValueBuilder.setAvg((float) componentCost.getAmount().getAmount());
+                statValueBuilder.setTotal((float) componentCost.getAmount().getAmount());
+                statValueBuilder.setMax((float) componentCost.getAmount().getAmount());
+                statValueBuilder.setMin((float) componentCost.getAmount().getAmount());
+                statRecordBuilder.setValues(statValueBuilder.build());
+                cloudStatRecordBuilder.addStatRecords(statRecordBuilder.build());
+            }
+        }
+        return cloudStatRecordBuilder.build();
     }
 }

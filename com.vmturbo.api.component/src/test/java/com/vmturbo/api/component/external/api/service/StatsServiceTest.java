@@ -130,7 +130,7 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.reports.db.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
@@ -277,7 +277,7 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFilteringForCostTypeCSP() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.CSP));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
@@ -290,7 +290,7 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFilteringForCostTarget() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.TARGET));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
@@ -303,7 +303,7 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFilteringForCostCloudService() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.CLOUD_SERVICE));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         inputDto.setEndDate("15000");
@@ -318,7 +318,7 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFilteringForCostTargetWithScope() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.TARGET));
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
@@ -393,7 +393,7 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFilteringForCostBottomUpWorkload() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setRelatedEntityType("Workload");
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
@@ -445,7 +445,7 @@ public class StatsServiceTest {
 
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setRelatedEntityType("Workload");
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
@@ -513,7 +513,7 @@ public class StatsServiceTest {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         // Cloud cost stat
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setName(StringConstants.COST_PRICE);
         statApiInputDTO.setRelatedEntityType("Workload");
         inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
 

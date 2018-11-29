@@ -54,6 +54,7 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -67,6 +68,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -100,6 +103,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Service implementation of Groups functionality.
@@ -490,6 +495,38 @@ public class GroupsService implements IGroupsService {
                 actionSpecMapper.createActionFilter(inputDto, getMemberIds(uuid));
 
         try {
+            // Handle cloud stats
+            // TODO : We need to support cloud stats for all scopes e.g. Stats for a group of 2 AWS VM entities.
+            if (uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) &&
+                    !inputDto.getGroupBy().isEmpty() && inputDto.getGroupBy().get(0).equals(StringConstants.RISK_SUB_CATEGORY)) {
+                GetActionCategoryStatsResponse response =
+                        actionOrchestratorRpc.getActionCategoryStats(
+                                GetActionCategoryStatsRequest.newBuilder()
+                                        .setTopologyContextId(realtimeTopologyContextId)
+                                        .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        .addEntityType(EntityType.DATABASE_VALUE)
+                                        .addEntityType(EntityType.DATABASE_SERVER_VALUE)
+                                        .build());
+                List<StatSnapshotApiDTO> statSnapshotApiDTOS =
+                        ActionCountsMapper.convertActionCategoryStatsToApiStatSnapshot(response.getActionStatsByCategoryList());
+                if (inputDto.getStartTime()!=null && inputDto.getEndTime()!=null) {
+                    // If the request is for ProjectedActions, set all numEntities to zero.
+                    // This hack is needed because UI expects it in this format.
+                    statSnapshotApiDTOS.stream()
+                            .flatMap(dto -> dto.getStatistics().stream())
+                            .filter(dto -> dto.getName() == StringConstants.NUM_ENTITIES)
+                            .forEach(statApiDTO -> {
+                                final StatValueApiDTO valueDto = new StatValueApiDTO();
+                                float statValue = 0;
+                                valueDto.setAvg(statValue);
+                                valueDto.setMax(statValue);
+                                valueDto.setMin(statValue);
+                                valueDto.setTotal(statValue);
+                                statApiDTO.setValues(valueDto);
+                            });
+                }
+                return statSnapshotApiDTOS;
+            }
             final GetActionCountsResponse response =
                     actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)

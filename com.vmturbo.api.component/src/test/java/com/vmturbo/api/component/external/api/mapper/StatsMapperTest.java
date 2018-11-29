@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.api.component.external.api.service.StatsService.COST_PRICE;
 import static org.hamcrest.CoreMatchers.any;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -64,6 +63,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.reports.db.RelationType;
 
 /**
@@ -719,7 +719,7 @@ public class StatsMapperTest {
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(@Nullable CostCategory costCategory, float value, Optional<Long> associatedEntityId) {
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        statRecordBuilder.setName(COST_PRICE);
+        statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
 
         statRecordBuilder.setAssociatedEntityId(associatedEntityId.orElse(4l));

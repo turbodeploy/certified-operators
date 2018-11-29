@@ -202,6 +202,7 @@ public class StringConstants {
     public static final String NUM_CPOD_PER_VM = "numContainerPodsPerVM";
     public static final String NUM_CNT_PER_HOST = "numContainersPerHost";
     public static final String NUM_CNT_PER_STORAGE = "numContainersPerStorage";
+    public static final String NUM_WORKLOADS = "numWorkloads";
 	public static final String HOST_NUM_HOSTS = "Host_numHosts";
 	public static final String VM_NUM_VMS = "VM_numVMs";
 	public static final String STORAGE_NUM_STORAGES = "Storage_numStorages";
