@@ -30,6 +30,7 @@ public class MetricsStoreWhitelist {
     private static final String WHITELISTS_PREFIX = "whitelists/";
     public static final String COMMODITY_TYPES_KEY = "commodity_types";
     public static final String METRIC_TYPES_KEY = "metric_types";
+    public static final String CLUSTER_SUPPORT_KEY = "cluster_support";
 
     @GuardedBy("storeLock")
     private final KeyValueStore keyValueStore;
@@ -55,6 +56,11 @@ public class MetricsStoreWhitelist {
     private Set<MetricType> metricTypeWhtielist;
 
     /**
+     * Whether we write cluster membership information.
+     */
+    private boolean clustersSupported;
+
+    /**
      * Create a new commodity type whitelist.
      *
      * If commodity/metric type overrides have been set, those will take precedence over the
@@ -62,14 +68,17 @@ public class MetricsStoreWhitelist {
      *
      * @param defaultCommodityTypeWhitelist The default commodity types.
      * @param defaultMetricTypeWhitelist The default metric types.
+     * @param clustersSupported Whether we should write cluster membership information.
      * @param keyValueStore The kvStore to use for persisting overrides and looking up any existing
      *                      overrides.
      */
     public MetricsStoreWhitelist(@Nonnull final Set<CommodityType> defaultCommodityTypeWhitelist,
                                  @Nonnull final Set<MetricType> defaultMetricTypeWhitelist,
+                                 final boolean clustersSupported,
                                  @Nonnull final KeyValueStore keyValueStore) {
         this.commodityTypeWhitelist = Objects.requireNonNull(asIntegerSet(defaultCommodityTypeWhitelist));
         this.metricTypeWhtielist = Objects.requireNonNull(defaultMetricTypeWhitelist);
+        this.clustersSupported = clustersSupported;
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
 
         // If metric and/or commodity type overrides have been set, load those.
@@ -81,6 +90,10 @@ public class MetricsStoreWhitelist {
             .map(metricTypesJson -> gson.<Set<MetricType>>fromJson(metricTypesJson,
                     new TypeToken<Set<MetricType>>() { }.getType()))
             .ifPresent(overrideMetricTypes -> this.metricTypeWhtielist = overrideMetricTypes);
+        keyValueStore.get(keyPath(CLUSTER_SUPPORT_KEY))
+            .map(clusterSupportJson -> gson.<Boolean>fromJson(clusterSupportJson,
+                    new TypeToken<Boolean>() { }.getType()))
+            .ifPresent(overrideClusterSupport -> this.clustersSupported = overrideClusterSupport);
     }
 
     /**
@@ -126,6 +139,18 @@ public class MetricsStoreWhitelist {
     }
 
     /**
+     * Set whether we should write cluster membership information to influx.
+     *
+     * @param clustersSupported whether we should write cluster membership information to influx.
+     */
+    public void setClusterSupport(final boolean clustersSupported) {
+        synchronized (storeLock) {
+            keyValueStore.put(keyPath(CLUSTER_SUPPORT_KEY), gson.toJson(clustersSupported));
+            this.clustersSupported = clustersSupported;
+        }
+    }
+
+    /**
      * Get the whitelist of commodity types to write to influx.
      *
      * If the whitelist has been explicitly set (via gRPC service), returns the set list.
@@ -166,6 +191,17 @@ public class MetricsStoreWhitelist {
     public Set<MetricType> getWhitelistMetricTypes() {
         synchronized (storeLock) {
             return metricTypeWhtielist;
+        }
+    }
+
+    /**
+     * Get whether we should write cluster membership information to influx.
+     *
+     * @return whether we should write cluster membership information to influx.
+     */
+    public boolean getClusterSupport() {
+        synchronized (storeLock) {
+            return clustersSupported;
         }
     }
 

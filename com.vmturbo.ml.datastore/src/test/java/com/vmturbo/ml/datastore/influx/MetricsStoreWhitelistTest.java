@@ -25,6 +25,7 @@ public class MetricsStoreWhitelistTest {
         .of(MetricType.USED, MetricType.CAPACITY);
     private final Set<CommodityType> defaultCommodityTypes = ImmutableSet
         .of(CommodityType.BALLOONING, CommodityType.VCPU);
+    private final boolean defaultClustersSupported = true;
     private final KeyValueStore kvStore = spy(new MapKeyValueStore());
 
     private final Gson gson = new Gson();
@@ -32,7 +33,8 @@ public class MetricsStoreWhitelistTest {
     @Test
     public void testSetWhitelistCommodityTypes() {
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         whitelist.setWhitelistCommodityTypes(Collections.singleton(CommodityType.VMEM));
 
         assertEquals(Collections.singleton(CommodityType.VMEM), whitelist.getWhitelistCommodityTypes());
@@ -42,7 +44,8 @@ public class MetricsStoreWhitelistTest {
     @Test
     public void testSetWhitelistMetricTypes() {
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         whitelist.setWhitelistMetricTypes(Collections.singleton(MetricType.PEAK));
 
         assertEquals(Collections.singleton(MetricType.PEAK), whitelist.getWhitelistMetricTypes());
@@ -56,7 +59,8 @@ public class MetricsStoreWhitelistTest {
             gson.toJson(overrides));
 
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         assertEquals(overrides, whitelist.getWhitelistCommodityTypes());
     }
 
@@ -67,14 +71,16 @@ public class MetricsStoreWhitelistTest {
             gson.toJson(overrides));
 
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         assertEquals(overrides, whitelist.getWhitelistMetricTypes());
     }
 
     @Test
     public void testGetDefaultWhitelistCommodityTypeNumbers() {
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         assertEquals(ImmutableSet.of(CommodityType.BALLOONING.getNumber(),
             CommodityType.VCPU.getNumber()), whitelist.getWhitelistCommodityTypeNumbers());
 
@@ -86,7 +92,8 @@ public class MetricsStoreWhitelistTest {
     @Test
     public void testGetDefaultWhitelistCommodityTypes() {
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         assertEquals(defaultCommodityTypes, whitelist.getWhitelistCommodityTypes());
 
         whitelist.setWhitelistCommodityTypes(Collections.singleton(CommodityType.VMEM));
@@ -96,7 +103,8 @@ public class MetricsStoreWhitelistTest {
     @Test
     public void testGetDefaultWhitelistMetricTypes() {
         final MetricsStoreWhitelist whitelist =
-            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes, kvStore);
+            new MetricsStoreWhitelist(defaultCommodityTypes, defaultMetricTypes,
+                defaultClustersSupported, kvStore);
         assertEquals(defaultMetricTypes, whitelist.getWhitelistMetricTypes());
 
         whitelist.setWhitelistMetricTypes(Collections.singleton(MetricType.PEAK));

@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
@@ -39,6 +39,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Each entity selling at least one commodity results in one data point. One data point
  * is written for each provider of a commodity bought for a service entity.
  *
+ * Also writes cluster membership information if that is enabled.
+ *
  * Note that no commodity keys are written. This may potentially lead to issues with multiple
  * bundles of commodities bought from the same provider differentiated by keys.
  * TODO: Fix the key problem if necessary.
@@ -49,8 +51,25 @@ public class InfluxMetricsWriter implements AutoCloseable {
 
     private final String database;
     private final String retentionPolicy;
+    /**
+     * Whitelist for influx metrics. Only metrisc on the whitelist are stored.
+     */
     private final MetricsStoreWhitelist metricsStoreWhitelist;
+    /**
+     * Jitter that can be applied to metric values. Only used in testing.
+     */
     private final MetricJitter metricJitter;
+    /**
+     * Obfuscator used to obfuscate sensitive customer data (ie commoditiy keys which may contain
+     * sensitive information such as host-names, ip addresses, etc.)
+     */
+    private final Obfuscator obfuscator;
+
+    public static final String COMPUTE_CLUSTER_TYPE = "COMPUTE_CLUSTER";
+    public static final String STORAGE_CLUSTER_TYPE = "STORAGE_CLUSTER";
+
+    public static final String SOLD_SIDE = "SOLD";
+    public static final String BOUGHT_SIDE = "BOUGHT";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -59,12 +78,14 @@ public class InfluxMetricsWriter implements AutoCloseable {
                         @Nonnull final String database,
                         @Nonnull final String retentionPolicy,
                         @Nonnull final MetricsStoreWhitelist metricsStoreWhitelist,
-                        @Nonnull final MetricJitter metricJitter) {
+                        @Nonnull final MetricJitter metricJitter,
+                        @Nonnull final Obfuscator obfuscator) {
         this.database = Objects.requireNonNull(database);
         this.retentionPolicy = Objects.requireNonNull(retentionPolicy);
         this.influxConnection = influxConnection;
         this.metricsStoreWhitelist = Objects.requireNonNull(metricsStoreWhitelist);
         this.metricJitter = Objects.requireNonNull(metricJitter);
+        this.obfuscator = Objects.requireNonNull(obfuscator);
     }
 
     /**
@@ -77,16 +98,21 @@ public class InfluxMetricsWriter implements AutoCloseable {
      * @param soldStatistics   A map of names of metrics to how many statistics of that type were written.
      *                         This map will be mutated by this method as it writes additional metrics to
      *                         count metrics written. This is the map for commodity sold statistics.
+     * @param clusterStatistics A map of cluster type names to how many statstics of that type were written.
+     *                          This map will be mutated by this method as it writes additional metrics to
+     *                          count metrics written.
      *
      * @return The number of data points written.
      */
     public int writeTopologyMetrics(@Nonnull final Collection<TopologyEntityDTO> topologyChunk,
                                      final long timeMs,
                                      @Nonnull final Map<String, Long> boughtStatistics,
-                                     @Nonnull final Map<String, Long> soldStatistics) {
+                                     @Nonnull final Map<String, Long> soldStatistics,
+                                     @Nonnull final Map<String, Long> clusterStatistics) {
         final WriterContext context = new WriterContext(influxConnection,
             boughtStatistics,
             soldStatistics,
+            clusterStatistics,
             metricsStoreWhitelist.getWhitelistCommodityTypeNumbers(),
             metricsStoreWhitelist.getWhitelistMetricTypes(),
             timeMs);
@@ -94,6 +120,7 @@ public class InfluxMetricsWriter implements AutoCloseable {
         int numWritten = 0;
         for (TopologyEntityDTO entity : topologyChunk) {
             numWritten += writeEntityMetrics(entity, context);
+            numWritten += writeClusterMemberships(entity, context);
         }
         return numWritten;
     }
@@ -158,6 +185,87 @@ public class InfluxMetricsWriter implements AutoCloseable {
         numWritten += soldWriter.write();
 
         return numWritten;
+    }
+
+    /**
+     * Write cluster membership information.
+     * Writes both compute and storage cluster information.
+     *
+     * @param entity The entity whose cluster membership information should be written.
+     * @param context The {@link WriterContext} to be used to write to influx and track
+     *                metric statistics.
+     * @return The number of data points written to influx for this service entity.
+     *         Write one data point for every provider this entity actively buys from.
+     *         Write one data point if any commodities are actively sold.
+     */
+    private int writeClusterMemberships(@Nonnull final TopologyEntityDTO entity,
+                                        @Nonnull final WriterContext context) {
+        if (metricsStoreWhitelist.getClusterSupport()) {
+            final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+            final MetricWriter clusterWriter = new MetricWriter(context,
+                clusterPointBuilder(entity.getOid(), entityType, context), context::incrementClusterMetric);
+
+            addClusterBoughtFields(entity.getCommoditiesBoughtFromProvidersList(), clusterWriter);
+            addClusterSoldFields(entity.getCommoditySoldListList(), clusterWriter);
+            return clusterWriter.write();
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * Add metric fields for cluster membership to a {@link MetricWriter} for cluster membership info.
+     * Note that cluster commodities are access commodities not written as part of the regular
+     * commodities. They contain information in their keys indicating which clusters they belong to
+     * that does not fit in the schema for metric-based commodities.
+     *
+     * @param commoditiesBought The commodities bought containing cluster membership information.
+     * @param clusterWriter Writer for cluster membership data.
+     */
+    private void addClusterBoughtFields(@Nonnull final List<CommoditiesBoughtFromProvider> commoditiesBought,
+                                        @Nonnull final MetricWriter clusterWriter) {
+        commoditiesBought.stream()
+            .forEach(boughtFromProvider -> {
+                boughtFromProvider.getCommodityBoughtList().stream()
+                    .filter(CommodityBoughtDTO::getActive)
+                    .filter(CommodityBoughtDTO::hasCommodityType)
+                    .filter(commodity -> {
+                        final int type = commodity.getCommodityType().getType();
+                        return type == CommodityType.CLUSTER_VALUE || type == CommodityType.STORAGE_CLUSTER_VALUE;
+                    }).forEach(commodity -> clusterWriter.field(
+                        clusterTypeName(commodity.getCommodityType().getType(), BOUGHT_SIDE),
+                        obfuscator.obfuscate(commodity.getCommodityType().getKey()))
+                    );
+            });
+    }
+
+    /**
+     * Add metric fields for cluster membership to a {@link MetricWriter} for cluster membership info.
+     * Note that cluster commodities are access commodities not written as part of the regular
+     * commodities. They contain information in their keys indicating which clusters they belong to
+     * that does not fit in the schema for metric-based commodities.
+     *
+     * @param commoditiesSold The commodities sold containing cluster membership information.
+     * @param clusterWriter Writer for cluster membership data.
+     */
+    private void addClusterSoldFields(@Nonnull final List<CommoditySoldDTO> commoditiesSold,
+                                      @Nonnull final MetricWriter clusterWriter) {
+        commoditiesSold.stream()
+            .filter(CommoditySoldDTO::getActive)
+            .filter(CommoditySoldDTO::hasCommodityType)
+            .filter(commodity -> {
+                final int type = commodity.getCommodityType().getType();
+                return type == CommodityType.CLUSTER_VALUE || type == CommodityType.STORAGE_CLUSTER_VALUE;
+            }).forEach(commodity -> clusterWriter.field(
+                    clusterTypeName(commodity.getCommodityType().getType(), SOLD_SIDE),
+                    obfuscator.obfuscate(commodity.getCommodityType().getKey()))
+            );
+    }
+
+    private String clusterTypeName(final int type,
+                                   @Nonnull final String side) {
+        return (type == CommodityType.CLUSTER_VALUE ? COMPUTE_CLUSTER_TYPE : STORAGE_CLUSTER_TYPE)
+            + "_" + side;
     }
 
     /**
@@ -281,13 +389,31 @@ public class InfluxMetricsWriter implements AutoCloseable {
     }
 
     /**
+     * Construct a builder for a cluster membership data point.
+     *
+     * @param entityOid The oid of the entity belonging to the clutser.
+     * @param entityType The type of the entity belonging to the cluster.
+     * @param writerContext The writer context to be used for writing the metrics.
+     * @return a builder for a commodity sold data point.
+     */
+    private Point.Builder clusterPointBuilder(final long entityOid,
+                                              @Nonnull final EntityType entityType,
+                                              @Nonnull final WriterContext writerContext) {
+        return Point.measurement("cluster_membership")
+            .time(writerContext.timeMs, TimeUnit.MILLISECONDS)
+            .tag("entity_type", entityType.name())
+            .tag("oid", Long.toString(entityOid));
+    }
+
+    /**
      * A small helper class to assist in writing data points to influx and tracking statistics
      * about the data written to influx.
      */
     private static class WriterContext {
         public final InfluxDB influxConnection;
-        public final  Map<String, Long> boughtStats;
-        public final  Map<String, Long> soldStats;
+        public final Map<String, Long> boughtStats;
+        public final Map<String, Long> soldStats;
+        public final Map<String, Long> clusterStats;
         public final long timeMs;
 
         public final Set<Integer> commoditiesWhitelist;
@@ -296,12 +422,14 @@ public class InfluxMetricsWriter implements AutoCloseable {
         public WriterContext(@Nonnull final InfluxDB influxConnection,
                              @Nonnull final Map<String, Long> boughtStats,
                              @Nonnull final Map<String, Long> soldStats,
+                             @Nonnull final Map<String, Long> clusterStats,
                              @Nonnull final Set<Integer> commoditiesWhitelist,
                              @Nonnull final Set<MetricType> metricTypesWhitelist,
                              final long timeMs) {
             this.influxConnection = Objects.requireNonNull(influxConnection);
             this.boughtStats = Objects.requireNonNull(boughtStats);
             this.soldStats = Objects.requireNonNull(soldStats);
+            this.clusterStats = Objects.requireNonNull(clusterStats);
             this.timeMs = timeMs;
             this.commoditiesWhitelist = Objects.requireNonNull(commoditiesWhitelist);
             this.metricTypesWhitelist = Objects.requireNonNull(metricTypesWhitelist);
@@ -310,27 +438,31 @@ public class InfluxMetricsWriter implements AutoCloseable {
         /**
          * Increment the metric count for a commodity bought statistic with a given name.
          *
-         * @param commodityType The type of the commodity whose bought metric is being recorded.
-         * @param metricType The type of the metric bought being recorded.
+         * @param metricName The name of the commodity metric type bought (ie VCPU_USED)
          * @return The incremented count for the statistic.
          */
-        public Long incrementBoughtMetric(@Nonnull final CommodityType commodityType,
-                                          @Nonnull final MetricType metricType) {
-            return boughtStats.merge(InfluxMetricsWriter.metricValueName(commodityType, metricType),
-                1L, Long::sum);
+        public Long incrementBoughtMetric(@Nonnull final String metricName) {
+            return boughtStats.merge(metricName, 1L, Long::sum);
         }
 
         /**
          * Increment the metric count for a commodity sold statistic with a given name.
          *
-         * @param commodityType The type of the commodity whose sold metric is being recorded.
-         * @param metricType The type of the metric sold being recorded.
+         * @param metricName The name of the commodity metric type sold (ie STORAGE_PEAK)
          * @return The incremented count for the statistic.
          */
-        public Long incrementSoldMetric(@Nonnull final CommodityType commodityType,
-                                        @Nonnull final MetricType metricType) {
-            return soldStats.merge(InfluxMetricsWriter.metricValueName(commodityType, metricType),
-                1L, Long::sum);
+        public Long incrementSoldMetric(@Nonnull final String metricName) {
+            return soldStats.merge(metricName, 1L, Long::sum);
+        }
+
+        /**
+         * Increment the metric count for clusters.
+         *
+         * @param clusterType The name of the type of cluster.
+         * @return The incremented count for the statistic.
+         */
+        public Long incrementClusterMetric(@Nonnull final String clusterType) {
+            return clusterStats.merge(clusterType, 1L, Long::sum);
         }
     }
 
@@ -340,12 +472,12 @@ public class InfluxMetricsWriter implements AutoCloseable {
     private class MetricWriter {
         private final WriterContext writerContext;
         private final Point.Builder pointBuilder;
-        private final BiConsumer<CommodityType, MetricType> metricStatsFunction;
+        private final Consumer<String> metricStatsFunction;
         private int fieldCount = 0;
 
         public MetricWriter(@Nonnull final WriterContext writerContext,
                             @Nonnull final Point.Builder pointBuilder,
-                            @Nonnull final BiConsumer<CommodityType, MetricType> metricStatsFunction) {
+                            @Nonnull final Consumer<String> metricStatsFunction) {
             this.writerContext = Objects.requireNonNull(writerContext);
             this.pointBuilder = Objects.requireNonNull(pointBuilder);
             this.metricStatsFunction = Objects.requireNonNull(metricStatsFunction);
@@ -383,9 +515,18 @@ public class InfluxMetricsWriter implements AutoCloseable {
         public void field(@Nonnull final CommodityType commodityType,
                           @Nonnull final MetricType metricType,
                           final double value) {
-            pointBuilder.addField(metricValueName(commodityType, metricType), value);
+            final String metricName = metricValueName(commodityType, metricType);
+            pointBuilder.addField(metricName, value);
 
-            metricStatsFunction.accept(commodityType, metricType);
+            metricStatsFunction.accept(metricName);
+            fieldCount++;
+        }
+
+        public void field(@Nonnull final String name,
+                          @Nonnull final String value) {
+            pointBuilder.addField(name, value);
+
+            metricStatsFunction.accept(name);
             fieldCount++;
         }
 

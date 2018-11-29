@@ -42,6 +42,11 @@ message MetricTypeWhitelist {
     repeated MetricType metric_types = 1;
 }
 
+// Whether the component should support writing cluster membership information.
+message ClusterSupport {
+    optional bool writer_cluster_memberships = 1;
+}
+
 message GetCommodityTypeWhitelistRequest {
 }
 
@@ -54,6 +59,12 @@ message GetMetricTypeWhitelistRequest {
 message SetMetricTypeWhitelistResponse {
 }
 
+message GetClusterSupportRequest {
+}
+
+message SetClusterSupportResponse {
+}
+
 // Service for interacting with the ML datastore component.
 service MLDatastoreService {
     // Get the commodity type whitelist.
@@ -63,4 +74,8 @@ service MLDatastoreService {
     // Get the metric type whitelist.
     rpc GetMetricTypeWhitelist(GetMetricTypeWhitelistRequest) returns (MetricTypeWhitelist);
     rpc SetMetricTypeWhitelist(MetricTypeWhitelist) returns (SetMetricTypeWhitelistResponse);
+
+    // Get cluster support.
+    rpc GetClusterSupport(GetClusterSupportRequest) returns (ClusterSupport);
+    rpc SetClusterSupport(ClusterSupport) returns (SetClusterSupportResponse);
 }

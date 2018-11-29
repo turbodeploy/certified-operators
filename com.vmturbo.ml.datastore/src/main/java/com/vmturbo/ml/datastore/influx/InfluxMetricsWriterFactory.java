@@ -10,8 +10,6 @@ import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-
 /**
  * Factory for generating connections to influxdb.
  *
@@ -94,16 +92,18 @@ public class InfluxMetricsWriterFactory {
      *
      * @param whitelist The whitelist of commodities and metrics to write.
      * @param metricJitter The jitter to apply to metrics.
+     * @param obfuscator An obfuscator to obfuscate sensitive customer information.
      * @return a new metricsWriter to write metrics to influx.
      * @throws InfluxUnavailableException If no connection to influx can be established.
      */
     @Nonnull
     public InfluxMetricsWriter createMetricsWriter(@Nonnull final MetricsStoreWhitelist whitelist,
-                                                   @Nonnull final MetricJitter metricJitter)
+                                                   @Nonnull final MetricJitter metricJitter,
+                                                   @Nonnull final Obfuscator obfuscator)
         throws InfluxUnavailableException {
 
         return new InfluxMetricsWriter(createInfluxConnection(), getDatabase(),
-            getRetentionPolicyName(), whitelist, metricJitter);
+            getRetentionPolicyName(), whitelist, metricJitter, obfuscator);
     }
 
     /**

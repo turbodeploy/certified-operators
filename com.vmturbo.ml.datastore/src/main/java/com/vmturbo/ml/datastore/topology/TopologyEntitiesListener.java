@@ -24,6 +24,7 @@ import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory;
 import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory.InfluxUnavailableException;
 import com.vmturbo.ml.datastore.influx.MetricJitter;
 import com.vmturbo.ml.datastore.influx.MetricsStoreWhitelist;
+import com.vmturbo.ml.datastore.influx.Obfuscator;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -55,6 +56,11 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private final MetricJitter metricJitter;
 
     /**
+     * Used to mask sensitive customer information (ie host or cluster names, ip addresses, etc.)
+     */
+    private final Obfuscator obfuscator;
+
+    /**
      * Present if the listener has an open connection to influx.
      * May be closed and re-opened if an error occurs writing to influx.
      */
@@ -76,12 +82,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     public TopologyEntitiesListener(@Nonnull final InfluxMetricsWriterFactory connectionFactory,
                                     @Nonnull final MetricsStoreWhitelist metricsStoreWhitelist,
-                                    @Nonnull final MetricJitter metricJitter) {
+                                    @Nonnull final MetricJitter metricJitter,
+                                    @Nonnull final Obfuscator obfuscator) {
         metricsWriter = Optional.empty();
 
         this.connectionFactory = Objects.requireNonNull(connectionFactory);
         this.metricsStoreWhitelist = Objects.requireNonNull(metricsStoreWhitelist);
         this.metricJitter = Objects.requireNonNull(metricJitter);
+        this.obfuscator = Objects.requireNonNull(obfuscator);
     }
 
     /**
@@ -99,6 +107,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
         final long timeMs = topologyInfo.getCreationTime();
         final Map<String, Long> boughtStatistics = new HashMap<>();
         final Map<String, Long> soldStatistics = new HashMap<>();
+        final Map<String, Long> clusterStatistics = new HashMap<>();
 
         logger.info("Received topology {} context {} creation time {} type {}.",
             topologyInfo.getTopologyId(),
@@ -111,23 +120,25 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
         long totalDataPointsWritten = 0;
         try {
-            final InfluxMetricsWriter writer = getOrCreateMetricsWriter();
+            final InfluxMetricsWriter metricsWriter = getOrCreateMetricsWriter();
 
             final DataMetricTimer topologyWriterTimer = TOPOLOGY_METRIC_WRITE_TIME_HISTOGRAM.startTimer();
             while (entityIterator.hasNext()) {
                 stopWatch.resume();
-                totalDataPointsWritten += writer.writeTopologyMetrics(entityIterator.nextChunk(), timeMs,
+                totalDataPointsWritten += metricsWriter.writeTopologyMetrics(entityIterator.nextChunk(), timeMs,
                     boughtStatistics,
-                    soldStatistics);
+                    soldStatistics,
+                    clusterStatistics);
                 stopWatch.suspend();
             }
 
             // Flush to write through any cached data points after we have received the full topology.
-            writer.flush();
+            metricsWriter.flush();
 
             // Log statistics about the metrics written.
             final double timeTaken = topologyWriterTimer.observe();
-            logStatistics(timeTaken, boughtStatistics, soldStatistics, totalDataPointsWritten);
+            logStatistics(timeTaken, boughtStatistics, soldStatistics,
+                clusterStatistics, totalDataPointsWritten);
             TOPOLOGY_METRIC_FIELDS_WRITTEN.setData((double)totalDataPointsWritten);
         } catch (CommunicationException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId +
@@ -177,6 +188,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * @param soldStatistics Statistics about the commodities sold metrics written to influx.
      *                       Each commodity-metric type combination results in one field value written to influx.
      *                       (ie VCPU_USED, VCPU_PEAK, MEM_CAPACITY would be 3 field values)
+     * @param clusterStatistics Statistics about the cluster memberships written to influx.
+     *                          Each cluster membership results in one field value written to influx.
+     *                          (ie STORAGE_CLUSTER and COMPUTE_CLUSTER would be 2 field values)
      * @param totalDataPoitnsWritten The total number of data points written to influx.
      *                               Each entity selling at least one commodity results in one data point.
      *                               One data point is written for each provider of a commodity bought
@@ -185,23 +199,27 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private void logStatistics(final double timeTakenSeconds,
                                @Nonnull final Map<String, Long> boughtStatistics,
                                @Nonnull final Map<String, Long> soldStatistics,
+                               @Nonnull final Map<String, Long> clusterStatistics,
                                final long totalDataPoitnsWritten) {
         final String timeTaken = TimeUtil.humanReadable(
             Duration.ofSeconds((long) timeTakenSeconds, (long) ((timeTakenSeconds % 1) * 1e9)));
         final long totalBought = totalWritten(boughtStatistics);
         final long totalSold = totalWritten(soldStatistics);
+        final long totalCluster = totalWritten(clusterStatistics);
 
         logger.info(" Took {} to write {} metric fields ({} data points) to db \"{}\" " +
                 "and retention policy \"{}\". Wrote:" +
                 "\n\tBought: Total {} {}" +
-                "\n\tSold: Total {} {}.,",
+                "\n\tSold: Total {} {}" +
+                "\n\tCluster Membership: Total {} {}",
             timeTaken,
-            totalBought + totalSold,
+            totalBought + totalSold + totalCluster,
             totalDataPoitnsWritten,
             connectionFactory.getDatabase(),
             connectionFactory.getRetentionPolicyName(),
             totalBought, boughtStatistics,
-            totalSold, soldStatistics);
+            totalSold, soldStatistics,
+            totalCluster, clusterStatistics);
     }
 
     /**
@@ -215,7 +233,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private InfluxMetricsWriter getOrCreateMetricsWriter() throws InfluxUnavailableException {
         if (!metricsWriter.isPresent() || !connectionIsHealthy()) {
             metricsWriter = Optional.of(
-                connectionFactory.createMetricsWriter(metricsStoreWhitelist, metricJitter));
+                connectionFactory.createMetricsWriter(metricsStoreWhitelist, metricJitter, obfuscator));
         }
 
         return metricsWriter.get();

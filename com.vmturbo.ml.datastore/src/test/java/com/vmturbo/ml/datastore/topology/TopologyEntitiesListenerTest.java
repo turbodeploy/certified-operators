@@ -20,6 +20,8 @@ import com.vmturbo.ml.datastore.influx.InfluxMetricsWriter;
 import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory.InfluxUnavailableException;
 import com.vmturbo.ml.datastore.influx.MetricJitter;
 import com.vmturbo.ml.datastore.influx.MetricsStoreWhitelist;
+import com.vmturbo.ml.datastore.influx.Obfuscator;
+import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyEntitiesListenerTest {
@@ -28,9 +30,10 @@ public class TopologyEntitiesListenerTest {
     private final MetricsStoreWhitelist whitelist = mock(MetricsStoreWhitelist.class);
     private final MetricJitter metricJitter = new MetricJitter(false, 0);
     private final InfluxMetricsWriter metricsWriter = mock(InfluxMetricsWriter.class);
+    private final Obfuscator obfuscator = new HashingObfuscator();
 
     private final TopologyEntitiesListener listener = new TopologyEntitiesListener(connectionFactory,
-        whitelist, metricJitter);
+        whitelist, metricJitter, obfuscator);
     private static final long TIME = 99999L;
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -66,17 +69,19 @@ public class TopologyEntitiesListenerTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testMetricsWritten() {
-        when(connectionFactory.createMetricsWriter(eq(whitelist), eq(metricJitter)))
+        when(connectionFactory.createMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
 
         listener.onTopologyNotification(topologyInfo, iterator);
-        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoOne)), eq(TIME), anyMap(), anyMap());
-        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoTwo)), eq(TIME), anyMap(), anyMap());
+        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoOne)), eq(TIME),
+            anyMap(), anyMap(), anyMap());
+        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoTwo)), eq(TIME),
+            anyMap(), anyMap(), anyMap());
     }
 
     @Test
     public void testWritesFlushed() {
-        when(connectionFactory.createMetricsWriter(eq(whitelist), eq(metricJitter)))
+        when(connectionFactory.createMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
 
         listener.onTopologyNotification(topologyInfo, iterator);
@@ -89,14 +94,16 @@ public class TopologyEntitiesListenerTest {
         // First make influx unavailable
         doThrow(InfluxUnavailableException.class)
             .when(connectionFactory)
-            .createMetricsWriter(eq(whitelist), eq(metricJitter));
+            .createMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator));
         listener.onTopologyNotification(topologyInfo, iterator);
 
         // Then influx is available.
-        when(connectionFactory.createMetricsWriter(eq(whitelist), eq(metricJitter)))
+        when(connectionFactory.createMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
         listener.onTopologyNotification(topologyInfo, iterator);
-        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoOne)), eq(TIME), anyMap(), anyMap());
-        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoTwo)), eq(TIME), anyMap(), anyMap());
+        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoOne)), eq(TIME),
+            anyMap(), anyMap(), anyMap());
+        verify(metricsWriter).writeTopologyMetrics(eq(Collections.singletonList(dtoTwo)), eq(TIME),
+            anyMap(), anyMap(), anyMap());
     }
 }

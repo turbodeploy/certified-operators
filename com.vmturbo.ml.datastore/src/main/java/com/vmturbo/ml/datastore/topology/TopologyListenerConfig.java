@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.ml.datastore.influx.InfluxConfig;
+import com.vmturbo.ml.datastore.influx.Obfuscator;
+import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
 import com.vmturbo.ml.datastore.rpc.MLDatastoreRpcConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -34,11 +36,17 @@ public class TopologyListenerConfig {
     @Autowired
     private InfluxConfig influxConfig;
 
+
+    @Bean
+    public Obfuscator obfuscator() {
+        return new HashingObfuscator();
+    }
+
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener =
             new TopologyEntitiesListener(influxConfig.influxDBConnectionFactory(),
-                influxConfig.metricsStoreWhitelist(), influxConfig.metricJitter());
+                influxConfig.metricsStoreWhitelist(), influxConfig.metricJitter(), obfuscator());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
     }

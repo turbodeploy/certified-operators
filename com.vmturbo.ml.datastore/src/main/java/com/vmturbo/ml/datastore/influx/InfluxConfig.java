@@ -16,6 +16,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.MetricTypeWhitelist.MetricType;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -69,6 +70,9 @@ public class InfluxConfig {
     @Value("${defaultMetricTypeWhitelist}")
     private String[] defaultMetricTypeWhitelist;
 
+    @Value("${clustersSupported}")
+    private boolean clustersSupported;
+
     @Value("${jitterEnabled}")
     private boolean jitterEnabled;
 
@@ -99,7 +103,7 @@ public class InfluxConfig {
     @Bean
     public MetricsStoreWhitelist metricsStoreWhitelist() {
         return new MetricsStoreWhitelist(defaultCommodityTypeWhitelist(),
-            defaultMetricTypeWhitelist(), baseVmtComponentConfig.keyValueStore());
+            defaultMetricTypeWhitelist(), clustersSupported, baseVmtComponentConfig.keyValueStore());
     }
 
     @Bean

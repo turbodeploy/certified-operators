@@ -5,8 +5,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -36,6 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class InfluxMetricsWriterTest {
     private final MetricsStoreWhitelist metricStoreWhitelist = mock(MetricsStoreWhitelist.class);
     private final MetricJitter metricJitter = new MetricJitter(false, 0);
+    private final Obfuscator obfuscator = mock(Obfuscator.class);
     private final InfluxDB influx = mock(InfluxDB.class);
 
     private InfluxMetricsWriter metricsWriter;
@@ -68,6 +70,7 @@ public class InfluxMetricsWriterTest {
 
     private final Map<String, Long> boughtStatistics = new HashMap<>();
     private final Map<String, Long> soldStatistics = new HashMap<>();
+    private final Map<String, Long> clusterStatistics = new HashMap<>();
 
     private static final String DATABASE = "database";
     private static final String RETENTION_POLICY = "rp";
@@ -80,7 +83,8 @@ public class InfluxMetricsWriterTest {
         MockitoAnnotations.initMocks(this);
 
         metricsWriter = new InfluxMetricsWriter(influx, DATABASE, RETENTION_POLICY,
-            metricStoreWhitelist, metricJitter);
+            metricStoreWhitelist, metricJitter, obfuscator);
+        when(metricStoreWhitelist.getClusterSupport()).thenReturn(false);
     }
 
     /**
@@ -95,13 +99,19 @@ public class InfluxMetricsWriterTest {
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Both used and peak stats should be written.
         verify(influx).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
         final Point point = pointCaptor.getValue();
         assertThat(point.toString(), containsString("CPU_PEAK"));
         assertThat(point.toString(), containsString("CPU_USED"));
+    }
+
+    @Test
+    public void foo() {
+        Obfuscator o = new HashingObfuscator();
+        System.out.println(o.obfuscate("foobar"));
     }
 
     /**
@@ -117,7 +127,7 @@ public class InfluxMetricsWriterTest {
 
         entity.addCommoditySoldList(soldDTO);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // VMEM USED and CAPACITY should be written. PEAK should not because it is not on the
         // commodity.
@@ -140,10 +150,10 @@ public class InfluxMetricsWriterTest {
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // No available metrics are on the whitelist so nothing should be written.
-        verify(influx, never()).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
+        verifyNoMoreInteractions(influx);
     }
 
     /**
@@ -158,7 +168,7 @@ public class InfluxMetricsWriterTest {
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Only peak should be written.
         verify(influx).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
@@ -179,9 +189,9 @@ public class InfluxMetricsWriterTest {
 
         entity.addCommoditySoldList(soldDTO);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
-        verify(influx, never()).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
+        verifyNoMoreInteractions(influx);
     }
 
     /**
@@ -197,7 +207,7 @@ public class InfluxMetricsWriterTest {
 
         entity.addCommoditySoldList(soldDTO);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // VMEM USED and CAPACITY should be written. PEAK should not because it is not on the
         // commodity.
@@ -221,10 +231,10 @@ public class InfluxMetricsWriterTest {
         boughtFromProvider.getCommodityBoughtBuilder(0).setActive(false);
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.
-        verify(influx, never()).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
+        verifyNoMoreInteractions(influx);
     }
 
     /**
@@ -241,10 +251,88 @@ public class InfluxMetricsWriterTest {
         soldDTO.setActive(false);
         entity.addCommoditySoldList(soldDTO);
         metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
-            TOPOLOGY_TIME, boughtStatistics, soldStatistics);
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.
-        verify(influx, never()).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
+        verifyNoMoreInteractions(influx);
+    }
+
+    @Test
+    public void testWriteComputeClusterSold() {
+        when(metricStoreWhitelist.getWhitelistMetricTypes())
+            .thenReturn(Collections.emptySet());
+        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+            .thenReturn(Collections.emptySet());
+        when(metricStoreWhitelist.getClusterSupport()).thenReturn(true);
+        when(obfuscator.obfuscate("foo")).thenReturn("bar");
+
+        final CommoditySoldDTO.Builder soldDTO = CommoditySoldDTO.newBuilder()
+            .setActive(true)
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CLUSTER.getNumber())
+                .setKey("foo"));
+
+        entity.addCommoditySoldList(soldDTO);
+        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
+
+        // Inactive metrics should not be written.
+        verify(influx).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
+        final Point point = pointCaptor.getValue();
+        assertThat(point.toString(), containsString("cluster_membership"));
+        assertThat(point.toString(), containsString("VIRTUAL_MACHINE"));
+        assertThat(point.toString(), containsString("11111"));
+        assertThat(point.toString(), containsString("COMPUTE_CLUSTER_SOLD=bar"));
+    }
+
+    @Test
+    public void testWriteStorageClusterBought() {
+        when(metricStoreWhitelist.getWhitelistMetricTypes())
+            .thenReturn(Collections.emptySet());
+        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+            .thenReturn(Collections.emptySet());
+        when(metricStoreWhitelist.getClusterSupport()).thenReturn(true);
+        when(obfuscator.obfuscate("foo")).thenReturn("bar");
+
+        boughtFromProvider.getCommodityBoughtBuilder(0)
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_CLUSTER.getNumber())
+                .setKey("foo"));
+
+        entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
+        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
+
+        // Inactive metrics should not be written.
+        verify(influx).write(eq(DATABASE), eq(RETENTION_POLICY), pointCaptor.capture());
+        final Point point = pointCaptor.getValue();
+        assertThat(point.toString(), containsString("cluster_membership"));
+        assertThat(point.toString(), containsString("VIRTUAL_MACHINE"));
+        assertThat(point.toString(), containsString("11111"));
+        assertThat(point.toString(), containsString("STORAGE_CLUSTER_BOUGHT=bar"));
+    }
+
+    @Test
+    public void testClusterNotWrittenIfNotEnabled() {
+        when(metricStoreWhitelist.getWhitelistMetricTypes())
+            .thenReturn(Collections.emptySet());
+        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+            .thenReturn(Collections.emptySet());
+        when(metricStoreWhitelist.getClusterSupport()).thenReturn(false);
+        when(obfuscator.obfuscate("foo")).thenReturn("bar");
+
+        final CommoditySoldDTO.Builder soldDTO = CommoditySoldDTO.newBuilder()
+            .setActive(true)
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CLUSTER.getNumber())
+                .setKey("foo"));
+
+        entity.addCommoditySoldList(soldDTO);
+        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+            TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
+
+        // Inactive metrics should not be written.
+        verifyNoMoreInteractions(influx);
     }
 
     /**

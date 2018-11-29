@@ -12,10 +12,13 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.ClusterSupport;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.CommodityTypeWhitelist;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.GetClusterSupportRequest;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.GetCommodityTypeWhitelistRequest;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.GetMetricTypeWhitelistRequest;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.MetricTypeWhitelist;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.SetClusterSupportResponse;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.SetCommodityTypeWhitelistResponse;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.SetMetricTypeWhitelistResponse;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastoreServiceGrpc.MLDatastoreServiceImplBase;
@@ -84,6 +87,23 @@ public class MLDatastoreRpcService extends MLDatastoreServiceImplBase {
                                        StreamObserver<SetMetricTypeWhitelistResponse> responseObserver) {
         metricsStoreWhitelist.setWhitelistMetricTypes(new HashSet<>(whitelist.getMetricTypesList()));
         responseObserver.onNext(SetMetricTypeWhitelistResponse.newBuilder().build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getClusterSupport(GetClusterSupportRequest request,
+                                  StreamObserver<ClusterSupport> responseObserver) {
+        responseObserver.onNext(ClusterSupport.newBuilder()
+            .setWriterClusterMemberships(metricsStoreWhitelist.getClusterSupport())
+            .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void setClusterSupport(ClusterSupport clusterSupport,
+                                  StreamObserver<SetClusterSupportResponse> responseObserver) {
+        metricsStoreWhitelist.setClusterSupport(clusterSupport.getWriterClusterMemberships());
+        responseObserver.onNext(SetClusterSupportResponse.newBuilder().build());
         responseObserver.onCompleted();
     }
 }

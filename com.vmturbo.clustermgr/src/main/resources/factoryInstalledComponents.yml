@@ -316,6 +316,8 @@ ml-datastore:
     - PEAK
     - SCALING_FACTOR
     - USED
+  # Whether we should write cluster membership information as part of our metrics.
+  clustersSupported: true
   <<: *auth_conn_info
 
 cost:
