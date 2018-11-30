@@ -1,8 +1,12 @@
 package com.vmturbo.topology.processor.conversions.typespecific;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Lists;
 
@@ -13,26 +17,44 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 
 /**
  * Populate the {@link TypeSpecificInfo} unique to a VirtualMachine - i.e. {@link VirtualMachineInfo}
  **/
 public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
 
+    private static final Logger logger = LogManager.getLogger();
+
     @Override
-    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(final EntityDTOOrBuilder sdkEntity) {
+    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(@Nonnull final EntityDTOOrBuilder sdkEntity,
+            @Nonnull final Map<String, String> entityPropertyMap) {
         if (!sdkEntity.hasVirtualMachineData()) {
             return TypeSpecificInfo.getDefaultInstance();
         }
         final VirtualMachineData vmData = sdkEntity.getVirtualMachineData();
-        return TypeSpecificInfo.newBuilder()
-                .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                        // We're not currently sending tenancy via the SDK
-                        .setTenancy(Tenancy.DEFAULT)
-                        .setGuestOsType(parseOsType(vmData.getGuestName()))
-                        .addAllIpAddresses(parseIpAddressInfo(vmData))
-                        .build())
-                .build();
+        VirtualMachineInfo.Builder vmInfo = VirtualMachineInfo.newBuilder()
+                // We're not currently sending tenancy via the SDK
+                .setTenancy(Tenancy.DEFAULT)
+                .setGuestOsType(parseOsType(vmData.getGuestName()))
+                .addAllIpAddresses(parseIpAddressInfo(vmData));
+
+        // "numCpus" is supposed to be set in VirtualMachineData, but currently most probes
+        // set it in "entityProperties" (like vc, aws...), we should also try to find from the map
+        if (vmData.hasNumCpus()) {
+            vmInfo.setNumCpus(vmData.getNumCpus());
+        } else {
+            String numCpus = entityPropertyMap.get(SupplyChainConstants.NUM_CPUS);
+            if (numCpus != null) {
+                try {
+                    vmInfo.setNumCpus(Integer.valueOf(numCpus));
+                } catch (NumberFormatException e) {
+                    logger.error("Illegal numCpus in VM entity properties: {}", numCpus, e);
+                }
+            }
+        }
+
+        return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }
 
     @Nonnull

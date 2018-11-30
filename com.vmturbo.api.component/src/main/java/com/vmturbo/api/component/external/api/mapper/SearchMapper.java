@@ -109,12 +109,13 @@ public class SearchMapper {
      * @param value the value to search for
      * @return a property filter
      */
-    public static PropertyFilter numericPropertyFilter(String propName, long value) {
+    public static PropertyFilter numericPropertyFilter(String propName, long value,
+            ComparisonOperator comparisonOperator) {
         return PropertyFilter.newBuilder()
                         .setPropertyName(propName)
                         .setNumericFilter(NumericFilter.newBuilder()
                             .setValue(value)
-                            .setComparisonOperator(ComparisonOperator.EQ)
+                            .setComparisonOperator(comparisonOperator)
                             .build())
                         .build();
     }
@@ -176,30 +177,6 @@ public class SearchMapper {
         return result;
     }
 
-    /**
-     * Create a map filter for the specified property name and specified expression field. This is
-     * a simple version of {@link SearchMapper::mapPropertyFilterForMultimaps}. It only support one
-     * value for one key.
-     *
-     * @param propName property name to use for the search.
-     * @param expKey expression field name coming from the UI.
-     * @param expValue the value of the field used to compare.
-     * @return the property filter.
-     */
-    public static PropertyFilter mapPropertyFilterForNormalMap(@Nonnull String propName,
-                                                         @Nonnull String expKey,
-                                                         @Nonnull String expValue) {
-        return PropertyFilter.newBuilder()
-                .setPropertyName(propName)
-                .setMapFilter(
-                        MapFilter.newBuilder()
-                                .setKey(expKey)
-                                .addValues(expValue)
-                                .setIsMultimap(false)
-                                .build()
-                ).build();
-    }
-
     private static PropertyFilter emptyMapPropertyFilter(String propName) {
         return
             PropertyFilter.newBuilder().setPropertyName(propName).setMapFilter(
@@ -213,7 +190,8 @@ public class SearchMapper {
      * @return a property filter
      */
     public static PropertyFilter entityTypeFilter(String entityType) {
-        return numericPropertyFilter(ENTITY_TYPE_PROPERTY, ServiceEntityMapper.fromUIEntityType(entityType));
+        return numericPropertyFilter(ENTITY_TYPE_PROPERTY,
+                ServiceEntityMapper.fromUIEntityType(entityType), ComparisonOperator.EQ);
     }
 
     /**

@@ -3,6 +3,8 @@ package com.vmturbo.topology.processor.conversions.typespecific;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -40,7 +42,8 @@ public class VirtualVolumeInfoMapperTest {
                 .build();
         final VirtualVolumeInfoMapper testBuilder = new VirtualVolumeInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(virtualVolumeEntityDTO);
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(
+                virtualVolumeEntityDTO, Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }

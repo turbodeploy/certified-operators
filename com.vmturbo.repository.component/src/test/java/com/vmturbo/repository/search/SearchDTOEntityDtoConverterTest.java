@@ -1,6 +1,5 @@
 package com.vmturbo.repository.search;
 
-import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
@@ -9,6 +8,9 @@ import java.util.List;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -73,7 +75,13 @@ public class SearchDTOEntityDtoConverterTest {
         assertThat(aqlReprs)
             .hasSize(1)
             .containsExactly(AQLRepr
-                .fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, ENTITY_TYPE_VM.getStringFilter())));
+                .fromFilters(Filter.propertyFilter(
+                        PropertyFilter.newBuilder()
+                                .setPropertyName(ENTITY_TYPE)
+                                .setStringFilter(ENTITY_TYPE_VM.getStringFilter())
+                                .build())));
+
+        ;
     }
 
     @Test
@@ -88,8 +96,16 @@ public class SearchDTOEntityDtoConverterTest {
         assertThat(aqlReprs)
             .hasSize(2)
             .containsExactly(
-                AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, ENTITY_TYPE_VM.getStringFilter())),
-                AQLRepr.fromFilters(Filter.stringPropertyFilter(DISPLAY_NAME, DISPLAY_NAME_FOO.getStringFilter()))
+                AQLRepr.fromFilters(Filter.propertyFilter(
+                        PropertyFilter.newBuilder()
+                                .setPropertyName(ENTITY_TYPE)
+                                .setStringFilter(ENTITY_TYPE_VM.getStringFilter())
+                                .build())),
+                AQLRepr.fromFilters(Filter.propertyFilter(
+                        PropertyFilter.newBuilder()
+                                .setPropertyName(DISPLAY_NAME)
+                                .setStringFilter(DISPLAY_NAME_FOO.getStringFilter())
+                                .build()))
             );
     }
 
@@ -108,12 +124,30 @@ public class SearchDTOEntityDtoConverterTest {
         assertThat(aqlReprs)
             .hasSize(5)
             .containsExactly(
-                AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, ENTITY_TYPE_VM.getStringFilter())),
-                AQLRepr.fromFilters(Filter.stringPropertyFilter(DISPLAY_NAME, DISPLAY_NAME_FOO.getStringFilter())),
+                AQLRepr.fromFilters(Filter.propertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(ENTITY_TYPE_VM.getStringFilter())
+                        .build())),
+                AQLRepr.fromFilters(Filter.propertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName(DISPLAY_NAME)
+                        .setStringFilter(DISPLAY_NAME_FOO.getStringFilter())
+                        .build())),
                 AQLRepr.fromFilters(Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 2)),
-                AQLRepr.fromFilters(Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)),
+                AQLRepr.fromFilters(Filter.propertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName(CAPACITY)
+                        .setNumericFilter(NumericFilter.newBuilder()
+                                .setComparisonOperator(ComparisonOperator.GTE)
+                                .setValue(2L)
+                                .build())
+                        .build())),
                 AQLRepr.fromFilters(Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER,
-                    Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)))
+                        Filter.propertyFilter(PropertyFilter.newBuilder()
+                                .setPropertyName(CAPACITY)
+                                .setNumericFilter(NumericFilter.newBuilder()
+                                        .setComparisonOperator(ComparisonOperator.GTE)
+                                        .setValue(2L)
+                                        .build())
+                                .build())))
             );
     }
 
@@ -126,11 +160,9 @@ public class SearchDTOEntityDtoConverterTest {
         final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
 
         // expect that the regex will be anchored to match the full string
-        assertThat(aqlReprs)
-            .hasSize(1)
-            .containsExactly(
-                AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, makeStringFilter('^' + VIRTUAL_MACHINE + '$', true)))
-            );
+        // numeric filter for entity type is converted to string filter
+        assertThat(SearchDTOConverter.toAqlRepr(searchParameters).get(0).toAQL().toString())
+                .contains("FILTER  REGEX_TEST(service_entity.entityType, \"^VirtualMachine$\", false)");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -147,7 +179,7 @@ public class SearchDTOEntityDtoConverterTest {
                 .addSearchFilter(Search.SearchFilter.newBuilder().setPropertyFilter(missingValueFilter).build())
                 .build();
 
-        SearchDTOConverter.toAqlRepr(searchParameters);
+        SearchDTOConverter.toAqlRepr(searchParameters).forEach(AQLRepr::toAQL);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -163,19 +195,18 @@ public class SearchDTOEntityDtoConverterTest {
                 .addSearchFilter(Search.SearchFilter.newBuilder().setTraversalFilter(TWO_HOPS_TRAVERSAL).build())
                 .addSearchFilter(Search.SearchFilter.newBuilder().setPropertyFilter(missingNumOpFilter).build())
                 .build();
-
-        SearchDTOConverter.toAqlRepr(searchParameters);
+        SearchDTOConverter.toAqlRepr(searchParameters).forEach(AQLRepr::toAQL);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testMissingFilter() throws Throwable {
-        final Search.PropertyFilter missingFilter = Search.PropertyFilter.newBuilder()
+        final Search.PropertyFilter missingTypeFilterAndNextFilter = Search.PropertyFilter.newBuilder()
                 .setPropertyName(CAPACITY)
                 .build();
         final SearchParameters searchParameters = SearchParameters.newBuilder()
                 .setStartingFilter(ENTITY_TYPE_VM)
                 .addSearchFilter(Search.SearchFilter.newBuilder().setTraversalFilter(TWO_HOPS_TRAVERSAL).build())
-                .addSearchFilter(Search.SearchFilter.newBuilder().setPropertyFilter(missingFilter).build())
+                .addSearchFilter(Search.SearchFilter.newBuilder().setPropertyFilter(missingTypeFilterAndNextFilter).build())
                 .build();
 
         SearchDTOConverter.toAqlRepr(searchParameters);

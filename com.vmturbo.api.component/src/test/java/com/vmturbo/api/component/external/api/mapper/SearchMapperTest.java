@@ -6,6 +6,7 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -61,7 +62,7 @@ public class SearchMapperTest {
                         SearchMapper.traverseToType(TraversalDirection.CONSUMES, VM);
         assertEquals(TraversalDirection.CONSUMES, traversalFilter.getTraversalDirection());
         assertEquals(SearchMapper.numericPropertyFilter("entityType",
-            ServiceEntityMapper.fromUIEntityType(VM)),
+            ServiceEntityMapper.fromUIEntityType(VM), ComparisonOperator.EQ),
             traversalFilter.getStoppingCondition().getStoppingPropertyFilter());
     }
 

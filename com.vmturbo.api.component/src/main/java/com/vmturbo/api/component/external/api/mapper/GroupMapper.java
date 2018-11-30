@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -45,7 +45,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
@@ -59,28 +64,10 @@ import com.vmturbo.components.common.ClassicEnumMapper;
 public class GroupMapper {
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * Name of the field for VM specific info in the ServiceEntityRepoDTO. This needs
-     * to be consistent with the name in ServiceEntityRepoDTO. Pay attention to the first
-     * character which is usually lower case.
-     */
-    public static final String VIRTUAL_MACHINE_INFO = "virtualMachineInfo";
-
-    /**
-     * Set of names of the fields for entity type specific info in the ServiceEntityRepoDTO. This
-     * needs to be consistent with the name in ServiceEntityRepoDTO. Pay attention to the first
-     * character which is usually lower case.
-     */
-    private static Set<String> TYPE_SPECIFIC_INFO_FIELDS = ImmutableSet.of(
-            VIRTUAL_MACHINE_INFO
-    );
-
     public static final String GROUP = "Group";
     public static final String CLUSTER = "Cluster";
     public static final String STORAGE_CLUSTER = "StorageCluster";
-
     public static final String OID = "oid";
-    public static final String DISPLAY_NAME = "displayName";
 
     // For normal criteria, user just need to provide a string (like a display name). But for
     // some criteria, UI allow user to choose from list of available options (like tags, state and
@@ -101,55 +88,46 @@ public class GroupMapper {
     private static final String CONNECTED_FROM = "CONNECTED_FROM";
 
     public static final String ELEMENTS_DELIMITER = ":";
+    public static final String NESTED_FIELD_DELIMITER = "\\.";
 
     public static final String EQUAL = "EQ";
     public static final String NOT_EQUAL = "NEQ";
+    public static final String GREATER_THAN = "GT";
+    public static final String LESS_THAN = "LT";
+    public static final String GREATER_THAN_OR_EQUAL = "GTE";
+    public static final String LESS_THAN_OR_EQUAL = "LTE";
 
+    // map from the comparison string to the ComparisonOperator enum
+    private static final Map<String, ComparisonOperator> COMPARISON_STRING_TO_COMPARISON_OPERATOR =
+            ImmutableMap.<String, ComparisonOperator>builder()
+                    .put(EQUAL, ComparisonOperator.EQ)
+                    .put(NOT_EQUAL, ComparisonOperator.NE)
+                    .put(GREATER_THAN, ComparisonOperator.GT)
+                    .put(LESS_THAN, ComparisonOperator.LT)
+                    .put(GREATER_THAN_OR_EQUAL, ComparisonOperator.GTE)
+                    .put(LESS_THAN_OR_EQUAL, ComparisonOperator.LTE)
+                    .build();
+
+    // map from the comparison symbol to the ComparisonOperator enum
+    // the order matters, since when this is used for checking whether a string contains
+    // ">" or ">=", we should check ">=" first
+    private static final Map<String, ComparisonOperator> COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR;
+    static {
+        Map<String, ComparisonOperator> symbolToOperator = new LinkedHashMap<>();
+        symbolToOperator.put("!=", ComparisonOperator.NE);
+        symbolToOperator.put(">=", ComparisonOperator.GTE);
+        symbolToOperator.put("<=", ComparisonOperator.LTE);
+        symbolToOperator.put("=", ComparisonOperator.EQ);
+        symbolToOperator.put(">", ComparisonOperator.GT);
+        symbolToOperator.put("<", ComparisonOperator.LT);
+        COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR = Collections.unmodifiableMap(symbolToOperator);
+    }
 
     private static final Map<String, Function<SearchFilterContext, List<SearchFilter>>> FILTER_TYPES_TO_PROCESSORS;
-
     static {
         final TraversalFilterProcessor traversalFilterProcessor = new TraversalFilterProcessor();
-        final Function<SearchFilterContext, List<SearchFilter>> entityTypeSpecificInfoFilter = context -> {
-            Optional<String> subToken = context.getSubToken();
-            if (!subToken.isPresent()) {
-                logger.error("No nested field provided for {}, thus using empty filter", context.getCurrentToken());
-                return Collections.emptyList();
-            }
-            final PropertyFilter entityInfoPropertyFilter = SearchMapper.mapPropertyFilterForNormalMap(
-                    context.getCurrentToken(), subToken.get(), context.getFilter().getExpVal());
-            return Collections.singletonList(SearchMapper.searchFilterProperty(entityInfoPropertyFilter));
-        };
         final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
                 filterTypesToProcessors = new ImmutableMap.Builder<>();
-        filterTypesToProcessors.put(
-                OID,
-                context -> {
-                    final PropertyFilter propertyFilter =
-                            SearchMapper.stringFilter(
-                                    OID,
-                                    context.getFilter().getExpVal(),
-                                    context.getFilter().getExpType().equals(EQUAL));
-                    return Collections.singletonList(SearchMapper.searchFilterProperty(propertyFilter));
-                });
-        filterTypesToProcessors.put(
-                DISPLAY_NAME,
-                context -> {
-                    final PropertyFilter propertyFilter =
-                            SearchMapper.nameFilter(
-                                context.getFilter().getExpVal(),
-                                context.getFilter().getExpType().equals(EQUAL));
-                    return Collections.singletonList(SearchMapper.searchFilterProperty(propertyFilter));
-                });
-        filterTypesToProcessors.put(
-                STATE,
-                context -> {
-                    final PropertyFilter stateFilter =
-                            SearchMapper.stateFilter(
-                                context.getFilter().getExpVal(),
-                                context.getFilter().getExpType().equals(EQUAL));
-                    return Collections.singletonList(SearchMapper.searchFilterProperty(stateFilter));
-                });
         filterTypesToProcessors.put(
                 TAGS,
                 context -> {
@@ -170,7 +148,6 @@ public class GroupMapper {
                                     context.getFilter().getExpType().equals(EQUAL)));
                     return Collections.singletonList(SearchMapper.searchFilterCluster(clusterFilter));
                 });
-        filterTypesToProcessors.put(VIRTUAL_MACHINE_INFO, entityTypeSpecificInfoFilter);
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
         filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
         filterTypesToProcessors.put(CONNECTED_FROM, traversalFilterProcessor);
@@ -539,7 +516,7 @@ public class GroupMapper {
 
         final ImmutableList.Builder<SearchFilter> searchFilters = new ImmutableList.Builder<>();
         while (iterator.hasNext()) {
-            searchFilters.addAll(processToken(filter, entityType, iterator));
+            searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType()));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
             searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(nameQuery)));
@@ -550,27 +527,195 @@ public class GroupMapper {
     }
 
     private List<SearchFilter> processToken(@Nonnull FilterApiDTO filter,
-                    @Nonnull String entityType, @Nonnull Iterator<String> iterator) {
+                                            @Nonnull String entityType,
+                                            @Nonnull Iterator<String> iterator,
+                                            @Nonnull String inputType) {
         final String currentToken = iterator.next();
 
-        final SearchFilterContext filterContext;
-        // todo: this should be improved to handle multiple nested levels (OM-40354)
-        if (TYPE_SPECIFIC_INFO_FIELDS.contains(currentToken)) {
-            // if the field is type specific info field, we need to go to next field in iterator
-            // for example: virtualMachineInfo:guestOsType, virtualMachineInfo is the name of field
-            // for vm specific info, guestOsType is the field inside virtualMachineInfo
-            String subToken = iterator.next();
-            filterContext = new SearchFilterContext(filter, iterator, entityType, currentToken, subToken);
-        } else {
-            filterContext = new SearchFilterContext(filter, iterator, entityType, currentToken);
-        }
-
+        final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator,
+                entityType, currentToken);
         final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
                         FILTER_TYPES_TO_PROCESSORS.get(currentToken);
-        return filterApiDtoProcessor != null
-                        ? filterApiDtoProcessor.apply(filterContext)
-                        : ImmutableList.of(SearchMapper.searchFilterProperty(
-                                        SearchMapper.entityTypeFilter(currentToken)));
+
+        if (filterApiDtoProcessor != null) {
+            return filterApiDtoProcessor.apply(filterContext);
+        } else if (ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.keySet().contains(currentToken)) {
+            return ImmutableList.of(SearchMapper.searchFilterProperty(
+                    SearchMapper.entityTypeFilter(currentToken)));
+        } else {
+            final PropertyFilter propertyFilter = isListToken(currentToken) ?
+                    createPropertyFilterForListToken(currentToken, inputType, filter) :
+                    createPropertyFilterForNormalToken(currentToken, inputType, filter);
+            return ImmutableList.of(SearchMapper.searchFilterProperty(propertyFilter));
+        }
+    }
+
+    /**
+     * Create PropertyFilter for a list token.
+     * The list token starts with the name of the property which is a list, and then wrap filter
+     * criteria with "[" and "]". Each criteria is a key value pair combined using "=". If the
+     * criteria starts with "#", it means this value is numeric, otherwise it is a string. The last
+     * criteria may be a special one which doesn't start with "#" or contains "=", it is just a
+     * single property whose value and type are provided by UI.
+     * For example: currentToken: "commoditySoldList[type=VMem,#used>0,capacity]". It means finds
+     * entities whose VMem commodity's used is more than 0 and capacity meets the value defined in
+     * FilterApiDTO.
+     *
+     * @param currentToken the token which contains nested fields
+     * @param inputType the type of the input from UI, which can be "*" (string) or "#" (number)
+     * @param filter the FilterApiDTO which contains values provided by user in UI
+     * @return PropertyFilter
+     */
+    private PropertyFilter createPropertyFilterForListToken(@Nonnull String currentToken,
+            @Nonnull String inputType, @Nonnull FilterApiDTO filter) {
+        // list, for example: "commoditySoldList[type=VMem,#used>0,capacity]"
+        int left = currentToken.indexOf('[');
+        int right = currentToken.lastIndexOf(']');
+        // name of the property which is a list, for example: commoditySoldList
+        final String listFieldName = currentToken.substring(0, left);
+
+        ListFilter.Builder listFilter = ListFilter.newBuilder();
+        // there is no nested property inside list, the list is a list of strings or numbers
+        // for example: targetIds[]
+        if (left == right) {
+            switch (inputType) {
+                case "*":
+                    // string comparison
+                    listFilter.setStringFilter(StringFilter.newBuilder()
+                            .setStringPropertyRegex(filter.getExpVal())
+                            .setMatch(filter.getExpType().equals(EQUAL))
+                            .setCaseSensitive(false)
+                            .build());
+                    break;
+                case "#":
+                    // numeric comparison
+                    listFilter.setNumericFilter(NumericFilter.newBuilder()
+                            .setValue(Long.valueOf(filter.getExpVal()))
+                            .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(
+                                    filter.getExpType()))
+                            .build());
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Input type: " + inputType +
+                            " is not supported for ListFilter");
+            }
+        } else {
+            ObjectFilter.Builder objectFilter = ObjectFilter.newBuilder();
+            // for example: "type=VMem,#used>0,capacity"
+            final String nestedListField = currentToken.substring(left + 1, right);
+            for (String criteria : nestedListField.split(",")) {
+                if (isListToken(criteria)) {
+                    // create nested list filter recursively
+                    objectFilter.addFilters(createPropertyFilterForListToken(criteria,
+                            inputType, filter));
+                } else if (criteria.startsWith("#")) {
+                    // this is numeric, find the symbol (>) in "#used>0"
+                    String symbol = null;
+                    int indexOfSymbol = 0;
+                    for (String sb : COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR.keySet()) {
+                        int indexOfSb = criteria.indexOf(sb);
+                        if (indexOfSb != -1) {
+                            symbol = sb;
+                            indexOfSymbol = indexOfSb;
+                            break;
+                        }
+                    }
+                    if (symbol == null) {
+                        throw new IllegalArgumentException("No comparison symbol found in"
+                                + " criteria: " + criteria);
+                    }
+                    // key: "used"
+                    final String key = criteria.substring(1, indexOfSymbol);
+                    // value: "2"
+                    final String value = criteria.substring(indexOfSymbol + symbol.length());
+                    // ComparisonOperator for ">="
+                    final ComparisonOperator co = COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR.get(symbol);
+
+                    objectFilter.addFilters(PropertyFilter.newBuilder()
+                            .setPropertyName(key)
+                            .setNumericFilter(NumericFilter.newBuilder()
+                                    .setComparisonOperator(co)
+                                    .setValue(Integer.valueOf(value))
+                                    .build())
+                            .build());
+                } else if (criteria.contains("=")) {
+                    // if no # provided, it means string by default, for example: "type=VMem"
+                    // wrap value with "^...$" so the string will match exactly "VMem", not "VMemBlah"
+                    // for PM Mem capacity case, we only want to compare the capacity of Mem, but
+                    // not MemProvisioned or MemAllocation
+                    String[] keyValue = criteria.split("=");
+                    objectFilter.addFilters(SearchMapper.stringFilter(keyValue[0], "^" + keyValue[1] + "$"));
+                } else {
+                    // if no "=", it means this is final field, whose comparison operator and value
+                    // are provided by UI in FilterApiDTO, for example: capacity
+                    objectFilter.addFilters(createPropertyFilterForNormalToken(criteria,
+                            inputType, filter));
+                }
+            }
+            listFilter.setObjectFilter(objectFilter.build());
+        }
+
+        return PropertyFilter.newBuilder()
+                .setPropertyName(listFieldName)
+                .setListFilter(listFilter.build())
+                .build();
+    }
+
+    /**
+     * Create SearchFilter for a normal token (string/numeric) which may contain nested fields.
+     * For example: currentToken: "virtualMachineInfoRepoDTO.numCpus"
+     *
+     * @param currentToken the token which may contain nested fields
+     * @param inputType the type of the input from UI, which can be "*" (string) or "#" (number)
+     * @param filter the FilterApiDTO which contains values provided by user in UI
+     * @return PropertyFilter
+     */
+    private PropertyFilter createPropertyFilterForNormalToken(@Nonnull String currentToken,
+            @Nonnull String inputType, @Nonnull FilterApiDTO filter) {
+        final String[] nestedFields = currentToken.split(NESTED_FIELD_DELIMITER);
+        // start from last field, create the innermost PropertyFilter
+        String lastField = nestedFields[nestedFields.length - 1];
+        PropertyFilter currentFieldPropertyFilter;
+        switch (inputType) {
+            case "*":
+                // string comparison
+                currentFieldPropertyFilter = SearchMapper.stringFilter(lastField,
+                        filter.getExpVal(), filter.getExpType().equals(EQUAL));
+                break;
+            case "#":
+                // numeric comparison
+                currentFieldPropertyFilter = SearchMapper.numericPropertyFilter(lastField,
+                        Long.valueOf(filter.getExpVal()),
+                        COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType()));
+                break;
+            default:
+                throw new UnsupportedOperationException("Input type: " + inputType +
+                        " is not supported");
+        }
+
+        // process nested fields from second last in descending order
+        for (int i = nestedFields.length - 2; i >= 0; i--) {
+            currentFieldPropertyFilter = PropertyFilter.newBuilder()
+                    .setPropertyName(nestedFields[i])
+                    .setObjectFilter(ObjectFilter.newBuilder()
+                            .addFilters(currentFieldPropertyFilter)
+                            .build())
+                    .build();
+        }
+        return currentFieldPropertyFilter;
+    }
+
+    /**
+     * Check whether the token is a list token.
+     * For example: "commoditySoldList[type=VMem,capacity]".
+     *
+     * @param token the token to check list for
+     * @return true if the token is a list, otherwise false
+     */
+    private boolean isListToken(@Nonnull String token) {
+        int left = token.indexOf('[');
+        int right = token.lastIndexOf(']');
+        return left != -1 && right != -1 && left < right;
     }
 
     private SearchParameters.FilterSpecs toFilterSpecs(FilterApiDTO filter) {
@@ -613,28 +758,12 @@ public class GroupMapper {
 
         private final String currentToken;
 
-        // subToken is a token which is associated with currentToken (nested field). for example:
-        // "virtualMachineInfo:guestOsType", currentToken is "virtualMachineInfo" and subToken is
-        // "guestOsType"
-        // todo: this should be improved to handle multiple nested levels (OM-40354)
-        private final String subToken;
-
         public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
                         @Nonnull String entityType, @Nonnull String currentToken) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
             this.entityType = Objects.requireNonNull(entityType);
             this.currentToken = Objects.requireNonNull(currentToken);
-            this.subToken = null;
-        }
-
-        public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
-                @Nonnull String entityType, @Nonnull String currentToken, @Nonnull String subToken) {
-            this.filter = Objects.requireNonNull(filter);
-            this.iterator = Objects.requireNonNull(iterator);
-            this.entityType = Objects.requireNonNull(entityType);
-            this.currentToken = Objects.requireNonNull(currentToken);
-            this.subToken = Objects.requireNonNull(subToken);
         }
 
         @Nonnull
@@ -655,10 +784,6 @@ public class GroupMapper {
         @Nonnull
         public String getCurrentToken() {
             return currentToken;
-        }
-
-        public Optional<String> getSubToken() {
-            return Optional.ofNullable(subToken);
         }
 
         public boolean isHopCountBasedTraverse(@Nonnull StoppingCondition stopper) {

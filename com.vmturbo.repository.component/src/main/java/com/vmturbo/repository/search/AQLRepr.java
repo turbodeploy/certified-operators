@@ -9,7 +9,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -19,8 +18,6 @@ import org.slf4j.LoggerFactory;
 import com.github.jknack.handlebars.Template;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import javaslang.collection.List;
 import javaslang.control.Option;
 
@@ -35,18 +32,12 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
 
     private static final Logger LOG = LoggerFactory.getLogger(AQLRepr.class);
 
-    private static final Set<Filter.Type> PROPERTY_FILTER_TYPE =
-            ImmutableSet.of(
-                    Filter.Type.PROPERTY_NUMERIC,
-                    Filter.Type.PROPERTY_STRING,
-                    Filter.Type.PROPERTY_MAP);
-
     private final List<Filter<? extends AnyFilterType>> filters;
 
     private final Optional<AQLPagination> pagination;
 
     public AQLRepr(@Nonnull final List<Filter<? extends AnyFilterType>> filtersArg) {
-        checkArgument(filtersArg.tail().forAll(f -> PROPERTY_FILTER_TYPE.contains(f.getType())),
+        checkArgument(filtersArg.tail().forAll(f -> f.getType() == Filter.Type.PROPERTY),
                 "Only the first filter can contain a traversal filter");
         this.filters = Objects.requireNonNull(filtersArg);
         this.pagination = Optional.empty();
@@ -54,7 +45,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
 
     public AQLRepr(@Nonnull final List<Filter<? extends AnyFilterType>> filtersArg,
                    @Nonnull final AQLPagination pagination) {
-        checkArgument(filtersArg.tail().forAll(f -> PROPERTY_FILTER_TYPE.contains(f.getType())),
+        checkArgument(filtersArg.tail().forAll(f -> f.getType() == Filter.Type.PROPERTY),
                 "Only the first filter can contain a traversal filter");
         this.filters = Objects.requireNonNull(filtersArg);
         this.pagination = Optional.of(pagination);
@@ -78,9 +69,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         return filters.headOption().map(firstFilter -> {
             final AQL aql = (AQL)firstFilter.match(
                     Filters.cases(
-                        (strPropName, stringFilter) -> constructPropertyAQL(firstFilter),
-                        (numPropName, numOp, numValue) -> constructPropertyAQL(firstFilter),
-                        (mapPropName, key, value, multi) -> constructPropertyAQL(firstFilter),
+                        (propertyFilter) -> constructPropertyAQL(firstFilter),
                         this::constructTraversalHopAQL,
                         this::constructTraversalCondAQL));
 

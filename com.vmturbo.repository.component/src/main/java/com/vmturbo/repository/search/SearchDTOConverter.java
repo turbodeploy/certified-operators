@@ -6,10 +6,13 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -117,91 +120,12 @@ public class SearchDTOConverter {
         }
     }
 
-    private static Either<Throwable, Filter<PropertyFilterType>> convertPropertyFilter(final Search.PropertyFilter propertyFilter) {
-        final String propertyName = propertyFilter.getPropertyName();
-        final Filter<PropertyFilterType> filter;
-
-        switch (propertyFilter.getPropertyTypeCase()) {
-            case NUMERIC_FILTER:
-                if (!propertyFilter.getNumericFilter().hasValue()) {
-                    return Either.left(new IllegalArgumentException("Numeric filter value is not set"));
-                }
-
-                if (!propertyFilter.getNumericFilter().hasComparisonOperator()) {
-                    return Either.left(new IllegalArgumentException("Numeric filter comparison operator is not set"));
-                }
-
-                final long value = propertyFilter.getNumericFilter().getValue();
-                if (propertyName.equals("entityType")) {
-                    // translate the entityType number to a string; make sure matches entire value
-                    // Match the case as well - entity type is driven by enum.
-                    filter = Filter.stringPropertyFilter(propertyName,
-                        StringFilter.newBuilder()
-                            .setStringPropertyRegex('^' + RepoObjectType.mapEntityType(Math.toIntExact(value)) + '$')
-                            .setMatch(true)
-                            .setCaseSensitive(true)
-                            .build());
-                }
-                else {
-                    final Filter.NumericOperator numOp;
-                    switch (propertyFilter.getNumericFilter().getComparisonOperator()) {
-                        case EQ:
-                            numOp = Filter.NumericOperator.EQ;
-                            break;
-
-                        case NE:
-                            numOp = Filter.NumericOperator.NEQ;
-                            break;
-
-                        case GT:
-                            numOp = Filter.NumericOperator.GT;
-                            break;
-
-                        case GTE:
-                            numOp = Filter.NumericOperator.GTE;
-                            break;
-
-                        case LT:
-                            numOp = Filter.NumericOperator.LT;
-                            break;
-
-                        case LTE:
-                            numOp = Filter.NumericOperator.LTE;
-                            break;
-
-                        default:
-                            return Either.left(new IllegalArgumentException("ComparisonOperator is not set"));
-                    }
-
-                    filter = Filter.numericPropertyFilter(propertyName, numOp, value);
-                }
-                break;
-
-            case STRING_FILTER:
-                final StringFilter stringFilter = propertyFilter.getStringFilter();
-                if (!stringFilter.hasStringPropertyRegex()) {
-                    return Either.left(new IllegalArgumentException("String filter regex is not set"));
-                }
-                filter = Filter.stringPropertyFilter(propertyName, stringFilter);
-                break;
-
-            case MAP_FILTER:
-                filter =
-                        Filter.mapPropertyFilter(
-                                propertyName,
-                                propertyFilter.getMapFilter().getKey(),
-                                propertyFilter.getMapFilter().getValuesList(),
-                                propertyFilter.getMapFilter().getIsMultimap()
-                        );
-                break;
-
-            case PROPERTYTYPE_NOT_SET:
-            default:
-                return Either.left(
-                    new IllegalArgumentException("Property filter does not contain a String or Numeric filter"));
+    public static Either<Throwable, Filter<PropertyFilterType>> convertPropertyFilter(
+            @Nonnull final PropertyFilter propertyFilter) {
+        if (propertyFilter.getPropertyTypeCase() == PropertyTypeCase.PROPERTYTYPE_NOT_SET) {
+            return Either.left(new IllegalArgumentException("Property type filter is not set"));
         }
-
-        return Either.right(filter);
+        return Either.right(Filter.propertyFilter(propertyFilter));
     }
 
     /**

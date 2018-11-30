@@ -6,14 +6,17 @@
             {"inputType": "*", "elements": "VirtualDataCenter:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByVDC"},
             {"inputType": "*", "elements": "VirtualDataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDCnested"},
             {"inputType": "*", "elements": "DiskArray:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByDiskArrayName"},
-            {"inputType": "*", "elements": "Storage:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
+            {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByStorage"},
             {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
             {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "vmsByState"},
             {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag"},
-            {"inputType": "*", "elements": "virtualMachineInfo:guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
-            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"}
+            {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
+            {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
+            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"},
+            {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
+            {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"}
         ]
     },
 

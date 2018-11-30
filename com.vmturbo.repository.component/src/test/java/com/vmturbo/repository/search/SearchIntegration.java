@@ -23,6 +23,7 @@ import javaslang.collection.List;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -52,13 +53,18 @@ public class SearchIntegration {
 
     @Test
     public void overallFlow() {
-        final AQLRepr repr1 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("entityType", makeStringFilter("DataCenter", true))));
+        final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
+                PropertyFilter.newBuilder()
+                        .setPropertyName("entityType")
+                        .setStringFilter(makeStringFilter("DataCenter", true))
+                        .build())));
         final AQLRepr repr2 = new AQLRepr(List.of(
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1)));
-        final AQLRepr repr3 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("displayName", makeStringFilter("20", false))));
-
+        final AQLRepr repr3 = new AQLRepr(List.of(Filter.propertyFilter(
+                PropertyFilter.newBuilder()
+                        .setPropertyName("displayName")
+                        .setStringFilter(makeStringFilter("20", false))
+                        .build())));
         final SearchStage<SearchComputationContext, Collection<String>, Collection<String>> s1 =
                 () -> new ArangoDBSearchComputation(repr1.toAQL());
         final SearchStage<SearchComputationContext, Collection<String>, Collection<String>> s2 =
@@ -192,12 +198,18 @@ public class SearchIntegration {
 
         final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory);
 
-        final AQLRepr repr1 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("entityType", makeStringFilter("PhysicalMachine", true))));
+        final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
+                PropertyFilter.newBuilder()
+                        .setPropertyName("entityType")
+                        .setStringFilter(makeStringFilter("PhysicalMachine", true))
+                        .build())));
         final AQLRepr repr2 = new AQLRepr(List.of(
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1)));
-        final AQLRepr repr3 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("displayName", makeStringFilter("#", false))));
+        final AQLRepr repr3 = new AQLRepr(List.of(Filter.propertyFilter(
+                PropertyFilter.newBuilder()
+                        .setPropertyName("displayName")
+                        .setStringFilter(makeStringFilter("#", false))
+                        .build())));
 
         SearchHandler searchHandler = new SearchHandler(graphDefinition,
                                                         arangoDatabaseFactory,

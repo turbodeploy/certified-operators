@@ -250,7 +250,7 @@ public class SdkToTopologyEntityConverter {
             calculateSuspendabilityWithStitchingEntity(entity)
         );
 
-        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto));
+        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, entityPropertyMap));
         return retBuilder;
     }
 
@@ -263,10 +263,11 @@ public class SdkToTopologyEntityConverter {
      */
     @Nonnull
     private static TypeSpecificInfo mapToTypeSpecificInfo(
-            @Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity) {
+            @Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity,
+            @Nonnull final Map<String, String> entityPropertyMap) {
         Objects.requireNonNull(sdkEntity, "sdkEntity parameter must not be null");
         return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityDataCase()))
-                .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(sdkEntity))
+                .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(sdkEntity, entityPropertyMap))
                 .orElse(TypeSpecificInfo.getDefaultInstance());
     }
 
@@ -388,7 +389,7 @@ public class SdkToTopologyEntityConverter {
                 calculateSuspendability(dto)
         );
 
-        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto));
+        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, entityPropertyMap));
         return retBuilder;
     }
 

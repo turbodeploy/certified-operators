@@ -4,6 +4,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Class containing all the fields that need to be saved to ArangoDB, all the info comes from
+ * TopologyEntityDTO.
+ *
+ * Note: Any change to the name of existing getter should also be reflected in
+ * "groupBuilderUsecases.json", since the name of the field saved to ArangoDB is based on the
+ * getter. For example: for "virtualMachineInfo", getter is "getVirtualMachineInfoRepoDTO", then it
+ * is saved as "virtualMachineInfoRepoDTO". Maybe we can consider using @JsonProperty(...).
+ * See https://github.com/FasterXML/jackson-databind#annotations-changing-property-names
+ */
 public class ServiceEntityRepoDTO {
     protected String uuid;
 

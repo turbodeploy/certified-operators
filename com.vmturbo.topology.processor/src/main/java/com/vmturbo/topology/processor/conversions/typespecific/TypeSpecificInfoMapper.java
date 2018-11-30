@@ -1,13 +1,11 @@
 package com.vmturbo.topology.processor.conversions.typespecific;
 
-import java.util.Objects;
-import java.util.Optional;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -23,31 +21,15 @@ public abstract class TypeSpecificInfoMapper {
      * of the given {@link EntityDTO}.
      *
      * @param sdkEntity the SDK {@link EntityDTO} for which we will build the {@link TypeSpecificInfo}
+     * @param  entityPropertyMap the mapping from property name to property value, which comes from
+     * the {@link EntityDTO#entityProperties_}. For most cases, the type specific info is set in
+     * {@link EntityDTO#entityData_}, but some are only set inside {@link EntityDTO#entityProperties_}
      * @return a new {@link TypeSpecificInfo} with the 'oneof' field corresponding to the type
      * of the given 'sdkEntity'
      */
-    public abstract TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(EntityDTOOrBuilder sdkEntity);
-
-    /**
-     * Fetch an Optional containing the value of EntityProperty with the given name
-     * from the getEntityPropertiesList of the given {@link EntityDTO} if found,
-     * or Optional.empty() if not found.
-     * <p/>
-     * Note that we ignore the namespace.
-     *
-     * @param sdkEntity the {@link EntityDTO} to look at
-     * @param propertyName the name of the property to fetch from 'entityPropertiesList'
-     * @return Optional containing the value of the property with the given name,
-     * or Optional.empty() if not found
-     */
-    protected Optional<String> getEntityPropertyValue(@Nonnull EntityDTOOrBuilder sdkEntity,
-                                                                      @Nonnull String propertyName) {
-        Objects.requireNonNull(propertyName);
-        return Objects.requireNonNull(sdkEntity).getEntityPropertiesList().stream()
-            .filter(entityProperty -> entityProperty.getName().equals(propertyName))
-            .map(EntityProperty::getValue)
-            .findFirst();
-    }
+    public abstract TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
+            @Nonnull EntityDTOOrBuilder sdkEntity,
+            @Nonnull Map<String, String> entityPropertyMap);
 
     /**
      * Convert a string representation of the Database Edition to the corresponding

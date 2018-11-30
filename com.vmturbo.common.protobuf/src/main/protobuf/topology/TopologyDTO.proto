@@ -42,6 +42,9 @@ message TypeSpecificInfo {
 
         // List of IP addresses for the VM.
         repeated IpAddress ip_addresses = 3;
+
+        // Total number of CPUs for the VM
+        optional int32 num_cpus = 4;
     }
 
     // Properties unique to a PhysicalMachine in the model

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.derive4j.Data;
 import org.derive4j.Derive;
@@ -11,7 +12,14 @@ import org.derive4j.ExportAsPublic;
 import org.derive4j.Flavour;
 import org.derive4j.Visibility;
 
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 
 /**
@@ -23,7 +31,7 @@ import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
 
     enum Type {
-        PROPERTY_STRING, PROPERTY_NUMERIC, PROPERTY_MAP, TRAVERSAL_HOP, TRAVERSAL_COND
+        PROPERTY, TRAVERSAL_HOP, TRAVERSAL_COND
     }
 
     enum NumericOperator implements AQLConverter {
@@ -111,9 +119,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     }
 
     interface Cases<R> {
-        R StringPropertyFilter(String propName, StringFilter stringFilter);
-        R NumericPropertyFilter(String numPropName, NumericOperator numOp, Number numValue);
-        R MapPropertyFilter(String mapPropName, String key, List<String> values, boolean multi);
+        R PropertyFilter(PropertyFilter propertyFilter);
         R TraverseHopFilter(TraversalDirection direction, int hop);
         R TraverseCondFilter(TraversalDirection direction, Filter filter);
     }
@@ -128,9 +134,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     @SuppressWarnings("unchecked")
     public Type getType() {
         return Filters.cases()
-                .StringPropertyFilter(Type.PROPERTY_STRING)
-                .NumericPropertyFilter(Type.PROPERTY_NUMERIC)
-                .MapPropertyFilter(Type.PROPERTY_MAP)
+                .PropertyFilter(Type.PROPERTY)
                 .TraverseHopFilter(Type.TRAVERSAL_HOP)
                 .TraverseCondFilter(Type.TRAVERSAL_COND)
                 .apply((Filter<Object>) this);
@@ -143,9 +147,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
      */
     public Filter<? extends AnyFilterType> copy() {
         final Cases<Filter<? extends AnyFilterType>> cases = Filters.cases(
-                Filter::stringPropertyFilter,
-                Filter::numericPropertyFilter,
-                Filter::mapPropertyFilter,
+                Filter::propertyFilter,
                 Filter::traversalHopFilter,
                 Filter::traversalCondFilter);
         return this.match(cases);
@@ -163,6 +165,181 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     }
 
     /**
+     * Create AQL for the property filter. If there are nested properties defined though the
+     * ObjectFilter, it builds AQL for nested filter recursively.
+     *
+     * @param propertyFilter the PropertyFilter to create AQL for
+     * @param objectName name of the object which contains this property, if it is null, just use
+     * the property name to check
+     * @return AQL for the property filter
+     */
+    private static String createAQLForPropertyFilter(@Nonnull PropertyFilter propertyFilter,
+            @Nullable String objectName) {
+        String propertyName = propertyFilter.getPropertyName();
+        // for example: if propertyName is numCpus, objectName is virtualMachineInfoRepoDTO
+        // the AQL for this object should be "virtualMachineInfoRepoDTO.numCpus"
+        // for list filter, the objectName can be null
+        String objectNameAql = objectName == null ? propertyName : objectName + "." + propertyName;
+
+        StringBuilder stringBuilder = new StringBuilder();
+        switch (propertyFilter.getPropertyTypeCase()) {
+            case OBJECT_FILTER:
+                propertyFilter.getObjectFilter().getFiltersList().forEach(filter ->
+                        stringBuilder.append(createAQLForPropertyFilter(filter, objectNameAql)));
+                break;
+
+            case STRING_FILTER:
+                final StringFilter stringFilter = propertyFilter.getStringFilter();
+                stringBuilder.append(String.format("FILTER %s REGEX_TEST(%s, \"%s\", %s)\n",
+                            stringFilter.getMatch() ? "" : "NOT", objectNameAql,
+                            stringFilter.getStringPropertyRegex(),
+                            stringFilter.getCaseSensitive() ? "false" : "true"));
+                break;
+
+            case NUMERIC_FILTER:
+                final NumericFilter numericFilter = propertyFilter.getNumericFilter();
+                if (!numericFilter.hasValue()) {
+                    throw new IllegalArgumentException("Numeric filter value is not set");
+                }
+
+                if (!numericFilter.hasComparisonOperator()) {
+                    throw new IllegalArgumentException("Numeric filter comparison operator is not set");
+                }
+
+                if (propertyName.equals("entityType")) {
+                    // translate the entityType number to a string; make sure matches entire value
+                    // Match the case as well - entity type is driven by enum.
+                    PropertyFilter pf = PropertyFilter.newBuilder()
+                            .setPropertyName(propertyName)
+                            .setStringFilter(StringFilter.newBuilder()
+                                    .setStringPropertyRegex('^' + RepoObjectType.mapEntityType(
+                                            Math.toIntExact(numericFilter.getValue())) + '$')
+                                    .setMatch(true)
+                                    .setCaseSensitive(true)
+                                    .build())
+                            .build();
+                    return createAQLForPropertyFilter(pf, objectName);
+                }
+
+                stringBuilder.append(String.format("FILTER %s %s %s\n",
+                        objectNameAql,
+                        getAqlForComparisonOperator(numericFilter.getComparisonOperator()),
+                        numericFilter.getValue()));
+                break;
+
+            case MAP_FILTER:
+                final MapFilter mapFilter = propertyFilter.getMapFilter();
+                final List<String> values = mapFilter.getValuesList();
+                final String key = mapFilter.getKey();
+
+                // construct AQL filter for (multi)-map search
+                // the value filter depends on whether this is a map or a multimap
+                // the value in a map entry is a single string, while in multimap is an array
+                if (values == null || values.isEmpty()) {
+                    stringBuilder.append(String.format("FILTER \"%s\" IN ATTRIBUTES(%s.%s)",
+                            key,
+                            objectName,
+                            propertyName));
+                } else {
+                    // turn the list of values to an AQL string representation of that list
+                    final String valuesInQuotes =
+                            values.stream().map(x -> "\"" + x + "\"").collect(Collectors.joining(", "));
+                    stringBuilder.append(String.format("FILTER %s.%s[\"%s\"] %s %s",
+                            objectName,
+                            propertyName,
+                            key,
+                            mapFilter.getIsMultimap() ? "ANY IN" : "IN",
+                            "[" + valuesInQuotes + "]"));
+                }
+                break;
+
+            case LIST_FILTER:
+                final ListFilter listFilter = propertyFilter.getListFilter();
+                switch (listFilter.getListElementTypeCase()) {
+                    case OBJECT_FILTER:
+                        ObjectFilter objFilter = listFilter.getObjectFilter();
+                        stringBuilder.append(String.format("FILTER HAS(%s, \"%s\")\n",
+                                objectName, propertyName));
+                        stringBuilder.append("FILTER LENGTH(\n");
+                        stringBuilder.append(String.format("FOR %s IN %s\n", propertyName, objectNameAql));
+                        objFilter.getFiltersList().forEach(filter ->
+                                stringBuilder.append(createAQLForPropertyFilter(filter, propertyName)));
+                        stringBuilder.append("RETURN 1\n");
+                        stringBuilder.append(") > 0\n");
+                        break;
+
+                    case NUMERIC_FILTER:
+                        NumericFilter numericListFilter = listFilter.getNumericFilter();
+                        stringBuilder.append("FILTER LENGTH(\n");
+                        stringBuilder.append(String.format("FOR %s IN %s\n", propertyName, objectNameAql));
+                        stringBuilder.append(createAQLForPropertyFilter(
+                                PropertyFilter.newBuilder()
+                                        .setPropertyName(propertyName)
+                                        .setNumericFilter(numericListFilter)
+                                        .build(), null));
+                        stringBuilder.append("RETURN 1\n");
+                        stringBuilder.append(") > 0\n");
+                        break;
+
+                    case STRING_FILTER:
+                        StringFilter stringListFilter = listFilter.getStringFilter();
+                        stringBuilder.append(String.format("FILTER HAS(%s, \"%s\")\n",
+                                objectName, propertyName));
+                        stringBuilder.append("FILTER LENGTH(\n");
+                        stringBuilder.append(String.format("FOR %s IN %s\n", propertyName, objectNameAql));
+                        stringBuilder.append(createAQLForPropertyFilter(
+                                PropertyFilter.newBuilder()
+                                        .setPropertyName(propertyName)
+                                        .setStringFilter(stringListFilter)
+                                        .build(), null));
+                        stringBuilder.append("RETURN 1\n");
+                        stringBuilder.append(") > 0\n");
+                        break;
+
+                    default:
+                        throw new UnsupportedOperationException("List element type: " +
+                                listFilter.getListElementTypeCase() + " is not supported");
+                }
+                break;
+        }
+        return stringBuilder.toString();
+    }
+
+    /**
+     * Get the AQL string for the given ComparisonOperator.
+     *
+     * @param comparisonOperator the {@link ComparisonOperator} enum to get AQL for
+     * @return AQL string for a specific ComparisonOperator
+     */
+    private static String getAqlForComparisonOperator(@Nonnull ComparisonOperator comparisonOperator) {
+        final NumericOperator numOp;
+        switch (comparisonOperator) {
+            case EQ:
+                numOp = Filter.NumericOperator.EQ;
+                break;
+            case NE:
+                numOp = Filter.NumericOperator.NEQ;
+                break;
+            case GT:
+                numOp = Filter.NumericOperator.GT;
+                break;
+            case GTE:
+                numOp = Filter.NumericOperator.GTE;
+                break;
+            case LT:
+                numOp = Filter.NumericOperator.LT;
+                break;
+            case LTE:
+                numOp = Filter.NumericOperator.LTE;
+                break;
+            default:
+                throw new IllegalArgumentException("ComparisonOperator: " + comparisonOperator +
+                        " is not supported");
+        }
+        return numOp.toAQLString();
+    }
+
+    /**
      * Return the AQL for this filter.
      *
      * @return The AQL string.
@@ -171,86 +348,24 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     public String toAQLString() {
         // TODO (here and elsewhere): SANITIZE the input before inserting it into the query (OM-38634)
         return this.match(Filters.cases(
-                (pName, stringFilter) -> {
-                    // See: https://docs.arangodb.com/devel/AQL/Functions/String.html#regextest
-                    return String.format("FILTER %s REGEX_TEST(service_entity.%s, \"%s\", %s)",
-                            stringFilter.getMatch() ? "" : "NOT",
-                            pName,
-                            stringFilter.getStringPropertyRegex(),
-                            stringFilter.getCaseSensitive() ? "false" : "true");
-                },
-                (pName, numOp, numVal) ->
-                    String.format("FILTER service_entity.%s %s %s", pName, numOp.toAQLString(), numVal),
-                (pName, key, values, multi) -> {
-                    // construct AQL filter for (multi)-map search
-                    // the value filter depends on whether this is a map or a multimap
-                    // the value in a map entry is a single string, while in multimap is an array
-                    if (values == null || values.isEmpty()) {
-                        return String.format("FILTER \"%s\" IN ATTRIBUTES(service_entity.%s)", key, pName);
-                    } else {
-                        // turn the list of values to an AQL string representation of that list
-                        final String valuesInQuotes =
-                                values.stream().map(x -> "\"" + x + "\"").collect(Collectors.joining(", "));
-                        return String.format(
-                                "FILTER service_entity.%s[\"%s\"] %s %s",
-                                pName,
-                                key,
-                                multi ? "ANY IN" : "IN",
-                                "[" + valuesInQuotes + "]"
-                        );
-                    }
+                (propertyFilter) -> {
+                    // name of the starting object is "service_entity" by default
+                    return createAQLForPropertyFilter(propertyFilter, "service_entity");
                 },
                 (direction, hop) -> "",
                 (direction, filter) -> ""));
     }
 
     /**
-     * Smart constructor for creating a string property filter.
+     * Smart constructor for creating a property filter.
      *
-     * @param propName The property name.
-     * @param stringFilter The string filter the property value should match.
-     *
-     * @return A {@link Filter<PropertyFilterType>}.
-     */
-    @ExportAsPublic
-    public static Filter<PropertyFilterType> stringPropertyFilter(final String propName,
-                                                                  final StringFilter stringFilter) {
-        return Filters.StringPropertyFilter0(propName, stringFilter);
-    }
-
-    /**
-     * Smart constructor for creating a multimap property filter.
-     *
-     * @param propName The property name.
-     * @param key The key.
-     * @param values The values.
-     * @param multi iff this is a multi-map.
+     * @param propertyFilter The property filter the property value should match.
      *
      * @return A {@link Filter<PropertyFilterType>}.
      */
     @ExportAsPublic
-    public static Filter<PropertyFilterType> mapPropertyFilter(
-            final String propName,
-            final String key,
-            final List<String> values,
-            final boolean multi) {
-        return Filters.MapPropertyFilter0(propName, key, values, multi);
-    }
-
-    /**
-     * Smart constructor for creating a numeric property filter.
-     *
-     * @param propName The property name.
-     * @param op The numeric operator.
-     * @param value The value for the operator.
-     *
-     * @return A {@link Filter<PropertyFilterType>}.
-     */
-    @ExportAsPublic
-    public static Filter<PropertyFilterType> numericPropertyFilter(final String propName,
-                                                                   final NumericOperator op,
-                                                                   final Number value) {
-        return Filters.NumericPropertyFilter0(propName, op, value);
+    public static Filter<PropertyFilterType> propertyFilter(final PropertyFilter propertyFilter) {
+        return Filters.PropertyFilter0(propertyFilter);
     }
 
     /**

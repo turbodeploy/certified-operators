@@ -84,7 +84,7 @@ message SearchFilter {
             CONSUMES = 0;
             PRODUCES = 1;
             // BusinessAccount ---- ConnectedTo   ---> VirtualMachine
-            // VirtualMachine  <--- ConnectedFrom ---> BusinessAccount
+            // VirtualMachine  <--- ConnectedFrom ---- BusinessAccount
             // where ConnectedFrom is the opposite direction (on the same edge) of ConnectedTo
             CONNECTED_TO = 2;
             CONNECTED_FROM = 3;
@@ -104,6 +104,8 @@ message PropertyFilter {
         StringFilter string_filter = 2;
         NumericFilter numeric_filter = 3;
         MapFilter map_filter = 4;
+        ListFilter list_filter = 5;
+        ObjectFilter object_filter = 6;
     }
 
     message StringFilter {
@@ -148,6 +150,34 @@ message PropertyFilter {
         optional bool is_multimap = 3 [default = true];
     }
 
+    // This is a filter for property whose value is a list of elements. The elements can be one of
+    // 3 types: string, number, object. It checks whether the list contains a specific element.
+    // for example: if we want to find the entity which sells a "VMem" commodity whose capacity is
+    // larger than 1024, then we can use this filter, define the propertyName as
+    // "commoditySoldList", and set object_filter which contains two PropertyFilters:
+    // one is StringFilter, whose property_name is "type" and value is "VMem"; the other one is
+    // NumericFilter, whose property_name is "capacity", operator is ">" and value is "1024"
+    message ListFilter {
+        // The element of the list is one of three types: object, string or number.
+        oneof list_element_type {
+            // current list is a list of objects, check whether any object matches
+            ObjectFilter object_filter = 1;
+            // current list is a list of strings, check whether any string matches
+            StringFilter string_filter = 2;
+            // current list is a list of numbers, check whether any number matches
+            NumericFilter numeric_filter = 3;
+        }
+    }
+
+    // The filter used to check if an object matches. An object consists of multiple properties, so
+    // this filter is made up of multiple property filters, each filter is for one property of the
+    // object.
+    // for example: filter entities whose displayName contains "abc" and state is "ACTIVE"
+    message ObjectFilter {
+        // list of property filters to check if the object matches, currently these filters
+        // are AND together, we can extend it to OR if needed.
+        repeated PropertyFilter filters = 1;
+    }
 }
 
 // used to check if entities are part of a cluster.

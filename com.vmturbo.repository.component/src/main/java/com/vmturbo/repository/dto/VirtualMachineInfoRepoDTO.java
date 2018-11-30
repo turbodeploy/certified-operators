@@ -30,6 +30,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private List<IpAddressRepoDTO> ipAddressInfoList;
 
+    private Integer numCpus;
+
     public VirtualMachineInfoRepoDTO(@Nullable final String guestOsType,
                                      final String tenancy,
                                      @Nullable final List<IpAddressRepoDTO> ipAddressInfoList) {
@@ -58,7 +60,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
                         ipAddrInfo.getIsElastic()))
                 .collect(Collectors.toList()));
-
+        setNumCpus(vmInfo.hasNumCpus() ? vmInfo.getNumCpus() : null);
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(this);
     }
 
@@ -84,6 +86,9 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             vmBuilder.setTenancy(Tenancy.valueOf(
                     getTenancy()));
         }
+        if (getNumCpus() != null) {
+            vmBuilder.setNumCpus(getNumCpus());
+        }
         return TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(vmBuilder)
                 .build();
@@ -102,6 +107,10 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return ipAddressInfoList;
     }
 
+    public Integer getNumCpus() {
+        return numCpus;
+    }
+
     public void setGuestOsType(String guestOsType) {
         this.guestOsType = guestOsType;
     }
@@ -114,12 +123,17 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.ipAddressInfoList = ipAddressInfoList;
     }
 
+    public void setNumCpus(Integer numCpus) {
+        this.numCpus = numCpus;
+    }
+
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this).omitNullValues()
                 .add("guestOsType", guestOsType)
                 .add("tenancy", tenancy)
                 .add("ipAddressInfo", ipAddressInfoList)
+                .add("numCpus", numCpus)
                 .toString();
     }
     @Override
@@ -129,13 +143,14 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         final VirtualMachineInfoRepoDTO that = (VirtualMachineInfoRepoDTO) o;
 
-        if (!Objects.equals(guestOsType, that.guestOsType)) return false;
-        if (!Objects.equals(tenancy, that.tenancy)) return false;
-        return Objects.equals(ipAddressInfoList, that.ipAddressInfoList);
+        return Objects.equals(guestOsType, that.guestOsType) &&
+                Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
+                Objects.equals(tenancy, that.tenancy) &&
+                Objects.equals(numCpus, that.numCpus);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(guestOsType, tenancy, ipAddressInfoList);
+        return Objects.hash(guestOsType, tenancy, ipAddressInfoList, numCpus);
     }
 }

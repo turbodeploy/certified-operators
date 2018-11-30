@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.conversions.typespecific;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -42,7 +43,8 @@ public class StorageInfoMapperTest {
                 .build();
         final StorageInfoMapper testBuilder = new StorageInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(storageEntityDTO);
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(storageEntityDTO,
+                Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }

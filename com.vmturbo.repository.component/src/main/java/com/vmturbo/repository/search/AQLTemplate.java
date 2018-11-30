@@ -90,15 +90,12 @@ public class AQLTemplate {
             final Template propSearch = handlebars.compileInline(PROPERTY_SEARCH_TEMPLATE);
             final Template traversalHop = handlebars.compileInline(TRAVERSAL_HOP_TEMPLATE);
             final Template traversalCond = handlebars.compileInline(TRAVERSAL_SEARCH_TEMPLATE);
-            templateMapper.put(Filter.Type.PROPERTY_STRING, propSearch);
-            templateMapper.put(Filter.Type.PROPERTY_NUMERIC, propSearch);
-            templateMapper.put(Filter.Type.PROPERTY_MAP, propSearch);
+
+            templateMapper.put(Filter.Type.PROPERTY, propSearch);
             templateMapper.put(Filter.Type.TRAVERSAL_HOP, traversalHop);
             templateMapper.put(Filter.Type.TRAVERSAL_COND, traversalCond);
 
-            bindVarsMapper.put(Filter.Type.PROPERTY_STRING, PROPERTY_SEARCH_BIND_VARS);
-            bindVarsMapper.put(Filter.Type.PROPERTY_NUMERIC, PROPERTY_SEARCH_BIND_VARS);
-            bindVarsMapper.put(Type.PROPERTY_MAP, PROPERTY_SEARCH_BIND_VARS);
+            bindVarsMapper.put(Type.PROPERTY, PROPERTY_SEARCH_BIND_VARS);
             bindVarsMapper.put(Filter.Type.TRAVERSAL_HOP, TRAVERSAL_HOP_BIND_VARS);
             bindVarsMapper.put(Filter.Type.TRAVERSAL_COND, TRAVERSAL_COND_BIND_VARS);
         } catch (IOException e) {

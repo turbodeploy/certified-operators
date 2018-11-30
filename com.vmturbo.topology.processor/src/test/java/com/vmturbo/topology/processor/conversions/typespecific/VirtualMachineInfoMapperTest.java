@@ -5,38 +5,35 @@ import static org.junit.Assert.assertThat;
 
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 public class VirtualMachineInfoMapperTest {
-
-
-    private static final float ACCESS_CAPACITY = 123.4f;
-    private static final float AMOUNT_CAPACITY = 567.8f;
 
     @Test
     public void testExtractTypeSpecificInfo() {
         // arrange
         final EntityDTOOrBuilder vmEntityDTO = EntityDTO.newBuilder()
-                .setVirtualVolumeData(VirtualVolumeData.newBuilder()
-                        .setStorageAccessCapacity(ACCESS_CAPACITY)
-                        .setStorageAmountCapacity(AMOUNT_CAPACITY)
-                        .setRedundancyType(RedundancyType.ZRS)
+                .setVirtualMachineData(VirtualMachineData.newBuilder()
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
-                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setStorageAccessCapacity(ACCESS_CAPACITY)
-                        .setStorageAmountCapacity(AMOUNT_CAPACITY)
-                        .setRedundancyType(RedundancyType.ZRS)
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                        .setGuestOsType(OSType.UNKNOWN_OS)
+                        .setTenancy(Tenancy.DEFAULT)
+                        .setNumCpus(4)
                         .build())
                 .build();
-        final VirtualVolumeInfoMapper testBuilder = new VirtualVolumeInfoMapper();
+        final VirtualMachineInfoMapper testBuilder = new VirtualMachineInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(vmEntityDTO);
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(vmEntityDTO,
+                ImmutableMap.of("numCpus", "4"));
         // assert
         assertThat(result, equalTo(expected));
     }

@@ -9,7 +9,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -19,15 +18,15 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -52,7 +51,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.Member
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
@@ -352,6 +353,101 @@ public class GroupMapperTest {
         assertTrue(byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getMatch());
     }
 
+    @Test
+    public void testByVMGuestOsType() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, "Linux",
+                "vmsByGuestName"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
+        assertEquals(1, byName.getSearchFilterCount());
+
+        List<SearchFilter> expectedSearchFilter = Lists.newArrayList(SearchFilter.newBuilder()
+                .setPropertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName("virtualMachineInfoRepoDTO")
+                        .setObjectFilter(ObjectFilter.newBuilder()
+                                .addFilters(PropertyFilter.newBuilder()
+                                        .setPropertyName("guestOsType")
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("Linux")
+                                                .setMatch(true)
+                                                .setCaseSensitive(false)
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+
+        assertThat(byName.getSearchFilterList(), is(expectedSearchFilter));
+    }
+
+    @Test
+    public void testByVMNumCpus() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, "3",
+                "vmsByNumCPUs"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
+        assertEquals(1, byName.getSearchFilterCount());
+
+        List<SearchFilter> expectedSearchFilter = Lists.newArrayList(SearchFilter.newBuilder()
+                .setPropertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName("virtualMachineInfoRepoDTO")
+                        .setObjectFilter(ObjectFilter.newBuilder()
+                                .addFilters(PropertyFilter.newBuilder()
+                                        .setPropertyName("numCpus")
+                                        .setNumericFilter(NumericFilter.newBuilder()
+                                                .setComparisonOperator(ComparisonOperator.EQ)
+                                                .setValue(3)
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+
+        assertThat(byName.getSearchFilterList(), is(expectedSearchFilter));
+    }
+
+    @Test
+    public void testByVMCommodityVMemCapacity() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.GREATER_THAN, "1024",
+                "vmsByMem"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VM, byName.getStartingFilter());
+        assertEquals(1, byName.getSearchFilterCount());
+
+        List<SearchFilter> expectedSearchFilter = Lists.newArrayList(SearchFilter.newBuilder()
+                .setPropertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName("commoditySoldList")
+                        .setListFilter(ListFilter.newBuilder()
+                                .setObjectFilter(ObjectFilter.newBuilder()
+                                        .addFilters(PropertyFilter.newBuilder()
+                                                .setPropertyName("type")
+                                                .setStringFilter(StringFilter.newBuilder()
+                                                        .setStringPropertyRegex("^VMem$")
+                                                        .setMatch(true)
+                                                        .setCaseSensitive(false)
+                                                        .build())
+                                                .build())
+                                        .addFilters(PropertyFilter.newBuilder()
+                                                .setPropertyName("capacity")
+                                                .setNumericFilter(NumericFilter.newBuilder()
+                                                        .setComparisonOperator(ComparisonOperator.GT)
+                                                        .setValue(1024)
+                                                        .build())
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+
+        assertThat(byName.getSearchFilterList(), is(expectedSearchFilter));
+    }
+
     /**
      * Verify that exception will be thrown for unknown filter type.
      */
@@ -524,9 +620,10 @@ public class GroupMapperTest {
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
         SearchParameters byDSName = parameters.get(1);
         assertEquals(TYPE_IS_DS, byDSName.getStartingFilter());
-        assertEquals(2, byDSName.getSearchFilterCount());
+        assertEquals(3, byDSName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_BAR, byDSName.getSearchFilter(0));
-        assertEquals(PRODUCES_VMS, byDSName.getSearchFilter(1));
+        assertEquals(PRODUCES_ONE_HOP, byDSName.getSearchFilter(1));
+        assertEquals(TYPE_IS_VM, byDSName.getSearchFilter(2).getPropertyFilter());
     }
 
     /**

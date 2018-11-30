@@ -3,6 +3,8 @@ package com.vmturbo.topology.processor.conversions.typespecific;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -36,7 +38,8 @@ public class ComputeTierInfoMapperTest {
                 .build();
         final ComputeTierInfoMapper testBuilder = new ComputeTierInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(computeTierEntityDTO);
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(computeTierEntityDTO,
+                Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }

@@ -3,6 +3,8 @@ package com.vmturbo.topology.processor.conversions.typespecific;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
@@ -39,7 +41,8 @@ public class ApplicationInfoMapperTest {
                 .build();
         final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO);
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO,
+                Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }
@@ -69,7 +72,8 @@ public class ApplicationInfoMapperTest {
                 .build();
         final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO);
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO,
+                Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }

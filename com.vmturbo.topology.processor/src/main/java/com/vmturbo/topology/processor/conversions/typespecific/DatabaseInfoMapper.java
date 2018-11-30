@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.conversions.typespecific;
 
+import java.util.Map;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -7,8 +9,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
 /**
  * Populate the {@link TypeSpecificInfo} unique to a Database - i.e. {@link DatabaseInfo}
@@ -16,7 +16,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 public class DatabaseInfoMapper extends TypeSpecificInfoMapper {
 
     @Override
-    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(final EntityDTOOrBuilder sdkEntity) {
+    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
+            @Nonnull final EntityDTOOrBuilder sdkEntity,
+            @Nonnull final Map<String, String> entityPropertyMap) {
         if (!sdkEntity.hasApplicationData() || !sdkEntity.getApplicationData().hasDbData()) {
             return TypeSpecificInfo.getDefaultInstance();
         }
