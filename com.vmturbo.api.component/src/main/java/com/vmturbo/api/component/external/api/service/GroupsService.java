@@ -58,6 +58,7 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -479,9 +480,20 @@ public class GroupsService implements IGroupsService {
         }
     }
 
+    @Nonnull
     @Override
-    public GroupApiDTO editGroup(String uuid, GroupApiDTO inputDTO) throws Exception {
+    public GroupApiDTO editGroup(@Nonnull String uuid, @Nonnull GroupApiDTO inputDTO)
+            throws UnknownObjectException, OperationFailedException {
         final GroupInfo info = groupMapper.toGroupInfo(inputDTO);
+
+        final GetGroupResponse groupResponse =
+                groupServiceRpc.getGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
+
+        if (!groupResponse.hasGroup()) {
+            throw new UnknownObjectException(
+                    String.format("Group with UUID %s does not exist", uuid));
+        }
+
         UpdateGroupResponse response = groupServiceRpc.updateGroup(UpdateGroupRequest.newBuilder()
             .setId(Long.parseLong(uuid))
             .setNewInfo(info)

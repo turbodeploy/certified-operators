@@ -16,16 +16,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.Lists;
 import io.grpc.Channel;
 import io.grpc.Status;
 
@@ -39,6 +41,7 @@ import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -56,6 +59,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
@@ -67,6 +72,9 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class GroupsServiceTest {
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     public static final String NE_MATCH_TYPE = "NE";
     public static final String EQ_MATCH_TYPE = "EQ";
@@ -347,5 +355,54 @@ public class GroupsServiceTest {
                         .build());
         when(groupMapper.toGroupApiDto(group, EnvironmentType.CLOUD)).thenReturn(apiDTO);
         assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
+    }
+
+    /**
+     * Test deleting a group.
+     *
+     * @throws UnknownObjectException in case the group does not exist
+     * @throws OperationFailedException in case an error occurred while editing the group
+     */
+    @Test
+    public void testEditGroup() throws UnknownObjectException, OperationFailedException {
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        final GroupInfo groupInfo = GroupInfo.getDefaultInstance();
+        final Group group = Group.newBuilder().setId(1).build();
+
+        when(groupMapper.toGroupInfo(eq(groupApiDTO))).thenReturn(groupInfo);
+
+        when(groupServiceSpy.getGroup(eq(GroupID.newBuilder().setId(1).build()))).thenReturn(
+                GetGroupResponse.newBuilder().setGroup(group).build());
+        UpdateGroupResponse updateGroupResponse =
+                UpdateGroupResponse.newBuilder().setUpdatedGroup(group).build();
+
+        when(groupServiceSpy.updateGroup(eq(UpdateGroupRequest.newBuilder()
+                .setId(1)
+                .setNewInfo(groupInfo)
+                .build()))).thenReturn(updateGroupResponse);
+
+        when(groupMapper.toGroupApiDto(eq(updateGroupResponse.getUpdatedGroup()))).thenReturn(
+                groupApiDTO);
+
+        assertThat(groupsService.editGroup("1", groupApiDTO), is(groupApiDTO));
+    }
+
+    /**
+     * Test editing a group with invalid UUID.
+     *
+     * @throws UnknownObjectException in case the group does not exist
+     * @throws OperationFailedException in case an error occurred while editing the group
+     */
+    @Test
+    public void testEditGroupInvalidUuid() throws UnknownObjectException, OperationFailedException {
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        when(groupMapper.toGroupInfo(eq(groupApiDTO))).thenReturn(GroupInfo.getDefaultInstance());
+
+        when(groupServiceSpy.getGroup(eq(GroupID.newBuilder().setId(1).build()))).thenReturn(
+                GetGroupResponse.newBuilder().clearGroup().build());
+
+        expectedException.expect(UnknownObjectException.class);
+        expectedException.expectMessage("Group with UUID 1 does not exist");
+        groupsService.editGroup("1", groupApiDTO);
     }
 }
