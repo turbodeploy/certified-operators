@@ -89,13 +89,7 @@ public class MoveContext extends AbstractActionExecutionContext {
         if (isMoveTogether()) {
             return ActionType.MOVE_TOGETHER;
         }
-        // This is not a move together, so only a single provider is being placed
-        // This could be either a MOVE or a CHANGE depending on whether the provider is storage
-        // Lookup the actual type from the (only) ActionItemDTO
-        return getActionItems().stream()
-                .map(ActionItemDTO::getActionType)
-                .findFirst()
-                .orElse(ActionType.MOVE);
+        return ActionType.MOVE;
     }
 
     /**
