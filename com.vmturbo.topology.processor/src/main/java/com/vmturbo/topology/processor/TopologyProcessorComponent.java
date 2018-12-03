@@ -174,7 +174,8 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
                 monitoringInterceptor))
             .addService(ServerInterceptors.intercept(probeConfig.probeActionPoliciesService(),
                 monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(probeConfig.probeService(), monitoringInterceptor))
+            .addService(
+                ServerInterceptors.intercept(topologyProcessorRpcConfig.probeService(), monitoringInterceptor))
             .build());
     }
 

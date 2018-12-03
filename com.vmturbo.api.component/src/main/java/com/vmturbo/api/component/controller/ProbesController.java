@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.controller;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,7 +47,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 @Controller
 @RequestMapping("/probes")
 @Api(value = "Probes", description = "Methods for managing probes and probe properties.")
-@PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+@PreAuthorize("hasAnyRole('ADMINISTRATOR')")
 public class ProbesController {
     @Autowired
     private IProbesService probesService;
@@ -59,14 +60,15 @@ public class ProbesController {
      * @return probe information.
      * @throws UnknownObjectException probe not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      */
     @ApiOperation(
         value = "Get a probe.",
         response = ProbeApiDTO.class)
     @RequestMapping(
-        path = "/{probeId}",
+        path = "/{probeId}/",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
@@ -83,7 +85,10 @@ public class ProbesController {
      * GET "/probes/properties"
      *
      * @return probe properties list.
-     * @throws UnauthorizedObjectException if user does not have access to all probes.
+     * @throws UnknownObjectException should not happen.
+     * @throws OperationFailedException should not happen.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      */
     @ApiOperation(
@@ -91,12 +96,18 @@ public class ProbesController {
         response = ProbePropertyApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/properties",
+        path = "/properties/",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
-    public List<ProbePropertyApiDTO> getAllProbeProperties() throws Exception {
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
+    public List<ProbePropertyApiDTO> getAllProbeProperties()
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         return probesService.getAllProbeProperties();
     }
 
@@ -107,7 +118,8 @@ public class ProbesController {
      * @param probeId Uuid of the probe.
      * @throws UnknownObjectException if probe is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return list of name/value pairs of all probe-probe properties under the probe.
      */
@@ -116,15 +128,22 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/properties",
+        path = "/{probeId}/properties/",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public List<ProbePropertyNameValuePairApiDTO> getAllProbeSpecificProbeProperties(
             @ApiParam(value = "The Uuid of the probe.", required = true)
             @PathVariable("probeId")
-            String probeId) throws Exception {
+            String probeId)
+
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         return
             probesService.getAllProbeSpecificProbeProperties(Objects.requireNonNull(probeId));
     }
@@ -137,7 +156,8 @@ public class ProbesController {
      * @param propertyName name of the probe property.
      * @throws UnknownObjectException if probe is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return the value of the probe property (empty if no such probe property exists).
      */
@@ -146,11 +166,11 @@ public class ProbesController {
         notes = "Response is empty if the probe exists but the probe property does not exist.",
         response = String.class)
     @RequestMapping(
-        path = "/{probeId}/properties/{propertyName}",
+        path = "/{probeId}/properties/{propertyName:.+}/",
         method = RequestMethod.GET,
         produces = { MediaType.TEXT_PLAIN_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public String getProbeSpecificProbeProperty(
             @ApiParam(value = "The Uuid of the probe.", required = true)
             @PathVariable("probeId")
@@ -158,7 +178,14 @@ public class ProbesController {
 
             @ApiParam(value = "The name of the probe property.", required = true)
             @PathVariable("propertyName")
-            String propertyName) throws Exception {
+            String propertyName)
+
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         return
             probesService.getProbeSpecificProbeProperty(
                 Objects.requireNonNull(probeId),
@@ -173,7 +200,8 @@ public class ProbesController {
      * @param targetId Uuid of the target.
      * @throws UnknownObjectException if probe or target is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return list of name/value pairs of all probe-probe properties under the target.
      */
@@ -182,11 +210,11 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties",
+        path = "/{probeId}/targets/{targetId}/properties/",
         method = RequestMethod.GET,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public List<ProbePropertyNameValuePairApiDTO> getAllTargetSpecificProbeProperties(
             @ApiParam(value = "The Uuid of the probe that discovers the target.", required = true)
             @PathVariable("probeId")
@@ -194,7 +222,14 @@ public class ProbesController {
 
             @ApiParam(value = "The Uuid of the target.", required = true)
             @PathVariable("targetId")
-            String targetId) throws Exception {
+            String targetId)
+
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         return
             probesService.getAllTargetSpecificProbeProperties(
                 Objects.requireNonNull(probeId),
@@ -210,7 +245,8 @@ public class ProbesController {
      * @param propertyName name of the probe property.
      * @throws UnknownObjectException if probe or the target is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return the value of the probe property (empty if no such probe property exists).
      */
@@ -218,11 +254,11 @@ public class ProbesController {
         value = "Get a target-specific probe property.",
         notes = "Response is empty if the target exists but the probe property does not exist.")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/{propertyName}",
+        path = "/{probeId}/targets/{targetId}/properties/{propertyName:.+}/",
         method = RequestMethod.GET,
         produces = { MediaType.TEXT_PLAIN_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public String getTargetSpecificProbeProperty(
             @ApiParam(value = "The Uuid of the probe that discovers the target.", required = true)
             @PathVariable("probeId")
@@ -234,7 +270,14 @@ public class ProbesController {
 
             @ApiParam(value = "The name of the property.", required = true)
             @PathVariable("propertyName")
-            String propertyName) throws Exception {
+            String propertyName)
+
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         return
             probesService.getTargetSpecificProbeProperty(
                 Objects.requireNonNull(probeId),
@@ -249,8 +292,8 @@ public class ProbesController {
      * @param probeId Uuid of the probe whose probe properties are to change.
      * @param newProbeProperties new data for the probe properties.
      * @throws UnknownObjectException if probe is not found by the specified Uuid.
-     * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have write access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return new version of the probe property info.
      */
@@ -260,12 +303,12 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/properties",
+        path = "/{probeId}/properties/",
         method = RequestMethod.PUT,
         produces = { MediaType.APPLICATION_JSON_VALUE },
         consumes = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public List<ProbePropertyNameValuePairApiDTO> putAllProbeSpecificProperties(
             @ApiParam(value = "The Uuid of the probe.", required = true)
             @PathVariable("probeId")
@@ -273,7 +316,14 @@ public class ProbesController {
 
             @ApiParam(value = "The new probe properties.", required = true)
             @RequestBody
-            List<ProbePropertyNameValuePairApiDTO> newProbeProperties) throws Exception {
+            List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
+
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         probesService.putAllProbeSpecificProperties(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(newProbeProperties));
@@ -289,20 +339,23 @@ public class ProbesController {
      * @param value new value of the probe property.
      * @throws UnknownObjectException if probe is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have write access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return the new probe property info record.
      */
     @ApiOperation(
         value = "Edit the value of one probe-specific probe property.",
         notes = "If the probe property does not exist, it gets created.",
-        response = ProbePropertyApiDTO.class)
+        response = ProbePropertyApiDTO.class,
+        consumes = "text/plain")
     @RequestMapping(
-        path = "/{probeId}/properties/{name}",
+        path = "/{probeId}/properties/{name:.+}/",
         method = RequestMethod.PUT,
+        consumes = { MediaType.TEXT_PLAIN_VALUE },
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public ProbePropertyApiDTO putProbeSpecificProperty(
             @ApiParam(value = "The Uuid of the probe.", required = true)
             @PathVariable("probeId")
@@ -314,7 +367,14 @@ public class ProbesController {
 
             @ApiParam(value = "The new value of the probe property.", required = true)
             @RequestBody
-            String value) throws Exception {
+            String value)
+
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         probesService.putProbeSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(name),
@@ -336,7 +396,8 @@ public class ProbesController {
      * @param newProbeProperties new data for the probe properties.
      * @throws UnknownObjectException if probe or target is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have write access to the probe or target.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return new version of the probe property info.
      */
@@ -346,12 +407,12 @@ public class ProbesController {
         response = ProbePropertyNameValuePairApiDTO.class,
         responseContainer = "List")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties",
+        path = "/{probeId}/targets/{targetId}/properties/",
         method = RequestMethod.PUT,
         produces = { MediaType.APPLICATION_JSON_VALUE },
         consumes = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public List<ProbePropertyNameValuePairApiDTO> putAllTargetSpecificProperties(
             @ApiParam(value = "The Uuid of the probe discovering the target.", required = true)
             @PathVariable("probeId")
@@ -363,7 +424,13 @@ public class ProbesController {
 
             @ApiParam(value = "The new probe properties.", required = true)
             @RequestBody
-            List<ProbePropertyNameValuePairApiDTO> newProbeProperties) throws Exception {
+            List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         probesService.putAllTargetSpecificProperties(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(targetId),
@@ -381,20 +448,23 @@ public class ProbesController {
      * @param value new value of the probe property.
      * @throws UnknownObjectException if probe or target is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have write access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      * @return the new probe property info record.
      */
     @ApiOperation(
         value = "Edit the value of one target-specific probe property.",
         notes = "If the probe property does not exist, it gets created.",
-        response = ProbePropertyApiDTO.class)
+        response = ProbePropertyApiDTO.class,
+        consumes = "text/plain")
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/{name}",
+        consumes = { MediaType.TEXT_PLAIN_VALUE },
+        path = "/{probeId}/targets/{targetId}/properties/{name:.+}/",
         method = RequestMethod.PUT,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public ProbePropertyApiDTO putTargetSpecificProperty(
             @ApiParam(value = "The Uuid of the probe discovering the target.", required = true)
             @PathVariable("probeId")
@@ -410,7 +480,13 @@ public class ProbesController {
 
             @ApiParam(value = "The new value of the probe property.", required = true)
             @RequestBody
-            String value) throws Exception {
+            String value)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         probesService.putTargetSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(targetId),
@@ -432,19 +508,20 @@ public class ProbesController {
      * @param name name of the probe property.
      * @throws UnknownObjectException if probe is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have write access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      */
     @ApiOperation(
         value = "Delete the value of one probe-specific probe property.",
         notes = "Probe will revert to the use of default value.")
     @RequestMapping(
-        path = "/{probeId}/properties/{name}",
+        path = "/{probeId}/properties/{name}/",
         method = RequestMethod.DELETE,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
     @ResponseStatus(value = HttpStatus.OK)
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public void deleteProbeSpecificProperty(
             @ApiParam(value = "The Uuid of the probe.", required = true)
             @PathVariable("probeId")
@@ -452,7 +529,13 @@ public class ProbesController {
 
             @ApiParam(value = "The name of the probe property.", required = true)
             @PathVariable("name")
-            String name) throws Exception {
+            String name)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         probesService.deleteProbeSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(name));
@@ -467,7 +550,8 @@ public class ProbesController {
      * @param name name of the probe property.
      * @throws UnknownObjectException if probe is not found by the specified Uuid.
      * @throws OperationFailedException if user input is wrong.
-     * @throws UnauthorizedObjectException if user does not have write access to the probe.
+     * @throws AccessDeniedException if user does not have proper access privileges.
+     * @throws UnauthorizedObjectException if user is properly authenticated.
      * @throws InterruptedException if thread is interrupted during processing.
      */
     @ApiOperation(
@@ -475,12 +559,12 @@ public class ProbesController {
         notes = "Probe will revert to the use of default value."
     )
     @RequestMapping(
-        path = "/{probeId}/targets/{targetId}/properties/{name}",
+        path = "/{probeId}/targets/{targetId}/properties/{name}/",
         method = RequestMethod.DELETE,
         produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
     @ResponseStatus(value = HttpStatus.OK)
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public void deleteTargetSpecificProperty(
             @ApiParam(value = "The Uuid of the probe.", required = true)
             @PathVariable("probeId")
@@ -492,7 +576,13 @@ public class ProbesController {
 
             @ApiParam(value = "The name of the probe property", required = true)
             @PathVariable("name")
-            String name) throws Exception {
+            String name)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         probesService.deleteTargetSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(targetId),

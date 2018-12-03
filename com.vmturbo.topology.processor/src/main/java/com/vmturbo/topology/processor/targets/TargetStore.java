@@ -20,6 +20,8 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
  */
 public interface TargetStore {
 
+    String TARGET_KV_STORE_PREFIX = "targets/";
+
     /**
      * Gets the target if it exists in the store.
      *

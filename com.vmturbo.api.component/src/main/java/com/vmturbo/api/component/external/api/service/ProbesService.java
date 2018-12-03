@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.nio.file.AccessDeniedException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -8,7 +9,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ProbeMapper;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
@@ -16,6 +18,8 @@ import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetAllProbePropertiesRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetProbeInfoRequest;
@@ -55,124 +59,226 @@ public class ProbesService implements IProbesService {
         } catch (NumberFormatException e) {
             throw new OperationFailedException("Illegal probe id: " + probeId);
         }
-        final GetProbeInfoResponse response =
-            probeRpcService.getProbeInfo(GetProbeInfoRequest.newBuilder().setOid(oid).build());
+        final GetProbeInfoResponse response;
+        response = probeRpcService.getProbeInfo(GetProbeInfoRequest.newBuilder().setOid(oid).build());
         return ProbeMapper.getProbeApiDTO(response);
     }
 
     @Override
     @Nonnull
-    public List<ProbePropertyApiDTO> getAllProbeProperties() throws Exception {
-        return
-            probeRpcService.getAllProbeProperties(GetAllProbePropertiesRequest.newBuilder().build())
-                .getProbePropertiesList().stream()
-                .map(ProbeMapper::convertToProbePropertyApiDTO)
-                .collect(Collectors.toList());
+    public List<ProbePropertyApiDTO> getAllProbeProperties()
+            throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException {
+        try {
+            return
+                probeRpcService
+                    .getAllProbeProperties(GetAllProbePropertiesRequest.newBuilder().build())
+                    .getProbePropertiesList().stream()
+                    .map(ProbeMapper::convertToProbePropertyApiDTO)
+                    .collect(Collectors.toList());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+
+            // unreachable
+            return null;
+        }
     }
 
     @Override
     @Nonnull
     public List<ProbePropertyNameValuePairApiDTO> getAllProbeSpecificProbeProperties(@Nonnull String probeId)
-            throws Exception {
-        return
-            probeRpcService.getTableOfProbeProperties(makeGetTableOfPropertiesRequest(probeId))
-                .getProbePropertiesList().stream()
-                .map(ProbeMapper::convertToNameValueApiDTO)
-                .collect(Collectors.toList());
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        try {
+            return
+                probeRpcService
+                    .getTableOfProbeProperties(makeGetTableOfPropertiesRequest(probeId))
+                    .getProbePropertiesList().stream()
+                    .map(ProbeMapper::convertToNameValueApiDTO)
+                    .collect(Collectors.toList());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+
+            // unreachable
+            return null;
+        }
     }
 
     @Override
-    @Nullable
+    @Nonnull
     public String getProbeSpecificProbeProperty(
             @Nonnull String probeId,
-            @Nonnull String propertyName) throws Exception {
-        if (propertyName.isEmpty()) {
+            @Nonnull String propertyName)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        if (!IProbesService.validProbePropertyName(propertyName)) {
             throw new OperationFailedException(
                 "During reading of probe property specific to probe " + probeId +
-                ": missing property name.");
+                ": invalid property name: " + propertyName);
         }
-        final GetProbePropertyValueResponse response =
-            probeRpcService.getProbePropertyValue(
-                GetProbePropertyValueRequest.newBuilder()
-                    .setProbePropertyTable(makeProbePropertyTable(probeId))
-                    .setName(propertyName)
-                    .build());
-        return response.hasValue() ? response.getValue() : null;
+        final GetProbePropertyValueResponse response;
+        try {
+            response =
+                probeRpcService.getProbePropertyValue(
+                    GetProbePropertyValueRequest.newBuilder()
+                        .setProbePropertyTable(makeProbePropertyTable(probeId))
+                        .setName(propertyName)
+                        .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+
+            // unreachable
+            return null;
+        }
+        return response.hasValue() ? response.getValue() : "";
     }
 
     @Override
     @Nonnull
     public List<ProbePropertyNameValuePairApiDTO> getAllTargetSpecificProbeProperties(
-            @Nonnull String probeId, @Nonnull String targetId) throws Exception {
-        return
-            probeRpcService.getTableOfProbeProperties(makeGetTableOfPropertiesRequest(probeId, targetId))
-                .getProbePropertiesList().stream()
-                .map(ProbeMapper::convertToNameValueApiDTO)
-                .collect(Collectors.toList());
+            @Nonnull String probeId, @Nonnull String targetId)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        try {
+            return
+                probeRpcService.getTableOfProbeProperties(makeGetTableOfPropertiesRequest(probeId, targetId))
+                    .getProbePropertiesList().stream()
+                    .map(ProbeMapper::convertToNameValueApiDTO)
+                    .collect(Collectors.toList());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+
+            // unreachable
+            return null;
+        }
     }
 
     @Override
-    @Nullable
+    @Nonnull
     public String getTargetSpecificProbeProperty(
             @Nonnull String probeId,
             @Nonnull String targetId,
-            @Nonnull String propertyName) throws Exception {
-        if (propertyName.isEmpty()) {
+            @Nonnull String propertyName)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        if (!IProbesService.validProbePropertyName(propertyName)) {
             throw new OperationFailedException(
                 "During reading of probe property specific to probe " + probeId + " and target " +
-                targetId + ": missing property name.");
+                targetId + ": invalid property name: " + propertyName);
         }
-        final GetProbePropertyValueResponse response =
-            probeRpcService.getProbePropertyValue(
+        final GetProbePropertyValueResponse response;
+        try {
+            response = probeRpcService.getProbePropertyValue(
                 GetProbePropertyValueRequest.newBuilder()
                     .setProbePropertyTable(makeProbePropertyTable(probeId, targetId))
                     .setName(propertyName)
                     .build());
-        return response.hasValue() ? response.getValue() : null;
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+
+            // unreachable
+            return null;
+        }
+        return response.hasValue() ? response.getValue() : "";
     }
 
     @Override
     public void putAllProbeSpecificProperties(
             @Nonnull String probeId,
-            @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties) throws Exception {
+            @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         final Set<String> observed = new HashSet<>();
         final List<ProbePropertyNameValuePair> newProbePropertiesConverted = new ArrayList<>();
         for (ProbePropertyNameValuePairApiDTO p : newProbeProperties) {
             newProbePropertiesConverted.add(ProbeMapper.convertToNameValuePair(p, observed));
         }
-        probeRpcService.updateProbePropertyTable(
-            UpdateProbePropertyTableRequest.newBuilder()
-                .setProbePropertyTable(makeProbePropertyTable(probeId))
-                .addAllNewProbeProperties(newProbePropertiesConverted)
-                .build());
+        try {
+            probeRpcService.updateProbePropertyTable(
+                UpdateProbePropertyTableRequest.newBuilder()
+                    .setProbePropertyTable(makeProbePropertyTable(probeId))
+                    .addAllNewProbeProperties(newProbePropertiesConverted)
+                    .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+        }
     }
 
     @Override
     public void putProbeSpecificProperty(
             @Nonnull String probeId,
             @Nonnull String name,
-            @Nonnull String value) throws Exception {
-        probeRpcService.updateOneProbeProperty(
-            UpdateOneProbePropertyRequest.newBuilder()
-                .setNewProbeProperty(makeProbePropertyInfo(probeId, name, value))
-                .build());
+            @Nonnull String value)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        if (!IProbesService.validProbePropertyName(name)) {
+            throw new OperationFailedException(
+                "During updating of probe property specific to probe " + probeId +
+                ": invalid property name: " + name);
+        }
+        try {
+            probeRpcService.updateOneProbeProperty(
+                UpdateOneProbePropertyRequest.newBuilder()
+                    .setNewProbeProperty(makeProbePropertyInfo(probeId, name, value))
+                    .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+        }
     }
 
     @Override
     public void putAllTargetSpecificProperties(
             @Nonnull String probeId,
             @Nonnull String targetId,
-            @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties) throws Exception {
+            @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
         final Set<String> observed = new HashSet<>();
         final List<ProbePropertyNameValuePair> newProbePropertiesConverted = new ArrayList<>();
         for (ProbePropertyNameValuePairApiDTO p : newProbeProperties) {
             newProbePropertiesConverted.add(ProbeMapper.convertToNameValuePair(p, observed));
         }
-        probeRpcService.updateProbePropertyTable(
-            UpdateProbePropertyTableRequest.newBuilder()
-                .setProbePropertyTable(makeProbePropertyTable(probeId, targetId))
-                .addAllNewProbeProperties(newProbePropertiesConverted)
-                .build());
+        try {
+            probeRpcService.updateProbePropertyTable(
+                UpdateProbePropertyTableRequest.newBuilder()
+                    .setProbePropertyTable(makeProbePropertyTable(probeId, targetId))
+                    .addAllNewProbeProperties(newProbePropertiesConverted)
+                    .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+        }
     }
 
     @Override
@@ -180,42 +286,77 @@ public class ProbesService implements IProbesService {
             @Nonnull String probeId,
             @Nonnull String targetId,
             @Nonnull String name,
-            @Nonnull String value) throws Exception {
-        probeRpcService.updateOneProbeProperty(
-            UpdateOneProbePropertyRequest.newBuilder()
-                .setNewProbeProperty(makeProbePropertyInfo(probeId, targetId, name, value))
-                .build());
+            @Nonnull String value)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        if (!IProbesService.validProbePropertyName(name)) {
+            throw new OperationFailedException(
+                "During updating of probe property specific to probe " + probeId +
+                "and target " + targetId + ": invalid property name: " + name);
+        }
+        try {
+            probeRpcService.updateOneProbeProperty(
+                UpdateOneProbePropertyRequest.newBuilder()
+                    .setNewProbeProperty(makeProbePropertyInfo(probeId, targetId, name, value))
+                    .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+        }
     }
 
     @Override
-    public void deleteProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name) throws Exception {
-        if (name.isEmpty()) {
+    public void deleteProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+               AccessDeniedException {
+        if (!IProbesService.validProbePropertyName(name)) {
             throw new OperationFailedException(
                 "During deletion of probe property specific to probe " + probeId +
-                ": missing property name.");
+                ": invalid property name: " + name);
         }
-        probeRpcService.deleteProbeProperty(
-            DeleteProbePropertyRequest.newBuilder()
-                .setProbePropertyTable(makeProbePropertyTable(probeId))
-                .setName(name)
-                .build());
+        try {
+            probeRpcService.deleteProbeProperty(
+                DeleteProbePropertyRequest.newBuilder()
+                    .setProbePropertyTable(makeProbePropertyTable(probeId))
+                    .setName(name)
+                    .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+        }
     }
 
     @Override
     public void deleteTargetSpecificProperty(
             @Nonnull String probeId,
             @Nonnull String targetId,
-            @Nonnull String name) throws Exception {
-        if (name.isEmpty()) {
+            @Nonnull String name)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        if (!IProbesService.validProbePropertyName(name)) {
             throw new OperationFailedException(
-                "During deletion of probe property specific to probe " + probeId + " and target " +
-                targetId + ": missing property name.");
+                "During deletion of probe property specific to probe " + probeId +
+                ": invalid property name: " + name);
         }
-        probeRpcService.deleteProbeProperty(
-            DeleteProbePropertyRequest.newBuilder()
-                .setProbePropertyTable(makeProbePropertyTable(probeId, targetId))
-                .setName(name)
-                .build());
+        try {
+            probeRpcService.deleteProbeProperty(
+                DeleteProbePropertyRequest.newBuilder()
+                    .setProbePropertyTable(makeProbePropertyTable(probeId, targetId))
+                    .setName(name)
+                    .build());
+        } catch (StatusRuntimeException e) {
+            translateStatusException(e);
+        }
     }
 
     @Nonnull
@@ -300,5 +441,40 @@ public class ProbesService implements IProbesService {
                 .setProbePropertyTable(makeProbePropertyTable(probeId, targetId))
                 .setProbePropertyNameAndValue(makeNameValuePair(name, value))
                 .build();
+    }
+
+    /**
+     * This method translates exceptions coming from a gRPC calls to exceptions that are the
+     * {@link ProbesService} is expected to throw.  If the status is unexpected, then the original
+     * gRPC exception is thrown.
+     *
+     * @param statusException a gRPC exception.
+     * @throws UnknownObjectException gRPC status was {@code NOT_FOUND}.
+     * @throws OperationFailedException gRPC status was {@code INVALID_ARGUMENT}.
+     * @throws UnauthorizedObjectException gRPC status was {@code UNAUTHENTICATED}.
+     * @throws InterruptedException gRPC status was {@code CANCELLED}.
+     * @throws AccessDeniedException gRPC status was {@code PERMISSION_DENIED}.
+     */
+    private static void translateStatusException(@Nonnull StatusRuntimeException statusException)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException {
+        switch (statusException.getStatus().getCode()) {
+            case NOT_FOUND:
+                throw new UnknownObjectException(statusException.getMessage());
+            case UNAUTHENTICATED:
+                throw new UnauthorizedObjectException(statusException.getMessage());
+            case PERMISSION_DENIED:
+                throw new AccessDeniedException(statusException.getMessage());
+            case CANCELLED:
+                throw new InterruptedException(statusException.getMessage());
+            case INVALID_ARGUMENT:
+                throw new OperationFailedException(statusException.getMessage());
+            default:
+                throw statusException;
+        }
     }
 }

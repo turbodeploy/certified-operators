@@ -82,7 +82,7 @@ public class ProbeControllerTest {
     public void testGetProbe() throws Exception {
         when(probesService.getProbe(any())).thenReturn(new ProbeApiDTO());
         mockMvc
-            .perform(get("/probes/100"))
+            .perform(get("/probes/100/"))
             .andExpect(status().isOk())
             .andReturn();
         verify(probesService, times(1)).getProbe(any());
@@ -97,7 +97,7 @@ public class ProbeControllerTest {
     public void testGetProbeNotFound() throws Exception {
         when(probesService.getProbe(any())).thenThrow(UnknownObjectException.class);
         mockMvc
-            .perform(get("/probes/100"))
+            .perform(get("/probes/100/"))
             .andExpect(status().isNotFound())
             .andReturn();
         verify(probesService, times(1)).getProbe(any());
@@ -112,7 +112,7 @@ public class ProbeControllerTest {
     public void testGetProbeBadProbeId() throws Exception {
         when(probesService.getProbe(any())).thenThrow(OperationFailedException.class);
         mockMvc
-            .perform(get("/probes/x"))
+            .perform(get("/probes/x/"))
             .andExpect(status().isBadRequest())
             .andReturn();
         verify(probesService, times(1)).getProbe(any());

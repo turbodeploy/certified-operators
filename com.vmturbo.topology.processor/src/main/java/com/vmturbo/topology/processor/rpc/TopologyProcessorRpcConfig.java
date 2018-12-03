@@ -5,14 +5,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.probe.ProbeDTOREST.ProbeRpcServiceController;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroupREST.DiscoveredGroupServiceController;
 import com.vmturbo.common.protobuf.topology.StitchingREST.StitchingJournalServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
+import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
+import com.vmturbo.topology.processor.probes.ProbeRpcService;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.stitching.journal.JournalFilterFactory;
@@ -62,6 +65,9 @@ public class TopologyProcessorRpcConfig {
     @Autowired
     private StitchingConfig stitchingConfig;
 
+    @Autowired
+    private KeyValueStoreConfig keyValueStoreConfig;
+
     @Bean
     public DiscoveredGroupRpcService discoveredGroupRpcService() {
         return new DiscoveredGroupRpcService(groupConfig.discoveredGroupUploader());
@@ -105,5 +111,18 @@ public class TopologyProcessorRpcConfig {
     @Bean
     public StitchingJournalServiceController stitchingJournalServiceController() {
         return new StitchingJournalServiceController(stitchingJournalRpcService());
+    }
+
+    @Bean
+    public ProbeRpcService probeService() {
+        return new ProbeRpcService(
+            probeConfig.probeStore(),
+            targetConfig.targetStore(),
+            keyValueStoreConfig.keyValueStore());
+    }
+
+    @Bean
+    public ProbeRpcServiceController probeServiceController() {
+        return new ProbeRpcServiceController(probeService());
     }
 }

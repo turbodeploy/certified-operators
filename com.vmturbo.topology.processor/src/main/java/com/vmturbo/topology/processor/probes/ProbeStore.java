@@ -20,6 +20,11 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
  */
 public interface ProbeStore {
     /**
+     * Key prefix of values stored in the key/value store.
+     */
+    String PROBE_KV_STORE_PREFIX = "probes/";
+
+    /**
      * Method registers a new probe with a specified transport.
      *
      * @param probeInfo Probe to register

@@ -40,11 +40,6 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 @ThreadSafe
 public class RemoteProbeStore implements ProbeStore {
 
-    /**
-     * Key prefix of values stored in Consul.
-     */
-    public static final String PROBE_PREFIX = "probes/";
-
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
 
@@ -92,7 +87,7 @@ public class RemoteProbeStore implements ProbeStore {
         this.compatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         // Load ProbeInfo persisted in Consul.
-        Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_PREFIX);
+        Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
 
         this.probeInfos = persistedProbeInfos.values().stream()
                 .map(probeInfoJson -> {
@@ -135,7 +130,7 @@ public class RemoteProbeStore implements ProbeStore {
                 stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
 
                 try {
-                    keyValueStore.put(PROBE_PREFIX + Long.toString(probeId),
+                    keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId),
                             JsonFormat.printer().print(probeInfo));
                 } catch (InvalidProtocolBufferException e) {
                     logger.error("Invalid probeInfo {}", probeInfo);
@@ -307,7 +302,7 @@ public class RemoteProbeStore implements ProbeStore {
         synchronized (dataLock) {
 
             try {
-                keyValueStore.put(PROBE_PREFIX + Long.toString(probeId.get()),
+                keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId.get()),
                         JsonFormat.printer().print(probeInfo));
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Invalid probeInfo {}", probeInfo);

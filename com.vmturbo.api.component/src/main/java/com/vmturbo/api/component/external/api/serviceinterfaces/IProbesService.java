@@ -1,10 +1,17 @@
 package com.vmturbo.api.component.external.api.serviceinterfaces;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
+import java.util.Objects;
+
+import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 
 public interface IProbesService {
     /**
@@ -14,46 +21,91 @@ public interface IProbesService {
      * @return information on the probe.
      * @throws Exception operation failed.
      */
-    ProbeApiDTO getProbe(String probeId) throws Exception;
+    @Nonnull
+    ProbeApiDTO getProbe(@Nonnull String probeId) throws Exception;
 
     /**
      * Get a list of all probe properties.
      *
      * @return a list of all probe properties.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException should not happen.
+     * @throws OperationFailedException should not happen.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    List<ProbePropertyApiDTO> getAllProbeProperties() throws Exception;
+    @Nonnull
+    List<ProbePropertyApiDTO> getAllProbeProperties()
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
-     *  Get all probe properties specific to a probe.
+     * Get all probe properties specific to a probe.
      *
-     *  @param probeId string representation of the probe id.
-     *  @return a list of all probe properties specific to the probe.
-     *  @throws Exception operation failed.
+     * @param probeId string representation of the probe id.
+     * @return a list of all probe properties specific to the probe.
+     * @throws UnknownObjectException probe does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    List<ProbePropertyNameValuePairApiDTO> getAllProbeSpecificProbeProperties(String probeId) throws Exception;
+    @Nonnull
+    List<ProbePropertyNameValuePairApiDTO> getAllProbeSpecificProbeProperties(@Nonnull String probeId)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Get a probe property specific to a probe.
      *
      * @param probeId string representation of the probe id.
      * @param propertyName the name of the property.
-     * @return a list of at most one probe property description.
-     * @throws Exception operation failed.
+     * @return the value of the property (the string is empty if the probe property does not exist).
+     * @throws UnknownObjectException probe does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    String getProbeSpecificProbeProperty(String probeId, String propertyName)
-        throws Exception;
+    @Nonnull
+    String getProbeSpecificProbeProperty(@Nonnull String probeId, @Nonnull String propertyName)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
-     *  Get all probe properties specific to a target.
+     * Get all probe properties specific to a target.
      *
-     *  @param probeId string representation of the probe id that discovers the target.
-     *  @param targetId string representation of the target id.
-     *  @return a list of all probe properties specific to the target.
-     *  @throws Exception operation failed.
+     * @param probeId string representation of the probe id that discovers the target.
+     * @param targetId string representation of the target id.
+     * @return a list of all probe properties specific to the target.
+     * @throws UnknownObjectException probe or target does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    List<ProbePropertyNameValuePairApiDTO> getAllTargetSpecificProbeProperties(String probeId, String targetId)
-        throws Exception;
+    @Nonnull
+    List<ProbePropertyNameValuePairApiDTO> getAllTargetSpecificProbeProperties(
+        @Nonnull String probeId,
+        @Nonnull String targetId)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Get a probe property specific to a target.
@@ -61,21 +113,45 @@ public interface IProbesService {
      * @param probeId string representation of the probe id that discovers the target.
      * @param targetId string representation of the target id.
      * @param propertyName the name of the property.
-     * @return a list of at most one probe property description.
-     * @throws Exception operation failed.
+     * @return the value of the property (the string is empty if the probe property does not exist).
+     * @throws UnknownObjectException probe or target does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
+    @Nonnull
     String getTargetSpecificProbeProperty(
-        String probeId, String targetId, String propertyName) throws Exception;
+        @Nonnull String probeId,
+        @Nonnull String targetId,
+        @Nonnull String propertyName)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Update all probe properties associated with a probe.
      *
      * @param probeId string representation of the probe id.
      * @param newProbeProperties the probe properties that are going to replace the existing ones.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException probe does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    void putAllProbeSpecificProperties(String probeId, List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
-        throws Exception;
+    void putAllProbeSpecificProperties(
+            @Nonnull String probeId,
+            @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Update one probe-specific probe property.  The property need not exist.
@@ -83,9 +159,19 @@ public interface IProbesService {
      * @param probeId string representation of the probe id.
      * @param name the name of the property.
      * @param value the new value of the property.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException probe does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    void putProbeSpecificProperty(String probeId, String name, String value) throws Exception;
+    void putProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name, @Nonnull String value)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Update all probe properties associated with a target.
@@ -93,10 +179,22 @@ public interface IProbesService {
      * @param probeId string representation of the probe id that discovers the target.
      * @param targetId string representation of the target id.
      * @param newProbeProperties the probe properties that are going to replace the existing ones.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException probe or target does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
     void putAllTargetSpecificProperties(
-        String probeId, String targetId, List<ProbePropertyNameValuePairApiDTO> newProbeProperties) throws Exception;
+        @Nonnull String probeId,
+        @Nonnull String targetId,
+        @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Update one target-specific probe property.  The property need not exist.
@@ -105,19 +203,42 @@ public interface IProbesService {
      * @param targetId string representation of the target id.
      * @param name the name of the property.
      * @param value the new value of the property.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException probe or target does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    void putTargetSpecificProperty(String probeId, String targetId, String name, String value)
-        throws Exception;
+    void putTargetSpecificProperty(
+            @Nonnull String probeId,
+            @Nonnull String targetId,
+            @Nonnull String name,
+            @Nonnull String value)
+            throws
+                UnknownObjectException,
+                OperationFailedException,
+                UnauthorizedObjectException,
+                InterruptedException,
+                AccessDeniedException;
 
     /**
      * Delete one probe-specific probe property.
      *
      * @param probeId string representation of the probe id.
      * @param name the name of the property.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException probe does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    void deleteProbeSpecificProperty(String probeId, String name) throws Exception;
+    void deleteProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
 
     /**
      * Delete one target-specific probe property.
@@ -125,7 +246,24 @@ public interface IProbesService {
      * @param probeId string representation of the probe id that discovers the target.
      * @param targetId string representation of the target id.
      * @param name the name of the property.
-     * @throws Exception operation failed.
+     * @throws UnknownObjectException probe or target does not exist.
+     * @throws OperationFailedException bad input.
+     * @throws UnauthorizedObjectException user not authenticated.
+     * @throws AccessDeniedException user not authorized.
+     * @throws InterruptedException the operation was interrupted.
      */
-    void deleteTargetSpecificProperty(String probeId, String targetId, String name) throws Exception;
+    void deleteTargetSpecificProperty(
+        @Nonnull String probeId,
+        @Nonnull String targetId,
+        @Nonnull String name)
+        throws
+            UnknownObjectException,
+            OperationFailedException,
+            UnauthorizedObjectException,
+            InterruptedException,
+            AccessDeniedException;
+
+    static boolean validProbePropertyName(@Nonnull String name) {
+        return !Objects.requireNonNull(name).isEmpty() && name.matches("[a-zA-Z0-9\\.\\_]*");
+    }
 }

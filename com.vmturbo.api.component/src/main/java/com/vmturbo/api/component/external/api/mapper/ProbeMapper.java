@@ -4,6 +4,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
@@ -32,14 +33,12 @@ public class ProbeMapper {
             @Nonnull ProbePropertyInfo probePropertyInfo) {
         final ProbePropertyApiDTO result = new ProbePropertyApiDTO();
         final ProbeOrTarget table = probePropertyInfo.getProbePropertyTable();
-        if (table.hasProbeId()) {
-            result.setProbeId(result.getProbeId());
-        }
+        result.setProbeId(table.getProbeId());
         if (table.hasTargetId()) {
-            result.setTargetId(result.getTargetId());
+            result.setTargetId(table.getTargetId());
         }
-        result.setName(result.getName());
-        result.setValue(result.getValue());
+        result.setName(probePropertyInfo.getProbePropertyNameAndValue().getName());
+        result.setValue(probePropertyInfo.getProbePropertyNameAndValue().getValue());
         return result;
     }
 
@@ -81,8 +80,10 @@ public class ProbeMapper {
             @Nonnull ProbePropertyNameValuePairApiDTO nameValuePair,
             @Nonnull Set<String> observedNames) throws OperationFailedException {
         // check validity of the input
-        if (nameValuePair.getName() == null || nameValuePair.getName().isEmpty()) {
-            throw new OperationFailedException("Missing probe property name");
+        if (nameValuePair.getName() == null ||
+            !IProbesService.validProbePropertyName(nameValuePair.getName())) {
+            throw new OperationFailedException(
+                "Invalid property name: " + nameValuePair.getName());
         }
         if (nameValuePair.getValue() == null || nameValuePair.getValue().isEmpty()) {
             throw new OperationFailedException("Missing probe property value");

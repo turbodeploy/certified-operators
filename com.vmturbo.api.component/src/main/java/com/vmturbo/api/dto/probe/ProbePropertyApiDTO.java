@@ -2,16 +2,20 @@ package com.vmturbo.api.dto.probe;
 
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
 @ApiModel(description="Model to describe a probe property")
+@JsonInclude(Include.NON_NULL)
 public class ProbePropertyApiDTO {
     @ApiModelProperty("Probe id.")
     private long probeId = 0L;
 
     @ApiModelProperty("Target id.")
-    private long targetId = 0L;
+    private Long targetId;
 
     @ApiModelProperty(value = "Probe property name.", required = true)
     private String name = "";
@@ -23,7 +27,7 @@ public class ProbePropertyApiDTO {
         return probeId;
     }
 
-    public long getTargetId() {
+    public Long getTargetId() {
         return targetId;
     }
 

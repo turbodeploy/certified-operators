@@ -32,13 +32,11 @@ import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
-import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec.Builder;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -51,8 +49,6 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  */
 @ThreadSafe
 public class KVBackedTargetStore implements TargetStore {
-
-    private static final String TARGET_PREFIX = "targets/";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -86,7 +82,7 @@ public class KVBackedTargetStore implements TargetStore {
 
         // Check the key-value store for targets backed up
         // by previous incarnations of a KVBackedTargetStore.
-        final Map<String, String> persistedTargets = this.keyValueStore.getByPrefix(TARGET_PREFIX);
+        final Map<String, String> persistedTargets = this.keyValueStore.getByPrefix(TARGET_KV_STORE_PREFIX);
 
         this.targetsById = persistedTargets.entrySet().stream()
                 .map(entry -> {
@@ -281,7 +277,7 @@ public class KVBackedTargetStore implements TargetStore {
 
     @GuardedBy("storeLock")
     private void registerTarget(Target target) {
-        keyValueStore.put(TARGET_PREFIX + Long.toString(target.getId()), target.toJsonString());
+        keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(target.getId()), target.toJsonString());
         targetsById.put(target.getId(), target);
         addDerivedTargetsRelationships(target);
         logger.info("Registered target {} for probe {}.", target.getId(), target.getProbeId());
@@ -329,7 +325,7 @@ public class KVBackedTargetStore implements TargetStore {
             retTarget = oldTarget.withUpdatedFields(updatedFields, probeStore);
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
-            keyValueStore.put(TARGET_PREFIX + Long.toString(retTarget.getId()),
+            keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
                             retTarget.toJsonString());
             // In case of target identifiers changing, we need to remove the relations with its derived
             // targets and rediscover them in next cycle.
@@ -382,7 +378,7 @@ public class KVBackedTargetStore implements TargetStore {
             if (oldTarget == null) {
                 throw new TargetNotFoundException(targetId);
             }
-            keyValueStore.remove(TARGET_PREFIX + Long.toString(targetId));
+            keyValueStore.remove(TARGET_KV_STORE_PREFIX + Long.toString(targetId));
             identityStore.removeItemOids(ImmutableSet.of(targetId));
             removeDerivedTargetsRelationships(targetId);
         }

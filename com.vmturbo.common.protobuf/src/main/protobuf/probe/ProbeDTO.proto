@@ -17,6 +17,8 @@ message ProbeOrTarget {
 // This message assigns a string value to a string name.
 message ProbePropertyNameValuePair {
     // Name of the probe property. Must be set.
+    // Must comply to validity rule given in
+    // {@link com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService#validProbePropertyName}.
     optional string name = 1;
 
     // Value of the probe property.  Must be set.
@@ -80,6 +82,8 @@ message GetProbePropertyValueRequest {
     optional ProbeOrTarget probe_property_table = 1;
 
     // Name of the probe property whose value is to be returned.  Must be set.
+    // Must comply to validity rule given in
+    // {@link com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService#validProbePropertyName}.
     optional string name = 2;
 }
 
@@ -119,6 +123,8 @@ message DeleteProbePropertyRequest {
     optional ProbeOrTarget probe_property_table = 1;
 
     // Name of property to delete.  Must be set.
+    // Must comply to validity rule given in
+    // {@link com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService#validProbePropertyName}.
     optional string name = 2;
 }
 
