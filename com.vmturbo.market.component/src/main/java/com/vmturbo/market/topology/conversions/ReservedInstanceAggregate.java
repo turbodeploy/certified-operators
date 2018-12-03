@@ -87,14 +87,10 @@ public class ReservedInstanceAggregate {
      */
     void checkAndUpdateLargestTier(TopologyEntityDTO computeTier, ReservedInstanceKey key) {
         ComputeTierInfo info = computeTier.getTypeSpecificInfo().getComputeTier();
-        if (info.getFamily() == key.getFamily() &&
+        if (largestTier == null &&
                 // check if the computeTier is in this region
-                areEntitiesConnected(computeTier, key.getRegionId()) &&
+                areEntitiesConnected(computeTier, key.getRegionId())) {
                 // TODO: check if the computeTier is in this zone
-                (largestTier == null
-                // check if the numCoupons of this tier is larger that the current largestTier's numCoupons
-                || info.getNumCoupons() > largestTier.getTypeSpecificInfo()
-                       .getComputeTier().getNumCoupons())) {
             largestTier = computeTier;
         }
     }

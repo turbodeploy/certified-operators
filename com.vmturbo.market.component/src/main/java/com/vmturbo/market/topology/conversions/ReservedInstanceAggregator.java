@@ -2,9 +2,12 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.annotation.Nonnull;
 
@@ -102,6 +105,11 @@ public class ReservedInstanceAggregator {
                 familyToComputeTiers.get(family).add(dto);
             }
         }
+        // sort the entities in a family by coupon count for optimization
+        CouponCountComparator comparator = new CouponCountComparator();
+        for (List<TopologyEntityDTO> tiersOfFamily : familyToComputeTiers.values()) {
+            Collections.sort(tiersOfFamily, comparator);
+        }
     }
 
     /**
@@ -118,6 +126,19 @@ public class ReservedInstanceAggregator {
                         "belonging to the same family were in this topology");
             }
             computeTiers.stream().forEach(computeTier -> riAggregate.checkAndUpdateLargestTier(computeTier, key));
+        }
+    }
+
+    /**
+     * Comparator to sort computeTiers based on the number of coupons
+     *
+     */
+    static class CouponCountComparator implements Comparator<TopologyEntityDTO> {
+
+        @Override
+        public int compare(TopologyEntityDTO tier1, TopologyEntityDTO tier2) {
+            return tier2.getTypeSpecificInfo().getComputeTier().getNumCoupons() -
+                    tier1.getTypeSpecificInfo().getComputeTier().getNumCoupons();
         }
     }
 
