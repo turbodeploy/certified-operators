@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.findGuaranteedBuyers;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -166,7 +164,6 @@ public class Suspension {
             while ((trader = suspensionCandidateHeap_.poll()) != null) {
                 if (!soleProviders.contains(trader) && trader.getState().isActive()) {
                     allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger));
-                    findSoleProviders(economy);  // find traders who just became a sole provider
                 }
             }
             // reset threshold
@@ -266,7 +263,7 @@ public class Suspension {
                 }
             }
         }
-
+        updateSoleProviders(economy, trader);
         logger.info("{" + traderDebugInfo + "} was suspended.");
         if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
             makeCoSellersNonSuspendable(economy, trader);
@@ -358,19 +355,40 @@ public class Suspension {
                     soleProviders.add(trader);
             }
             if (trader.getSettings().isGuaranteedBuyer()) {
-                // This identifies sole providers of guaranteed buyers.  We do not want to suspend the
-                // last supplier of a guaranteed buyer.
-                final List<Trader> activeTraders = economy.getMarketsAsBuyer(trader)
-                        .keySet().stream()
-                        .map(ShoppingList::getSupplier)
-                        .filter(supp -> supp != null && supp.getState().isActive())
-                        .limit(2)  // We only need to know whether there is 1 or more than 1
-                        .collect(Collectors.toList());
-                if (activeTraders.size() == 1) {
-                        soleProviders.add(activeTraders.get(0));
-                }
+                // updateSoleProviders on the first supplier. If that supplier was a sole provider, it will get
+                // added to the list. If not, then the other ones won't be sole providers either.
+                economy.getMarketsAsBuyer(trader)
+                    .keySet().stream()
+                    .findFirst()
+                    .ifPresent(sl -> {
+                        if (sl.getSupplier() != null) {
+                            updateSoleProviders(economy, sl.getSupplier());
+                        }
+                    });
             }
         }
+    }
+
+    /**
+     * Identifies sole providers of guaranteed buyers of given trader. We do not want to
+     * suspend the last supplier of a guaranteed buyer.
+     * @param economy
+     * @param trader
+     */
+    public void updateSoleProviders(Economy economy, Trader trader) {
+        final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
+                        .findGuaranteedBuyers(trader);
+        guaranteedBuyers.stream().forEach(t -> {
+            final List<Trader> activeTraders = economy.getMarketsAsBuyer(t)
+                .keySet().stream()
+                .map(ShoppingList::getSupplier)
+                .filter(supp -> supp != null && supp.getState().isActive())
+                .limit(2)  // We only need to know whether there is 1 or more than 1
+                .collect(Collectors.toList());
+            if (activeTraders.size() == 1) {
+                soleProviders.add(activeTraders.get(0));
+            }
+        });
     }
 
     public void setRolledBack(@NonNull Set<@NonNull Trader> rolledBackTraders) {

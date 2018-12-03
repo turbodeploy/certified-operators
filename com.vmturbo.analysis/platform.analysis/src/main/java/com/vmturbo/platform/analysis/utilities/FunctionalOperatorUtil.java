@@ -186,7 +186,7 @@ public class FunctionalOperatorUtil {
                                              + " with a templateCost of " + templateCost
                                              + " at a discountCoeff of" + discountCoefficient
                                              + " with a final discount of " + discountedCost
-                                             + " requests " + requestedCoupons 
+                                             + " requests " + requestedCoupons
                                              + " coupons, allowed " + allocatedCoupons + " coupons");
                             }
                             /** Increase the used value of coupon commodity sold by cbtp accordingly.
@@ -258,6 +258,21 @@ public class FunctionalOperatorUtil {
                                                 buyer.getPeakQuantities()[boughtIndex])
                                                 / numCustomers};
                         } else {
+                            // This is done to prevent ping-pong occurring due to ""AVG_COMMS".
+                            // Consider a commodity with quantity "1" on supplier1 and two consumers with
+                            // quantity 12 and 10 on supplier2 (with avg 11).
+                            // --Now consumer with quantity 12 goes shopping and will get cheaper quote at
+                            // supplier1 as average is 6.5 .
+                            // --Also, consumer with quantity 10 will also get cheaper quote at supplier1
+                            // as average is ~7.66.
+                            // --Consumer with quantity 1 will will get cheaper quote at supplier2 as its
+                            // avg is 1 (because it was empty).
+                            // Now in future placement iterations reverse will occur. To prevent this,
+                            // when last consumer is there on current provider we return 0 (to provide
+                            // best possible quote) so we don't recommend a move due to limitation of AVG_COMMS.
+                            if (buyer.getSupplier() == seller && numCustomers == 1) {
+                                return new double[]{0, 0};
+                            }
                             return new double[]{Math.max(commSold.getQuantity(),
                                         (commSold.getQuantity() * numCustomers
                                         + buyer.getQuantities()[boughtIndex]) / (numCustomers + 1)),
