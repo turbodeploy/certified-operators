@@ -53,6 +53,9 @@ cp ${WORKSPACE}/build/docker-compose.yml.50k ${WORKSPACE}/data/images/
 cp ${WORKSPACE}/build/docker-compose.yml.100k ${WORKSPACE}/data/images/
 cp ${WORKSPACE}/build/docker-compose.yml.200k ${WORKSPACE}/data/images/
 
+# Copy the prod.env file to add into the iso. Rename it to .env
+cp ${WORKSPACE}/build/prod.env ${WORKSPACE}/data/images/.env
+
 # Copy the turboctl.py script to add into the iso
 cp ${WORKSPACE}/build/turboctl.py ${WORKSPACE}/data/images/.
 
@@ -98,6 +101,7 @@ sha256sum "turboupgrade.py" >> turbonomic_sums.txt
 sha256sum "metron.py" >> turbonomic_sums.txt
 sha256sum "vmtctl" >> turbonomic_sums.txt
 sha256sum "turbo_upgrade_spec.yml" >> turbonomic_sums.txt
+sha256sum ".env" >> turbonomic_sums.txt
 
 # For customers who don't allow access to remote yum repository, we would have
 # to ship the PyYAML package along with XL components.

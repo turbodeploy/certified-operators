@@ -10,6 +10,7 @@ import datetime
 import errno
 import glob
 import hashlib
+import itertools
 import json
 import logging
 import os
@@ -297,6 +298,12 @@ def get_component_name_from_image_file_name(fname):
 
     return d.get(comp_name, comp_name.replace('_', '-'))
 
+def get_file_names(dir_path, patterns):
+    return (itertools.chain.from_iterable(
+            glob.iglob(os.path.join(dir_path, pattern))
+            for pattern in patterns))
+
+
 """
 Set the component data versions to "00_00_00" if it is not set.
 This will be used during data migration by the components.
@@ -418,8 +425,9 @@ if __name__ == '__main__':
     tstamp = datetime.datetime.today().strftime('%Y-%m-%d-%H%M%S')
     shutil.copytree(TURBO_DOCKER_CONF_ROOT,
         "%s.%s"%(TURBO_DOCKER_CONF_ROOT,tstamp))
-    # update the docker compose files and scripts with the latest version
-    for fname in glob.glob("%s/*.yml*"%ISO_MOUNTPOINT):
+    # update the docker compose and other files with the latest version
+    files_to_update = ["*.yml*", ".env", "metron.py", "turboctl.py"]
+    for fname in get_file_names(ISO_MOUNTPOINT, files_to_update):
         if not (verify_sha256sum(fname,
             new_checksums.get(os.path.basename(fname)))):
             LOGGER.error("Checksum mismatch for %s"%fname)
@@ -542,8 +550,8 @@ if __name__ == '__main__':
     ret, out = exec_cmd(True, "docker", "image", "prune", "-f")
     LOGGER.info(out)
 
-    # copy the turbo checksum and info files
-    for fname in glob.glob("%s/*.txt"%ISO_MOUNTPOINT):
+    # copy the turbo checksum and other files
+    for fname in get_file_names(ISO_MOUNTPOINT, ["*.txt"]):
         shutil.copy(fname, TURBO_DOCKER_CONF_ROOT)
 
     if not args.loc:

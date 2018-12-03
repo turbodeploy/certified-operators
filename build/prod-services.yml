@@ -297,8 +297,6 @@ services:
       file: common-services.yml
       service: common-service
     image: turbonomic/influxdb
-    env_file:
-     - ./metron.env
     environment:
       METRON_ENABLED: "${METRON_ENABLED}"
     volumes:
@@ -315,8 +313,6 @@ services:
       file: common-services.yml
       service: prod-component
     image: turbonomic/ml-datastore
-    env_file:
-     - ./metron.env
     environment:
       METRON_ENABLED: "${METRON_ENABLED}"
       component_type: ml-datastore

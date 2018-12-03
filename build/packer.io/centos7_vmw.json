@@ -81,6 +81,16 @@
         },
         {
             "type": "file",
+            "source": "../metron.py",
+            "destination": "/etc/docker/metron.py"
+        },
+        {
+            "type": "file",
+            "source": "../.env",
+            "destination": "/etc/docker/.env"
+        },
+        {
+            "type": "file",
             "source": "../turbo_upgrade_spec.yml",
             "destination": "/etc/docker/turbo_upgrade_spec.yml"
         },
