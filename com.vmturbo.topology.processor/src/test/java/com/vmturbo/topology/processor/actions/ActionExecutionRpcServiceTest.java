@@ -229,7 +229,8 @@ public class ActionExecutionRpcServiceTest {
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId),
                 Mockito.anyLong(),
-                Mockito.eq(ActionType.MOVE),
+                // Storage move is a CHANGE in the SDK
+                Mockito.eq(ActionType.CHANGE),
                 actionItemDTOCaptor.capture(),
                 Mockito.eq(Stream.of(1L, 2L, 3L)
                         .collect(Collectors.toSet())),
