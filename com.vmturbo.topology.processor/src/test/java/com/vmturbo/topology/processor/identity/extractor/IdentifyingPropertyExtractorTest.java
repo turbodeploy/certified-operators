@@ -25,6 +25,7 @@ import java.util.Set;
 import org.junit.Test;
 
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -74,7 +75,8 @@ public class IdentifyingPropertyExtractorTest {
         EntityIdentityMetadata metadata = entityMetadata(EntityType.VIRTUAL_MACHINE)
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.emptyList());
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Collections.singletonList(dto.getEntityType().name()));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -87,7 +89,8 @@ public class IdentifyingPropertyExtractorTest {
             .nonVolatileProp("id")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("vm-1"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "vm-1"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -101,7 +104,8 @@ public class IdentifyingPropertyExtractorTest {
             .volatileProp("displayName")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("virtual-machine-1"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "virtual-machine-1"));
         List<PropertyDescriptor> volatileProperties = new ArrayList<>(descriptor.getVolatileProperties(null));
 
         assertEquals(1, volatileProperties.size());
@@ -118,7 +122,8 @@ public class IdentifyingPropertyExtractorTest {
             .heuristicProp("displayName")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.emptyList());
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Collections.singletonList(dto.getEntityType().name()));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
 
         List<PropertyDescriptor> heuristicProperties = new ArrayList<>(descriptor.getHeuristicProperties(null));
@@ -133,11 +138,12 @@ public class IdentifyingPropertyExtractorTest {
             .underlying("pm-2")
             .underlying("pm-3")
             .build();
-        EntityIdentityMetadata metadata = entityMetadata(EntityType.VIRTUAL_MACHINE)
+        EntityIdentityMetadata metadata = entityMetadata(EntityType.STORAGE)
             .nonVolatileProp("underlyingList")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Arrays.asList("pm-1", "pm-2", "pm-3"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Arrays.asList(dto.getEntityType().name(), "pm-1", "pm-2", "pm-3"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -151,14 +157,14 @@ public class IdentifyingPropertyExtractorTest {
             .underlying("pm-3")
             .build();
 
-        EntityIdentityMetadata metadata = entityMetadata(EntityType.VIRTUAL_MACHINE)
+        EntityIdentityMetadata metadata = entityMetadata(EntityType.STORAGE)
             .nonVolatileProp("underlyingList")
             .volatileProp("id")
             .heuristicProp("displayName")
             .build();
 
         EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
-            Arrays.asList("pm-1", "pm-2", "pm-3", "st-1"));
+            Arrays.asList(dto.getEntityType().name(), "pm-1", "pm-2", "pm-3", "st-1"));
         assertEquals(1, descriptor.getVolatileProperties(null).size());
         assertEquals(1, descriptor.getHeuristicProperties(null).size());
     }
@@ -188,8 +194,8 @@ public class IdentifyingPropertyExtractorTest {
             assertTrue(property.getPropertyTypeRank() >= 1); // Verify property rank >= 1
         }
 
-        // Verify distinct property rank per property type (not property value!)
-        assertEquals(2, idPropertyRanks.size());
+        // Verify distinct property rank per property type (not property value!); include EntityType
+        assertEquals(3, idPropertyRanks.size());
     }
 
     @Test
@@ -197,11 +203,12 @@ public class IdentifyingPropertyExtractorTest {
         EntityDTO dto = application("app-1")
             .appType("GuestLoad")
             .build();
-        EntityIdentityMetadata metadata = entityMetadata(EntityType.VIRTUAL_MACHINE)
+        EntityIdentityMetadata metadata = entityMetadata(EntityType.APPLICATION)
             .nonVolatileProp("applicationData/type")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("GuestLoad"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "GuestLoad"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -215,7 +222,8 @@ public class IdentifyingPropertyExtractorTest {
             .nonVolatileProp("virtualMachineData/ipAddressList")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("10.10.100.20"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "10.10.100.20"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -229,7 +237,8 @@ public class IdentifyingPropertyExtractorTest {
             .nonVolatileProp("diskArrayData/storageIdList")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("storage-123"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "storage-123"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -244,7 +253,8 @@ public class IdentifyingPropertyExtractorTest {
             .nonVolatileProp("physicalMachineRelatedData/processorList/capacity*")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Arrays.asList("100.0", "250.0"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Arrays.asList(dto.getEntityType().name(), "100.0", "250.0"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -256,11 +266,12 @@ public class IdentifyingPropertyExtractorTest {
             .buying(cpuMHz().from("pm-1"))
             .build();
 
-        EntityIdentityMetadata metadata = entityMetadata(EntityType.PHYSICAL_MACHINE)
+        EntityIdentityMetadata metadata = entityMetadata(EntityType.VIRTUAL_MACHINE)
             .nonVolatileProp("entityPropertiesList(name,customproperty)/value*")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("customvalue"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "customvalue"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }
@@ -270,11 +281,12 @@ public class IdentifyingPropertyExtractorTest {
         EntityDTO dto = virtualMachine("vm-1")
             .buying(cpuMHz().from("pm-1", EntityType.PHYSICAL_MACHINE))
             .build();
-        EntityIdentityMetadata metadata = entityMetadata(EntityType.PHYSICAL_MACHINE)
+        EntityIdentityMetadata metadata = entityMetadata(EntityType.VIRTUAL_MACHINE)
             .nonVolatileProp("commoditiesBoughtList(providerType,PHYSICAL_MACHINE)/providerId*")
             .build();
 
-        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata, Collections.singletonList("pm-1"));
+        EntityDescriptor descriptor = testIdentifyingProperties(dto, metadata,
+            Lists.newArrayList(dto.getEntityType().name(), "pm-1"));
         assertEquals(0, descriptor.getVolatileProperties(null).size());
         assertEquals(0, descriptor.getHeuristicProperties(null).size());
     }

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.identity;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,7 @@ import com.vmturbo.topology.processor.util.Probes;
  */
 public class IdentityProviderImplTest {
 
+    public static final String SAME_ID = "same-id";
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 
@@ -79,7 +81,7 @@ public class IdentityProviderImplTest {
     @Test
     public void testGetTargetId() throws Exception {
         TargetSpec targetSpec = new TargetSpec(0L, Collections.emptyList());
-        Assert.assertNotEquals(identityProvider.getTargetId(targetSpec.toDto()),
+        assertNotEquals(identityProvider.getTargetId(targetSpec.toDto()),
                 identityProvider.getTargetId(targetSpec.toDto()));
     }
 
@@ -97,7 +99,7 @@ public class IdentityProviderImplTest {
         assertEquals(probeId, identityProvider.getProbeId(eqProbe));
         ProbeInfo diffProbe = ProbeInfo.newBuilder(baseProbeInfo)
                 .setProbeType("test2").build();
-        Assert.assertNotEquals(probeId, identityProvider.getProbeId(diffProbe));
+        assertNotEquals(probeId, identityProvider.getProbeId(diffProbe));
     }
 
     /**
@@ -134,9 +136,51 @@ public class IdentityProviderImplTest {
         EntityDTO diffEntity = EntityDTO.newBuilder(entity)
                 .setId("test2")
                 .build();
-        Assert.assertNotEquals(Long.valueOf(entityId),
+        assertNotEquals(Long.valueOf(entityId),
                 identityProvider.getIdsForEntities(probeId,
                         Collections.singletonList(diffEntity)).keySet().iterator().next());
+    }
+
+    /**
+     * Test that two entities with the same time and same identity-metadata but different
+     * EntityTypes are different.
+     *
+     * @throws Exception If any exception thrown.
+     */
+    @Test
+    public void testEntityTypeDistinguishing() throws Exception {
+        // arrange
+        ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
+                .addEntityMetadata(
+                        EntityIdentityMetadata.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id")))
+                .addEntityMetadata(
+                        EntityIdentityMetadata.newBuilder()
+                                .setEntityType(EntityType.APPLICATION)
+                                .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id")))
+                .build();
+        long probeId = identityProvider.getProbeId(probeInfo);
+
+        EntityDTO vmEntity = EntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .setId(SAME_ID)
+                .build();
+        EntityDTO appEntity = EntityDTO.newBuilder(vmEntity)
+            .setEntityType(EntityType.APPLICATION)
+            .setDisplayName(SAME_ID)
+            .build();
+        // act - compute the IDs for the VM and for the APP Entities
+        final Map<Long, EntityDTO> vmIdMap = identityProvider.getIdsForEntities(probeId,
+                Collections.singletonList(vmEntity));
+        final Map<Long, EntityDTO> appIdMap = identityProvider.getIdsForEntities(probeId,
+            Collections.singletonList(appEntity));
+        // Ensure that the IDs are different
+        assertEquals(1, vmIdMap.size());
+        final long vmId = vmIdMap.keySet().iterator().next();
+        assertEquals(1, appIdMap.size());
+        final long appId = appIdMap.keySet().iterator().next();
+        assertNotEquals(vmId, appId);
     }
 
     /**

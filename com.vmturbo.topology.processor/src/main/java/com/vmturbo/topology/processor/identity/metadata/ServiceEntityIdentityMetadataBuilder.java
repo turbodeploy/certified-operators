@@ -12,6 +12,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.vmturbo.platform.common.builders.metadata.EntityIdentityMetadataBuilder;
 import com.vmturbo.platform.common.builders.metadata.EntityIdentityMetadataBuilder.Classifier;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata.PropertyMetadata;
 
@@ -24,6 +25,12 @@ import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata.P
  */
 @NotThreadSafe
 public class ServiceEntityIdentityMetadataBuilder {
+
+    /**
+     * "entityType" will always be added to NonVolatile property lists
+     */
+    public static final String ENTITY_TYPE_PROPERTY_NAME = EntityType.getDescriptor().getName();
+
     private final EntityIdentityMetadata metadata;
     /**
      * Used to track names of properties given to the builder. A property must be unique, which we ensure
@@ -47,30 +54,52 @@ public class ServiceEntityIdentityMetadataBuilder {
      * Build a {@code ServiceEntityIdentityMetadata} instance from the metadata this builder
      * was constructed with.
      *
+     * Always add the {@link EntityType} to the metadata to be compared. SE's with different
+     * EntityType values are never equal.
+     *
      * @return {@code ServiceEntityIdentityMetadata}
      */
+
     public ServiceEntityIdentityMetadata build() {
-        nextGroupId = 1;
-        validateHeuristicThreshold();
+        synchronized (allPropertyNames) {
+            nextGroupId = 1;
+            validateHeuristicThreshold();
+            List<ServiceEntityProperty> nonVolatileProperties = collectProperties(
+                metadata.getNonVolatilePropertiesList(), Classifier.NON_VOLATILE);
+            // always compare based on the EntityType
+            addEntityTypeProperty(nonVolatileProperties);
+            List<ServiceEntityProperty> volatileProperties = collectProperties(
+                metadata.getVolatilePropertiesList(), Classifier.VOLATILE);
+            List<ServiceEntityProperty> heuristicProperties = collectProperties(
+                metadata.getHeuristicPropertiesList(), Classifier.HEURISTIC);
 
-        List<ServiceEntityProperty> nonVolatileProperties = collectProperties(
-            metadata.getNonVolatilePropertiesList(), Classifier.NON_VOLATILE);
-        List<ServiceEntityProperty> volatileProperties = collectProperties(
-            metadata.getVolatilePropertiesList(), Classifier.VOLATILE);
-        List<ServiceEntityProperty> heuristicProperties = collectProperties(
-            metadata.getHeuristicPropertiesList(), Classifier.HEURISTIC);
+            return new ServiceEntityIdentityMetadata(
+                nonVolatileProperties,
+                volatileProperties,
+                heuristicProperties,
+                metadata.getHeuristicThreshold()
+            );
+        }
+    }
 
-        return new ServiceEntityIdentityMetadata(
-            nonVolatileProperties,
-            volatileProperties,
-            heuristicProperties,
-            metadata.getHeuristicThreshold()
-        );
+    /**
+     * Add the "entityType" property to the nonVolatileProperties list if "entityType" has not
+     * yet been seen as a Metadata property.
+     *
+     * @param nonVolatileProperties the list of nonVolatileProperties to be added to
+     */
+    private void addEntityTypeProperty(@Nonnull final List<ServiceEntityProperty>
+                                           nonVolatileProperties) {
+        if (!allPropertyNames.contains(ENTITY_TYPE_PROPERTY_NAME)) {
+            nonVolatileProperties.add(nextEntityProperty(ENTITY_TYPE_PROPERTY_NAME));
+        }
     }
 
     /**
      * Collect the {@code ServiceEntityProperties} for a given classifier.
-     * Assigns a groupId to each ServiceEntityProperty object created.
+     *
+     * Assigns a groupId to each ServiceEntityProperty object created. Also checks that the
+     * property name is unique.
      *
      * @param propertyMetadata list of metadata properties to collect into ServiceEntityProperties
      * @param classifier Classifier associated with the list of properties
@@ -86,20 +115,30 @@ public class ServiceEntityIdentityMetadataBuilder {
         List<PropertyMetadata> sortedMetadata = sortedMetadata(propertyMetadata);
         for (PropertyMetadata property : sortedMetadata) {
             String name = property.getName();
-
             if (allPropertyNames.contains(name)) {
                 throw new IllegalArgumentException(
                     "Duplicate metadata " + classifier + " property \"" + name +
                         "\" in EntityIdentityMetadata" + metadata
                 );
             }
-
             allPropertyNames.add(name);
-            properties.add(new ServiceEntityProperty(name, nextGroupId));
-            nextGroupId++;
+            properties.add(nextEntityProperty(name));
         }
 
         return properties;
+    }
+
+    /**
+     * Construct a new ServiceEntityProperty based on a name.
+     *
+     * Uses the 'nextGroupId' variable to index this property, and increment it so that
+     * each ServiceEntityProperty will have a unique priority index.
+     *
+     * @param name the property name
+     * @return a ServiceEntityProperty built from the name and the
+     */
+    private ServiceEntityProperty nextEntityProperty(final String name) {
+        return new ServiceEntityProperty(name, nextGroupId++);
     }
 
     private List<PropertyMetadata> sortedMetadata(List<PropertyMetadata> propertyMetadata) {
