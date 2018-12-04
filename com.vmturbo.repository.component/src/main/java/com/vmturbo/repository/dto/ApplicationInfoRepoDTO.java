@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
 
@@ -39,10 +40,14 @@ public class ApplicationInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
         final ApplicationInfo.Builder applicationInfoBuilder = ApplicationInfo.newBuilder();
-        if (getIpAddress() != null) {
-            applicationInfoBuilder.setIpAddress(IpAddress.newBuilder()
-                    .setIpAddress(getIpAddress().getIpAddress())
-                    .setIsElastic(getIpAddress().getElastic()));
+        final IpAddressRepoDTO repoIpAddress = getIpAddress();
+        if (repoIpAddress != null) {
+            final Builder ipAddressBuilder = IpAddress.newBuilder();
+            if (repoIpAddress.getIpAddress() != null) {
+                    ipAddressBuilder.setIpAddress(repoIpAddress.getIpAddress());
+            }
+            ipAddressBuilder.setIsElastic(repoIpAddress.getElastic());
+            applicationInfoBuilder.setIpAddress(ipAddressBuilder);
         }
         return TypeSpecificInfo.newBuilder()
                 .setApplication(applicationInfoBuilder)

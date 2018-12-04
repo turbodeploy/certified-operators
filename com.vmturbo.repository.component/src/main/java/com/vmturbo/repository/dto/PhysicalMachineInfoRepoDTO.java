@@ -40,11 +40,24 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     }
 
+    /**
+     * Create a {@link TypeSpecificInfo} instance with {@link PhysicalMachineInfo} populated
+     * from the fields of {@code this}. We must handle missing fields, which will be represented by 'null'
+     * in the RepoDTO bean.
+     *
+     * @return a new {@link TypeSpecificInfo} instance with a populated {@link PhysicalMachineInfo}
+     */
     public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
         final PhysicalMachineInfo.Builder physicalMachineInfoBuilder = PhysicalMachineInfo.newBuilder();
-        physicalMachineInfoBuilder.setCpuModel(getCpuModel());
-        physicalMachineInfoBuilder.setVendor(getVendor());
-        physicalMachineInfoBuilder.setModel(getModel());
+        if (getCpuModel() != null) {
+            physicalMachineInfoBuilder.setCpuModel(getCpuModel());
+        }
+        if (getVendor() != null) {
+            physicalMachineInfoBuilder.setVendor(getVendor());
+        }
+        if (getModel() != null) {
+            physicalMachineInfoBuilder.setModel(getModel());
+        }
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)
                 .build();
