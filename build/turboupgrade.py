@@ -189,7 +189,8 @@ def exec_docker_compose_cmd(exit_on_error, cmd, *args):
         cmd = ["docker-compose", "-f", DOCKER_COMPOSE_FILE, cmd]
         cmd.extend(args)
         # redirect stderr to stdout so that all cmd output is captured.
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT,
+                cwd=TURBO_DOCKER_CONF_ROOT)
         return (0, out)
     except subprocess.CalledProcessError as ex:
         if not exit_on_error:
@@ -227,7 +228,7 @@ def wait_until_component_ready(component):
     LOGGER.info("Waiting for component : '%s' to be READY"%component)
 
     wait_secs = 30
-    if component in ["nginx", "zoo1", "kafka1"]:
+    if component in ["nginx", "zoo1", "kafka1", "influxdb", "ml-datastore"]:
         time.sleep(wait_secs)
         return
     elif component in ["arangodb", "db", "consul", "clustermgr", "rsyslog"]:

@@ -8,6 +8,7 @@ import socket
 import subprocess
 import tarfile
 import logging
+import logging.handlers
 import platform
 
 SERVICES = [
