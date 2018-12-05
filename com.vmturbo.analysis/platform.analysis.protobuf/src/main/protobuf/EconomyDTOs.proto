@@ -55,6 +55,8 @@ message ShoppingListTO {
     // The cost of moving a shopping list to a new storage. Used for VM and Container shopping lists
     optional float storage_move_cost = 5;
 
+    // Multiplier indicating membership in consistent resizing groups
+    optional int64 groupFactor = 6 [default = 1];
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.

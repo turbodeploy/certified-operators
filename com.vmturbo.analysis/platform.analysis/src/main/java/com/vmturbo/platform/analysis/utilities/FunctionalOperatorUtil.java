@@ -159,7 +159,8 @@ public class FunctionalOperatorUtil {
                                             .indexOfBaseType(couponCommBaseType);
                             CommoditySold couponCommSoldByTp =
                                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                            double requestedCoupons = couponCommSoldByTp.getCapacity();
+                            double requestedCoupons = couponCommSoldByTp.getCapacity() *
+                                    buyer.getGroupFactor();
                             double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
                                 .getQuoteValue();
                             double availableCoupons = commSold.getCapacity() - commSold.getQuantity();

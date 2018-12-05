@@ -491,6 +491,7 @@ public class CostFunctionFactory {
                                                          Map<Long, Map<Integer, Double>> costMap) {
         final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
+        final long groupFactor = sl.getGroupFactor();
         if (sl.getBuyer().getSettings() == null
                         || sl.getBuyer().getSettings().getBalanceAccount() == null
                         || costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId()) == null) {
@@ -500,7 +501,7 @@ public class CostFunctionFactory {
         Map<Integer, Double> costByLicense = costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId());
         if (licenseCommBoughtIndex == -1) {
             // NOTE: -1 is the no license commodity type
-            return new CommodityQuote(seller, costByLicense.get(licenseCommBoughtIndex));
+            return new CommodityQuote(seller, costByLicense.get(licenseCommBoughtIndex) * groupFactor);
         }
 
         // if the license commodity exists in the basketBought, get the type of that commodity
@@ -516,7 +517,7 @@ public class CostFunctionFactory {
 
         return Double.isInfinite(cost) ?
             new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
-            new CommodityQuote(seller, cost);
+            new CommodityQuote(seller, cost * groupFactor);
     }
 
     /**
@@ -531,8 +532,9 @@ public class CostFunctionFactory {
      */
     public static double calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
                     CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
-        // if the buyer is already placed on a CBTP return 0
-        if (buyer.getSupplier() == seller) {
+        long groupFactor = buyer.getGroupFactor();
+        // If the buyer is not a member of a scaling group and is already placed on a CBTP return 0
+        if (buyer.getGroupFactor() == 1 && buyer.getSupplier() == seller) {
             return 0;
         }
 
@@ -571,7 +573,7 @@ public class CostFunctionFactory {
                         .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
         CommoditySold couponCommSoldByTp =
                         matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-        double requestedCoupons = couponCommSoldByTp.getCapacity();
+        double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
 
         // Calculate the number of available coupons from cbtp
         int indexOfCouponCommByCbtp = seller.getBasketSold()
@@ -582,12 +584,17 @@ public class CostFunctionFactory {
                         couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
 
         // Get the cost of the template matched with the vm
-        double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy).getQuoteValue();
+        double singleVmTemplateCost = QuoteFunctionFactory
+                .computeCost(buyer, matchingTP, false, economy)
+                .getQuoteValue();
         double discountedCost = 0;
         if (availableCoupons > 0) {
-            double discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
-            // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
-            discountedCost = ((1 - discountCoefficient) * templateCost);
+            if (couponCommSoldByTp.getCapacity() != 0) {
+                double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
+                // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
+                double numCouponsToPayFor = Math.max(0, (requestedCoupons - availableCoupons));
+                discountedCost = numCouponsToPayFor * templateCostPerCoupon;
+            }
         } else {
             // In case that there isn't discount available, avoid preferring a cbtp that provides
             // no discount on tp of the matching template.

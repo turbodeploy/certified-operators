@@ -47,6 +47,13 @@ public class ShoppingList implements Serializable {
      * The cost on the supplier.
      */
     private Double cost_ = null;
+    /*
+     * The group factor is used for consistent resizing groups.  It defaults to 1 for SLs that are
+     * not in a group that needs to consistently resize.  Otherwise it is the number of elements in
+     * the group if the SL is the designated group leader, and zero if the SL is in a group but is
+     * not the group leader.
+     */
+    private long groupFactor_ = 1;
 
     // Constructors
     /**
@@ -320,6 +327,23 @@ public class ShoppingList implements Serializable {
      */
     public UUID getShoppingListId() {
         return shoppingListId;
+    }
+
+    /**
+     * Set the group factor of {@code this}.
+     *
+     * @param groupFactor factor (multiplier)
+     */
+    public void setGroupFactor(long groupFactor) {
+        this.groupFactor_ = groupFactor;
+    }
+
+    /**
+     * Get group factor for this shopping list.
+     * @return shopping list's group factor
+     */
+    public long getGroupFactor() {
+        return groupFactor_;
     }
 
     /**

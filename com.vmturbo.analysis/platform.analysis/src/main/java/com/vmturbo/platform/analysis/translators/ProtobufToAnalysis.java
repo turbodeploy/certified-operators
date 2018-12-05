@@ -193,6 +193,7 @@ public final class ProtobufToAnalysis {
 
         shoppingList.setMovable(input.getMovable());
         shoppingList.setMoveCost(input.getStorageMoveCost());
+        shoppingList.setGroupFactor(input.getGroupFactor());
 
         for (CommodityBoughtTO commodityBought : input.getCommoditiesBoughtList()) {
             int index = basketBought.indexOf(commoditySpecification(commodityBought.getSpecification()));
