@@ -10,26 +10,29 @@ import tarfile
 import logging
 import logging.handlers
 import platform
+import fileinput
+import re
 
 SERVICES = [
-    'influxdb',         # The influxdb service. Metrics are stored to influx.
-    'ml-datastore'      # The machine learning datastore component.
-                        # Receives topology broadcasts and writes them to influx.
+    'influxdb',  # The influxdb service. Metrics are stored to influx.
+    'ml-datastore'  # The machine learning datastore component.
+    # Receives topology broadcasts and writes them to influx.
 ]
 DOCKER_COMMAND = 'docker'
 DOCKER_COMPOSE_COMMAND = "docker-compose"
 
-VERSION_FILE='/etc/docker/turbonomic_info.txt'
-VERSION_LINE_PREFIX='Version: XL '
-DUMP_DIR='/var/lib/docker/volumes/docker_influxdb-dump/_data'
-DIAGS_URL='https://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi'
-LOG_FORMAT='%(asctime)s %(levelname)s: %(message)s'
+VERSION_FILE = '/etc/docker/turbonomic_info.txt'
+ENV_FILE_PATH = '/etc/docker/.env'  # Only exists in production
+VERSION_LINE_PREFIX = 'Version: XL '
+DUMP_DIR = '/var/lib/docker/volumes/docker_influxdb-dump/_data'
+DIAGS_URL = 'https://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi'
+LOG_FORMAT = '%(asctime)s %(levelname)s: %(message)s'
 
 # Command to upload Metron data; for use in crontab in auto-upload mode
 # Note: The absolute path of this command comes from the main function and will be added when the
 # cron job is set up.
 #
-UPLOAD_CMD='metron.py export --clean --upload --customername='
+UPLOAD_CMD = 'metron.py export --clean --upload --customername='
 
 
 def bring_up_service(service_name):
@@ -119,7 +122,7 @@ def add_export_cron(interval, customer_name):
     :param interval: Export/upload interval
     :param customer_name: Name of the customer which would be part of the export/upload filename
     """
-    hour = random.randint(0, 5) # 12AM to 4AM only
+    hour = random.randint(0, 5)  # 12AM to 4AM only
     min = random.randint(0, 60)
     logging.info("Creating a cron job to auto-upload Metron data every {} day(s) at {}:{}".format(
         interval, hour, min))
@@ -145,6 +148,7 @@ def metron_control(args):
         os.environ['METRON_ENABLED'] = 'false'
 
         map(bring_down_service, SERVICES[::-1])  # Bring down services in reverse order they were started
+        persist_metron_state('false')
 
         remove_export_cron()
 
@@ -159,9 +163,25 @@ def metron_control(args):
         os.environ['METRON_ENABLED'] = 'true'
 
         map(bring_up_service, SERVICES)
+        persist_metron_state('true')
 
         if args.autoupload:
             add_export_cron(args.uploadinterval, args.customername)
+
+
+def persist_metron_state(enabled_state):
+    """
+    Persist enabling/disabling metron in a persistent fashion by changing the value in the .env file.
+
+    :param enabled_state: 'true' or 'false' to enable/disable
+    """
+    if os.path.isfile(ENV_FILE_PATH):
+        logging.info("Saving change 'METRON_ENABLED={}' to '{}'".format(enabled_state, ENV_FILE_PATH))
+        # redirects STDOUT to the file ENV_FILE_PATH
+        for line in fileinput.input(ENV_FILE_PATH, inplace=1):
+            print re.sub("^METRON_ENABLED=.*", "METRON_ENABLED={}".format(enabled_state), line),
+    else:
+        logging.info("Skipping save of 'METRON_ENABLED={}' to '{}'".format(enabled_state, ENV_FILE_PATH))
 
 
 def metron_export(args):
@@ -190,10 +210,10 @@ def metron_export(args):
             DUMP_DIR))
         logging.error("...This script is expected to run on the XL VM (the docker host)")
         logging.error("...If you are running elsewhere for testing purpose, you can create the data "
-              "directory in your environment")
+                      "directory in your environment")
         logging.error("......but keep in mind that influxdb will not actually back up data there.")
         logging.error("...If you are on the XL VM, please check if the data directory is mounted properly "
-              "from the influxdb container:")
+                      "from the influxdb container:")
         logging.error("......data directory on the docker host: {}".format(DUMP_DIR))
         logging.error("......data directory on the influxdb container: /home/influxdb/influxdb-dump")
         exit(1)
@@ -272,7 +292,7 @@ if __name__ == "__main__":
     group.add_argument('-u', '--up', action='store_true', help="If up is specified, will bring up Metron.")
     control_parser.add_argument('-a', '--autoupload', action='store_true',
                                 help="Enable to auto-upload Metron data")
-    control_parser.add_argument('-i', '--uploadinterval', type=int, choices=range(1,366),
+    control_parser.add_argument('-i', '--uploadinterval', type=int, choices=range(1, 366),
                                 metavar='[1-365]', default=1,
                                 help="Specify the upload interval in days [1-365]; default=1")
     control_parser.add_argument('-n', '--customername',
