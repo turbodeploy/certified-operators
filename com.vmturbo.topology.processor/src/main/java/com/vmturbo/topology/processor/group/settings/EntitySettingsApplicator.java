@@ -243,6 +243,10 @@ public class EntitySettingsApplicator {
                     logger.debug("Shoptogether is disabled for {} with move mode {} and storage move mode {}.",
                             entity.getDisplayName(), computeMoveSetting, storageMoveSetting);
                 }
+            } else if (entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE ||
+                    entity.getEntityType() == EntityType.DATABASE_VALUE) {
+                // database entities should not perform shop-together
+                entity.getAnalysisSettingsBuilder().setShopTogether(false);
             }
         }
     }

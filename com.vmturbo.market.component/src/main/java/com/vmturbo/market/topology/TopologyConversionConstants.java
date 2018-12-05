@@ -22,7 +22,8 @@ public class TopologyConversionConstants {
      */
     public static final Set<Integer> TIER_ENTITY_TYPES = Collections.unmodifiableSet(
             Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
-                    EntityType.DATABASE_TIER_VALUE));
+                    EntityType.DATABASE_TIER_VALUE,
+                    EntityType.DATABASE_SERVER_TIER_VALUE));
     /**
      * The primary tiers entity types. Cloud consumers like VMs and DBs can only consume from one
      * primary tier like compute / database tier. But they can consume from multiple

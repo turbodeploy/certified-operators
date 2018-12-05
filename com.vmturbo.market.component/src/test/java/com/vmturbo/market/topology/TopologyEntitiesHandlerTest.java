@@ -473,8 +473,8 @@ public class TopologyEntitiesHandlerTest {
                     .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
 
             Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream().filter(dto ->
-            (!entityTypesToSkip.contains(dto.getEntityType())))
-                .collect(Collectors.toSet());
+                    (!entityTypesToSkip.contains(dto.getEntityType())))
+                        .collect(Collectors.toSet());
 
             // Get handle to the templates, region and BA TopologyEntityDTO
             TopologyEntityDTO m1Medium = null;
@@ -557,12 +557,11 @@ public class TopologyEntitiesHandlerTest {
             assertEquals(slToMove.getOid(), move.getShoppingListToMove());
             assertEquals(m1LargeTrader.getOid(), move.getSource());
             assertEquals(m1MediumTrader.getOid(), move.getDestination());
-        } catch(Exception e) {
+        } catch (Exception e) {
             Assert.fail(e.getMessage());
         }
     }
 
-    @Test
     public void testMoveToCheaperDatabaseTier() {
         try {
             // Read file

@@ -192,6 +192,7 @@ public class CloudTopologyConverter {
         tierConverterMap.put(EntityType.COMPUTE_TIER_VALUE, computeTierConverter);
         tierConverterMap.put(EntityType.STORAGE_TIER_VALUE, storageTierConverter);
         tierConverterMap.put(EntityType.DATABASE_TIER_VALUE, computeTierConverter);
+        tierConverterMap.put(EntityType.DATABASE_SERVER_TIER_VALUE, computeTierConverter);
         return tierConverterMap;
     }
 

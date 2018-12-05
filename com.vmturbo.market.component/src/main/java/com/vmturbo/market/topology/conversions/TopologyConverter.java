@@ -320,8 +320,11 @@ public class TopologyConverter {
                             entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
                     List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.DATABASE_VALUE, topology);
+                    List<TopologyEntityDTO> dbss = TopologyDTOUtil.getConnectedEntitiesOfType(
+                            entity, EntityType.DATABASE_SERVER_VALUE, topology);
                     vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
                     dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                    dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
                     businessAccounts.add(entity);
                 }
             }
@@ -1093,6 +1096,11 @@ public class TopologyConverter {
             suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
                             ? topologyDTO.getAnalysisSettings().getSuspendable()
                                             : suspendable;
+
+            if (entityType == EntityType.DATABASE_VALUE ||
+                    entityType == EntityType.DATABASE_SERVER_VALUE) {
+                suspendable = false;
+            }
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
                     createCommonTraderSettingsTOBuilder(

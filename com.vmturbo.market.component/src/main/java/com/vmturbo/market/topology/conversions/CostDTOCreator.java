@@ -1,6 +1,10 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -26,6 +30,10 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 
 public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
@@ -48,6 +56,34 @@ public class CostDTOCreator {
                                         .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_WEB, "Windows_SQL_Web")
                                         .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_ENTERPRISE, "Windows_SQL_Server_Enterprise")
                                         .put(CloudCostDTO.OSType.WINDOWS_BYOL, "Windows_Bring_your_own_license").build();
+
+    public static ImmutableMap<DatabaseEngine, String> dbEngineMap = ImmutableMap.<DatabaseEngine, String>builder()
+                                        .put(DatabaseEngine.AURORA, "Aurora")
+                                        .put(DatabaseEngine.MARIADB, "Mariadb")
+                                        .put(DatabaseEngine.MYSQL, "MySql")
+                                        .put(DatabaseEngine.ORACLE, "Oracle")
+                                        .put(DatabaseEngine.POSTGRESQL, "PostgreSql")
+                                        .put(DatabaseEngine.SQL_SERVER, "SqlServer")
+                                        .put(DatabaseEngine.UNKNOWN, "Unknown").build();
+
+    public static ImmutableMap<DatabaseEdition, String> dbEditionMap = ImmutableMap.<DatabaseEdition, String>builder()
+                                        .put(DatabaseEdition.ORACLE_ENTERPRISE, "Enterprise")
+                                        .put(DatabaseEdition.ORACLE_STANDARD, "Standard")
+                                        .put(DatabaseEdition.ORACLE_STANDARD_1, "Standard One")
+                                        .put(DatabaseEdition.ORACLE_STANDARD_2, "Standard Two")
+                                        .put(DatabaseEdition.SQL_SERVER_ENTERPRISE, "Enterprise")
+                                        .put(DatabaseEdition.SQL_SERVER_STANDARD, "Standard")
+                                        .put(DatabaseEdition.SQL_SERVER_WEB, "Web")
+                                        .put(DatabaseEdition.SQL_SERVER_EXPRESS, "Express").build();
+
+    public static ImmutableMap<DeploymentType, String> deploymentTypeMap = ImmutableMap.<DeploymentType, String>builder()
+                                        .put(DeploymentType.MULTI_AZ, "MultiAz")
+                                        .put(DeploymentType.SINGLE_AZ, "SingleAz").build();
+
+    public static ImmutableMap<LicenseModel, String> licenseModelMap = ImmutableMap.<LicenseModel, String>builder()
+                                        .put(LicenseModel.BRING_YOUR_OWN_LICENSE, "BringYourOwnLicense")
+                                        .put(LicenseModel.LICENSE_INCLUDED, "LicenseIncluded")
+                                        .put(LicenseModel.NO_LICENSE_REQUIRED, "NoLicenseRequired").build();
 
     /**
      * Create CostDTO for a given tier and region based traderDTO.
@@ -138,6 +174,7 @@ public class CostDTOCreator {
                 .map(CommoditySoldDTO::getCommodityType)
                 .collect(Collectors.toSet());
         Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+        Map<CommodityType, DatabasePrice> priceMapping = new HashMap<>();
         for (DatabasePrice price : priceBundle.getPrices()) {
             if (!baOidSet.contains(price.getAccountId())) {
                 logger.warn("Entity in tier {} region {} does not have business account oid {},"
@@ -146,38 +183,23 @@ public class CostDTOCreator {
                 continue;
             }
             StringBuilder licenseKey = new StringBuilder();
-            licenseKey.append(price.getDbEngine() != null ? price.getDbEngine().name() : "null")
+            licenseKey.append(dbEngineMap.get(price.getDbEngine()) != null ? dbEngineMap.get(price.getDbEngine()) : "null")
                     .append(":")
-                    .append(price.getDbEdition() != null ? price.getDbEdition().name() : "null")
-                    .append(":")
-                    .append(price.getDeploymentType() != null ? price.getDeploymentType().name() : "null")
-                    .append(":")
-                    .append(price.getLicenseModel() != null ? price.getLicenseModel().name() : "null");
-            List<CommodityType> matchingLicenseSet = licenseCommoditySet.stream()
-                    .filter(commType -> licenseKey.toString().equals(commType.getKey()))
-                    .collect(Collectors.toList());
+                    .append(dbEditionMap.get(price.getDbEdition()) != null ? dbEditionMap.get(price.getDbEdition()) : "null");
+            licenseCommoditySet.stream()
+                    .filter(commType -> commType.getKey().contains(licenseKey.toString()))
+                    .forEach(commType -> priceMapping.put(commType, price));
+        }
 
-            if (matchingLicenseSet.size() == 0) {
-                logger.warn("Entity in tier {} region {} does not sell license matching key {}.",
-                        tier.getDisplayName(), region.getDisplayName(), licenseKey);
-                continue;
-            }
-
-            if (matchingLicenseSet.size() > 1) {
-                logger.warn("Entity in tier {} region {} sells multiple duplicate licenses matching key {}.",
-                        tier.getDisplayName(), region.getDisplayName(), licenseKey);
-                continue;
-            }
-
-            for (long oid : baOidSet) {
-                dbTierDTOBuilder
-                        .addCostTupleList(CostTuple.newBuilder()
+        for (long oid : baOidSet) {
+            priceMapping.forEach((licenseKey, price)->{
+                dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
                                 .setBusinessAccountId(oid)
                                 .setLicenseCommodityType(commodityConverter
-                                        .toMarketCommodityId(matchingLicenseSet.get(0)))
+                                        .toMarketCommodityId(licenseKey))
                                 .setPrice(price.getHourlyPrice())
                                 .build());
-            }
+            });
         }
 
         return CostDTO.newBuilder()

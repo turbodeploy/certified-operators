@@ -176,6 +176,14 @@ public class MarketPriceTable {
                     baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
 
             for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
+                if (dbTierConfigPrice.getPricesList().size() == 0) {
+                    logger.warn("There is no price associated with "
+                        + dbTierConfigPrice.getDbEngine() + ":"
+                        + dbTierConfigPrice.getDbEdition() + ":"
+                        + dbTierConfigPrice.getDbDeploymentType() + ":"
+                        + dbTierConfigPrice.getDbLicenseModel());
+                    continue;
+                }
                 priceBuilder.addPrice(accountId,
                     dbTierConfigPrice.getDbEngine(),
                     dbTierConfigPrice.getDbEdition(),
