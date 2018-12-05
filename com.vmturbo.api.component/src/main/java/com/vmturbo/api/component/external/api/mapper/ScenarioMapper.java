@@ -120,6 +120,11 @@ public class ScenarioMapper {
      */
     static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
 
+    /**
+     * Hardcoded group display name for current utilization changes.
+     */
+    static final String VIRTUAL_MACHINES_DISPLAY_NAME = "Virtual Machines";
+
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
         MARKET_PLAN_SCOPE.setUuid(MARKET_PLAN_SCOPE_CLASSNAME);
@@ -461,6 +466,11 @@ public class ScenarioMapper {
     @Nonnull
     public ScenarioApiDTO toScenarioApiDTO(@Nonnull final Scenario scenario) {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
+
+        final List<ScenarioChange> changes = scenario.getScenarioInfo().getChangesList();
+        final ScenarioChangeMappingContext context = new ScenarioChangeMappingContext(repositoryApi,
+                templatesUtils, groupRpcService, groupMapper, changes);
+
         boolean isAlleviatePressurePlan = false;
         dto.setUuid(Long.toString(scenario.getId()));
         dto.setDisplayName(scenario.getScenarioInfo().getName());
@@ -474,8 +484,7 @@ public class ScenarioMapper {
 
         dto.setScope(buildApiScopeObjects(scenario));
         dto.setProjectionDays(buildApiProjChanges());
-        dto.setTopologyChanges(buildApiTopologyChanges(scenario.getScenarioInfo()
-            .getChangesList()));
+        dto.setTopologyChanges(buildApiTopologyChanges(changes, context));
 
         if (isAlleviatePressurePlan) {
             // Show cluster info in UI for Alleviate pressure plan.
@@ -487,7 +496,7 @@ public class ScenarioMapper {
                             .getChangesList()));
         }
 
-        dto.setLoadChanges(buildLoadChangesApiDTO(scenario.getScenarioInfo().getChangesList()));
+        dto.setLoadChanges(buildLoadChangesApiDTO(changes, context));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
         return dto;
@@ -513,7 +522,8 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private static LoadChangesApiDTO buildLoadChangesApiDTO(@Nonnull List<ScenarioChange> changes) {
+    private static LoadChangesApiDTO buildLoadChangesApiDTO(@Nonnull List<ScenarioChange> changes,
+                                                            @Nonnull ScenarioChangeMappingContext context) {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         if (CollectionUtils.isEmpty(changes)) {
             return loadChanges;
@@ -528,7 +538,7 @@ public class ScenarioMapper {
         loadChanges.setUtilizationList(utilizationApiDTOS);
 
         // convert max utilization changes too
-        loadChanges.setMaxUtilizationList(getMaxUtilizationApiDTOs(changes));
+        loadChanges.setMaxUtilizationList(getMaxUtilizationApiDTOs(changes, context));
 
         // Set historical baseline date from scenario
         changes.stream()
@@ -541,7 +551,8 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private static List<MaxUtilizationApiDTO> getMaxUtilizationApiDTOs(List<ScenarioChange> changes) {
+    private static List<MaxUtilizationApiDTO> getMaxUtilizationApiDTOs(List<ScenarioChange> changes,
+                                                                       ScenarioChangeMappingContext context) {
         return changes.stream()
                 .filter(change -> change.getPlanChanges().hasMaxUtilizationLevel())
                 .map(ScenarioChange::getPlanChanges)
@@ -552,19 +563,31 @@ public class ScenarioMapper {
                     // Leaving it unset for now, since it's not in the source object, and we aren't
                     // handling these anyways.
                     maxUtilization.setMaxPercentage(maxUtilizationLevel.getPercentage());
-                    BaseApiDTO groupTarget = new BaseApiDTO();
-                    groupTarget.setUuid(String.valueOf(maxUtilizationLevel.getGroupOid()));
-                    // TODO: do we need display name?
-                    maxUtilization.setTarget(groupTarget);
+                    if (maxUtilizationLevel.hasGroupOid()) {
+                        maxUtilization.setTarget(context.dtoForId(maxUtilizationLevel.getGroupOid()));
+                    }
                     return maxUtilization;
                 })
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Create a {@link UtilizationApiDTO} object representing the utilization level change passed in.
+     * Utilization level changes are only applied globally, to all VM's in the plan scope. So we
+     * set a hardcoded "Virtual Machines" target on the resulting object. This corresponds with the
+     * behavior in the UI, which expects this hardcoded default target.
+     *
+     * @param utilizationLevel The UtilizationLevel containing the change amount
+     * @return a {@link UtilizationApiDTO} representing the same change, with hardcoded VM's target.
+     */
     @Nonnull
     private static UtilizationApiDTO createUtilizationApiDto(@Nonnull UtilizationLevel utilizationLevel) {
         final UtilizationApiDTO utilizationDTO = new UtilizationApiDTO();
         utilizationDTO.setPercentage(utilizationLevel.getPercentage());
+        // this is hardcoded to a "Virtual Machines" target in the UI.
+        BaseApiDTO defaultTarget = new BaseApiDTO();
+        defaultTarget.setDisplayName(VIRTUAL_MACHINES_DISPLAY_NAME);
+        utilizationDTO.setTarget(defaultTarget);
         return utilizationDTO;
     }
 
@@ -939,10 +962,7 @@ public class ScenarioMapper {
 
     @Nonnull
     private TopologyChangesApiDTO buildApiTopologyChanges(
-            @Nonnull final List<ScenarioChange> changes) {
-        final ScenarioChangeMappingContext context = new ScenarioChangeMappingContext(repositoryApi,
-                templatesUtils, groupRpcService, groupMapper, changes);
-
+            @Nonnull final List<ScenarioChange> changes, ScenarioChangeMappingContext context) {
         final TopologyChangesApiDTO outputChanges = new TopologyChangesApiDTO();
         changes.forEach(change -> {
             switch (change.getDetailsCase()) {

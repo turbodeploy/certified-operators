@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 
 /**
  * Utilities for extracting information from plan-related protobufs
@@ -45,7 +46,9 @@ public class PlanDTOUtil {
     }
 
     /**
-     * Return the OIDs of groups involved in a {@link ScenarioChange}.
+     * Return the OIDs of groups involved in a {@link ScenarioChange}. This will include groups
+     * referred to in topology addition / removal / replace changes, as well as target group id's
+     * for any max utilization changes in the plan config.
      *
      * @param scenarioChange The target {@link ScenarioChange}.
      * @return The set of involved group IDs.
@@ -68,6 +71,15 @@ public class PlanDTOUtil {
         if (scenarioChange.hasTopologyReplace()) {
             if (scenarioChange.getTopologyReplace().hasRemoveGroupId()) {
                 groupBuilder.add(scenarioChange.getTopologyReplace().getRemoveGroupId());
+            }
+        }
+
+        if (scenarioChange.hasPlanChanges()) {
+            // several of the plan change types do include group info, but we are only fetching
+            // group details for max utilization at the moment.
+            PlanChanges planChanges = scenarioChange.getPlanChanges();
+            if (planChanges.getMaxUtilizationLevel().hasGroupOid()) {
+                groupBuilder.add(planChanges.getMaxUtilizationLevel().getGroupOid());
             }
         }
 
