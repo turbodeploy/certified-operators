@@ -293,8 +293,8 @@ if __name__ == "__main__":
     control_parser.add_argument('-a', '--autoupload', action='store_true',
                                 help="Enable to auto-upload Metron data")
     control_parser.add_argument('-i', '--uploadinterval', type=int, choices=range(1, 366),
-                                metavar='[1-365]', default=1,
-                                help="Specify the upload interval in days [1-365]; default=1")
+                                metavar='[1-365]', default=7,
+                                help="Specify the upload interval in days [1-365]; default=7 (1 week)")
     control_parser.add_argument('-n', '--customername',
                                 help='Customer name as part of the constructed upload file name')
     control_parser.set_defaults(func=metron_control)

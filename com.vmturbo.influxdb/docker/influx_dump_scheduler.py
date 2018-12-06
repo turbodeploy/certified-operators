@@ -7,7 +7,7 @@ import logging
 
 DUMP_DIR = '/home/influxdb/influxdb-dump/'
 DATABASE_NAME = 'metron'
-DEFAULT_DUMP_INTERVAL_SECONDS = 86400  # Default dump interval is one day.
+DEFAULT_DUMP_INTERVAL_SECONDS = 86400*7  # Default dump interval is one week.
 INFLUX_DUMP_INTERVAL_SECONDS = 'INFLUX_DUMP_INTERVAL_SECONDS'
 LOG_FORMAT = '%(asctime)s %(levelname)s: %(message)s'
 
@@ -16,7 +16,7 @@ This script will periodically dump the contents of influxdb to the DUMP_DIR.
 
 The dump contents will contain the data between the time of the last dump and the current time.
 The schedule for dumping can be configured via the environment variable specified by
-INFLUX_DUMP_INTERVAL_SECONDS or it will default to 1 day.
+INFLUX_DUMP_INTERVAL_SECONDS or it will default to one week (7 days).
 """
 
 
