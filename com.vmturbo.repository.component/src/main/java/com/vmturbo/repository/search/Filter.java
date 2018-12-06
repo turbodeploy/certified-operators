@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 
@@ -31,7 +32,8 @@ import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
 
     enum Type {
-        PROPERTY, TRAVERSAL_HOP, TRAVERSAL_COND
+        PROPERTY, TRAVERSAL_HOP, TRAVERSAL_COND,
+        TRAVERSAL_HOP_NUM_CONNECTED_VERTICES, TRAVERSAL_COND_NUM_CONNECTED_VERTICES
     }
 
     enum NumericOperator implements AQLConverter {
@@ -121,7 +123,9 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     interface Cases<R> {
         R PropertyFilter(PropertyFilter propertyFilter);
         R TraverseHopFilter(TraversalDirection direction, int hop);
+        R TraverseHopNumConnectedVerticesFilter(TraversalDirection direction, int hop, VerticesCondition verticesCondition);
         R TraverseCondFilter(TraversalDirection direction, Filter filter);
+        R TraverseCondNumConnectedVerticesFilter(TraversalDirection direction, Filter filter, VerticesCondition verticesCondition);
     }
 
     public abstract <R> R match(Cases<R> cases);
@@ -136,7 +140,9 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
         return Filters.cases()
                 .PropertyFilter(Type.PROPERTY)
                 .TraverseHopFilter(Type.TRAVERSAL_HOP)
+                .TraverseHopNumConnectedVerticesFilter(Type.TRAVERSAL_HOP_NUM_CONNECTED_VERTICES)
                 .TraverseCondFilter(Type.TRAVERSAL_COND)
+                .TraverseCondNumConnectedVerticesFilter(Type.TRAVERSAL_COND_NUM_CONNECTED_VERTICES)
                 .apply((Filter<Object>) this);
     }
 
@@ -149,7 +155,9 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
         final Cases<Filter<? extends AnyFilterType>> cases = Filters.cases(
                 Filter::propertyFilter,
                 Filter::traversalHopFilter,
-                Filter::traversalCondFilter);
+                Filter::traversalHopNumConnectedVerticesFilter,
+                Filter::traversalCondFilter,
+                Filter::traversalCondNumConnectedVerticesFilter);
         return this.match(cases);
     }
 
@@ -311,7 +319,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
      * @param comparisonOperator the {@link ComparisonOperator} enum to get AQL for
      * @return AQL string for a specific ComparisonOperator
      */
-    private static String getAqlForComparisonOperator(@Nonnull ComparisonOperator comparisonOperator) {
+    public static String getAqlForComparisonOperator(@Nonnull ComparisonOperator comparisonOperator) {
         final NumericOperator numOp;
         switch (comparisonOperator) {
             case EQ:
@@ -353,7 +361,9 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                     return createAQLForPropertyFilter(propertyFilter, "service_entity");
                 },
                 (direction, hop) -> "",
-                (direction, filter) -> ""));
+                (direction, hop, verticesCondition) -> "",
+                (direction, filter) -> "",
+                (direction, filter, verticesCondition) -> ""));
     }
 
     /**
@@ -382,6 +392,14 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
         return Filters.TraverseHopFilter0(direction, hops);
     }
 
+    @ExportAsPublic
+    public static Filter<TraversalFilterType> traversalHopNumConnectedVerticesFilter(
+            final TraversalDirection direction,
+            final int hops,
+            final VerticesCondition verticesCondition) {
+        return Filters.TraverseHopNumConnectedVerticesFilter0(direction, hops, verticesCondition);
+    }
+
     /**
      * Smart constructor for creating a condition based traversal filter.
      *
@@ -394,6 +412,13 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     public static Filter<TraversalFilterType> traversalCondFilter(final TraversalDirection direction,
                                                                   final Filter<PropertyFilterType> stoppingFilter) {
         return Filters.TraverseCondFilter0(direction, stoppingFilter);
+    }
+
+    @ExportAsPublic
+    public static Filter<TraversalFilterType> traversalCondNumConnectedVerticesFilter(final TraversalDirection direction,
+            final Filter<PropertyFilterType> stoppingFilter,
+            final VerticesCondition verticesCondition) {
+        return Filters.TraverseCondNumConnectedVerticesFilter0(direction, stoppingFilter, verticesCondition);
     }
 
     @Override

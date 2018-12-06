@@ -55,7 +55,7 @@ message SearchFilter {
         optional TraversalDirection traversal_direction = 1;
 
         // Condition used to stop the graph traversal.
-        optional StoppingCondition stopping_condition= 2;
+        optional StoppingCondition stopping_condition = 2;
 
         // Graph traversal stopping condition.
         message StoppingCondition {
@@ -71,6 +71,20 @@ message SearchFilter {
             oneof stoppingConditionType {
                 int32 number_hops = 1;
                 PropertyFilter stopping_property_filter = 2;
+            }
+
+            // Condition used to check the connected vertices after stop in the graph.
+            optional VerticesCondition vertices_condition = 5;
+
+            // Condition used to check the connected vertices after stop in the graph.
+            // For example, if we want to get all PMs which host more than 5 VMs, it will traverse
+            // from all PMs, stop at VMs and filter each PM based on the number of hosted VMs
+            message VerticesCondition {
+                // Filter by the number of connected vertices after stop in the graph
+                optional PropertyFilter.NumericFilter num_connected_vertices = 1;
+
+                // Filter by entity type of the connected vertices, for example: VM entity type
+                optional int32 entity_type = 2;
             }
         }
 

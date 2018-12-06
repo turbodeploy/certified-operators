@@ -8,13 +8,13 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.journal.JournalableEntity;
 
@@ -46,12 +46,20 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
      */
     private final List<TopologyEntity> providers;
 
+    private final List<TopologyEntity> connectedFromEntities;
+
+    private final List<TopologyEntity> connectedToEntities;
+
     private TopologyEntity(@Nonnull final TopologyEntityDTO.Builder entity,
                            @Nonnull final List<TopologyEntity> consumers,
-                           @Nonnull final List<TopologyEntity> providers) {
+                           @Nonnull final List<TopologyEntity> providers,
+                           @Nonnull final List<TopologyEntity> connectedFromEntities,
+                           @Nonnull final List<TopologyEntity> connectedToEntities) {
         this.entityBuilder = Objects.requireNonNull(entity);
         this.consumers = consumers;
         this.providers = providers;
+        this.connectedFromEntities = connectedFromEntities;
+        this.connectedToEntities = connectedToEntities;
     }
 
     /**
@@ -116,8 +124,17 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
         final List<TopologyEntity> newProviders = new ArrayList<>(providers.size());
         newProviders.addAll(providers);
 
+        // Copy connectedFromEntities
+        final List<TopologyEntity> newConnectedFromEntities = new ArrayList<>(connectedFromEntities.size());
+        newProviders.addAll(connectedFromEntities);
+
+        // Copy connectedToEntities
+        final List<TopologyEntity> newConnectedToEntities = new ArrayList<>(connectedToEntities.size());
+        newProviders.addAll(connectedToEntities);
+
         // Create and return the copy
-        return new TopologyEntity(entityBuilder.clone(), newConsumers, newProviders);
+        return new TopologyEntity(entityBuilder.clone(), newConsumers, newProviders,
+                newConnectedFromEntities, newConnectedToEntities);
     }
 
     /**
@@ -194,6 +211,22 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
     @Nonnull
     public List<TopologyEntity> getProviders() {
         return Collections.unmodifiableList(providers);
+    }
+
+    /**
+     * Get the set of all entities in the topology that are connected to this TopologyEntity.
+     */
+    @Nonnull
+    public List<TopologyEntity> getConnectedFromEntities() {
+        return Collections.unmodifiableList(connectedFromEntities);
+    }
+
+    /**
+     * Get the set of all entities in the topology that this TopologyEntity are connected to.
+     */
+    @Nonnull
+    public List<TopologyEntity> getConnectedToEntities() {
+        return Collections.unmodifiableList(connectedToEntities);
     }
 
     /**
@@ -275,14 +308,18 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
          */
         private final ArrayList<TopologyEntity> consumers;
         private final ArrayList<TopologyEntity> providers;
+        private final ArrayList<TopologyEntity> connectedFromEntities;
+        private final ArrayList<TopologyEntity> connectedToEntities;
 
         private final TopologyEntity associatedTopologyEntity;
 
         private Builder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
             this.consumers = new ArrayList<>();
             this.providers = new ArrayList<>();
-            this.associatedTopologyEntity = new TopologyEntity(entityBuilder,
-                this.consumers, this.providers);
+            this.connectedFromEntities = new ArrayList<>();
+            this.connectedToEntities = new ArrayList<>();
+            this.associatedTopologyEntity = new TopologyEntity(entityBuilder, this.consumers,
+                    this.providers, this.connectedFromEntities, this.connectedToEntities);
         }
 
         public void addConsumer(@Nonnull final TopologyEntity.Builder consumer) {
@@ -293,6 +330,14 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
             providers.add(provider.associatedTopologyEntity);
         }
 
+        public void addConnectedFrom(@Nonnull final TopologyEntity.Builder connectedFromEntity) {
+            this.connectedFromEntities.add(connectedFromEntity.associatedTopologyEntity);
+        }
+
+        public void addConnectedTo(@Nonnull final TopologyEntity.Builder connectedToEntity) {
+            this.connectedToEntities.add(connectedToEntity.associatedTopologyEntity);
+        }
+
         /**
          * Clear the consumer and provider lists. Call only if rebuilding a new graph
          * because this will invalidate any prior graphs in which this entity was a participant.
@@ -300,6 +345,8 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
         public void clearConsumersAndProviders() {
             consumers.clear();
             providers.clear();
+            connectedFromEntities.clear();
+            connectedToEntities.clear();
         }
 
         public long getOid() {

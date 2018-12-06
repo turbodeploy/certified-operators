@@ -57,6 +57,12 @@ message TypeSpecificInfo {
 
         // The model identifier of this Physical Machine (Host)
         optional string model = 3;
+
+        // The total number of CPU cores on the host
+        optional int32 num_cpus = 4;
+
+        // The timezone of this host
+        optional string timezone = 5;
     }
 
     // specific data for compute tier

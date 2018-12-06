@@ -5,10 +5,14 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -56,9 +60,19 @@ public abstract class TraversalFilter implements TopologyFilter {
         // Note the difference between noun and verb here.
         // Following the CONSUMES relation is done by fetching producers,
         // and following the PRODUCES relation is done by fetching consumers.
-        return traversalDirection == TraversalDirection.CONSUMES ?
-            graph::getProviders :
-            graph::getConsumers;
+        switch (traversalDirection) {
+            case CONSUMES:
+                return graph::getProviders;
+            case PRODUCES:
+                return graph::getConsumers;
+            case CONNECTED_FROM:
+                return graph::getConnectedFromEntities;
+            case CONNECTED_TO:
+                return graph::getConnectedToEntities;
+            default:
+                throw new UnsupportedOperationException("Unsupported traversal direction: " +
+                        traversalDirection);
+        }
     }
 
     /**
@@ -97,19 +111,24 @@ public abstract class TraversalFilter implements TopologyFilter {
 
     /**
      * Traverse a topology graph in a fixed direction to a fixed depth. Only include entities
-     * visited at exactly depth == traversalDepth when performing the traversal.
+     * visited at exactly depth == traversalDepth when performing the traversal. But if
+     * VerticesCondition is set, it will check the number of connected vertices of the given
+     * entity type at the given depth, if it matches, then the starting vertex is included.
      */
     public static class TraversalToDepthFilter extends TraversalFilter {
         private final int traversalDepth;
 
+        private final VerticesCondition verticesCondition;
+
         public TraversalToDepthFilter(@Nonnull final TraversalDirection traversalDirection,
-                                      final int traversalDepth) {
+                final int traversalDepth, @Nullable VerticesCondition verticesCondition) {
             super(traversalDirection);
             if (traversalDepth < 0) {
                 throw new IllegalArgumentException("Negative traversal depth" + traversalDepth + " not allowed.");
             }
 
             this.traversalDepth = traversalDepth;
+            this.verticesCondition = verticesCondition;
         }
 
         /**
@@ -140,14 +159,62 @@ public abstract class TraversalFilter implements TopologyFilter {
         @Nonnull
         @Override
         protected Stream<TopologyEntity> traverse(@Nonnull Stream<TopologyEntity> vertices,
-                                          @Nonnull final TopologyGraph graph) {
-            // Given stream lazy evaluation, performs a DFS to a fixed depth
-            // and collects all nodes at exactly depth==traversalDepth.
+                                                  @Nonnull final TopologyGraph graph) {
+            if (verticesCondition != null) {
+                // Filter original input vertices by number of connected vertices in a depth.
+                // This is meant to return members of the original stream which satisfied the given
+                // verticesCondition (connected to a specific # of entities of a specific entity
+                // type at the traversal depth)
+                return vertices.filter(vertex -> {
+                    Stream<TopologyEntity> nodesForDepth = getNodesForDepth(Stream.of(vertex), graph);
+                    // check the number of connected vertices and return true if it matches
+                    final NumericFilter numConnectedVerticesFilter = verticesCondition.getNumConnectedVertices();
+                    long connectedVerticesCount = nodesForDepth.filter(entity -> entity.getEntityType() ==
+                            verticesCondition.getEntityType()).count();
+                    return comparisonValueMatch(connectedVerticesCount, numConnectedVerticesFilter.getValue(),
+                            numConnectedVerticesFilter.getComparisonOperator());
+                });
+            }
+            return getNodesForDepth(vertices, graph);
+        }
+
+        /**
+         * Given stream lazy evaluation, performs a DFS to a fixed depth and collects all nodes
+         * at exactly depth==traversalDepth.
+         *
+         * @param vertices the vertices to start with
+         * @param graph the graph to traverse
+         * @return stream of nodes for a given depth
+         */
+        private Stream<TopologyEntity> getNodesForDepth(@Nonnull Stream<TopologyEntity> vertices,
+                                                        @Nonnull final TopologyGraph graph) {
             for (int i = 0; i < traversalDepth; i++) {
                 vertices = vertices.flatMap(neighborLookup(graph));
             }
-
             return vertices;
+        }
+    }
+
+    /**
+     * Check if the actual value matches the expected value for the given ComparisonOperator.
+     */
+    private static boolean comparisonValueMatch(final long actualValue, final long expectedValue,
+            @Nonnull final ComparisonOperator operator) {
+        switch (operator) {
+            case EQ:
+                return actualValue == expectedValue;
+            case NE:
+                return actualValue != expectedValue;
+            case GT:
+                return actualValue > expectedValue;
+            case GTE:
+                return actualValue >= expectedValue;
+            case LT:
+                return actualValue < expectedValue;
+            case LTE:
+                return actualValue <= expectedValue;
+            default:
+                throw new IllegalArgumentException("Unknown operator type: " + operator);
         }
     }
 

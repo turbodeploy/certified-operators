@@ -162,6 +162,28 @@ public class TopologyGraph {
     }
 
     /**
+     * Get the entities that are connected to a given {@link TopologyEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyEntity} whose connectedFromEntities should be retrieved.
+     * @return The entities that are connected to a {@link TopologyEntity} in the graph.
+     */
+    @Nonnull
+    public Stream<TopologyEntity> getConnectedFromEntities(@Nonnull final TopologyEntity topologyEntity) {
+        return topologyEntity.getConnectedFromEntities().stream();
+    }
+
+    /**
+     * Get the entities that given {@link TopologyEntity} in the graph are connected to.
+     *
+     * @param topologyEntity The {@link TopologyEntity} whose connectedToEntities should be retrieved.
+     * @return The entities that {@link TopologyEntity} are connected to in the graph.
+     */
+    @Nonnull
+    public Stream<TopologyEntity> getConnectedToEntities(@Nonnull final TopologyEntity topologyEntity) {
+        return topologyEntity.getConnectedToEntities().stream();
+    }
+
+    /**
      * Get the number of entities in the graph.
      *
      * @return The number of entities in the graph.
@@ -233,6 +255,7 @@ public class TopologyGraph {
                         " does not match OID value: " + entity.getOid());
                 }
                 addConsumerSideRelationships(entity);
+                addConnectedFromSideRelationships(entity);
             });
 
             final Map<Long, TopologyEntity> graph = topologyBuilderMap.values().stream()
@@ -286,6 +309,20 @@ public class TopologyGraph {
                         ") is consuming a commodity from non-existing provider " + providerOid);
                 }
             }
+        }
+
+        /**
+         * Set up the connnetedFrom-side relationships for a {@link TopologyEntity}. That is, for
+         * each entity that this entity is connected to, add those entities as connectedToEntities
+         * to this entity, and add this entity as a connectedFromEntity of those entities.
+         */
+        private void addConnectedFromSideRelationships(@Nonnull final TopologyEntity.Builder topologyEntity) {
+            topologyEntity.getEntityBuilder().getConnectedEntityListList().forEach(connectedEntity -> {
+                final TopologyEntity.Builder connectedToEntity =
+                        topologyBuilderMap.get(connectedEntity.getConnectedEntityId());
+                topologyEntity.addConnectedTo(connectedToEntity);
+                connectedToEntity.addConnectedFrom(topologyEntity);
+            });
         }
 
         /**

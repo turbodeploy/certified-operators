@@ -22,8 +22,11 @@ import javaslang.collection.List;
 import javaslang.control.Option;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
+import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;
+import com.vmturbo.repository.search.Filter.Type;
 
 /**
  * A Java representation of AQL.
@@ -71,7 +74,9 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
                     Filters.cases(
                         (propertyFilter) -> constructPropertyAQL(firstFilter),
                         this::constructTraversalHopAQL,
-                        this::constructTraversalCondAQL));
+                        this::constructTraversalHopNumConnectedVerticesAQL,
+                        this::constructTraversalCondAQL,
+                        this::constructTraversalCondNumConnectedVerticesAQL));
 
             LOG.debug("Converted to AQL - {}", AQLs.getQuery(aql));
 
@@ -120,6 +125,36 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
     }
 
     /**
+     * Convert the {@link #filters} using the traversal hop and number of connected vertices
+     * template.
+     *
+     * @param direction The direction of traversal.
+     * @param hops Num of hops.
+     * @param verticesCondition The vertices condition to check number of connected vertices of a
+     * specific entity type
+     * @return The AQL of all {@link #filters}
+     */
+    private AQL constructTraversalHopNumConnectedVerticesAQL(
+            final Filter.TraversalDirection direction,
+            final int hops,
+            final VerticesCondition verticesCondition) {
+        final Template template = AQLTemplate.templateMapper.get(Filter.Type.TRAVERSAL_HOP_NUM_CONNECTED_VERTICES);
+        final Collection<String> bindVars = AQLTemplate.bindVarsMapper.get(Filter.Type.TRAVERSAL_HOP);
+        final Map<String, Object> ctx = ImmutableMap.<String, Object>builder()
+                .put("direction", direction.toAQLString())
+                .put("hops", hops)
+                .put("edgeType", direction.getEdgeType())
+                .put("filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())))
+                .put("comparisonOperator", Filter.getAqlForComparisonOperator(
+                        verticesCondition.getNumConnectedVertices().getComparisonOperator()))
+                .put("numConnectedVertices", verticesCondition.getNumConnectedVertices().getValue())
+                .put("entityType", RepoObjectType.mapEntityType(verticesCondition.getEntityType()))
+                .put("pagination", pagination.map(AQLPagination::toAQLString).orElse(""))
+                .build();
+        return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);
+    }
+
+    /**
      * Convert the {@link #filters} using the traversal condition template.
      *
      * @param direction The direction of traversal.
@@ -136,6 +171,35 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
                 "condition", condition.toAQLString(),
                 "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())),
                 "pagination", pagination.map(AQLPagination::toAQLString).orElse(""));
+        return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);
+    }
+
+    /**
+     * Convert the {@link #filters} using the traversal condition and number of connected vertices
+     * template.
+     *
+     * @param direction The direction of traversal.
+     * @param condition The condition we are searching for during traversal.
+     * @param verticesCondition The vertices condition to check number of connected vertices of a
+     * specific entity type
+     * @return The AQL of all {@link #filters}
+     */
+    private AQL constructTraversalCondNumConnectedVerticesAQL(final Filter.TraversalDirection direction,
+            final Filter<PropertyFilterType> condition,
+            final VerticesCondition verticesCondition) {
+        final Template template = AQLTemplate.templateMapper.get(Type.TRAVERSAL_COND_NUM_CONNECTED_VERTICES);
+        final Collection<String> bindVars = AQLTemplate.bindVarsMapper.get(Filter.Type.TRAVERSAL_COND);
+
+        final Map<String, Object> ctx = ImmutableMap.<String, Object>builder()
+                .put("direction", direction.toAQLString())
+                .put("edgeType", direction.getEdgeType())
+                .put("condition", condition.toAQLString())
+                .put("filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())))
+                .put("comparisonOperator", Filter.getAqlForComparisonOperator(
+                        verticesCondition.getNumConnectedVertices().getComparisonOperator()))
+                .put("numConnectedVertices", verticesCondition.getNumConnectedVertices().getValue())
+                .put("pagination", pagination.map(AQLPagination::toAQLString).orElse(""))
+                .build();
         return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);
     }
 

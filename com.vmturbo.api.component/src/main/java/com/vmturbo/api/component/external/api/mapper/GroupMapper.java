@@ -54,6 +54,8 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.components.common.ClassicEnumMapper;
@@ -86,6 +88,10 @@ public class GroupMapper {
     private static final String PRODUCES = "PRODUCES";
     private static final String CONNECTED_TO = "CONNECTED_TO";
     private static final String CONNECTED_FROM = "CONNECTED_FROM";
+
+    // set of supported traversal types, the string should be the same as groupBuilderUsecases.json
+    private static Set<String> TRAVERSAL_TYPES = ImmutableSet.of(
+            CONSUMES, PRODUCES, CONNECTED_TO, CONNECTED_FROM);
 
     public static final String ELEMENTS_DELIMITER = ":";
     public static final String NESTED_FIELD_DELIMITER = "\\.";
@@ -155,9 +161,9 @@ public class GroupMapper {
         FILTER_TYPES_TO_PROCESSORS = filterTypesToProcessors.build();
     }
 
-    private static StoppingCondition buildStoppingCondition(String currentToken) {
+    private static StoppingCondition.Builder buildStoppingCondition(String currentToken) {
         return StoppingCondition.newBuilder().setStoppingPropertyFilter(
-                        SearchMapper.entityTypeFilter(currentToken)).build();
+                        SearchMapper.entityTypeFilter(currentToken));
     }
 
     private final GroupUseCaseParser groupUseCaseParser;
@@ -516,7 +522,7 @@ public class GroupMapper {
 
         final ImmutableList.Builder<SearchFilter> searchFilters = new ImmutableList.Builder<>();
         while (iterator.hasNext()) {
-            searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType()));
+            searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType(), firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
             searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(nameQuery)));
@@ -526,14 +532,29 @@ public class GroupMapper {
         return parametersBuilder.build();
     }
 
+    /**
+     * Process the given tokens which comes from the elements in "groupBuilderUsecases.json" and
+     * convert those criteria into list of SearchFilter which will be used by repository to fetch
+     * matching entities.
+     *
+     * @param filter the FilterApiDTO provided by user in UI, which contains the criteria for this group
+     * @param entityType the entity type of the group to create
+     * @param iterator the Iterator containing all the tokens to process, for example:
+     * "PRODUCES:1:VirtualMachine", first is PRODUCES, then 1, and then VirtualMachine
+     * @param inputType the type of the input, such as "*" or "#"
+     * @param firstToken the first token defined in the "groupBuilderUsecases.json", for example:
+     * "PRODUCES:1:VirtualMachine", first is PRODUCES.
+     * @return list of SearchFilters for given tokens
+     */
     private List<SearchFilter> processToken(@Nonnull FilterApiDTO filter,
                                             @Nonnull String entityType,
                                             @Nonnull Iterator<String> iterator,
-                                            @Nonnull String inputType) {
+                                            @Nonnull String inputType,
+                                            @Nonnull String firstToken) {
         final String currentToken = iterator.next();
 
         final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator,
-                entityType, currentToken);
+                entityType, currentToken, firstToken);
         final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
                         FILTER_TYPES_TO_PROCESSORS.get(currentToken);
 
@@ -758,12 +779,17 @@ public class GroupMapper {
 
         private final String currentToken;
 
+        // the first token of the elements defined in groupBuilderUsecases.json, for example:
+        // "PhysicalMachine:displayName:PRODUCES:1", the first token is "PhysicalMachine"
+        private final String firstToken;
+
         public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
-                        @Nonnull String entityType, @Nonnull String currentToken) {
+                        @Nonnull String entityType, @Nonnull String currentToken, @Nonnull String firstToken) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
             this.entityType = Objects.requireNonNull(entityType);
             this.currentToken = Objects.requireNonNull(currentToken);
+            this.firstToken = Objects.requireNonNull(firstToken);
         }
 
         @Nonnull
@@ -786,8 +812,16 @@ public class GroupMapper {
             return currentToken;
         }
 
-        public boolean isHopCountBasedTraverse(@Nonnull StoppingCondition stopper) {
+        public boolean isHopCountBasedTraverse(@Nonnull StoppingConditionOrBuilder stopper) {
             return !iterator.hasNext() && stopper.hasNumberHops();
+        }
+
+        /**
+         * Check if this SearchFilter should filter by number of connected vertices. For example:
+         * filter PMs by number of hosted VMs.
+         */
+        public boolean shouldFilterByNumConnectedVertices() {
+            return TRAVERSAL_TYPES.contains(firstToken);
         }
     }
 
@@ -801,7 +835,7 @@ public class GroupMapper {
         public List<SearchFilter> apply(SearchFilterContext context) {
             // add a traversal filter
             TraversalDirection direction = TraversalDirection.valueOf(context.getCurrentToken());
-            final StoppingCondition stopper;
+            final StoppingCondition.Builder stopperBuilder;
             final Iterator<String> iterator = context.getIterator();
             final String entityType = context.getEntityType();
             if (iterator.hasNext()) {
@@ -809,30 +843,67 @@ public class GroupMapper {
                 // An explicit stopper can either be the number of hops, or an
                 // entity type. And note that hops number can not contains '+' or '-'.
                 if (StringUtils.isNumeric(currentToken)) {
+                    // For example: Produces:1:VirtualMachine
                     final int hops = Integer.valueOf(currentToken);
                     if (hops <= 0) {
                         throw new IllegalArgumentException("Illegal hops number " + hops
                                         + "; should be positive.");
                     }
-                    stopper = StoppingCondition.newBuilder().setNumberHops(hops).build();
+                    stopperBuilder = StoppingCondition.newBuilder().setNumberHops(hops);
+                    // set condition for number of connected vertices if required
+                    if (context.shouldFilterByNumConnectedVertices()) {
+                        setVerticesCondition(stopperBuilder, iterator.next(), context);
+                    }
                 } else {
-                    stopper = buildStoppingCondition(currentToken);
+                    // For example: Produces:VirtualMachine
+                    stopperBuilder = buildStoppingCondition(currentToken);
+                    // set condition for number of connected vertices if required
+                    if (context.shouldFilterByNumConnectedVertices()) {
+                        setVerticesCondition(stopperBuilder, currentToken, context);
+                    }
                 }
             } else {
-                stopper = buildStoppingCondition(entityType);
+                stopperBuilder = buildStoppingCondition(entityType);
             }
+
             TraversalFilter traversal = TraversalFilter.newBuilder()
                             .setTraversalDirection(direction)
-                            .setStoppingCondition(stopper)
+                            .setStoppingCondition(stopperBuilder)
                             .build();
             final ImmutableList.Builder<SearchFilter> searchFilters = ImmutableList.builder();
             searchFilters.add(SearchMapper.searchFilterTraversal(traversal));
             // add a final entity type filter if the last filer is a hop-count based traverse
-            if (context.isHopCountBasedTraverse(stopper)) {
+            // and it's not a filter based on number of connected vertices
+            // for example: get all PMs which hosted more than 2 VMs, we've already get all PMs
+            // if it's a filter by number of connected vertices, we don't need to filter on PM type again
+            if (context.isHopCountBasedTraverse(stopperBuilder) && !context.shouldFilterByNumConnectedVertices()) {
                 searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper
                                 .entityTypeFilter(entityType)));
             }
             return searchFilters.build();
+        }
+
+        /**
+         * Add vertices condition to the given StoppingCondition. For example, group of PMs by
+         * number of hosted VMs, the stopping condition contains number of hops, which is 1. This
+         * function add one more condition: filter by number of vms hosted by this PM.
+         *
+         * @param stopperBuilder the StoppingCondition builder to add vertices condition to
+         * @param stoppingEntityType the entity type to count number of connected vertices for
+         * when the traversal stops. for example: PMs by number of hosted VMs, then the
+         * stoppingEntityType is the integer value of VM entity type
+         * @param context the SearchFilterContext with parameters provided by user for the group
+         */
+        private void setVerticesCondition(@Nonnull StoppingCondition.Builder stopperBuilder,
+                @Nonnull String stoppingEntityType, @Nonnull SearchFilterContext context) {
+            int vertexEntityType = ServiceEntityMapper.fromUIEntityType(stoppingEntityType);
+            stopperBuilder.setVerticesCondition(VerticesCondition.newBuilder()
+                    .setNumConnectedVertices(NumericFilter.newBuilder()
+                            .setValue(Long.valueOf(context.getFilter().getExpVal()))
+                            .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(
+                                    context.getFilter().getExpType())))
+                    .setEntityType(vertexEntityType)
+                    .build());
         }
     }
 }

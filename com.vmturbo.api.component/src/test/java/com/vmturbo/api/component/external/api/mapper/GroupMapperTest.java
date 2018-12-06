@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -542,6 +543,43 @@ public class GroupMapperTest {
         assertEquals(DISPLAYNAME_IS_BAR, byPMNameByVMName.getSearchFilter(0));
         assertEquals(PRODUCES_ONE_HOP, byPMNameByVMName.getSearchFilter(1));
         assertEquals(SearchMapper.searchFilterProperty(TYPE_IS_VM), byPMNameByVMName.getSearchFilter(2));
+    }
+
+    @Test
+    public void testByTraversalHopNumConnectedVMs() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE, filterDTO(GroupMapper.EQUAL, "3",
+                "pmsByNumVms"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO,
+                inputDTO.getClassName(), null);
+
+        assertEquals(1, parameters.size());
+        SearchParameters byTraversalHopNumConnectedVMs = parameters.get(0);
+        assertEquals(TYPE_IS_PM, byTraversalHopNumConnectedVMs.getStartingFilter());
+        assertEquals(1, byTraversalHopNumConnectedVMs.getSearchFilterCount());
+
+        SearchFilter hopNumConnectedVMs = SearchMapper.searchFilterTraversal(
+                createNumHopsNumConnectedVerticesFilter(TraversalDirection.PRODUCES, 1,
+                        ComparisonOperator.EQ, 3, EntityType.VIRTUAL_MACHINE.getNumber()));
+        assertEquals(hopNumConnectedVMs, byTraversalHopNumConnectedVMs.getSearchFilter(0));
+    }
+
+    private static TraversalFilter createNumHopsNumConnectedVerticesFilter(
+            TraversalDirection direction, int hops, ComparisonOperator operator, long value,
+            int entityType) {
+        StoppingCondition numHops = StoppingCondition.newBuilder()
+                .setNumberHops(hops)
+                .setVerticesCondition(VerticesCondition.newBuilder()
+                        .setNumConnectedVertices(NumericFilter.newBuilder()
+                                .setComparisonOperator(operator)
+                                .setValue(value)
+                                .build())
+                        .setEntityType(entityType)
+                        .build())
+                .build();
+        return TraversalFilter.newBuilder()
+                .setTraversalDirection(direction)
+                .setStoppingCondition(numHops)
+                .build();
     }
 
     @Test

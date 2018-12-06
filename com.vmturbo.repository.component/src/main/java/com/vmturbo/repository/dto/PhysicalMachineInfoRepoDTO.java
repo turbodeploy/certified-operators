@@ -23,6 +23,10 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private String vendor;
     // The model identifier of this Physical Machine (Host)
     private String model;
+    // The total number of CPU cores on the host
+    private Integer numCpus;
+    // The timezone of this host
+    private String timezone;
 
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
@@ -35,6 +39,14 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         setCpuModel(physicalMachineInfo.getCpuModel());
         setVendor(physicalMachineInfo.getVendor());
         setModel(physicalMachineInfo.getModel());
+
+        if (physicalMachineInfo.hasNumCpus()) {
+            setNumCpus(physicalMachineInfo.getNumCpus());
+        }
+
+        if (physicalMachineInfo.hasTimezone()) {
+            setTimezone(physicalMachineInfo.getTimezone());
+        }
 
         serviceEntityRepoDTO.setPhysicalMachineInfoRepoDTO(this);
 
@@ -57,6 +69,12 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getModel() != null) {
             physicalMachineInfoBuilder.setModel(getModel());
+        }
+        if (getNumCpus() != null) {
+            physicalMachineInfoBuilder.setNumCpus(getNumCpus());
+        }
+        if (getTimezone() != null) {
+            physicalMachineInfoBuilder.setTimezone(getTimezone());
         }
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)
@@ -87,19 +105,37 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.model = model;
     }
 
+    public Integer getNumCpus() {
+        return numCpus;
+    }
+
+    public void setNumCpus(Integer numCpus) {
+        this.numCpus = numCpus;
+    }
+
+    public String getTimezone() {
+        return timezone;
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (!(o instanceof PhysicalMachineInfoRepoDTO)) return false;
         final PhysicalMachineInfoRepoDTO that = (PhysicalMachineInfoRepoDTO) o;
         return Objects.equal(cpuModel, that.cpuModel) &&
-            Objects.equal(vendor, that.vendor) &&
-            Objects.equal(model, that.model);
+                Objects.equal(vendor, that.vendor) &&
+                Objects.equal(model, that.model) &&
+                Objects.equal(numCpus, that.numCpus) &&
+                Objects.equal(timezone, that.timezone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(cpuModel, vendor, model);
+        return Objects.hashCode(cpuModel, vendor, model, numCpus, timezone);
     }
 
     @Override
@@ -108,6 +144,8 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 .append("cpuModel", cpuModel)
                 .append("vendor", vendor)
                 .append("model", model)
+                .append("numCpus", numCpus)
+                .append("timezone", timezone)
                 .toString();
     }
 }

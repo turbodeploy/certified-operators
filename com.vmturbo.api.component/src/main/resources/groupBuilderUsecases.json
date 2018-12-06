@@ -34,7 +34,15 @@
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
             {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "pmsByState"},
             {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag"},
-            {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsByStorage"}
+            {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsByStorage"},
+            {"inputType": "*", "elements": "Switch:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsBySwitch"},
+            {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "pmsByMem"},
+            {"inputType": "#", "elements": "PRODUCES:1:VirtualMachine", "filterCategory": "property", "filterType": "pmsByNumVms"},
+            {"inputType": "#", "elements": "physicalMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "pmsByNumCPUs"},
+            {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.vendor", "filterCategory": "property", "filterType": "pmsByVendorName"},
+            {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.cpuModel", "filterCategory": "property", "filterType": "pmsByCPUModel"},
+            {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.model", "filterCategory": "property", "filterType": "pmsByModel"},
+            {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.timezone", "filterCategory": "property", "filterType": "pmsByTimezone"}
         ]
     },
 

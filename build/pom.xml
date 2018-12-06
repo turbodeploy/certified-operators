@@ -361,6 +361,12 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>mediation-vcenter</id>
+            <modules>
+                <module>../com.vmturbo.mediation.vcenter.component</module>
+            </modules>
+        </profile>
 
         <profile>
             <id>mediation-vmax</id>

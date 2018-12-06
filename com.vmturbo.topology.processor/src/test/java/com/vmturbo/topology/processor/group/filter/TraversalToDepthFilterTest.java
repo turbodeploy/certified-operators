@@ -15,10 +15,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -56,13 +59,13 @@ public class TraversalToDepthFilterTest {
     public void testNegativeDepth() {
         expectedException.expect(IllegalArgumentException.class);
 
-        new TraversalToDepthFilter(TraversalDirection.PRODUCES, -1);
+        new TraversalToDepthFilter(TraversalDirection.PRODUCES, -1, null);
     }
 
     @Test
     public void testZeroDepthProduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 0);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 0, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L), contains(1L));
     }
@@ -70,7 +73,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testZeroDepthProducesNotInGraph() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 0);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 0, null);
 
         assertThat(filterOids(filter, topologyGraph, 9999L), is(empty()));
     }
@@ -78,7 +81,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testOneDepthProduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L), contains(4L, 5L));
     }
@@ -86,7 +89,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testOneDepthProducesNotInGraph() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 999L), is(empty()));
     }
@@ -94,7 +97,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultistartProduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L, 2L, 3L), contains(4L, 5L, 6L));
     }
@@ -102,7 +105,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultistartProducesNoRepeats() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 2L, 2L), contains(6L));
     }
@@ -110,7 +113,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultiLevelProduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 2);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 2, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L), contains(7L));
     }
@@ -118,7 +121,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultistartMultiLevelProduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 2);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 2, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L, 2L, 3L), contains(7L));
     }
@@ -126,7 +129,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testDeeperThanGraphProduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 3);
+            new TraversalToDepthFilter(TraversalDirection.PRODUCES, 3, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L), is(empty()));
     }
@@ -134,7 +137,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testZeroDepthConsumes() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 0);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 0, null);
 
         assertThat(filterOids(filter, topologyGraph, 1L), contains(1L));
     }
@@ -142,7 +145,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testZeroDepthConsumesNotInGraph() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 0);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 0, null);
 
         assertThat(filterOids(filter, topologyGraph, 9999L), is(empty()));
     }
@@ -150,7 +153,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testOneDepthConsumes() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 1);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 4L), contains(1L));
     }
@@ -158,7 +161,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultistartPrduces() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 1);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 4L, 6L), contains(1L, 2L));
     }
@@ -166,7 +169,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultistartConsumesNoRepeats() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 1);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 1, null);
 
         assertThat(filterOids(filter, topologyGraph, 4L, 5L), contains(1L));
     }
@@ -174,7 +177,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultiLevelConsumes() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 2);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 2, null);
 
         assertThat(filterOids(filter, topologyGraph, 7L), contains(1L));
     }
@@ -182,7 +185,7 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testMultistartMultiLevelConsumes() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 2);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 2, null);
 
         assertThat(filterOids(filter, topologyGraph, 7L, 6L, 5L), contains(1L));
     }
@@ -190,8 +193,68 @@ public class TraversalToDepthFilterTest {
     @Test
     public void testDeeperThanGraphConsumes() {
         final TraversalToDepthFilter filter =
-            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 3);
+            new TraversalToDepthFilter(TraversalDirection.CONSUMES, 3, null);
 
         assertThat(filterOids(filter, topologyGraph, 7L), is(empty()));
+    }
+
+    @Test
+    public void testOneDepthProducesAndFilterByTwoConnectedVertices() {
+        final TraversalToDepthFilter filter =
+                new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1,
+                        VerticesCondition.newBuilder()
+                                .setNumConnectedVertices(NumericFilter.newBuilder()
+                                        .setValue(2)
+                                        .setComparisonOperator(ComparisonOperator.EQ)
+                                        .build())
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .build());
+
+        assertThat(filterOids(filter, topologyGraph, 1L), contains(1L));
+    }
+
+    @Test
+    public void testOneDepthProducesAndFilterByMoreThanTwoConnectedVertices() {
+        final TraversalToDepthFilter filter =
+                new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1,
+                        VerticesCondition.newBuilder()
+                                .setNumConnectedVertices(NumericFilter.newBuilder()
+                                        .setValue(2)
+                                        .setComparisonOperator(ComparisonOperator.GT)
+                                        .build())
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .build());
+
+        assertThat(filterOids(filter, topologyGraph, 1L), empty());
+    }
+
+    @Test
+    public void testTwoDepthProducesAndFilterByTwoConnectedVertices() {
+        final TraversalToDepthFilter filter =
+                new TraversalToDepthFilter(TraversalDirection.PRODUCES, 2,
+                        VerticesCondition.newBuilder()
+                                .setNumConnectedVertices(NumericFilter.newBuilder()
+                                        .setValue(1)
+                                        .setComparisonOperator(ComparisonOperator.EQ)
+                                        .build())
+                                .setEntityType(EntityType.APPLICATION_VALUE)
+                                .build());
+
+        assertThat(filterOids(filter, topologyGraph, 1L), contains(1L));
+    }
+
+    @Test
+    public void testMultiStartOneDepthProducesAndFilterByMoreThanZeroConnectedVertices() {
+        final TraversalToDepthFilter filter =
+                new TraversalToDepthFilter(TraversalDirection.PRODUCES, 1,
+                        VerticesCondition.newBuilder()
+                                .setNumConnectedVertices(NumericFilter.newBuilder()
+                                        .setValue(0)
+                                        .setComparisonOperator(ComparisonOperator.GT)
+                                        .build())
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .build());
+
+        assertThat(filterOids(filter, topologyGraph, 1L, 2L, 3L), contains(1L, 2L));
     }
 }

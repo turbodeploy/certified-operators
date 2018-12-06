@@ -57,7 +57,9 @@ public class AQLReprFuser {
                             break;
 
                         case TRAVERSAL_COND:
+                        case TRAVERSAL_COND_NUM_CONNECTED_VERTICES:
                         case TRAVERSAL_HOP:
+                        case TRAVERSAL_HOP_NUM_CONNECTED_VERTICES:
                             final List<Filter<? extends AnyFilterType>> newGroup = Lists.newArrayList(filter);
                             grouped.add(newGroup);
                             break;

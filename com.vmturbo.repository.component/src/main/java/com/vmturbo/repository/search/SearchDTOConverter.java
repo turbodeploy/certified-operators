@@ -13,6 +13,7 @@ import javaslang.control.Either;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -103,15 +104,25 @@ public class SearchDTOConverter {
                 return Either.left(new IllegalArgumentException("Traversal direction is not set"));
         }
 
-        switch (traversalFilter.getStoppingCondition().getStoppingConditionTypeCase()) {
+        final StoppingCondition stoppingCondition = traversalFilter.getStoppingCondition();
+        switch (stoppingCondition.getStoppingConditionTypeCase()) {
             case NUMBER_HOPS:
-                final int hops = traversalFilter.getStoppingCondition().getNumberHops();
+                final int hops = stoppingCondition.getNumberHops();
+                if (stoppingCondition.hasVerticesCondition()) {
+                    return Either.right(Filter.traversalHopNumConnectedVerticesFilter(direction,
+                            hops, stoppingCondition.getVerticesCondition()));
+                }
                 return Either.right(Filter.traversalHopFilter(direction, hops));
 
             case STOPPING_PROPERTY_FILTER:
                 final Search.PropertyFilter stoppingPropertyFilter =
-                        traversalFilter.getStoppingCondition().getStoppingPropertyFilter();
-                final Either<Throwable, Filter<PropertyFilterType>> stoppingFilter = convertPropertyFilter(stoppingPropertyFilter);
+                        stoppingCondition.getStoppingPropertyFilter();
+                final Either<Throwable, Filter<PropertyFilterType>> stoppingFilter =
+                        convertPropertyFilter(stoppingPropertyFilter);
+                if (stoppingCondition.hasVerticesCondition()) {
+                    return stoppingFilter.map(sFilter -> Filter.traversalCondNumConnectedVerticesFilter(
+                            direction, sFilter, stoppingCondition.getVerticesCondition()));
+                }
                 return stoppingFilter.map(sFilter -> Filter.traversalCondFilter(direction, sFilter));
 
             case STOPPINGCONDITIONTYPE_NOT_SET:
