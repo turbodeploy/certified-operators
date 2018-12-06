@@ -269,11 +269,11 @@ public class PlanStatsAggregator {
                     commodityAggregate.put(commodityType, commodityRecord);
                     commodityCount = 0;
                 } else {
-                    commodityRecord.setMinValue(Math.min(used, commodityRecord.getMinValue()));
-                    commodityRecord.setMaxValue(Math.max(used, commodityRecord.getMaxValue()));
+                    commodityRecord.setMinValue(historydbIO.clipValue(Math.min(used, commodityRecord.getMinValue())));
+                    commodityRecord.setMaxValue(historydbIO.clipValue(Math.max(used, commodityRecord.getMaxValue())));
                     // in the first phase we use the "avgValue" field to store the sum of used
-                    commodityRecord.setAvgValue(used + commodityRecord.getAvgValue());
-                    commodityRecord.setCapacity(capacity);
+                    commodityRecord.setAvgValue(historydbIO.clipValue(used + commodityRecord.getAvgValue()));
+                    commodityRecord.setCapacity(historydbIO.clipValue(capacity));
                 }
                 commodityTypeCounts.put(commodityType, ++commodityCount);
             }
@@ -290,8 +290,8 @@ public class PlanStatsAggregator {
     public List<MktSnapshotsStatsRecord> statsRecords() {
         // calculate averages, using the sum of used values from avgValue and counts
         commodityAggregate.forEach((commodityType, commodityRecord) ->
-            commodityRecord.setAvgValue(commodityRecord.getAvgValue() /
-                    commodityTypeCounts.get(commodityType)));
+            commodityRecord.setAvgValue(historydbIO.clipValue(commodityRecord.getAvgValue() /
+                    commodityTypeCounts.get(commodityType))));
         List<MktSnapshotsStatsRecord> result = Lists.newArrayList(entityCountRecords());
         result.addAll(commodityAggregate.values());
         return Collections.unmodifiableList(result);

@@ -48,9 +48,9 @@ public class PlanStatsWriter {
      * @param value the value to update with
      */
     private void tabulateCapacityMinMax(MktSnapshotsStatsRecord priceIndexRecord, double value) {
-        priceIndexRecord.setCapacity(priceIndexRecord.getCapacity() + value);
-        priceIndexRecord.setMinValue(Math.min(priceIndexRecord.getMinValue(), value));
-        priceIndexRecord.setMaxValue(Math.max(priceIndexRecord.getMaxValue(), value));
+        priceIndexRecord.setCapacity(historydbIO.clipValue(priceIndexRecord.getCapacity() + value));
+        priceIndexRecord.setMinValue(historydbIO.clipValue(Math.min(priceIndexRecord.getMinValue(), value)));
+        priceIndexRecord.setMaxValue(historydbIO.clipValue(Math.max(priceIndexRecord.getMaxValue(), value)));
     }
 
     /**
@@ -127,8 +127,10 @@ public class PlanStatsWriter {
         aggregator.writeAggregates();
 
         // add the priceIndex current and projected values
-        currentPriceIndexRecord.setAvgValue(currentPriceIndexRecord.getCapacity() / numOriginalPriceIndex);
-        projectedPriceIndexRecord.setAvgValue(projectedPriceIndexRecord.getCapacity() / numberOfEntities);
+        currentPriceIndexRecord.setAvgValue(historydbIO.clipValue(currentPriceIndexRecord.getCapacity()
+                        / numOriginalPriceIndex));
+        projectedPriceIndexRecord.setAvgValue(historydbIO.clipValue(projectedPriceIndexRecord.getCapacity()
+                        / numberOfEntities));
         historydbIO.execute(HistorydbIO.getJooqBuilder()
                 .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
                 .set(currentPriceIndexRecord)

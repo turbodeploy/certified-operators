@@ -15,6 +15,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -84,6 +86,41 @@ public class PlanStatsAggregatorInfinityCapacityTest {
                                 .setCapacity(1 / Double.MIN_VALUE).build()) // setting the capacity to inifinity
                         .build();
         final Collection<TopologyEntityDTO> chunk = Collections.singleton(topology2);
+        aggregator.handleChunk(chunk);
+        aggregator.writeAggregates();
+    }
+
+    @Test
+    public void testSettingCommodityCapacityToInfinityMultipleChunk() throws VmtDbException {
+        historydbIO.addMktSnapshotRecord(topologyOrganizer);
+        final PlanStatsAggregator aggregator
+                = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
+        final TopologyEntityDTO topology1 =
+                TopologyEntityDTO.newBuilder().setOid(2L).setEntityType(2)
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(0)
+                                        .setKey("111").build())
+                                .setCapacity(1 / Double.MIN_VALUE).build()) // setting the capacity to infinity
+                        .build();
+        final TopologyEntityDTO topology2 =
+                TopologyEntityDTO.newBuilder().setOid(2L).setEntityType(2)
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(0)
+                                        .setKey("111").build())
+                                .setCapacity(Double.MAX_VALUE).build()) // setting the capacity to MAX_VALUE
+                        .build();
+        final TopologyEntityDTO topology3 =
+                TopologyEntityDTO.newBuilder().setOid(2L).setEntityType(2)
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(0)
+                                        .setKey("111").build())
+                                .setCapacity(1 / Double.MIN_VALUE).build()) // setting the capacity to infinity
+                        .build();
+        final Collection<TopologyEntityDTO> chunk = ImmutableSet.of(topology1, topology2, topology3);
+        aggregator.handleChunk(chunk);
         aggregator.handleChunk(chunk);
         aggregator.writeAggregates();
     }

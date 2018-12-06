@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -55,11 +56,7 @@ public class PlanStatsAggregatorTest {
         final TopologyEntityDTO pm3 = pm(50, CPU_MID);
 
         TopologyOrganizer topologyOrganizer = new TopologyOrganizer(CONTEXT_ID, 200);
-        HistorydbIO historydbIO = Mockito.mock(HistorydbIO.class);
-        Mockito.when(historydbIO.clipValue(10.0)).thenReturn(10.0);
-        Mockito.when(historydbIO.clipValue(3.0)).thenReturn(3.0);
-        Mockito.when(historydbIO.clipValue(0.0)).thenReturn(0.0);
-        Mockito.when(historydbIO.clipValue(2.0)).thenReturn(2.0);
+        HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class));
         aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2));
