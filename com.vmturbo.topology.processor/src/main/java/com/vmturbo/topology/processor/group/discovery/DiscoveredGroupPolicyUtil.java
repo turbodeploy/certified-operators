@@ -18,7 +18,7 @@ public class DiscoveredGroupPolicyUtil {
      * @return a group name.
      */
     @Nonnull
-    public static String extractGroupName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+    public static String extractName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
         if (sdkDTO.hasGroupName()) {
             return sdkDTO.getGroupName();
         } else if (sdkDTO.hasConstraintInfo() && sdkDTO.getConstraintInfo().hasConstraintName()) {

@@ -166,6 +166,7 @@ class DiscoveredGroupConstants {
     static final ClusterInfo COMPUTE_CLUSTER_INFO = ClusterInfo.newBuilder()
             .setClusterType(Type.COMPUTE)
             .setName(COMPUTE_CLUSTER_NAME)
+            .setDisplayName(COMPUTE_CLUSTER_NAME)
             .setMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(HOST_IN_DATACENTER.getOid()))
             .build();
@@ -175,6 +176,7 @@ class DiscoveredGroupConstants {
     static final ClusterInfo STORAGE_CLUSTER_INFO = ClusterInfo.newBuilder()
             .setClusterType(Type.STORAGE)
             .setName(STORAGE_CLUSTER_NAME)
+            .setDisplayName(STORAGE_CLUSTER_NAME)
             .setMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(storage.getOid()))
             .build();

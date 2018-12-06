@@ -347,7 +347,7 @@ public class DiscoveredGroupUploader {
                     datacenterCommodity.get().getProviderId(), host.getOid(), host.getDisplayName());
             return;
         }
-        cluster.setName(datacenter.getDisplayName() + "/" + cluster.getName());
+        cluster.setDisplayName(datacenter.getDisplayName() + "/" + cluster.getDisplayName());
     }
 
     private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getDatacenterCommodityOfHost(

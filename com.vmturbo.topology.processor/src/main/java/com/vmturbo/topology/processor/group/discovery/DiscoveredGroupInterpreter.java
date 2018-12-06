@@ -135,8 +135,13 @@ class DiscoveredGroupInterpreter {
         final ClusterInfo.Builder builder = ClusterInfo.newBuilder();
         builder.setClusterType(sdkDTO.getEntityType().equals(EntityType.PHYSICAL_MACHINE)
                 ? Type.COMPUTE : Type.STORAGE);
-        builder.setName(sdkDTO.getGroupName());
-        builder.setDisplayName(sdkDTO.getDisplayName());
+        final String clusterName = DiscoveredGroupPolicyUtil.extractName(sdkDTO);
+        builder.setName(clusterName);
+        if (sdkDTO.hasDisplayName()) {
+            builder.setDisplayName(sdkDTO.getDisplayName());
+        } else {
+            builder.setDisplayName(clusterName);
+        }
         final Optional<StaticGroupMembers> parsedMembersOpt =
                 parseMemberList(sdkDTO, targetId);
         if (parsedMembersOpt.isPresent()) {
@@ -165,7 +170,7 @@ class DiscoveredGroupInterpreter {
                                            final long targetId) {
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
-        final String groupName = DiscoveredGroupPolicyUtil.extractGroupName(sdkDTO);
+        final String groupName = DiscoveredGroupPolicyUtil.extractName(sdkDTO);
         builder.setName(groupName);
         if (sdkDTO.hasDisplayName()) {
             builder.setDisplayName(sdkDTO.getDisplayName());

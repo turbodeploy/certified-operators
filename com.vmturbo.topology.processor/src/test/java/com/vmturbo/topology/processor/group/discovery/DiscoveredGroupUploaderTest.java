@@ -185,7 +185,8 @@ public class DiscoveredGroupUploaderTest {
         // note: even after triggering the upload multiple time, we need to make sure that a single
         // prefix is added
         ClusterInfo computeClusterInfoWithPrefix = ClusterInfo.newBuilder(COMPUTE_CLUSTER_INFO)
-                .setName(DC_NAME + "/" + COMPUTE_CLUSTER_NAME)
+                .setName(COMPUTE_CLUSTER_NAME)
+                .setDisplayName(DC_NAME + "/" + COMPUTE_CLUSTER_NAME)
                 .build();
 
         // check that the datadatacenter prefix has been applied correctly
