@@ -926,6 +926,9 @@ services:
       component_type: mediation-aws
       instance_id: mediation-aws-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWS_XMX_MB}M ${MEDIATION_AWS_SYSTEM_PROPERTIES}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-aws:/home/turbonomic/data
     mem_limit: ${MEDIATION_AWS_MEM_LIMIT_MB}M
@@ -943,26 +946,32 @@ services:
       component_type: mediation-awsbilling
       instance_id: mediation-awsbilling-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSBILLING_XMX_MB}M ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-awsbilling:/home/turbonomic/data
     mem_limit: ${MEDIATION_AWSBILLING_MEM_LIMIT_MB}M
 
   mediation-awscost:
-      extends:
-        file: common-services.yml
-        service: dev-component
-      image: turbonomic/com.vmturbo.mediation.aws.cost.component
-      depends_on: *clustermgrdep
-      ports:
-        - "${MEDIATION_AWSCOST_PORT}"
-        - "${MEDIATION_AWSCOST_DEBUG_PORT}"
-      environment:
-        component_type: mediation-awscost
-        instance_id: mediation-awscost-1
-        JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSCOST_XMX_MB}M ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
-      volumes:
-        - mediation-awscost:/home/turbonomic/data
-      mem_limit: ${MEDIATION_AWSCOST_MEM_LIMIT_MB}M
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.aws.cost.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_AWSCOST_PORT}"
+      - "${MEDIATION_AWSCOST_DEBUG_PORT}"
+    environment:
+      component_type: mediation-awscost
+      instance_id: mediation-awscost-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSCOST_XMX_MB}M ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    volumes:
+      - mediation-awscost:/home/turbonomic/data
+    mem_limit: ${MEDIATION_AWSCOST_MEM_LIMIT_MB}M
 
   mediation-azure:
     extends:
@@ -977,6 +986,9 @@ services:
       component_type: mediation-azure
       instance_id: mediation-azure-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AZURE_XMX_MB}M ${MEDIATION_AZURE_SYSTEM_PROPERTIES}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-azure:/home/turbonomic/data
     mem_limit: ${MEDIATION_AZURE_MEM_LIMIT_MB}M

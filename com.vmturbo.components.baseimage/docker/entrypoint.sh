@@ -29,7 +29,7 @@ COMMON_JAVA_OPTS="-XX:+PrintCommandLineFlags -XX:+UseStringDeduplication -XX:Str
 COMMON_JAVA_OPTS="-Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0 $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-DLog4jContextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector $COMMON_JAVA_OPTS"
-export STARTUP_COMMAND="java $COMMON_JAVA_OPTS $JAVA_OPTS -jar $@"
+export STARTUP_COMMAND="java $COMMON_JAVA_OPTS $JAVA_OPTS $MORE_JAVA_OPTS -jar $@"
 mkdir -p "${GC_LOG_DIR}"
 
 # Roll the logs as needed

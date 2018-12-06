@@ -554,6 +554,9 @@ services:
       consul_host: consul
       component_type: mediation-aws
       instance_id: mediation-aws-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-aws:/home/turbonomic/data
     restart: always
@@ -567,6 +570,9 @@ services:
       consul_host: consul
       component_type: mediation-awsbilling
       instance_id: mediation-awsbilling-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-awsbilling:/home/turbonomic/data
     restart: always
@@ -580,6 +586,9 @@ services:
       consul_host: consul
       component_type: mediation-awscost
       instance_id: mediation-awscost-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-awscost:/home/turbonomic/data
     restart: always
@@ -593,6 +602,9 @@ services:
       consul_host: consul
       component_type: mediation-azure
       instance_id: mediation-azure-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-azure:/home/turbonomic/data
     restart: always

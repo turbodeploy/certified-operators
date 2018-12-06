@@ -439,17 +439,17 @@ mediation-ucsdirector:
 mediation-aws:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
-  turbonomic.aws.persistent.path: /home/turbonomic/data/
+  turbonomic.ratecards.persistent.path: /home/turbonomic/data/
 
 mediation-awsbilling:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
-  turbonomic.aws.persistent.path: /home/turbonomic/data/
+  turbonomic.ratecards.persistent.path: /home/turbonomic/data/
 
 mediation-awscost:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
-  turbonomic.aws.persistent.path: /home/turbonomic/data/
+  turbonomic.ratecards.persistent.path: /home/turbonomic/data/
 
 mediation-azure:
   <<: *baseVmtComponentSettings
