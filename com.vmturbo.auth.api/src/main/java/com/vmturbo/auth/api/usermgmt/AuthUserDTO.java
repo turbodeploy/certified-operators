@@ -1,9 +1,13 @@
 package com.vmturbo.auth.api.usermgmt;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 
 /**
  * An AuthUserDTO represents the User object to be exchanged with the AUTH component.
@@ -40,6 +44,12 @@ public class AuthUserDTO implements Serializable {
     private List<String> roles;
 
     /**
+     * The user scope groups (if any). An empty list means the user is not restricted to a specific
+     * scope.
+     */
+    private List<Long> scopeGroups;
+
+    /**
      * The login provider.
      * We do not always specify it. For example, when we authenticate an user, a return
      * AuthUserDTO might not contain the provider.
@@ -71,6 +81,7 @@ public class AuthUserDTO implements Serializable {
      * @param uuid     The user's UUID.
      * @param roles    The list of roles.
      */
+    @VisibleForTesting
     public AuthUserDTO(final @Nonnull String user,
                        final @Nullable String uuid,
                        final @Nonnull List<String> roles) {
@@ -85,10 +96,12 @@ public class AuthUserDTO implements Serializable {
      * @param uuid     The user's UUID.
      * @param roles    The list of roles.
      */
-    public AuthUserDTO(final @Nullable PROVIDER provider, final @Nonnull String user,
+    @VisibleForTesting
+    public AuthUserDTO(final @Nullable PROVIDER provider,
+                       final @Nonnull String user,
                        final @Nullable String uuid,
                        final @Nonnull List<String> roles) {
-        this(provider, user, null, null, uuid, null, roles);
+        this(provider, user, null, null, uuid, null, roles, null);
     }
 
     /**
@@ -101,6 +114,7 @@ public class AuthUserDTO implements Serializable {
      * @param uuid     The user's UUID.
      * @param token    The AUTH token.
      * @param roles    The list of roles.
+     * @param scopeGroups The list of scope group ids. (can be null)
      */
     public AuthUserDTO(final @Nullable PROVIDER provider,
                        final @Nonnull String user,
@@ -108,7 +122,8 @@ public class AuthUserDTO implements Serializable {
                        final @Nullable String ipAddress,
                        final @Nullable String uuid,
                        final @Nullable String token,
-                       final @Nonnull List<String> roles) {
+                       final @Nonnull List<String> roles,
+                       final @Nullable List<Long> scopeGroups) {
         this.provider = provider;
         this.user = user;
         this.password = password;
@@ -116,6 +131,7 @@ public class AuthUserDTO implements Serializable {
         this.uuid = uuid;
         this.token = token;
         this.roles = roles;
+        this.scopeGroups = scopeGroups == null ? Collections.emptyList() : scopeGroups;
     }
 
     /**
@@ -180,4 +196,13 @@ public class AuthUserDTO implements Serializable {
     public List<String> getRoles() {
         return roles;
     }
+
+    /**
+     * Returns the list of scope group oids. This list may be empty, and is by default. A user with
+     * no scope group oids will have full access to the topology. (unless they are also restricted
+     * by role).
+     *
+     * @return The list of scope group oids.
+     */
+    public List<Long> getScopeGroups() { return scopeGroups; }
 }

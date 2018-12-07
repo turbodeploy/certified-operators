@@ -32,7 +32,7 @@ public class ActiveDirectoryDTO {
      * The groups.
      * The API layer semantics requires that groups may be {@code null}.
      */
-    private List<GroupDTO> groups;
+    private List<SecurityGroupDTO> groups;
 
     /**
      * Constructs the ActiveDirectoryDTO.
@@ -64,7 +64,7 @@ public class ActiveDirectoryDTO {
      * @param groups           The groups.
      */
     public ActiveDirectoryDTO(final String domainName, final String loginProviderURI,
-                              final boolean secure, final List<GroupDTO> groups) {
+                              final boolean secure, final List<SecurityGroupDTO> groups) {
         this.domainName = domainName;
         this.loginProviderURI = loginProviderURI;
         this.secure = secure;
@@ -103,7 +103,7 @@ public class ActiveDirectoryDTO {
      *
      * @return The groups.
      */
-    public @Nullable List<GroupDTO> getGroups() {
+    public @Nullable List<SecurityGroupDTO> getGroups() {
         return groups;
     }
 
@@ -112,7 +112,7 @@ public class ActiveDirectoryDTO {
      *
      * @param groups The groups.
      */
-    public void setGroups(final @Nullable List<GroupDTO> groups) {
+    public void setGroups(final @Nullable List<SecurityGroupDTO> groups) {
         this.groups = groups;
     }
 }

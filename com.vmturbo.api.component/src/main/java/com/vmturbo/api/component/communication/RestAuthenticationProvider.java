@@ -132,7 +132,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         ResponseEntity<String> result;
         try {
             final AuthUserDTO authUserDTO = new AuthUserDTO(null,
-                    userName, password, remoteIpAdress, null, null, Collections.EMPTY_LIST);
+                    userName, password, remoteIpAdress, null, null, null, Collections.EMPTY_LIST);
             final HttpHeaders headers = new HttpHeaders();
             headers.setAccept(HTTP_ACCEPT);
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -200,8 +200,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             roles.add(role);
             grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + role.toUpperCase()));
         }
-        final AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, null, dto.getUuid(),
-                                           token.getCompactRepresentation(), roles);
+        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, null, dto.getUuid(),
+                                           token.getCompactRepresentation(), roles, dto.getScopeGroups());
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
     }
 

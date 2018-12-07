@@ -28,6 +28,8 @@ import com.google.common.collect.ImmutableList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+
 /**
  * The {@link SsoUtil} is a SSO helper utility class.
  */
@@ -57,9 +59,9 @@ public class SsoUtil {
     private String adSearchBase_;
 
     /**
-     * The AD or SAML groups. The {@code <Group name, Roles>} mapping.
+     * The AD or SAML groups. The {@code <Group name, SecurityGroupDTO>} mapping.
      */
-    private final Map<String, String> ssoGroups_ = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, SecurityGroupDTO> ssoGroups_ = Collections.synchronizedMap(new HashMap<>());
 
     /**
      * The AD or SAML users that were derived from groups.
@@ -241,11 +243,11 @@ public class SsoUtil {
      * Adds or replaces the AD or SAML group.
      *
      * @param groupName The group name.
-     * @param roleName  The role name.
+     * @param securityGroup  The security group to store.
      * @return {@code true} iff the new group was added.
      */
-    public boolean putGroup(final @Nonnull String groupName, final @Nonnull String roleName) {
-        return null != ssoGroups_.put(groupName, roleName);
+    public boolean putSecurityGroup(final @Nonnull String groupName, final @Nonnull SecurityGroupDTO securityGroup) {
+        return null != ssoGroups_.put(groupName, securityGroup);
     }
 
     /**
@@ -254,7 +256,7 @@ public class SsoUtil {
      * @param groupName The group name.
      * @return {@code true} iff the group existed before this call.
      */
-    public boolean deleteGroup(final @Nonnull String groupName) {
+    public boolean deleteSecurityGroup(final @Nonnull String groupName) {
         return null != ssoGroups_.remove(groupName);
     }
 
@@ -278,10 +280,10 @@ public class SsoUtil {
      *
      * @param userName  user name
      * @param groupName claimed group name
-     * @return user role if found
+     * @return security group, if found
      */
-    public @Nonnull Optional<String> authorizeSAMLUserInGroup(final @Nonnull String userName,
-                                                              final @Nonnull String groupName) {
+    public @Nonnull Optional<SecurityGroupDTO> authorizeSAMLUserInGroup(final @Nonnull String userName,
+                                                                        final @Nonnull String groupName) {
         boolean foundGroup = ssoGroups_
                 .keySet()
                 .stream()
@@ -290,7 +292,8 @@ public class SsoUtil {
             if (!ssoGroupUsers_.contains(userName)) {
                 ssoGroupUsers_.add(userName);
             }
-            return Optional.ofNullable(ssoGroups_.get(groupName));
+            SecurityGroupDTO group = ssoGroups_.get(groupName);
+            return Optional.ofNullable(group);
          }
          return Optional.empty();
     }
@@ -302,11 +305,12 @@ public class SsoUtil {
      * @param userName     Name of the user.
      * @param userPassword Password user presented.
      * @param ldapServers  A list of LDAP servers to query.  Assumed to be non-empty.
-     * @return The role name or {@code null} if failed.
+     * @return The security group, or {@code null} if failed.
      */
-    public @Nullable String authenticateUserInGroup(final @Nonnull String userName,
-                                                    final @Nonnull String userPassword,
-                                                    final @Nonnull Collection<String> ldapServers) {
+    public @Nullable
+    SecurityGroupDTO authenticateUserInGroup(final @Nonnull String userName,
+                                             final @Nonnull String userPassword,
+                                             final @Nonnull Collection<String> ldapServers) {
         String upn;
 
         if (userName.contains("\\")) {

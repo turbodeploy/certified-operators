@@ -425,7 +425,8 @@ public class ServiceConfig {
                                 authConfig.getAuthPort(),
                                 communicationConfig.serviceRestTemplate(),
                                 samlIdpMetadata,
-                                samlEnabled);
+                                samlEnabled,
+                                groupsService());
     }
 
     @Bean

@@ -10,6 +10,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -127,6 +128,36 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
     }
 
     /**
+     * Performs a match between scope and expectedScope.
+     *
+     * Each group id in the expectedScope must be present in the presented scope.
+     *
+     * @param scope       The scope claimed by token.
+     * @param expectedScope The scope that the caller expects to have.
+     * @throws AuthorizationException If the expected and actual scopes do not match.
+     */
+    /*
+    private void scopeMatch(final Collection<Long> scope,
+                            final Collection<Long> expectedScope)
+            throws AuthorizationException {
+
+
+        if (!CollectionUtils.isEqualCollection(scope, expectedScope)) {
+            throw new AuthorizationException("The principal does not have a required role");
+        }
+
+        // In case we don't expect any roles in the token, simply return.
+        if (expectedRoles.isEmpty()) {
+            return;
+        }
+        // In case the claimed role set is empty, deny the authorization.
+        if (roleSet == null || !roleSet.containsAll(expectedRoles)) {
+            throw new AuthorizationException("The principal does not have a required role");
+        }
+    }
+    */
+
+    /**
      * Verifies the validity of the token.
      *
      * @param token         The existing authentication token.
@@ -194,22 +225,26 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
         }
     }
 
-    private EntryStruct getEntryStruct(final @Nonnull List<String> rolesPayload,  final Jws<Claims> claims) {
+    private EntryStruct getEntryStruct(final @Nonnull List<String> rolesPayload,
+                                       final Jws<Claims> claims) {
         final EntryStruct entry;
 
+        final Claims claimsBody = claims.getBody();
         // Add this to the cache.
         logger.info("::AUTH:SUCCESS: Authentication successful for " +
-                claims.getBody().getSubject());
+                claimsBody.getSubject());
 
         // Add the new entry to the cache.
         // Take into account the clock skew.
         final long expirationTime_ms =
-                (claims.getBody().getExpiration() == null) ? Long.MIN_VALUE :
-                        claims.getBody().getExpiration().getTime();
-        String subject = claims.getBody().getSubject();
-        String uuid = claims.getBody().get(UUID_CLAIM, String.class);
+                (claimsBody.getExpiration() == null)
+                        ? Long.MIN_VALUE
+                        : claimsBody.getExpiration().getTime();
+        String subject = claimsBody.getSubject();
+        String uuid = claimsBody.get(UUID_CLAIM, String.class);
+        List<Long> scopeGroups = (List<Long>) claimsBody.get(SCOPE_CLAIM);
         entry = new EntryStruct(expirationTime_ms + CLOCK_SKEW_SEC * 1000L,
-                rolesPayload, subject, uuid);
+                rolesPayload, scopeGroups, subject, uuid);
         return entry;
     }
 
@@ -243,6 +278,11 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
         final List<String> roles_;
 
         /**
+         * The scope groups
+         */
+        final List<Long> scope_groups_;
+
+        /**
          * The subject.
          */
         final String principal_;
@@ -260,10 +300,11 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
          * @param principal    The principal.
          * @param uuid         The UUID.
          */
-        EntryStruct(final long timestamp_ms, final List<String> roles, final String principal,
-                    final String uuid) {
+        EntryStruct(final long timestamp_ms, final List<String> roles, final List<Long> scope_groups,
+                    final String principal, final String uuid) {
             timestamp_ms_ = timestamp_ms;
             roles_ = roles;
+            scope_groups_ = scope_groups;
             principal_ = principal;
             uuid_ = uuid;
         }
@@ -274,8 +315,9 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
          * @return A {@link AuthUserDTO} object from this entry.
          */
         AuthUserDTO asAuthUserDTO() {
-            return new AuthUserDTO(principal_, uuid_,
-                    roles_ == null ? roles_ : ImmutableList.copyOf(roles_));
+            return new AuthUserDTO(null, principal_, null, uuid_, null, null,
+                    roles_ == null ? roles_ : ImmutableList.copyOf(roles_),
+                    scope_groups_);
         }
     }
 }

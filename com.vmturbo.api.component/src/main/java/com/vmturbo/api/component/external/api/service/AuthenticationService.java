@@ -141,8 +141,8 @@ public class AuthenticationService implements IAuthenticationService {
                                                            .host(authHost_)
                                                            .port(authPort_)
                                                            .path("/users/initAdmin");
-        final AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password,
-                null, null, null, ImmutableList.of(ADMINISTRATOR));
+        final AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
+                                          null, null, ImmutableList.of(ADMINISTRATOR), null);
         try {
             restTemplate_.postForObject(builder.build().toUriString(), dto, String.class);
             UserApiDTO user = new UserApiDTO();

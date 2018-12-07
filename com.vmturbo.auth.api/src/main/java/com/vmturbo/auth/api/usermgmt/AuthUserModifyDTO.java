@@ -1,14 +1,18 @@
 package com.vmturbo.auth.api.usermgmt;
 
-import java.util.List;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * The AuthUserModifyDTO represents the USER DTO with the new password to be exchanged with the
  * AUTH component.
  */
-public class AuthUserModifyDTO extends AuthUserDTO {
+public class AuthUserModifyDTO {
+
+    /**
+     * The user information
+     */
+    private AuthUserDTO userToModify;
+
     /**
      * The new password.
      */
@@ -22,39 +26,23 @@ public class AuthUserModifyDTO extends AuthUserDTO {
     }
 
     /**
-     * Constructs the AuthUserDTO.
+     * Constructs the AuthUserModifyDTO w/new password to use
      *
-     * @param user        The user name.
-     * @param password    The cleartext password.
-     * @param roles       The list of roles.
-     * @param newPassword The new password.
+     * @param userToModify the {@link AuthUserDTO} encapsulating the user record to modify
+     * @param newPassword the new password to set
      */
-    public AuthUserModifyDTO(final @Nonnull String user, final @Nullable String password,
-                             final @Nonnull List<String> roles,
+    public AuthUserModifyDTO(final @Nonnull AuthUserDTO userToModify,
                              final @Nonnull String newPassword) {
-        super(null, user, password, null, null, null, roles);
+        this.userToModify = userToModify;
         this.newPassword = newPassword;
     }
 
     /**
-     * Constructs the AuthUserDTO.
+     * Get the user object to modify
      *
-     * @param provider    The login provider.
-     * @param user        The user name.
-     * @param password    The cleartext password.
-     * @param uuid        The user's UUID.
-     * @param token       The AUTH token.
-     * @param roles       The list of roles.
-     * @param newPassword The new password.
+     * @return
      */
-    public AuthUserModifyDTO(final @Nullable PROVIDER provider, final @Nonnull String user,
-                             final @Nullable String password,
-                             final @Nullable String uuid, final @Nullable String token,
-                             final @Nonnull List<String> roles,
-                             final @Nonnull String newPassword) {
-        super(provider, user, password, null, uuid, token, roles);
-        this.newPassword = newPassword;
-    }
+    public AuthUserDTO getUserToModify() { return userToModify; }
 
     /**
      * Returns the new password.

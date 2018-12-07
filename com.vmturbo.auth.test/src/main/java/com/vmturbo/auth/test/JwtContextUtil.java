@@ -122,7 +122,7 @@ public class JwtContextUtil {
         Set<GrantedAuthority> grantedAuths = new HashSet<>();
         grantedAuths.add(new SimpleGrantedAuthority("ROLE_NONADMINISTRATOR"));
         AuthUserDTO user = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "admin", null, null, userOidString,
-                compact, new ArrayList<>());
+                compact, new ArrayList<>(), null);
         Authentication authentication = new UsernamePasswordAuthenticationToken(user, "***", grantedAuths);
 
         // populate security context, so the client interceptor can get the JWT token.

@@ -5,7 +5,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.GroupDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -217,7 +217,7 @@ public class AuthUsersController {
     @ResponseBody
     public @Nonnull String addUser(@RequestBody AuthUserDTO dto) throws Exception {
         boolean success = targetStore_.add(dto.getProvider(), dto.getUser(),
-                                           dto.getPassword(), dto.getRoles());
+                                           dto.getPassword(), dto.getRoles(), dto.getScopeGroups());
         if (success) {
             return "users://" + dto.getUser();
         }
@@ -239,11 +239,11 @@ public class AuthUsersController {
     @ResponseBody
     public @Nonnull void setPassword(@RequestBody AuthUserModifyDTO dto)
             throws Exception {
-        boolean success = targetStore_.setPassword(dto.getUser(),
-                                                   dto.getPassword(),
+        boolean success = targetStore_.setPassword(dto.getUserToModify().getUser(),
+                                                   dto.getUserToModify().getPassword(),
                                                    dto.getNewPassword());
         if (!success) {
-            throw new SecurityException("Unable to set password for user: " + dto.getUser());
+            throw new SecurityException("Unable to set password for user: " + dto.getUserToModify().getUser());
         }
     }
 
@@ -262,7 +262,9 @@ public class AuthUsersController {
     @ResponseBody
     public @Nonnull String setRoles(@RequestBody AuthUserDTO dto)
             throws Exception {
-        boolean success = targetStore_.setRoles(dto.getProvider(), dto.getUser(), dto.getRoles());
+        // TODO: we will move scope into the roles into the future. But for now, we are setting
+        // scope on the user level.
+        boolean success = targetStore_.setRoles(dto.getProvider(), dto.getUser(), dto.getRoles(), dto.getScopeGroups());
         if (success) {
             return "users://" + dto.getUser();
         }
@@ -370,8 +372,8 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups", method = RequestMethod.GET,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public List<GroupDTO> getActiveDirectoryGroups() throws Exception {
-        return targetStore_.getGroups();
+    public List<SecurityGroupDTO> getActiveDirectoryGroups() throws Exception {
+        return targetStore_.getSecurityGroups();
     }
 
     /**
@@ -383,10 +385,10 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups", method = RequestMethod.POST,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public GroupDTO createSSOGroup(
+    public SecurityGroupDTO createSSOGroup(
             @ApiParam(value = "Properties to create an Active Directory group", required = true)
-            @RequestBody GroupDTO adGroupInputDto) throws Exception {
-        return targetStore_.createGroup(adGroupInputDto);
+            @RequestBody SecurityGroupDTO adGroupInputDto) throws Exception {
+        return targetStore_.createSecurityGroup(adGroupInputDto);
     }
 
     /**
@@ -398,10 +400,10 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups", method = RequestMethod.PUT,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public GroupDTO changeActiveDirectoryGroup(
+    public SecurityGroupDTO changeActiveDirectoryGroup(
             @ApiParam(value = "New properties for an existing Active Directory group",
                       required = false)
-            @RequestBody GroupDTO adGroupInputDto) throws Exception {
+            @RequestBody SecurityGroupDTO adGroupInputDto) throws Exception {
         return targetStore_.changeActiveDirectoryGroup(adGroupInputDto);
     }
 
@@ -418,6 +420,6 @@ public class AuthUsersController {
     public Boolean deleteSSOGroup(
             @ApiParam(value = "The name of Active Directory group", required = true)
             @PathVariable("groupName") String groupName) throws Exception {
-        return targetStore_.deleteGroup(groupName);
+        return targetStore_.deleteSecurityGroup(groupName);
     }
 }

@@ -3,15 +3,24 @@ package com.vmturbo.api.component.external.api.service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.xml.parsers.ParserConfigurationException;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpEntity;
@@ -27,14 +36,12 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
+import com.vmturbo.api.component.external.api.mapper.UserMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
@@ -45,10 +52,11 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.Base64CodecUtils;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.GroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 
 /**
  * Users management service implementation.
@@ -97,6 +105,8 @@ public class UsersService implements IUsersService {
     private final String idpURL;
     private final boolean samlEnabled, isSingleLogoutEnabled;
 
+    private final GroupsService groupsService;
+
     /**
      * Constructs the users service.
      * @param authHost     The authentication host.
@@ -104,12 +114,14 @@ public class UsersService implements IUsersService {
      * @param restTemplate The synchronous client-side HTTP access.
      * @param samlIdpMetadata The SAML IDP metadata
      * @param samlEnabled  is SAML enabled
+     * @param groupsService The group service is used when translating scope groups back to API groups
      */
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
                         final @Nonnull RestTemplate restTemplate,
                         final @Nonnull String samlIdpMetadata,
-                        final boolean samlEnabled) {
+                        final boolean samlEnabled,
+                        final @Nonnull GroupsService groupsService) {
         authHost_ = Objects.requireNonNull(authHost);
         authPort_ = authPort;
         if (authPort_ < 0 || authPort_ > 65535) {
@@ -126,27 +138,7 @@ public class UsersService implements IUsersService {
             this.samlEnabled = false;
             this.isSingleLogoutEnabled = false;
         }
-
-
-    }
-
-    /**
-     * Generates the UserApiDTO.
-     *
-     * @param dto The internal User object.
-     * @return The generated UserApiDTO.
-     */
-    private UserApiDTO generateUserApiDTO(final @Nonnull AuthUserDTO dto) {
-        UserApiDTO user = new UserApiDTO();
-        user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
-        user.setUsername(dto.getUser());
-        user.setRoleName(dto.getRoles().get(0));
-        user.setUuid(dto.getUuid());
-        // Mandatory fields.
-        user.setFeatures(Collections.emptyList());
-        user.setType("DedicatedCustomer");
-        user.setDisplayName(dto.getUser());
-        return user;
+        this.groupsService = groupsService;
     }
 
     /**
@@ -189,13 +181,32 @@ public class UsersService implements IUsersService {
         HttpEntity<List> entity = new HttpEntity<>(headers);
         ResponseEntity<List> result = restTemplate_.exchange(request, HttpMethod.GET, entity,
                                                              List.class);
-        // Assemble the results.
-        List<UserApiDTO> list = new ArrayList<>();
+
+        // assemble a list of auth users to convert
+        List<AuthUserDTO> authUserDTOS = new ArrayList<>();
+        // also gather a set of the group oids we need to fetch from the group service
+        Set<Long> groupOids = new HashSet<>();
         for (Object o : result.getBody()) {
             // We do the conversion manually here from the result, as we can't specify the
             // exact class for automatic JSON generation.
             AuthUserDTO dto = parse(o, AuthUserDTO.class);
-            UserApiDTO user = generateUserApiDTO(dto);
+            authUserDTOS.add(dto);
+            // if there are any user scopes, add the groups to the group request.
+            if (CollectionUtils.isNotEmpty(dto.getScopeGroups())) {
+                groupOids.addAll(dto.getScopeGroups());
+            }
+        }
+
+        // oid -> group map for looking up API Group objects by oid. We will use this when mapping
+        // between API and Auth user objects later.
+        Map<Long, GroupApiDTO> apiGroupsByOid = getApiGroupMap(groupOids);
+
+        // Assemble the final results.
+        List<UserApiDTO> list = new ArrayList<>();
+        for (AuthUserDTO authUserDTO : authUserDTOS) {
+            // We do the conversion manually here from the result, as we can't specify the
+            // exact class for automatic JSON generation.
+            UserApiDTO user = UserMapper.toUserApiDTO(authUserDTO, apiGroupsByOid);
             list.add(user);
         }
         return list;
@@ -221,7 +232,7 @@ public class UsersService implements IUsersService {
     @Override
     public @Nonnull UserApiDTO getLoggedInUser() throws Exception {
         return SAMLUserUtils.getAuthUserDTO()
-                .map(authUserDTO -> generateUserApiDTO(authUserDTO))
+                .map(UserMapper::toUserApiDTO)
                 .orElseThrow(() -> new UnauthorizedObjectException("No user logged in!"));
     }
 
@@ -238,16 +249,6 @@ public class UsersService implements IUsersService {
     }
 
     /**
-     * Converts the role in the USER API DTO to the list used by the AUTH component.
-     *
-     * @param userApiDTO The User API DTO.
-     * @return The list of roles.
-     */
-    private List<String> convertRolesToList(final @Nonnull UserApiDTO userApiDTO) {
-        return ImmutableList.of(userApiDTO.getRoleName().toUpperCase());
-    }
-
-    /**
      * Creates the user.
      *
      * @param userApiDTO The user creation data.
@@ -256,15 +257,7 @@ public class UsersService implements IUsersService {
      */
     @Override
     public UserApiDTO createUser(UserApiDTO userApiDTO) throws Exception {
-
-        // According to UserApiDTO, the login provider values may be one of: "LOCAL", "LDAP".
-        final AuthUserDTO.PROVIDER provider =
-                LoginProviderMapper.fromApi(userApiDTO.getLoginProvider());
-        final String password = provider.equals(PROVIDER.LOCAL) ? userApiDTO.getPassword() : null;
-
-        // The explicitly added LDAP users will be kept in the same local database.
-        AuthUserDTO dto = new AuthUserDTO(provider, userApiDTO.getUsername(), password,
-                null, null, null, convertRolesToList(userApiDTO));
+        AuthUserDTO dto = UserMapper.toAuthUserDTO(userApiDTO);
         // Perform the call.
         // Make sure that the currently authenticated user's token is present.
         HttpHeaders headers = composeHttpHeaders();
@@ -276,6 +269,7 @@ public class UsersService implements IUsersService {
         user.setLoginProvider(userApiDTO.getLoginProvider());
         user.setUsername(userApiDTO.getUsername());
         user.setRoleName(userApiDTO.getRoleName());
+        user.setScope(userApiDTO.getScope());
         user.setUuid(userApiDTO.getUuid());
         return user;
     }
@@ -289,13 +283,8 @@ public class UsersService implements IUsersService {
      */
     private UserApiDTO setUserRoles(final @Nonnull UserApiDTO userApiDTO) throws Exception {
         UriComponentsBuilder builder = baseRequest().path("/users/setroles");
+        AuthUserDTO dto = UserMapper.toAuthUserDTONoPassword(userApiDTO);
         // Call AUTH component to perform the action.
-        AuthUserDTO.PROVIDER provider = AuthUserDTO.PROVIDER.valueOf(userApiDTO.getLoginProvider());
-        AuthUserDTO dto = new AuthUserDTO(provider,
-                                          userApiDTO.getUsername(),
-                                          userApiDTO.getUuid(),
-                                          convertRolesToList(userApiDTO));
-        // Perform the call.
         // Make sure that the currently authenticated user's token is present.
         HttpHeaders headers = composeHttpHeaders();
         HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
@@ -305,6 +294,7 @@ public class UsersService implements IUsersService {
         UserApiDTO user = new UserApiDTO();
         user.setUsername(userApiDTO.getUsername());
         user.setRoleName(userApiDTO.getRoleName());
+        user.setScope(userApiDTO.getScope());
         user.setUuid(userApiDTO.getUuid());
         return user;
     }
@@ -320,25 +310,26 @@ public class UsersService implements IUsersService {
     private UserApiDTO setLocalUserPassword(final @Nonnull UserApiDTO userApiDTO) throws Exception {
         UriComponentsBuilder builder = baseRequest().path("/users/setpassword");
         // Call AUTH component to perform the action.
-        AuthUserModifyDTO dto = new AuthUserModifyDTO(userApiDTO.getUsername(), null,
-                                                      convertRolesToList(userApiDTO),
-                                                      userApiDTO.getPassword());
+        AuthUserModifyDTO dto = new AuthUserModifyDTO(UserMapper.toAuthUserDTONoPassword(userApiDTO),
+                    userApiDTO.getPassword());
+
         // Perform the call.
         // Make sure that the currently authenticated user's token is present.
         HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
+        HttpEntity<AuthUserModifyDTO> entity = new HttpEntity<>(dto, headers);
         restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity,
                                Void.class);
         // Return data.
         UserApiDTO user = new UserApiDTO();
         user.setUsername(userApiDTO.getUsername());
         user.setRoleName(userApiDTO.getRoleName());
+        user.setScope(userApiDTO.getScope());
         user.setUuid(userApiDTO.getUuid());
         return user;
     }
 
     /**
-     * Edits user's roles and password.
+     * Edits user information.
      * We always receive the role in the userApiDTO.
      * The password in the userApiDTO will be non-{@code null} if the password modification is
      * required.
@@ -408,7 +399,7 @@ public class UsersService implements IUsersService {
                 new ActiveDirectoryDTO(adDTO.getDomainName(), adDTO.getLoginProviderURI(),
                                        ensureNonNull(adDTO.getIsSecure()));
         if (adDTO.getGroups() != null) {
-            List<GroupDTO> groups = new ArrayList<>();
+            List<SecurityGroupDTO> groups = new ArrayList<>();
             for (ActiveDirectoryGroupApiDTO grp : adDTO.getGroups()) {
                 groups.add(convertGroupInfoToAuth(grp));
             }
@@ -444,15 +435,47 @@ public class UsersService implements IUsersService {
      * layer.
      *
      * @param dto The internal format DTO.
+     * @param groupApiDTOMap a map of group oid -> {@link GroupApiDTO}. This will be used to convert
+     *                       scope groups, if passed in. Otherwise, simple groups containing just the
+     *                       group oid will be created instead.
      * @return The API format DTO.
      */
     private @Nonnull ActiveDirectoryGroupApiDTO convertGroupInfoFromAuth(
-            final @Nonnull GroupDTO dto) {
+            final @Nonnull SecurityGroupDTO dto, Map<Long, GroupApiDTO> groupApiDTOMap) {
         ActiveDirectoryGroupApiDTO gad = new ActiveDirectoryGroupApiDTO();
         gad.setType(dto.getType());
         gad.setRoleName(dto.getRoleName());
         gad.setDisplayName(dto.getDisplayName());
+        // get the set of group oids in scope
+        gad.setScope(UserMapper.groupOidsToGroupApiDTOs(dto.getScopeGroups(), groupApiDTOMap));
         return gad;
+    }
+
+    /**
+     * Given a set of auth user or group objects, build a map of group id -> {@link GroupApiDTO}
+     * objects so that we can provide the UI the group name and type information. Since we are only
+     * starting with a group oid, this requires a fetch to the group service component.
+     *
+     * @return a map of group oid -> {@link GroupApiDTO} based on the input group oids.
+     */
+    private Map<Long, GroupApiDTO> getApiGroupMap(Set<Long> groupOids) {
+        if (CollectionUtils.isEmpty(groupOids)) {
+            return Collections.emptyMap();
+        }
+
+        // get the groups from the group service and populate the oid -> group map
+        Map<Long, GroupApiDTO> apiGroupsByOid = new HashMap<>();
+        if (groupOids.size() > 0) {
+            List<GroupApiDTO> groupApiDTOS = groupsService.getGroupApiDTOS(
+                    GetGroupsRequest.newBuilder()
+                            .addAllId(groupOids)
+                            .build());
+            if (groupApiDTOS.size() > 0) {
+                groupApiDTOS.forEach(
+                        group -> apiGroupsByOid.put(Long.valueOf(group.getUuid()), group));
+            }
+        }
+        return apiGroupsByOid;
     }
 
     /**
@@ -464,9 +487,9 @@ public class UsersService implements IUsersService {
      * @return The internal format DTO.
      */
     private @Nonnull
-    GroupDTO convertGroupInfoToAuth(
-            final @Nonnull ActiveDirectoryGroupApiDTO dto) {
-        return new GroupDTO(dto.getDisplayName(), dto.getType(), dto.getRoleName());
+    SecurityGroupDTO convertGroupInfoToAuth(final @Nonnull ActiveDirectoryGroupApiDTO dto) {
+        return new SecurityGroupDTO(dto.getDisplayName(), dto.getType(), dto.getRoleName(),
+                UserMapper.groupApiDTOsToOids(dto.getScope()));
     }
 
     /**
@@ -523,9 +546,20 @@ public class UsersService implements IUsersService {
         ResponseEntity<List> result;
         result = restTemplate_.exchange(request, HttpMethod.GET, new HttpEntity<>(headers),
                                         List.class);
-        List<ActiveDirectoryGroupApiDTO> list = new ArrayList<>();
+        // get a list of API group objects and a set of any scope group oids they contain
+        List<SecurityGroupDTO> apiGroups = new ArrayList<>();
+        Set<Long> groupOids = new HashSet<>();
         for (Object o : result.getBody()) {
-            list.add(convertGroupInfoFromAuth(parse(o, GroupDTO.class)));
+            SecurityGroupDTO group = parse(o, SecurityGroupDTO.class);
+            apiGroups.add(group);
+            if (CollectionUtils.isNotEmpty(group.getScopeGroups())) {
+                groupOids.addAll(group.getScopeGroups());
+            }
+        }
+        Map<Long, GroupApiDTO> groupApiDTOMap = getApiGroupMap(groupOids);
+        List<ActiveDirectoryGroupApiDTO> list = new ArrayList<>();
+        for (SecurityGroupDTO securityGroupDTO : apiGroups) {
+            list.add(convertGroupInfoFromAuth(securityGroupDTO, groupApiDTOMap));
         }
         return list;
     }
@@ -544,11 +578,16 @@ public class UsersService implements IUsersService {
         UriComponentsBuilder builder = baseRequest().path("/users/ad/groups");
         String request = builder.build().toUriString();
         HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<GroupDTO> entity;
+        HttpEntity<SecurityGroupDTO> entity;
         entity = new HttpEntity<>(convertGroupInfoToAuth(adGroupInputDto), headers);
-        Class<GroupDTO> clazz = GroupDTO.class;
-        return convertGroupInfoFromAuth(restTemplate_.exchange(request, HttpMethod.POST,
-                                                               entity, clazz).getBody());
+        Class<SecurityGroupDTO> clazz = SecurityGroupDTO.class;
+        // create a group oid -> object map for the conversion on the way back
+        Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
+        adGroupInputDto.getScope().forEach(groupApiDTO ->
+                groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+        return convertGroupInfoFromAuth(
+                restTemplate_.exchange(request, HttpMethod.POST, entity, clazz).getBody(),
+                groupApiDTOMap);
     }
 
     /**

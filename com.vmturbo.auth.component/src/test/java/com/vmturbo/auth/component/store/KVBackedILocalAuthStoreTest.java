@@ -16,7 +16,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException;
-import com.vmturbo.auth.api.usermgmt.GroupDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.components.crypto.CryptoFacility;
@@ -83,7 +83,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
         Assert.assertTrue(result);
 
@@ -99,6 +99,7 @@ public class KVBackedILocalAuthStoreTest {
 
         Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
 
     @Test
@@ -107,7 +108,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -119,6 +120,7 @@ public class KVBackedILocalAuthStoreTest {
 
         Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
     }
@@ -130,7 +132,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"));
+                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -142,6 +144,7 @@ public class KVBackedILocalAuthStoreTest {
 
         Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));
     }
@@ -153,7 +156,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(PROVIDER.LDAP, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"));
+                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
@@ -164,6 +167,7 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         Assert.assertNotNull(store.authorize("user1", "10.10.10.1"));
     }
@@ -174,7 +178,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(PROVIDER.LDAP, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"));
+                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
@@ -185,6 +189,8 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
+
         // user2 is not the valid external user
         Assert.assertNotNull(store.authorize("user2", "10.10.10.1"));
     }
@@ -194,10 +200,10 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthorizationWithExternalGroup() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore);
-        GroupDTO groupDTO = new GroupDTO("group",
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group",
                 "group",
-                "administrator");
-        store.createGroup(groupDTO);
+                "administrator", ImmutableList.of(1L));
+        store.createSecurityGroup(securityGroupDTO);
         Assert.assertNotNull(store.authorize("user1", "group", "10.10.10.1"));
     }
 
@@ -205,10 +211,10 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthorizationWithInvalidExternalGroup() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore);
-        GroupDTO groupDTO = new GroupDTO("group",
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group",
                 "group",
                 "administrator");
-        store.createGroup(groupDTO);
+        store.createSecurityGroup(securityGroupDTO);
         // group1 is not a valid group
         Assert.assertNotNull(store.authorize("user1", "group1", "10.10.10.1"));
     }
@@ -219,7 +225,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
         Assert.assertTrue(result);
         Set<GrantedAuthority> grantedAuths = new HashSet<>();
@@ -247,6 +253,7 @@ public class KVBackedILocalAuthStoreTest {
 
         Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password1"));
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
 
     @Test
@@ -255,10 +262,10 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
         boolean result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
-                                         ImmutableList.of("ADMIN2", "USER2"));
+                                         ImmutableList.of("ADMIN2", "USER2"), ImmutableList.of(2L));
         Assert.assertTrue(result2);
         Assert.assertNotNull(store.authenticate("user0", "password0"));
 
@@ -271,6 +278,7 @@ public class KVBackedILocalAuthStoreTest {
 
         Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
         Assert.assertEquals(ImmutableList.of("ADMIN2", "USER2"), info.roles);
+        Assert.assertEquals(ImmutableList.of(2L), info.scopeGroups);
     }
 
     @Test
@@ -279,7 +287,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
         Assert.assertTrue(store.remove("user0"));
 
@@ -304,7 +312,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -318,8 +326,8 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
-        store.lock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null,
-                                   ImmutableList.of("ADMIN", "USER")));
+        store.lock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null, null, null, null,
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L)));
 
         exception.expect(AuthenticationException.class);
         store.authenticate("user0", "password0");
@@ -331,7 +339,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore);
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"));
+                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()

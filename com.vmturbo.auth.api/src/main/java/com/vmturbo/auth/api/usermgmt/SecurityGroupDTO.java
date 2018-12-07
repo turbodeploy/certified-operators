@@ -1,13 +1,16 @@
 package com.vmturbo.auth.api.usermgmt;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * An GroupDTO represents a SSO group and associated roles.
+ * An SecurityGroupDTO represents a SSO group and associated roles.
  * Any SSO user that is authenticated using an SSO group will inherit the roles specified in that
  * group.
  */
-public class GroupDTO {
+public class SecurityGroupDTO {
     /**
      * The display name.
      */
@@ -24,11 +27,16 @@ public class GroupDTO {
     private String roleName;
 
     /**
+     * The set of scope groups, if any
+     */
+    private @Nullable List<Long> scopeGroups;
+
+    /**
      * Constructs the ActiveDirectoryGroupDTO.
      * We need this constructor for the the JSON deserialization.
      * We do not wish this constructor to be publicly accessible.
      */
-    private GroupDTO() {
+    private SecurityGroupDTO() {
     }
 
     /**
@@ -38,11 +46,25 @@ public class GroupDTO {
      * @param type        The type.
      * @param roleName    The role name.
      */
-    public GroupDTO(final @Nonnull String displayName, final @Nonnull String type,
-                    final @Nonnull String roleName) {
+    public SecurityGroupDTO(final @Nonnull String displayName, final @Nonnull String type,
+                            final @Nonnull String roleName) {
+        this(displayName, type, roleName, null);
+    }
+
+    /**
+     * Constructs the ActiveDirectoryGroupDTO with scope
+     *
+     * @param displayName The display name.
+     * @param type        The type.
+     * @param roleName    The role name.
+     * @param scopeGroups The list of scope groups for this group
+     */
+    public SecurityGroupDTO(final @Nonnull String displayName, final @Nonnull String type,
+                            final @Nonnull String roleName, final @Nullable List<Long> scopeGroups) {
         this.displayName = displayName;
         this.type = type;
         this.roleName = roleName;
+        this.scopeGroups = scopeGroups;
     }
 
     /**
@@ -71,13 +93,12 @@ public class GroupDTO {
     public @Nonnull String getRoleName() {
         return roleName;
     }
-
+    
     /**
-     * Sets the role name.
+     * Returns the list of scope groups the user may have. (can be null)
      *
-     * @param roleName The role name.
+     * @return a list of the user's scope groups
      */
-    public void setRoleName(final String roleName) {
-        this.roleName = roleName;
-    }
+    public List<Long> getScopeGroups() { return scopeGroups; }
+
 }

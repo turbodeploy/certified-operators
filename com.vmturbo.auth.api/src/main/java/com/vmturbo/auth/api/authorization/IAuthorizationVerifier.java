@@ -17,6 +17,11 @@ public interface IAuthorizationVerifier {
     static final String ROLE_CLAIM = "ROLES";
 
     /**
+     * The JWT token claim for scope.
+     */
+    static final String SCOPE_CLAIM = "SCOPE";
+
+    /**
      * Verifies the validity of the token.
      *
      * @param token         The existing authentication token.

@@ -42,9 +42,8 @@ public class ApiUtilsTest {
         // setup authentication object
         Set<GrantedAuthority> grantedAuths = new HashSet<>();
         grantedAuths.add(new SimpleGrantedAuthority("ROLE_NONADMINISTRATOR"));
-        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, "admin", null,
-                null, "testUUID",
-                TEST_TOKEN, new ArrayList<>());
+        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, "admin", null, null,
+                "testUUID", TEST_TOKEN, new ArrayList<>(), null);
         Authentication authentication = new UsernamePasswordAuthenticationToken(user, "***", grantedAuths);
 
         // populate security context

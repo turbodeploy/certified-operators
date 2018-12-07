@@ -71,7 +71,7 @@ import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.GroupDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
@@ -225,8 +225,8 @@ public class RestTest {
 
     private String constructAddDTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix,
-                constructPassword(suffix), "1.1.1.1",
-                null, null, ImmutableList.of("ADMINISTRATOR", "USER"));
+                                          constructPassword(suffix), "1.1.1.1", null, null,
+                                          ImmutableList.of("ADMINISTRATOR", "USER"), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -235,7 +235,7 @@ public class RestTest {
     private String constructAddSSODTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(PROVIDER.LDAP, "user" + suffix,
                 constructPassword(suffix), "1.1.1.1", null, null,
-                ImmutableList.of("ADMINISTRATOR", "USER"));
+                ImmutableList.of("ADMINISTRATOR", "USER"), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -278,10 +278,10 @@ public class RestTest {
 
     private MockHttpServletRequestBuilder postAddSSOGroup() {
 
-        GroupDTO activeDirectoryGroupDTO = new GroupDTO("group",
+        SecurityGroupDTO activeDirectorySecurityGroupDTO = new SecurityGroupDTO("group",
                 "group",
                 "administrator");
-        String jsonGroup = GSON.toJson(activeDirectoryGroupDTO, GroupDTO.class);
+        String jsonGroup = GSON.toJson(activeDirectorySecurityGroupDTO, SecurityGroupDTO.class);
 
         return post("/users/ad/groups")
                 .content(jsonGroup)
@@ -347,10 +347,11 @@ public class RestTest {
                                .andReturn().getResponse().getContentAsString();
         Assert.assertEquals("users://user2", result);
 
-        AuthUserModifyDTO dto = new AuthUserModifyDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 2,
-                                                      constructPassword(2), null, null,
-                                                      ImmutableList.of("ADMINISTRATOR", "USER"),
-                                                      "password1_" + 2);
+        AuthUserDTO userToModify = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 2,
+                                                      constructPassword(2), null, null, null,
+                                                      ImmutableList.of("ADMINISTRATOR", "USER"), null);
+        AuthUserModifyDTO dto = new AuthUserModifyDTO(userToModify, "password1_" + 2);
+
         String json = GSON.toJson(dto, AuthUserModifyDTO.class);
 
         mockMvc.perform(put("/users/setpassword")
@@ -520,8 +521,7 @@ public class RestTest {
     private MockHttpServletRequestBuilder constructInitDTO(int suffix) {
         AuthUserDTO dto =
                 new AuthUserDTO(null, "user" + suffix, constructPassword(suffix),
-                        "1.1.1.1", null, null,
-                                ImmutableList.of("USER"));
+                        "1.1.1.1", null, null, ImmutableList.of("USER"), null);
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return post("/users/initAdmin")
                 .content(json)
