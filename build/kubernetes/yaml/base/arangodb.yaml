@@ -16,7 +16,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: null
   labels:
     zone: secure
     io.kompose.service: arangodb-dump
@@ -58,7 +57,6 @@ spec:
     type: Recreate
   template:
     metadata:
-      creationTimestamp: null
       labels:
         zone: secure
         io.kompose.service: arangodb
@@ -95,6 +93,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
       terminationGracePeriodSeconds: 1800
       volumes:
       - name: arangodb

@@ -46,7 +46,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: null
   labels:
     zone: public
     io.kompose.service: nginx-claim1
@@ -73,7 +72,6 @@ spec:
     type: Recreate
   template:
     metadata:
-      creationTimestamp: null
       labels:
         zone: public
         io.kompose.service: nginx

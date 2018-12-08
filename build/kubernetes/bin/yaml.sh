@@ -105,21 +105,21 @@ do
         then
             component=$(echo $component_full_name | cut -d '.' -f1)
             j_option=$(eval "echo \$dev_${dir//-/_}_${component//-/_}_java_option")
-            [[ ! -z ${j_option} ]] &&  sed -i "s/JAVA_OPTIONS/${j_option}/g" $YAML_DIR/$dir/$component_full_name
+            [[ ! -z ${j_option} ]] &&  sed -i.bak "s/JAVA_OPTIONS/${j_option}/g" $YAML_DIR/$dir/$component_full_name
             requests_memory=$(eval "echo \$dev_${dir//-/_}_${component//-/_}_requests_memory")
-            [[ ! -z ${requests_memory} ]] &&  sed -i "s/MEMORY_REQUEST/${requests_memory}/g" $YAML_DIR/$dir/$component_full_name
+            [[ ! -z ${requests_memory} ]] &&  sed -i.bak "s/MEMORY_REQUEST/${requests_memory}/g" $YAML_DIR/$dir/$component_full_name
             limits_memory=$(eval "echo \$dev_${dir//-/_}_${component//-/_}_limits_memory")
-            [[ ! -z ${limits_memory} ]] &&  sed -i "s/MEMORY_LIMIT/${limits_memory}/g" $YAML_DIR/$dir/$component_full_name
+            [[ ! -z ${limits_memory} ]] &&  sed -i.bak "s/MEMORY_LIMIT/${limits_memory}/g" $YAML_DIR/$dir/$component_full_name
         fi
         if [ "${turboEnv}" == "prod" ]
         then
             component=$(echo $component_full_name | cut -d '.' -f1)
             j_option=$(eval "echo \$prod_${dir//-/_}_${component//-/_}_java_option")
-            [[ ! -z ${j_option} ]] &&  sed -i "s/JAVA_OPTIONS/${j_option}/g" $YAML_DIR/$dir/$component_full_name
+            [[ ! -z ${j_option} ]] &&  sed -i.bak "s/JAVA_OPTIONS/${j_option}/g" $YAML_DIR/$dir/$component_full_name
             requests_memory=$(eval "echo \$prod_${dir//-/_}_${component//-/_}_requests_memory")
-            [[ ! -z ${requests_memory} ]] &&  sed -i "s/MEMORY_REQUEST/${requests_memory}/g" $YAML_DIR/$dir/$component_full_name
+            [[ ! -z ${requests_memory} ]] &&  sed -i.bak "s/MEMORY_REQUEST/${requests_memory}/g" $YAML_DIR/$dir/$component_full_name
             limits_memory=$(eval "echo \$prod_${dir//-/_}_${component//-/_}_limits_memory")
-            [[ ! -z ${limits_memory} ]] &&  sed -i "s/MEMORY_LIMIT/${limits_memory}/g" $YAML_DIR/$dir/$component_full_name
+            [[ ! -z ${limits_memory} ]] &&  sed -i.bak "s/MEMORY_LIMIT/${limits_memory}/g" $YAML_DIR/$dir/$component_full_name
         fi
     done
   fi

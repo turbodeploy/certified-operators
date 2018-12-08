@@ -27,7 +27,6 @@ spec:
     type: Recreate
   template:
     metadata:
-      creationTimestamp: null
       labels:
         zone: internal
         io.kompose.service: cost

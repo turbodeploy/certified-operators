@@ -1,7 +1,6 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  creationTimestamp: null
   name: gluster-heketi
   selfLink: /apis/storage.k8s.io/v1/storageclasses/gluster-heketi
 parameters:
