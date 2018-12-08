@@ -415,15 +415,25 @@ public class Placement {
     }
 
     /**
-     * Return true if the trader is active and any of its shopping lists are movable.
+     * Return true if the trader is active and any of its shopping lists are movable. If any
+     * shoppingList has a group factor of 0, the trader should not be considered, because another
+     * trader will be shopping on its behalf.
      * @param economy the economy that the trader belongs to
      * @param trader the trader
      * @return whether the trader is active and has any movable shopping list
      */
     public static boolean shouldConsiderTraderForShopTogether(Economy economy, Trader trader) {
-        return trader.getState().isActive()
-                && economy.getMarketsAsBuyer(trader).keySet().stream()
-                            .anyMatch(ShoppingList::isMovable);
+        if (!trader.getState().isActive()) {
+            return false;
+        }
+        boolean isMovable = false;
+        for (ShoppingList sl : economy.getMarketsAsBuyer(trader).keySet()) {
+            if (sl.getGroupFactor() == 0) {
+                return false;
+            }
+            isMovable |= sl.isMovable();
+        }
+        return isMovable;
     }
 
     /**
