@@ -14,11 +14,9 @@
   Note: The procedure is the same as before, the only lines added are the ones from 124 to 139 included.
 */
 
-USE `vmtdb`;
 DROP procedure IF EXISTS `rotate_partition`;
 
 DELIMITER $$
-USE `vmtdb`$$
 CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
 BEGIN
 
