@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
-
+import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -151,6 +151,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final DerivedTargetParser derivedTargetParser;
 
+    private static final ImmutableSet<ActionItemDTO.ActionType> controllableOrSuspendableActionTypes
+            = ImmutableSet.of(ActionItemDTO.ActionType.MOVE, ActionItemDTO.ActionType.CHANGE,
+            ActionItemDTO.ActionType.CROSS_TARGET_MOVE, ActionItemDTO.ActionType.MOVE_TOGETHER,
+            ActionItemDTO.ActionType.START);
+
     private static final DataMetricGauge ONGOING_OPERATION_GAUGE = DataMetricGauge.builder()
         .withName("tp_ongoing_operation_total")
         .withHelp("Total number of ongoing operations in the topology processor.")
@@ -253,8 +258,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 remoteMediationServer.getMessageHandlerExpirationClock(),
                 actionTimeoutMs);
 
-        // Update the controllable table in preparation for executing the action
-        insertControllableState(actionId, actionType, affectedEntities);
+        // Update the ENTITY_ACTION table in preparation for executing the action
+        insertControllableAndSuspendableState(actionId, actionType, affectedEntities);
 
         remoteMediationServer.sendActionRequest(target.getProbeId(),
                 request, messageHandler);
@@ -615,7 +620,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             @Nonnull final ActionResult message) {
         resultExecutor.execute(() -> {
             processActionResponse(operation, message);
-            updateControllableState(operation);
+            updateControllableAndSuspendableState(operation);
         });
     }
 
@@ -625,7 +630,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             resultExecutor.execute(() -> {
                 ((Action)operation).updateProgress(message.getActionProgress().getResponse());
                 operationListener.notifyOperationState(operation);
-                updateControllableState((Action) operation);
+                updateControllableAndSuspendableState((Action) operation);
             });
         }
     }
@@ -879,13 +884,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     /**
-     * TODO: Consider moving into
-     * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
+     * Insert move and activate actions into ENTITY_ACTION table in topology processor component.
+     * The ENTITY_ACTION table is used in {@link ControllableManager} to decide the suspendable and
+     * controllable flags on {@link TopologyEntityDTO}.
      */
-    private void insertControllableState(final long actionId,
+    private void insertControllableAndSuspendableState(final long actionId,
                                          @Nonnull final ActionItemDTO.ActionType actionType,
                                          @Nonnull final Set<Long> entities) {
         try {
+            if (!shouldInsertActionToEntityActionTable(actionType)) {
+                return;
+            }
             entityActionDao.insertAction(actionId, actionType, entities);
         } catch (DataAccessException | IllegalArgumentException e) {
             logger.error("Failed to create queued activate action records for action: {}",
@@ -894,10 +903,18 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     /**
-     * TODO: Consider moving into
+     * Check if the sdk action type is START, MOVE, CHANGE, CROSS_TARGET_MOVE or MOVE_TOGETHER.
+     */
+    private boolean shouldInsertActionToEntityActionTable(ActionType actionType) {
+        return controllableOrSuspendableActionTypes.contains(actionType);
+    }
+
+    /**
+     * Update action status for records in ENTITY_ACTION table in topology processor component.
+     *
      * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
      */
-    private void updateControllableState(@Nonnull final Action action) {
+    private void updateControllableAndSuspendableState(@Nonnull final Action action) {
         try {
             final Optional<ActionState> actionState = getActionState(action.getStatus());
             if (actionState.isPresent()) {

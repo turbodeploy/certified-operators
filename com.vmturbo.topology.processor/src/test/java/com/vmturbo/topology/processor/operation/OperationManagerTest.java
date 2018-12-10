@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.operation;
 
+import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
+
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
@@ -12,20 +14,30 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.hamcrest.CoreMatchers;
+import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.identity.store.IdentityStore;
@@ -48,6 +60,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -55,7 +68,10 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImp;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
+import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -78,7 +94,19 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 /**
  * Testing the {@link OperationManager} functionality.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(
+        classes = {TestSQLDatabaseConfig.class}
+)
+@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
 public class OperationManagerTest {
+
+    @Autowired
+    protected TestSQLDatabaseConfig dbConfig;
+
+    private DSLContext dsl;
+
+    private EntityActionDao entityActionDao;
 
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
@@ -106,19 +134,17 @@ public class OperationManagerTest {
 
     private DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader = Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
 
-    private EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
-
     private DerivedTargetParser derivedTargetParser = Mockito.mock(DerivedTargetParser.class);
 
-    private final OperationManager operationManager = new OperationManager(
-            identityProvider, targetStore, probeStore,
-            mockRemoteMediationServer, operationListener,
-            entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-            discoveredCloudCostUploader, discoveredTemplatesUploader, entityActionDao,
-            derivedTargetParser, groupScopeResolver, 10, 10, 10);
+    private OperationManager operationManager;
 
     private long probeId;
     private long targetId;
+
+    private final long activateVMId = 100l;
+    private final long deactivateVMId = 200l;
+    private final long moveSourceId = 20l;
+    private final long moveDestinationId = 30l;
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
@@ -134,6 +160,12 @@ public class OperationManagerTest {
 
     @Before
     public void setup() throws Exception {
+        dsl = dbConfig.prepareDatabase();
+        entityActionDao = new EntityActionDaoImp(dsl, 100, 300, 360);
+        operationManager = new OperationManager(identityProvider, targetStore, probeStore,
+                mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
+                discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
+                entityActionDao, derivedTargetParser, groupScopeResolver, 10, 10, 10);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
@@ -654,16 +686,46 @@ public class OperationManagerTest {
     public void testStartAction() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0,
+        final Action moveAction = operationManager.requestActions(0,
                 targetId,
                 null,
                 ActionType.MOVE,
                 actionItemDtos,
-                Collections.singleton(targetId),
+                new HashSet<>(Arrays.asList(moveSourceId, moveDestinationId)),
                 Optional.empty());
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(eq(probeId),
             any(ActionRequest.class), any(OperationMessageHandler.class));
-        Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
+        Assert.assertTrue(operationManager.getInProgressAction(moveAction.getId()).isPresent());
+        Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
+                        .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
+                        .fetchSet(ENTITY_ACTION.ENTITY_ID);
+        Assert.assertTrue(moveEntityIds.size() == 2);
+        Assert.assertTrue(moveEntityIds.contains(moveSourceId) && moveEntityIds.contains(moveDestinationId));
+
+        final Action activateAction = operationManager.requestActions(0,
+               targetId,
+               ActionType.START,
+               actionItemDtos,
+               Collections.singleton(activateVMId),
+               Optional.empty());
+        Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+        Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
+               .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
+               .fetchSet(ENTITY_ACTION.ENTITY_ID);
+        Assert.assertTrue(activateEntityIds.size() == 1);
+        Assert.assertTrue(activateEntityIds.contains(activateVMId));
+
+        final Action deactivateAction = operationManager.requestActions(0,
+               targetId,
+               ActionType.SUSPEND,
+               actionItemDtos,
+               Collections.singleton(deactivateVMId),
+               Optional.empty());
+               Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+       List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
+               .where(ENTITY_ACTION.ENTITY_ID.eq(deactivateVMId))
+               .fetch();
+       Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
     @Test
@@ -675,7 +737,7 @@ public class OperationManagerTest {
                 null,
                 ActionType.MOVE,
                 actionItemDtos,
-                Collections.singleton(targetId),
+                new HashSet<>(Arrays.asList(moveSourceId, moveDestinationId)),
                 Optional.empty());
 
         final ActionResult result = ActionResult.newBuilder()
@@ -688,6 +750,36 @@ public class OperationManagerTest {
 
         OperationTestUtilities.waitForAction(operationManager, action);
         Assert.assertEquals(Status.SUCCESS, action.getStatus());
+        Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
+                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
+                .fetchSet(ENTITY_ACTION.ENTITY_ID);
+        Assert.assertTrue(moveEntityIds.size() == 2);
+        Assert.assertTrue(moveEntityIds.contains(moveSourceId) && moveEntityIds.contains(moveDestinationId));
+
+        final Action activateAction = operationManager.requestActions(0,
+                targetId,
+                ActionType.START,
+                actionItemDtos,
+                Collections.singleton(activateVMId),
+                Optional.empty());
+        Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+        Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
+                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
+                .fetchSet(ENTITY_ACTION.ENTITY_ID);
+        Assert.assertTrue(activateEntityIds.size() == 1);
+        Assert.assertTrue(activateEntityIds.contains(activateVMId));
+
+        final Action deactivateAction = operationManager.requestActions(0,
+                targetId,
+                ActionType.SUSPEND,
+                actionItemDtos,
+                Collections.singleton(deactivateVMId),
+                Optional.empty());
+       Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+       List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
+                       .where(ENTITY_ACTION.ENTITY_ID.eq(deactivateVMId))
+                       .fetch();
+       Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
     @Test
