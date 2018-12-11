@@ -172,8 +172,6 @@ public class Placement {
         final double cheapestQuote = minimizer.getBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
         Trader buyer = shoppingList.getBuyer();
-        final double currentQuote = minimizer.getCurrentQuote();
-
         boolean isDebugTrader = buyer.isDebugEnabled() || logger.isTraceEnabled();
         boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
@@ -189,8 +187,7 @@ public class Placement {
                 logger.info("{" + buyerDebugInfo + "} Supplier is null.");
             } else {
                 logger.info("{" + buyerDebugInfo
-                                + "} current supplier: " + shoppingList.getSupplier()
-                                + " quote: " + currentQuote);
+                                + "} current supplier: " + shoppingList.getSupplier().getDebugInfoNeverUseInCode());
             }
             if (!shoppingList.isMovable()) {
                 logger.info("{" + buyerDebugInfo + "} Shopping list of " + shoppingList.getSupplier() + " is not movable.");
@@ -200,9 +197,9 @@ public class Placement {
             } else {
                 logger.info("{" + buyerDebugInfo + "} The cheapest quote: "
                                 + cheapestQuote + " from the cheapest supplier: " + cheapestSeller.getDebugInfoNeverUseInCode());
-                logger.trace("{" + buyerDebugInfo + "} shopping list: " + shoppingList.toDebugString());
             }
         }
+        final double currentQuote = minimizer.getCurrentQuote();
 
         // move, and update economy and state
         PlacementResults placementResults = PlacementResults.empty();

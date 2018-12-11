@@ -14,6 +14,7 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.utilities.Quote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
@@ -81,13 +82,6 @@ public final class EdeCommon {
         final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity() : newQuantities[1];
         final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
         final double excessQuantity = peakQuantities[boughtIndex] - boughtQnty;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Seller {} commodity {} quantity would change from {} to {}",
-                    seller.getDebugInfoNeverUseInCode(),
-                    shoppingList.getBasket().getCommodityDebugInfoAt(boughtIndex),
-                    commSold.getQuantity(),
-                    newQuantity);
-        }
 
         // calculate the price per unit for quantity and peak quantity
         final PriceFunction pf = commSold.getSettings().getPriceFunction();
@@ -97,25 +91,12 @@ public final class EdeCommon {
                         Math.max(0, newPeakQuantity - newQuantity)
                                         / (effectiveCapacity - utilUpperBound * newQuantity),
                         shoppingList, seller, commSold, economy);
-        if (logger.isTraceEnabled()) {
-            logger.trace("Seller {} commodity {} prices would now be (used) {} and (peak) {}",
-                    seller.getDebugInfoNeverUseInCode(),
-                    shoppingList.getBasket().getCommodityDebugInfoAt(boughtIndex),
-                    priceUsed,
-                    pricePeak);
-        }
-
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
         double quoteUsed = (boughtQnty / effectiveCapacity) * priceUsed;
         double quotePeak = excessQuantity > 0 ?
                 (excessQuantity / effectiveCapacity) * pricePeak : 0;
         costCurrentMinMax[0] = quoteUsed + quotePeak;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Buyer {} would pay (used) {} (peak) {} for commodity {}",
-                    shoppingList.getBuyer(), quoteUsed, quotePeak,
-                    shoppingList.getBasket().getCommodityDebugInfoAt(boughtIndex));
-        }
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
             costCurrentMinMax[1] = pf.unitPrice(seller.getSettings().getMinDesiredUtil(), shoppingList, seller

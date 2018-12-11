@@ -7,9 +7,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
@@ -297,17 +295,6 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     }
 
     /**
-     * Returns a string representation of {@code this} basket as a list of commodity
-     * specifications in the form of debug info, e.g. [VCPU|, VMEM|, Flow|Flow-1, ...]
-     *
-     * @return a string representation of the list of commodities in this basket for debugging
-     */
-    public String toDebugString(@ReadOnly Basket this) {
-        return Arrays.stream(contents_).map(CommoditySpecification::getDebugInfoNeverUseInCode)
-                .collect(Collectors.toList()).toString();
-    }
-
-    /**
      * Tests whether two Baskets are equal field by field.
      */
     @Override
@@ -345,19 +332,5 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
 
         int i = hasher.hash().asInt();
         return i;
-    }
-
-    /**
-     * Return the debug info for the commodity at the specified index.  If the input index is
-     * beyond the list of the commodities in this basket, then an empty string is returned.
-     *
-     * @param index the index of the commodity which debug info to be returned
-     * @return the debug info of the specified commodity
-     */
-    public String getCommodityDebugInfoAt(final int index) {
-        if (index < contents_.length) {
-            return contents_[index].getDebugInfoNeverUseInCode();
-        }
-        return StringUtils.EMPTY;
     }
 } // end Basket interface

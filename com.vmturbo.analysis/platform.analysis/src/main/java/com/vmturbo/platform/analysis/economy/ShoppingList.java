@@ -3,11 +3,9 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -361,16 +359,5 @@ public class ShoppingList implements Serializable {
     @Override
     public String toString() {
         return getDebugInfoNeverUseInCode();
-    }
-
-    /**
-     * Returns a debug string consisting of two lists: one is the list of commodities in the
-     * basket, and the other is the corresponding list of quantities of those commodities.
-     *
-     * @return a debug string consisting of the list of commodities and their quantities
-     */
-    public String toDebugString() {
-        return String.format("basket: %s, quantities: %s", getBasket().toDebugString(),
-                Arrays.asList(ArrayUtils.toObject(quantities_)));
     }
 } // end ShoppingList class
