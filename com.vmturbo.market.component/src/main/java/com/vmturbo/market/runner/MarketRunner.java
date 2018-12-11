@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
-
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
@@ -137,7 +137,7 @@ public class MarketRunner {
                     // if this was a plan topology, broadcast the plan analysis topology
                     if (isPlan) {
                         serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
-                                analysis.getTopology().values());
+                                        analysis.getTopology().values());
                     } else {
                         // Update replay actions to contain actions from most recent analysis.
                         realtimeReplayActions = analysis.getReplayActions();
@@ -146,20 +146,25 @@ public class MarketRunner {
                     // actions will have OIDs that are only present in the projected topology, and we
                     // want to minimize the risk of the projected topology being unavailable.
                     serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
-                            analysis.getProjectedTopologyId().get(),
-                            analysis.getSkippedEntities(),
-                            analysis.getProjectedTopology().get());
+                                    analysis.getProjectedTopologyId().get(),
+                                    analysis.getSkippedEntities(),
+                                    analysis.getProjectedTopology().get());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 
-                    // Send projected entity costs. We only send them for the realtime topology.
-                    if (!isPlan) {
-                        final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
-                                analysis.getProjectedCosts().get();
-                        serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
-                                analysis.getProjectedTopologyId().get(),
-                                Collections2.transform(projectedCosts.values(),
-                                        CostJournal::toEntityCostProto));
-                    }
+                    // Send projected entity costs. We only send them for the real time topology.
+                    final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
+                                    analysis.getProjectedCosts().get();
+                    serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
+                                    analysis.getProjectedTopologyId().get(),
+                                    Collections2.transform(projectedCosts.values(),
+                                                    CostJournal::toEntityCostProto));
+                    // EntityRICoverage is already a protobuf object so
+                    // we can directly send values of map in the message.
+                    final Map<Long, EntityReservedInstanceCoverage> projectedCoverage =
+                                    analysis.getProjectedEntityRiCoverage().get();
+                    serverApi.notifyProjectedEntityRiCoverage(analysis.getTopologyInfo(),
+                                    analysis.getProjectedTopologyId().get(),
+                                    projectedCoverage.values());
                 } catch (CommunicationException | InterruptedException e) {
                     // TODO we need to decide, whether to commit the incoming topology here or not.
                     logger.error("Could not send market notifications", e);

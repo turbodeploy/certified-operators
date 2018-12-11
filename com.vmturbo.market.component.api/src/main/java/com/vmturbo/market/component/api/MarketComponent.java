@@ -30,6 +30,13 @@ public interface MarketComponent {
     void addProjectedEntityCostsListener(@Nonnull final ProjectedEntityCostsListener listener);
 
     /**
+     * Registers a listener for projected entity reserved instance coverage notifications.
+     *
+     * @param listener Listener to register.
+     */
+    void addProjectedEntityRiCoverageListener(@Nonnull final ProjectedReservedInstanceCoverageListener listener);
+
+    /**
      * Register a listener for handling plan analysis topologies.
      *
      * @param listener the listener for plan analysis topologies

@@ -26,6 +26,7 @@ import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
+import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
@@ -86,6 +87,7 @@ public class MarketPerformanceTest {
     private IMessageReceiver<ActionPlan> actionsReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
+    private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private KafkaMessageConsumer kafkaMessageConsumer;
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
@@ -104,7 +106,7 @@ public class MarketPerformanceTest {
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC,
                 ProjectedEntityCosts::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
-                projectedEntityCostReceiver,actionsReceiver, null, threadPool);
+                projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver, null, threadPool);
         kafkaMessageConsumer.start();
     }
 

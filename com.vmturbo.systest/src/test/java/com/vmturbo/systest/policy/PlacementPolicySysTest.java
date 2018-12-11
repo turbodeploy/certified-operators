@@ -65,6 +65,7 @@ import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
+import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -151,6 +152,7 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<Topology> tpTopologyReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
+    private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
     private DiscoveryDriverController discoveryDriverController;
@@ -268,11 +270,14 @@ public class PlacementPolicySysTest {
         projectedEntityCostReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC,
                 ProjectedEntityCosts::parseFrom);
+        projectedEntityRiCoverageReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.PROJECTED_ENTITY_RI_COVERAGE_TOPIC,
+                ProjectedEntityReservedInstanceCoverage::parseFrom);
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
-                projectedTopologyReceiver, projectedEntityCostReceiver,
-                actionsReceiver, null, threadPool);
+                projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
+                actionsReceiver, tpTopologyReceiver, threadPool);
         kafkaMessageConsumer.start();
     }
 
@@ -820,6 +825,7 @@ public class PlacementPolicySysTest {
             this.probeRegistrationFuture = probeRegistrationFuture;
         }
 
+        @Override
         public void onProbeRegistered(@Nonnull TopologyProcessorDTO.ProbeInfo probe) {
             probeRegistrationFuture.complete(probe.getId());
         }

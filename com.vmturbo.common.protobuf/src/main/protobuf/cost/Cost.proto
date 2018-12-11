@@ -155,7 +155,7 @@ message ReservedInstanceSpecInfo {
     optional int64 region_id = 5;
 }
 
-// The RI coverage of a particular entity.
+// The RI coverage of a particular entity and projected RI coverage after market.
 // A single entity may be partially covered by multiple RI's from the same family.
 message EntityReservedInstanceCoverage {
     // The id of the entity.
@@ -171,6 +171,39 @@ message EntityReservedInstanceCoverage {
     // For an explanation of coupons see: TypeSpecificInfo.ComputeTierInfo.
     map<int64, double> coupons_covered_by_ri = 10;
 }
+
+// Actual message that gets sent across the wire from market component
+// containing projected ri coverage of entities in topology.
+message ProjectedEntityReservedInstanceCoverage {
+	// The ID of the projected topology the cost is for.
+    optional int64 projected_topology_id = 1;
+
+    oneof segment {
+        Start start = 2;
+        Data data = 3;
+        End end = 4;
+    }
+
+    // Marker message, declaring the start of the broadcast
+    message Start {
+        // The basic information of the source topology
+        optional .topology.TopologyInfo source_topology_info = 1;
+    };
+
+    // Message to hold real data of the entity costs.
+    message Data {
+        // Some number of projected entity costs.
+        repeated EntityReservedInstanceCoverage projected_ris_coverage = 1;
+    }
+
+    // Message to appear at the very end of the broadcast
+    message End {
+        // Total number of costs sent (can be used for integrity checks)
+        required uint64 total_count = 1;
+    }
+
+}
+
 
 // A message used to retrieve account expenses.
 message ExpenseRequest {

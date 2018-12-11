@@ -6,11 +6,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
@@ -30,6 +28,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -45,8 +44,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -198,12 +195,11 @@ public class Analysis {
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
 
         // Use the cloud cost data we use for cost calculations for the price table.
-        MarketPriceTable marketPriceTable = priceTableFactory.newPriceTable(
+        this.marketPriceTable = priceTableFactory.newPriceTable(
                 this.originalCloudTopology, this.topologyCostCalculator.getCloudCostData());
-        this.marketPriceTable = marketPriceTable;
         this.converter = new TopologyConverter(topologyInfo,
                 analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
-                marketPriceTable, null, this.topologyCostCalculator.getCloudCostData());
+                this.marketPriceTable, null, this.topologyCostCalculator.getCloudCostData());
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -360,6 +356,8 @@ public class Analysis {
                                             .map(ProjectedTopologyEntity::getEntity),
                                     // pass region and businessAccount from the original topo
                                     entitiesFromOriginalTopo));
+                // Projected RI coverage has been calculated by convertFromMarket
+                // Get it from TopologyCoverter and pass it along to use for calculation of savings
                 projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
                         converter.getProjectedReservedInstanceCoverage());
             }
@@ -547,6 +545,15 @@ public class Analysis {
      */
     public Optional<Map<Long, CostJournal<TopologyEntityDTO>>> getProjectedCosts() {
         return completed ? Optional.ofNullable(projectedEntityCosts) : Optional.empty();
+    }
+
+    /**
+     * Return calculated projected reserved instance coverage per entity
+     *
+     * @return {@link Map} of entity id and its projected RI coverage if analysis completed, else empty
+     */
+    public Optional<Map<Long, EntityReservedInstanceCoverage>> getProjectedEntityRiCoverage() {
+        return completed ? Optional.ofNullable(converter.getProjectedReservedInstanceCoverage()) : Optional.empty();
     }
 
     /**

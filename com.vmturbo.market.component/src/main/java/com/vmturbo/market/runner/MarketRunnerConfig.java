@@ -64,6 +64,7 @@ public class MarketRunnerConfig {
      * No associated @Import because of the circular dependency between {@link TopologyProcessorConfig}
      * and {@link MarketRunnerConfig}.
      */
+    @SuppressWarnings("unused")
     @Autowired
     private TopologyProcessorConfig topologyProcessorConfig;
 

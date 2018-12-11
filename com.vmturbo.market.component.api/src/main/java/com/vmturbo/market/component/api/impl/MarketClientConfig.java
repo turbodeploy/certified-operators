@@ -17,6 +17,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
+import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
@@ -58,6 +59,13 @@ public class MarketClientConfig {
     }
 
     @Bean
+    protected IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver() {
+        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+                MarketComponentNotificationReceiver.PROJECTED_ENTITY_RI_COVERAGE_TOPIC,
+                ProjectedEntityReservedInstanceCoverage::parseFrom);
+    }
+
+    @Bean
     protected IMessageReceiver<Topology> planAnalysisTopologyReceiver() {
         return baseKafkaConfig.kafkaConsumer().messageReceiver(
                 MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC,
@@ -80,15 +88,18 @@ public class MarketClientConfig {
         final IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver =
                 subscriptions.contains(Subscription.ProjectedEntityCosts) ?
                         projectedEntityCostsReceiver() : null;
+        final IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver =
+                                subscriptions.contains(Subscription.ProjectedEntityRiCoverage) ?
+                                        projectedEntityRiCoverageReceiver() : null;
         final IMessageReceiver<Topology> planAnalysisTopologyReceiver =
                 subscriptions.contains(Subscription.PlanAnalysisTopologies) ?
                         planAnalysisTopologyReceiver() : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
-                projectedEntityCostReceiver, actionPlansReceiver,
+                projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionPlansReceiver,
                 planAnalysisTopologyReceiver, marketClientThreadPool());
     }
 
     public enum Subscription {
-        ActionPlans, ProjectedTopologies, ProjectedEntityCosts, PriceIndexes, PlanAnalysisTopologies;
+        ActionPlans, ProjectedTopologies, ProjectedEntityCosts, ProjectedEntityRiCoverage, PriceIndexes, PlanAnalysisTopologies;
     }
 }
