@@ -50,7 +50,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE &&
                 entity.getTypeSpecificInfo().hasVirtualMachine()) {
             VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
-            return Optional.of(new ComputeConfig(vmConfig.getGuestOsType(), vmConfig.getTenancy()));
+            return Optional.of(new ComputeConfig(vmConfig.getGuestOsType(), vmConfig.getTenancy(),
+                    vmConfig.getBillingType()));
         }
 
         return Optional.empty();

@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.vmturbo.common.protobuf.cost.Pricing;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.junit.Test;
 
 import com.google.common.collect.Iterators;
@@ -36,6 +38,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -123,6 +126,11 @@ public class CloudCostCalculatorTest {
                                         .build())
                                 .build())
                         .build())
+                .putSpotPriceByRegionId(regionId, Pricing.SpotInstancePriceTable.newBuilder()
+                        .putSpotPriceByInstanceId(computeTierId, Price.newBuilder()
+                                .setUnit(Unit.HOURS)
+                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                        .setAmount(basePrice)).build()).build())
                 .build();
 
         // configure networkConfig
@@ -137,7 +145,7 @@ public class CloudCostCalculatorTest {
 
         final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setComputeConfig(new EntityInfoExtractor.ComputeConfig(OSType.SUSE, Tenancy.DEFAULT))
+                .setComputeConfig(new EntityInfoExtractor.ComputeConfig(OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND))
                 .setNetworkConfig(networkConfig)
                 .build(infoExtractor);
 
@@ -180,6 +188,19 @@ public class CloudCostCalculatorTest {
         // Once for the compute, once for the license, because both costs are "paid to" the
         // compute tier.
         verify(discountApplicator, times(2)).getDiscountPercentage(computeTier);
+
+        final TestEntityClass testSpotEntity = TestEntityClass.newBuilder(entityId)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setComputeConfig(new EntityInfoExtractor.ComputeConfig(OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING))
+                .setNetworkConfig(networkConfig)
+                .build(infoExtractor);
+
+        when(discountApplicatorFactory.entityDiscountApplicator(testSpotEntity, topology, infoExtractor, cloudCostData))
+                .thenReturn(discountApplicator);
+
+        final CostJournal<TestEntityClass> spotJournal = calculator.calculateCost(testSpotEntity);
+
+        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT), is(basePrice * (1 - riCoverage)));
     }
 
     /**

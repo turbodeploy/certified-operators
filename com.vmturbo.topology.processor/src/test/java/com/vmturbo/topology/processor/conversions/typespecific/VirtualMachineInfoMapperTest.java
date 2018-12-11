@@ -22,12 +22,14 @@ public class VirtualMachineInfoMapperTest {
         // arrange
         final EntityDTOOrBuilder vmEntityDTO = EntityDTO.newBuilder()
                 .setVirtualMachineData(VirtualMachineData.newBuilder()
+                        .setBillingType(VirtualMachineData.VMBillingType.BIDDING)
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(VirtualMachineInfo.newBuilder()
                         .setGuestOsType(OSType.UNKNOWN_OS)
                         .setTenancy(Tenancy.DEFAULT)
                         .setNumCpus(4)
+                        .setBillingType(VirtualMachineData.VMBillingType.BIDDING)
                         .build())
                 .build();
         final VirtualMachineInfoMapper testBuilder = new VirtualMachineInfoMapper();

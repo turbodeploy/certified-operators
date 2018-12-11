@@ -45,6 +45,9 @@ message TypeSpecificInfo {
 
         // Total number of CPUs for the VM
         optional int32 num_cpus = 4;
+
+        // This specifies if the VM is using a spot instance or not.
+        optional .common_dto.EntityDTO.VirtualMachineData.VMBillingType billingType = 5 [default = ONDEMAND];
     }
 
     // Properties unique to a PhysicalMachine in the model

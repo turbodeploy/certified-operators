@@ -447,6 +447,10 @@ enum CostCategory {
     // i.e. how much of the total entity compute cost is being contributed by RI.
     // Business Account discount is already applied to this cost.
     RI_COMPUTE = 4;
+
+    // Represents the spot instance cost associated with an entity.
+    SPOT = 5;
+
 }
 
 // A request containing a snapshot of cost data to be stored by the cost service.

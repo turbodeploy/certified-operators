@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.cost.Pricing;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -31,6 +33,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
@@ -307,28 +310,42 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 Preconditions.checkArgument(riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
 
                 final long regionId = entityInfoExtractor.getId(region);
+                if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
+                    final Pricing.SpotInstancePriceTable spotPriceTable = cloudCostData.getPriceTable()
+                            .getSpotPriceByRegionIdMap().get(regionId);
+                    if (spotPriceTable != null) {
+                        Price spotPrice = spotPriceTable.getSpotPriceByInstanceIdMap()
+                                .get(entityInfoExtractor.getId(computeTier));
+                        final double unitsBought = 1 - riComputeCoveragePercent;
+                        journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
+                                spotPrice, unitsBought);
+
+                    }
+                }
                 final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
                         .getOnDemandPriceByRegionIdMap().get(regionId);
                 if (onDemandPriceTable != null) {
-                    final ComputeTierPriceList computePriceList =
-                            onDemandPriceTable.getComputePricesByTierIdMap()
-                                    .get(entityInfoExtractor.getId(computeTier));
-                    if (computePriceList != null) {
-                        final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
-                        // For compute tiers, we're working with "hourly" costs, and the
-                        // amount of "compute" bought from the tier is the percentage
-                        // of the hour filled by on-demand coverage (i.e. 1 - % RI coverage).
-                        final double unitsBought = 1 - riComputeCoveragePercent;
-                        journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
-                                basePrice.getPricesList().get(0), unitsBought);
-                        if (computeConfig.getOs() != basePrice.getGuestOsType()) {
-                            computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
-                                    .filter(computeConfig::matchesPriceTableConfig)
-                                    .findAny()
-                                    .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                                            CostCategory.LICENSE,
-                                            computeTier,
-                                            priceAdjustmentConfig.getPricesList().get(0), unitsBought));
+                    if (computeConfig.getBillingType() != VMBillingType.BIDDING) {
+                        final ComputeTierPriceList computePriceList =
+                                onDemandPriceTable.getComputePricesByTierIdMap()
+                                        .get(entityInfoExtractor.getId(computeTier));
+                        if (computePriceList != null) {
+                            final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
+                            // For compute tiers, we're working with "hourly" costs, and the
+                            // amount of "compute" bought from the tier is the percentage
+                            // of the hour filled by on-demand coverage (i.e. 1 - % RI coverage).
+                            final double unitsBought = 1 - riComputeCoveragePercent;
+                            journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
+                                    basePrice.getPricesList().get(0), unitsBought);
+                            if (computeConfig.getOs() != basePrice.getGuestOsType()) {
+                                computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
+                                        .filter(computeConfig::matchesPriceTableConfig)
+                                        .findAny()
+                                        .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
+                                                CostCategory.LICENSE,
+                                                computeTier,
+                                                priceAdjustmentConfig.getPricesList().get(0), unitsBought));
+                            }
                         }
                     }
 
@@ -338,16 +355,16 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 entityInfoExtractor.getId(computeTier));
                         // there can be only 1 entry in the priceList in the current implementation
                         onDemandPriceTable.getIpPrices().getIpPriceList().stream()
-                            .findFirst()
-                            .ifPresent(ipPriceList -> {
-                                // excess of Elastic IPs needed beyond the freeIPs available in the region
-                                long numElasticIps = networkConfigBought.getNumElasticIps()
-                                        - ipPriceList.getFreeIpCount();
-                                recordPriceRangeEntries(numElasticIps,
-                                    ipPriceList.getPricesList(),
-                                    (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
-                                            service.get(), price, amountBought));
-                            });
+                                .findFirst()
+                                .ifPresent(ipPriceList -> {
+                                    // excess of Elastic IPs needed beyond the freeIPs available in the region
+                                    long numElasticIps = networkConfigBought.getNumElasticIps()
+                                            - ipPriceList.getFreeIpCount();
+                                    recordPriceRangeEntries(numElasticIps,
+                                            ipPriceList.getPricesList(),
+                                            (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
+                                                    service.get(), price, amountBought));
+                                });
                     });
                 } else {
                     logger.warn("Global price table has no entry for region {}. This means there" +

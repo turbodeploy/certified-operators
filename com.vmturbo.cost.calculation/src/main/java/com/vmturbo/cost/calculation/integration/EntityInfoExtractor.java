@@ -9,6 +9,8 @@ import javax.annotation.concurrent.Immutable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
@@ -114,10 +116,12 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     class ComputeConfig {
         private final OSType os;
         private final Tenancy tenancy;
+        private final VMBillingType billingType;
 
-        public ComputeConfig(final OSType os, final Tenancy tenancy) {
+        public ComputeConfig(final OSType os, final Tenancy tenancy, final VMBillingType billingType) {
             this.os = os;
             this.tenancy = tenancy;
+            this.billingType = billingType;
         }
 
         @Nonnull
@@ -128,6 +132,11 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         @Nonnull
         public Tenancy getTenancy() {
             return tenancy;
+        }
+
+        @Nonnull
+        public VMBillingType getBillingType() {
+            return billingType;
         }
 
         public boolean matchesPriceTableConfig(@Nonnull final ComputeTierConfigPrice computeTierConfigPrice) {

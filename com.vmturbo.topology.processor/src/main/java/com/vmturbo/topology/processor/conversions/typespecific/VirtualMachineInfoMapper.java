@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -37,6 +38,7 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
                 // We're not currently sending tenancy via the SDK
                 .setTenancy(Tenancy.DEFAULT)
                 .setGuestOsType(parseOsType(vmData.getGuestName()))
+                .setBillingType(vmData.getBillingType())
                 .addAllIpAddresses(parseIpAddressInfo(vmData));
 
         // "numCpus" is supposed to be set in VirtualMachineData, but currently most probes
@@ -69,7 +71,6 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         }
         return returnValue;
     }
-
 
     @Nonnull
     private static OSType parseOsType(@Nonnull final String guestName) {
