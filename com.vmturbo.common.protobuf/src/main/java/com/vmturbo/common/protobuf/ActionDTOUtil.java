@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.CaseFormat;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -40,6 +41,13 @@ public class ActionDTOUtil {
     public static final double NORMAL_SEVERITY_THRESHOLD = Integer.getInteger("importance.normal", -1000).doubleValue();
     public static final double MINOR_SEVERITY_THRESHOLD = Integer.getInteger("importance.minor", 0).doubleValue();
     public static final double MAJOR_SEVERITY_THRESHOLD = Integer.getInteger("importance.major", 200).doubleValue();
+    /**
+     * The primary tiers entity types. Cloud consumers like VMs and DBs can only consume from one
+     * primary tier like compute / database tier. But they can consume from multiple
+     * secondary tiers like storage tiers.
+     */
+    public static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
+            EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
 
     // string used in the commodity key, in order to separate references to different objs or classes
     // FIXME Embed semantics in the commodity key string is an hack. We need to have a better way to
@@ -195,6 +203,9 @@ public class ActionDTOUtil {
                     if (change.getSource().getId() != 0) {
                         retBuilder.accept(change.getSource());
                     }
+                    if (change.hasResource()) {
+                        retBuilder.accept(change.getResource());
+                    }
                     retBuilder.accept(change.getDestination());
                 }
                 return retBuilder.build();
@@ -267,8 +278,16 @@ public class ActionDTOUtil {
                 if (explanation.hasMove()) {
                     MoveExplanation moveExplanation = explanation.getMove();
                     if (moveExplanation.getChangeProviderExplanationCount() > 0
-                        && moveExplanation.getChangeProviderExplanation(0).hasInitialPlacement()) {
+                            && moveExplanation.getChangeProviderExplanationList().stream()
+                            .anyMatch(m -> m.hasInitialPlacement())) {
                         return ActionType.START;
+                    }
+                    // If the source and destination is one of the primary tiers, then the
+                    // action type is considered a resize instead of a move.
+                    if (action.getInfo().getMove().getChangesList().stream().anyMatch(
+                            m -> m.hasSource() && PRIMARY_TIER_VALUES.contains(m.getDestination().getType()) &&
+                                    PRIMARY_TIER_VALUES.contains(m.getSource().getType()))) {
+                        return ActionType.RESIZE;
                     }
                 }
                 return ActionType.MOVE;

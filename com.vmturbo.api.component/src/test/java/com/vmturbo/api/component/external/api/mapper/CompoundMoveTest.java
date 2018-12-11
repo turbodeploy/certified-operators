@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -75,6 +76,8 @@ public class CompoundMoveTest {
     private static final String PM1_NAME = "host-1";
     private static final long PM2_ID = 31;
     private static final String PM2_NAME = "host-2";
+    private static final long VOL1_ID = 40;
+    private static final String VOL1_NAME = "vol-1";
 
     @Before
     public void setup() throws IOException {
@@ -99,7 +102,8 @@ public class CompoundMoveTest {
                     entityApiDTO(PM1_NAME, PM1_ID, UIEntityType.PHYSICAL_MACHINE.getValue()),
                     entityApiDTO(PM2_NAME, PM2_ID, UIEntityType.PHYSICAL_MACHINE.getValue()),
                     entityApiDTO(ST1_NAME, ST1_ID, UIEntityType.STORAGE.getValue()),
-                    entityApiDTO(ST2_NAME, ST2_ID, UIEntityType.STORAGE.getValue())));
+                    entityApiDTO(ST2_NAME, ST2_ID, UIEntityType.STORAGE.getValue()),
+                    entityApiDTO(VOL1_NAME, VOL1_ID, UIEntityType.VIRTUAL_VOLUME.getValue())));
     }
 
     private Map<Long, Optional<ServiceEntityApiDTO>> oidToEntityMap(
@@ -130,14 +134,36 @@ public class CompoundMoveTest {
     public void testSimpleAction()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveStorage = makeAction(TARGET_ID, ST1_ID, ST2_ID);
+        ActionDTO.Action moveStorage = makeAction(TARGET_ID, ST1_ID, ST2_ID, null);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), 77L);
         assertSame(ActionType.CHANGE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, "Storage", ST1_NAME, ST2_NAME),
+        assertEquals(details("Virtual Machine", TARGET_NAME, ST1_NAME, ST2_NAME),
             apiDto.getDetails());
+    }
+
+    /**
+     * Test a simple move with one provider being changed. This change is for a particular
+     * resource of the target.
+     *
+     * @throws UnknownObjectException not supposed to happen
+     * @throws UnsupportedActionException  not supposed to happen
+     */
+    @Test
+    public void testSimpleActionWithResource()
+            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+            InterruptedException {
+        ActionDTO.Action moveVolume = makeAction(TARGET_ID, ST1_ID, ST2_ID, VOL1_ID);
+        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), 77L);
+        assertSame(ActionType.CHANGE, apiDto.getActionType());
+        assertEquals(1, apiDto.getCompoundActions().size());
+        assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
+        assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
+        assertEquals(moveDetailsWithResource("Virtual Volume", VOL1_NAME, "Virtual Machine",
+                TARGET_NAME, ST1_NAME, ST2_NAME),
+                apiDto.getDetails());
     }
 
     /**
@@ -157,7 +183,7 @@ public class CompoundMoveTest {
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, "Physical Machine", PM1_NAME, PM2_NAME),
+        assertEquals(details("Virtual Machine", TARGET_NAME, PM1_NAME, PM2_NAME),
             apiDto.getDetails());
     }
 
@@ -178,18 +204,29 @@ public class CompoundMoveTest {
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, "Physical Machine", PM1_NAME, PM2_NAME),
+        assertEquals(details("Virtual Machine", TARGET_NAME, PM1_NAME, PM2_NAME),
             apiDto.getDetails());
     }
 
-    private static String details(String targetType, String targetName,
-                    String providerType, String providerName1, String providerName2) {
+    private static String details(String targetType, String targetName, String providerName1,
+                                  String providerName2) {
         return "Move " + targetType + " "
                         + targetName
-                        + " from " + providerType  + " "
+                        + " from "
                         + providerName1
-                        + " to " + providerType + " "
+                        + " to "
                         + providerName2;
+    }
+
+    private static String moveDetailsWithResource(String resourceType, String resourceName,
+                                                  String targetType, String targetName,
+                                                  String providerName1, String providerName2) {
+        return "Move " + resourceType + " "
+                + resourceName + " of " + targetType + " " + targetName
+                + " from "
+                + providerName1
+                + " to "
+                + providerName2;
     }
 
     private ActionSpec buildActionSpec(ActionDTO.Action action) {
@@ -203,12 +240,12 @@ public class CompoundMoveTest {
             .build();
     }
 
-    private static ActionDTO.Action makeAction(long t, long s1, long d1) {
+    private static ActionDTO.Action makeAction(long t, long s1, long d1, Long r1) {
         return genericActionStuff()
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
                                 .setTarget(ApiUtilsTest.createActionEntity(t))
-                                .addChanges(makeChange(s1, d1))
+                                .addChanges(makeChange(s1, d1, r1))
                                 .build())
                             .build())
                         .build();
@@ -219,8 +256,8 @@ public class CompoundMoveTest {
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
                                 .setTarget(ApiUtilsTest.createActionEntity(t))
-                                .addChanges(makeChange(s1, d1))
-                                .addChanges(makeChange(s2, d2))
+                                .addChanges(makeChange(s1, d1, null))
+                                .addChanges(makeChange(s2, d2, null))
                                 .build())
                             .build())
                         .build();
@@ -235,11 +272,13 @@ public class CompoundMoveTest {
                         .setExplanation(Explanation.newBuilder().build());
     }
 
-    private static ChangeProvider makeChange(long source, long destination) {
-        return ChangeProvider.newBuilder()
+    private static ChangeProvider makeChange(long source, long destination, Long resource) {
+        Builder changeProviderBuilder = ChangeProvider.newBuilder()
                         .setSource(ApiUtilsTest.createActionEntity(source))
-                        .setDestination(ApiUtilsTest.createActionEntity(destination))
-                        .build();
+                        .setDestination(ApiUtilsTest.createActionEntity(destination));
+        if (resource != null) {
+            changeProviderBuilder.setResource(ApiUtilsTest.createActionEntity(resource));
+        }
+        return changeProviderBuilder.build();
     }
-
 }

@@ -662,7 +662,7 @@ public class TopologyConverter {
                                             @Nonnull final Map<Long, Integer> entityIdToType,
                                             @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                             @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                            @NonNull TopologyCostCalculator topologyCostCalculator) {
+                                            @Nonnull TopologyCostCalculator topologyCostCalculator) {
         return actionInterpreter.interpretAction(actionTO, entityIdToType, originalCloudTopology,
                 projectedCosts, topologyCostCalculator);
     }
@@ -1334,8 +1334,9 @@ public class TopologyConverter {
         }
         final Integer providerEntityType = commBoughtGrouping.hasProviderEntityType() ?
                 commBoughtGrouping.getProviderEntityType() : null;
+        final Long resourceId = commBoughtGrouping.hasVolumeId() ? commBoughtGrouping.getVolumeId() : null;
         shoppingListOidToInfos.put(id,
-            new ShoppingListInfo(id, buyerOid, providerOid, providerEntityType,
+            new ShoppingListInfo(id, buyerOid, providerOid, resourceId, providerEntityType,
                     commBoughtGrouping.getCommodityBoughtList()));
         return economyShoppingListBuilder.build();
     }
@@ -1765,8 +1766,8 @@ public class TopologyConverter {
         // however, because the definition of ShoppingListInfo requires providerOid and
         // commodityBoughtList, we have to give some dummy values
         list.forEach(l -> shoppingListOidToInfos.put(l.getNewShoppingList(),
-                    new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
-                            null, Lists.newArrayList())));
+                    new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null, null, null,
+                            Lists.newArrayList())));
     }
 
     /**

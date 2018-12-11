@@ -16,7 +16,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -43,6 +45,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
@@ -111,7 +114,7 @@ public class ActionInterpreter {
                     // Assign a unique ID to each generated action.
                     .setId(IdentityGenerator.next())
                     .setImportance(actionTO.getImportance())
-                    .setExplanation(interpretExplanation(actionTO))
+                    .setExplanation(interpretExplanation(actionTO, savings))
                     .setExecutable(!actionTO.getIsNotExecutable())
                     .setSavingsPerHour(savings.orElse(CurrencyAmount.getDefaultInstance()));
 
@@ -163,11 +166,8 @@ public class ActionInterpreter {
     }
 
     /**
-     * Calculates savings per action. Savings can be calculated if both source and destination are
-     * cloud. Savings is calculated as cost at destination - the cost at source
-     * Note: in case of reserved instances, the cost library considers the true effective hourly
-     * rate of reserved instances. But in 6.3, the discount per action is calculated differently.
-     * In 6.3, if there is 15% coverage, this is equated to 15% discount.
+     * Calculates savings per action. Savings is calculated as cost at source - the cost at
+     * destination. The cost is only the on demand costs. RI Compute is not considered.
      *
      * @param actionTO The actionTO for which savings is to be calculated
      * @param originalCloudTopology the CloudTopology which came into Analysis
@@ -192,10 +192,19 @@ public class ActionInterpreter {
                         CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts
                                 .get(cloudEntityMoving.getOid());
                         if (destCostJournal != null) {
-                            double totalDestCost = getTotalCostForMarketTier(cloudEntityMoving,
-                                    destMarketTier, destCostJournal);
+                            // Only the on demand costs are considered. RI Compute is not
+                            // considered. RI component is considered as 0 cost. Inside the market
+                            // also, RIs are considered as 0 cost. So it makes sense to be
+                            // consistent. But it can also be viewed from another perspective.
+                            // RI Compute has 2 components - upfront cost already paid to the
+                            // CSP and an hourly cost which is not yet paid. So the true savings
+                            // should consider the hourly cost and ignore the upfront cost.
+                            // Currently, both of these are clubbed into RI compute and
+                            // we cannot differentiate.
+                            double onDemandDestCost = getOnDemandCostForMarketTier(
+                                    cloudEntityMoving, destMarketTier, destCostJournal);
                             // Now get the source cost. Assume on prem source cost 0.
-                            double totalSourceCost = 0;
+                            double onDemandSourceCost = 0;
                             if (sourceMarketTier != null) {
                                 Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
                                         topologyCostCalculator.calculateCostForEntity(
@@ -203,10 +212,10 @@ public class ActionInterpreter {
                                 if (!sourceCostJournal.isPresent()) {
                                     return Optional.empty();
                                 }
-                                totalSourceCost = getTotalCostForMarketTier(cloudEntityMoving,
+                                onDemandSourceCost = getOnDemandCostForMarketTier(cloudEntityMoving,
                                         sourceMarketTier, sourceCostJournal.get());
                             }
-                            double savings = totalSourceCost - totalDestCost;
+                            double savings = onDemandSourceCost - onDemandDestCost;
                             logger.debug("Savings of action for {} moving from {} to {} is {}",
                                     cloudEntityMoving.getDisplayName(),
                                     sourceMarketTier.getDisplayName(),
@@ -227,9 +236,10 @@ public class ActionInterpreter {
                         CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts
                                 .get(cloudEntityMoving.getOid());
                         if (destCostJournal != null) {
-                            double totalDestCost = destCostJournal.getTotalHourlyCost();
+                            double totalOnDemandDestCost = destCostJournal
+                                    .getTotalHourlyCostExcluding(Sets.immutableEnumSet(CostCategory.RI_COMPUTE));
                             // Now get the source cost. Assume on prem source cost 0.
-                            double totalSourceCost = 0;
+                            double totalOnDemandSourceCost = 0;
                             if (isSourceCloud) {
                                 Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
                                         topologyCostCalculator.calculateCostForEntity(
@@ -237,9 +247,10 @@ public class ActionInterpreter {
                                 if (!sourceCostJournal.isPresent()) {
                                     return Optional.empty();
                                 }
-                                totalSourceCost = sourceCostJournal.get().getTotalHourlyCost();
+                                totalOnDemandSourceCost = sourceCostJournal.get()
+                                        .getTotalHourlyCostExcluding(Sets.immutableEnumSet(CostCategory.RI_COMPUTE));
                             }
-                            double savings = totalSourceCost - totalDestCost;
+                            double savings = totalOnDemandSourceCost - totalOnDemandDestCost;
                             logger.debug("Savings of compound move for {} = {}",
                                     cloudEntityMoving.getDisplayName(), savings);
                             return Optional.of(CurrencyAmount.newBuilder().setAmount(savings).build());
@@ -271,26 +282,25 @@ public class ActionInterpreter {
      * @return the total cost of the market tier
      */
     @NonNull
-    private double getTotalCostForMarketTier(TopologyEntityDTO cloudEntityMoving,
+    private double getOnDemandCostForMarketTier(TopologyEntityDTO cloudEntityMoving,
                                             MarketTier marketTier,
                                             CostJournal<TopologyEntityDTO> journal) {
-        double totalCost = 0;
-        if (TopologyConversionConstants.PRIMARY_TIER_ENTITY_TYPES.contains(
+        double totalOnDemandCost = 0;
+        if (ActionDTOUtil.PRIMARY_TIER_VALUES.contains(
                 marketTier.getTier().getEntityType())) {
-            double computeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
+            double onDemandComputeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
             double licenseCost = journal.getHourlyCostForCategory(CostCategory.LICENSE);
             double ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
-            totalCost = computeCost + licenseCost + ipCost;
-            logger.debug("Costs for {} on {} are -> compute cost = {}, licenseCost = {}, " +
-                            "ipCost = {}, totalCost = {}", cloudEntityMoving.getDisplayName(),
-                    marketTier.getDisplayName(), computeCost, licenseCost, ipCost, totalCost);
-
+            totalOnDemandCost = onDemandComputeCost + licenseCost + ipCost;
+            logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}, ipCost = {}",
+                    cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(),
+                    onDemandComputeCost, licenseCost, ipCost);
         } else {
-            totalCost = journal.getHourlyCostForCategory(CostCategory.STORAGE);
+            totalOnDemandCost = journal.getHourlyCostForCategory(CostCategory.STORAGE);
             logger.debug("Costs for {} on {} are -> storage cost = {}",
-                    cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(), totalCost);
+                    cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(), totalOnDemandCost);
         }
-        return totalCost;
+        return totalOnDemandCost;
     }
 
     @Nonnull
@@ -546,6 +556,11 @@ public class ActionInterpreter {
                     originalTopology).get(0);
             sourceTier = sourceMt.getTier();
         }
+        Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
+        Integer resourceType = null;
+        if (resourceId != null) {
+            resourceType = entityIdToEntityType.get(resourceId);
+        }
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
         if (sourceMt != null && destMt != null) {
@@ -554,12 +569,12 @@ public class ActionInterpreter {
                 // AZ change provider. We create an AZ change provider because the target is
                 // connected to AZ.
                 changeProviders.add(createChangeProvider(sourceAz.getOid(),
-                        sourceAz.getEntityType(), destAz.getOid(), destAz.getEntityType()));
+                        sourceAz.getEntityType(), destAz.getOid(), destAz.getEntityType(), null, null));
             }
             if (destTier != sourceTier) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
-                        sourceTier.getEntityType(), destTier.getOid(), destTier.getEntityType()));
+                        sourceTier.getEntityType(), destTier.getOid(), destTier.getEntityType(), resourceId, resourceType));
             }
         } else if (sourceMt == null && destMt != null) {
             // On prem to cloud move (with or without source)
@@ -567,21 +582,21 @@ public class ActionInterpreter {
             // connected to AZ
             changeProviders.add(createChangeProvider(moveSource,
                     move.hasSource() ? entityIdToEntityType.get(moveSource) : null,
-                    destAz.getOid(), destAz.getEntityType()));
+                    destAz.getOid(), destAz.getEntityType(), null, null));
             // Tier change provider
             changeProviders.add(createChangeProvider(moveSource,
                     move.hasSource() ? entityIdToEntityType.get(moveSource) : null,
-                    destTier.getOid(), destTier.getEntityType()));
+                    destTier.getOid(), destTier.getEntityType(), resourceId, resourceType));
         } else if (sourceMt != null && destMt == null) {
             // Cloud to on prem move
             changeProviders.add(createChangeProvider(sourceTier.getOid(),
                     sourceTier.getEntityType(), move.getDestination(),
-                    entityIdToEntityType.get(move.getDestination())));
+                    entityIdToEntityType.get(move.getDestination()), resourceId, resourceType));
         } else {
             // On prem to on prem (with or without source)
             changeProviders.add(createChangeProvider(moveSource,
                     move.hasSource() ? entityIdToEntityType.get(moveSource) : null,
-                    move.getDestination(), entityIdToEntityType.get(move.getDestination())));
+                    move.getDestination(), entityIdToEntityType.get(move.getDestination()), resourceId, resourceType));
         }
         return changeProviders;
     }
@@ -589,7 +604,7 @@ public class ActionInterpreter {
     @Nonnull
     private ChangeProvider createChangeProvider(
             @Nullable Long sourceId, @Nullable Integer sourceType, long destinationId,
-            int destinationType) {
+            int destinationType, @Nullable Long resourceId, @Nullable Integer resourceType) {
         final ChangeProvider.Builder changeProviderBuilder = ChangeProvider.newBuilder()
                 .setDestination(ActionEntity.newBuilder()
                         .setId(destinationId)
@@ -599,14 +614,19 @@ public class ActionInterpreter {
                     .setId(sourceId)
                     .setType(sourceType));
         }
+        if (resourceId != null) {
+            changeProviderBuilder.setResource(ActionEntity.newBuilder()
+                    .setId(resourceId)
+                    .setType(resourceType));
+        }
         return changeProviderBuilder.build();
     }
 
-    private Explanation interpretExplanation(ActionTO actionTO) {
+    private Explanation interpretExplanation(ActionTO actionTO, Optional<CurrencyAmount> savings) {
         Explanation.Builder expBuilder = Explanation.newBuilder();
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
-                expBuilder.setMove(interpretMoveExplanation(actionTO.getMove()));
+                expBuilder.setMove(interpretMoveExplanation(actionTO.getMove(), savings));
                 break;
             case RECONFIGURE:
                 expBuilder.setReconfigure(
@@ -643,9 +663,9 @@ public class ActionInterpreter {
         return expBuilder.build();
     }
 
-    private MoveExplanation interpretMoveExplanation(MoveTO moveTO) {
+    private MoveExplanation interpretMoveExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        moveExpBuilder.addChangeProviderExplanation(changeExplanation(moveTO.getMoveExplanation()));
+        moveExpBuilder.addChangeProviderExplanation(changeExplanation(moveTO, savings));
         return moveExpBuilder.build();
     }
 
@@ -716,16 +736,18 @@ public class ActionInterpreter {
     private MoveExplanation interpretCompoundMoveExplanation(List<MoveTO> moveTOs) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         moveTOs.stream()
-                .map(MoveTO::getMoveExplanation)
-                .map(this::changeExplanation)
+                .map(m -> changeExplanation(m, Optional.empty()))
                 .forEach(moveExpBuilder::addChangeProviderExplanation);
         return moveExpBuilder.build();
     }
 
-    private ChangeProviderExplanation changeExplanation(
-            com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation moveExplanation) {
+    private ChangeProviderExplanation changeExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
+        ActionDTOs.MoveExplanation moveExplanation = moveTO.getMoveExplanation();
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
+                // TODO: For Cloud Migration plans, we need to change compliance to efficiency or
+                // performance based on whether the entity resized down or up. This needs to be done
+                // once resize and cloud migration stories are done
                 return ChangeProviderExplanation.newBuilder()
                         .setCompliance(ChangeProviderExplanation.Compliance.newBuilder()
                                 .addAllMissingCommodities(
@@ -737,14 +759,18 @@ public class ActionInterpreter {
                                 .build())
                         .build();
             case CONGESTION:
-                return ChangeProviderExplanation.newBuilder()
-                        .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
+                // For cloud entities, we change congestion to either efficiency or performance
+                // based on if there was savings or not. For on-prem entities, we let congestion
+                // remain as congestion and add all congested commodities
+                return changeExplanationBasedOnSavings(moveTO, savings).orElse(
+                        ChangeProviderExplanation.newBuilder().setCongestion(
+                                ChangeProviderExplanation.Congestion.newBuilder()
                                 .addAllCongestedCommodities(
                                         moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
                                                 .map(commodityConverter::commodityIdToCommodityType)
                                                 .collect(Collectors.toList()))
                                 .build())
-                        .build();
+                        .build());
             case EVACUATION:
                 return ChangeProviderExplanation.newBuilder()
                         .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
@@ -756,14 +782,46 @@ public class ActionInterpreter {
                         .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance())
                         .build();
             case PERFORMANCE:
-                return ChangeProviderExplanation.newBuilder()
+                // For cloud entities, we change performance to either efficiency or performance
+                // based on if there was savings or not.  For on-prem entities, we let performance
+                // remain as performance
+                return changeExplanationBasedOnSavings(moveTO, savings).orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance())
-                        .build();
+                        .build());
             default:
                 logger.error("Unknown explanation case for move action: "
                         + moveExplanation.getExplanationTypeCase());
                 return ChangeProviderExplanation.getDefaultInstance();
         }
+    }
+
+    /**
+     * For cloud entities, we calculate the change provider explanation of the action based on
+     * savings. If there are savings, then the explanation is efficiency, otherwise we say
+     * performance.
+     *
+     * @param moveTO the move for which we are computing the category
+     * @param savings the savings
+     * @return
+     */
+    private Optional<ChangeProviderExplanation> changeExplanationBasedOnSavings(MoveTO moveTO,
+                                                                                Optional<CurrencyAmount> savings) {
+        if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
+            if (savings.isPresent()) {
+                if (savings.get().getAmount() >= 0) {
+                    return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                            ChangeProviderExplanation.Efficiency.newBuilder()).build());
+                } else {
+                    return Optional.of(ChangeProviderExplanation.newBuilder().setPerformance(
+                            ChangeProviderExplanation.Performance.newBuilder()).build());
+                }
+            } else {
+                ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+                logger.error("No savings present while trying to explain move for {}",
+                        originalTopology.get(slInfo.getBuyerId()).getDisplayName());
+            }
+        }
+        return Optional.empty();
     }
 
     private ActionEntity createActionEntity(final long id,

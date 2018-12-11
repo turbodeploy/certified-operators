@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -225,6 +226,8 @@ public class EntitySettingsApplicator {
             if (!disableShopTogether && entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
                     && settings.containsKey(EntitySettingSpecs.Move)
                     && settings.containsKey(EntitySettingSpecs.StorageMove)) {
+                // TODO: For migration plans from on prem to cloud or from cloud to cloud,
+                // we should shop together.
                 final String computeMoveSetting = settings.get(EntitySettingSpecs.Move)
                         .getEnumSettingValue().getValue();
                 final String storageMoveSetting = settings.get(EntitySettingSpecs.StorageMove)
@@ -233,12 +236,17 @@ public class EntitySettingsApplicator {
                                 || computeMoveSetting.equals(ActionMode.MANUAL.name());
                 // Note: if a VM does not support shop together execution, even when move and storage
                 // move sets to Manual or Automatic, dont enable shop together.
-                if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual) {
+                if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual
+                        || entity.getEnvironmentType() == EnvironmentType.CLOUD) {
                     // user has to change default VM action settings to explicitly indicate they
                     // want to have compound move actions generated considering best placements in
                     // terms of both storage and compute resources. Usually user ask for shop together
                     // moves so as to take the actions to move VM across networks, thus Manual and
                     // Automatic has to be chosen to execute the actions.
+                    // We make Cloud VMs shop together false. This is done because shop
+                    // together generates compound moves but we need to show separate actions in the
+                    // user interface. So, we just disable shop together for them because it has
+                    // no real advantage in the cloud.
                     entity.getAnalysisSettingsBuilder().setShopTogether(false);
                     logger.debug("Shoptogether is disabled for {} with move mode {} and storage move mode {}.",
                             entity.getDisplayName(), computeMoveSetting, storageMoveSetting);

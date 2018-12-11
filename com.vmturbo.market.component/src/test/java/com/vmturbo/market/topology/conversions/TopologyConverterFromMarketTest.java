@@ -147,7 +147,7 @@ public class TopologyConverterFromMarketTest {
                         .build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                         TopologyConverter.class.getDeclaredField("commodityTypeAllocator");
@@ -265,7 +265,7 @@ public class TopologyConverterFromMarketTest {
                         .build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                 TopologyConverter.class.getDeclaredField("commodityTypeAllocator");
@@ -391,7 +391,7 @@ public class TopologyConverterFromMarketTest {
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                 TopologyConverter.class.getDeclaredField("commodityTypeAllocator");
@@ -532,7 +532,7 @@ public class TopologyConverterFromMarketTest {
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                 TopologyConverter.class.getDeclaredField("commodityTypeAllocator");

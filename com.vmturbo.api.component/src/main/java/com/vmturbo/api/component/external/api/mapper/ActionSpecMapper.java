@@ -34,8 +34,10 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -49,6 +51,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -106,8 +109,15 @@ public class ActionSpecMapper {
 
 
     private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
+    private static final String STORAGE_TIER_VALUE = UIEntityType.STORAGE_TIER.getValue();
     private static final String PHYSICAL_MACHINE_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
     private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.getValue();
+    private static final Set<String> PRIMARY_TIER_VALUES = ImmutableSet.of(
+            UIEntityType.COMPUTE_TIER.getValue(), UIEntityType.DATABASE_SERVER_TIER.getValue(),
+            UIEntityType.DATABASE_TIER.getValue());
+    private static final Set<String> STORAGE_VALUES = ImmutableSet.of(
+            UIEntityType.STORAGE_TIER.getValue(), UIEntityType.STORAGE.getValue());
+
 
     private final PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
@@ -623,10 +633,10 @@ public class ActionSpecMapper {
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : move.getChangesList()) {
-            actions.add(singleMove(wrapperDto, move.getTarget().getId(), change, context));
+            actions.add(singleMove(move, wrapperDto, move.getTarget().getId(), change, context));
         }
         wrapperDto.addCompoundActions(actions);
-        wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto));
+        wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto, primaryChange, context));
     }
 
     /**
@@ -648,15 +658,15 @@ public class ActionSpecMapper {
     }
 
     private boolean isHost(Optional<ServiceEntityApiDTO> entity) {
-        return entity.map(ServiceEntityApiDTO::getClassName).map(PHYSICAL_MACHINE_VALUE::equals).orElse(false);
+        return entity.isPresent() && (PRIMARY_TIER_VALUES.contains(entity.get().getClassName()) ||
+                PHYSICAL_MACHINE_VALUE.contains(entity.get().getClassName()));
     }
 
-    private ActionApiDTO singleMove(ActionApiDTO compoundDto,
+    private ActionApiDTO singleMove(Move move, ActionApiDTO compoundDto,
                     final long targetId,
                     @Nonnull final ChangeProvider change,
                     @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
-
         ActionApiDTO actionApiDTO = new ActionApiDTO();
         actionApiDTO.setTarget(new ServiceEntityApiDTO());
         actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
@@ -668,9 +678,7 @@ public class ActionSpecMapper {
 
         final long destinationId = change.getDestination().getId();
 
-        ServiceEntityApiDTO destinationEntity = context.getEntity(destinationId);
-        boolean isStorage = destinationEntity.getClassName().equals(STORAGE_VALUE);
-        actionApiDTO.setActionType(isStorage ? ActionType.START : ActionType.CHANGE);
+        actionApiDTO.setActionType(actionType(move, context));
         // Set entity DTO fields for target, source (if needed) and destination entities
         setEntityDtoFields(actionApiDTO.getTarget(), targetId, context);
 
@@ -684,19 +692,41 @@ public class ActionSpecMapper {
         setEntityDtoFields(actionApiDTO.getNewEntity(), destinationId, context);
 
         // Set action details
-        actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO));
+        actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO, change, context));
         return actionApiDTO;
     }
 
-    private String actionDetails(boolean hasSource, ActionApiDTO actionApiDTO) {
-        return hasSource ?
-            MessageFormat.format("Move {0} from {1} to {2}",
-                readableEntityTypeAndName(actionApiDTO.getTarget()),
-                readableEntityTypeAndName(actionApiDTO.getCurrentEntity()),
-                readableEntityTypeAndName(actionApiDTO.getNewEntity()))
-            : MessageFormat.format("Start {0} on {1}",
-                readableEntityTypeAndName(actionApiDTO.getTarget()),
-                readableEntityTypeAndName(actionApiDTO.getNewEntity()));
+    private String actionDetails(boolean hasSource, ActionApiDTO actionApiDTO,
+                                 ChangeProvider change, ActionSpecMappingContext context)
+            throws ExecutionException, InterruptedException {
+        // If there is no source,
+        // "Start Consumer type x on Supplier type y".
+        // When there is a source, there are a few cases:
+        // Cloud:
+        // If a VM/DB is moving from one primary tier to another, then we say "Scale Virtual Machine VMName from x to y".
+        // If a volume of a VM is moving from one storage type to another, then we say "Move Virtual Volume x of Virtual Machine VMName from y to z".
+        // If a VM/DB is moving from one AZ to another, then we say "Move Virtual Machine VMName from AZ1 to AZ2".
+        // On prem:
+        // "Move Consumer Type x from y to z".
+        if (!hasSource) {
+            return MessageFormat.format("Start {0} on {1}",
+                    readableEntityTypeAndName(actionApiDTO.getTarget()),
+                    readableEntityTypeAndName(actionApiDTO.getNewEntity()));
+        } else {
+            long destinationId = change.getDestination().getId();
+            long sourceId = change.getSource().getId();
+            Optional<ServiceEntityApiDTO> destination = context.getOptionalEntity(destinationId);
+            Optional<ServiceEntityApiDTO> source = context.getOptionalEntity(sourceId);
+            String verb = PRIMARY_TIER_VALUES.contains(destination.get().getClassName())
+                    && PRIMARY_TIER_VALUES.contains(source.get().getClassName()) ? "Scale" : "Move";
+            String resource = change.hasResource() ? (readableEntityTypeAndName(
+                    context.getOptionalEntity(change.getResource().getId()).get()) + " of ") : "";
+            return MessageFormat.format("{0} {1}{2} from {3} to {4}", verb, resource,
+                    readableEntityTypeAndName(actionApiDTO.getTarget()),
+                                    actionApiDTO.getCurrentEntity().getDisplayName(),
+                                    actionApiDTO.getNewEntity().getDisplayName());
+
+        }
     }
 
     /**
@@ -716,10 +746,22 @@ public class ActionSpecMapper {
         }
 
         long destinationId = move.getChanges(0).getDestination().getId();
-        boolean isStorage = context.getOptionalEntity(destinationId)
-                .map(ServiceEntityApiDTO::getClassName)
-                .map(STORAGE_VALUE::equals)
-                .orElseGet(() -> false);
+        Optional<ServiceEntityApiDTO> destination = context.getOptionalEntity(destinationId);
+        if (move.getChanges(0).hasSource()) {
+            long sourceId = move.getChanges(0).getSource().getId();
+            Optional<ServiceEntityApiDTO> source = context.getOptionalEntity(sourceId);
+            if (destination.isPresent() && source.isPresent()) {
+                // If the destination is any of the primary cloud tiers like compute tier, then we
+                // change the action type to a scale because the action's details also will say "Scale
+                // from A to B". The primary tier change is viewed as a scale.
+                if (PRIMARY_TIER_VALUES.contains(destination.get().getClassName())
+                        && PRIMARY_TIER_VALUES.contains(source.get().getClassName())) {
+                    return ActionType.RIGHT_SIZE;
+                }
+            }
+        }
+        boolean isStorage = destination.isPresent() &&
+                STORAGE_VALUES.contains(destination.get().getClassName());
         // if move action doesn't have the source entity/id, it's START except Storage
         if (!move.getChanges(0).hasSource()) {
             return isStorage ? ActionType.ADD_PROVIDER : ActionType.START;

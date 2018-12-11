@@ -68,7 +68,8 @@ public class ExplanationComposer {
     }
 
     /**
-     * Compose explanation for various types of actions.
+     * Compose explanation for various types of actions. Explanation appears below the action
+     * details. In Classic, this is called as risk.
      *
      * @param action the action to mansplain
      * @return the explanation sentence
@@ -147,6 +148,8 @@ public class ExplanationComposer {
                     changeExp.getEvacuation().getSuspendedEntity());
             case PERFORMANCE:
                 return buildPerformanceExplanation();
+            case EFFICIENCY:
+                return buildEfficiencyExplanation();
             default:
                 return ACTION_TYPE_ERROR;
         }
@@ -257,6 +260,10 @@ public class ExplanationComposer {
             sb.append(commodityType).append(" congestion").append(targetClause);
         }
         return sb.toString();
+    }
+
+    public static String buildEfficiencyExplanation() {
+        return "Efficiency...";
     }
 
     /**

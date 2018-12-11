@@ -30,6 +30,11 @@ public class ShoppingListInfo {
     public final Long sellerId;
 
     /**
+     *  The resource id. For eg. the volume id of a VM.
+     */
+    public final Long resourceId;
+
+    /**
      * The entity type of seller of the shopping list and it could be null when the shopping list
      * is from newly provisioned trader.
      */
@@ -43,11 +48,13 @@ public class ShoppingListInfo {
     public ShoppingListInfo(final long id,
                             final long buyerId,
                             @Nullable final Long sellerId,
+                            @Nullable final Long resourceId,
                             @Nullable final Integer sellerEntityType,
                             @Nonnull final List<CommodityBoughtDTO> commodities) {
         this.id = id;
         this.buyerId = buyerId;
         this.sellerId = sellerId;
+        this.resourceId = resourceId;
         this.sellerEntityType = sellerEntityType;
         this.commodities = commodities;
     }

@@ -219,6 +219,21 @@ public class CostJournal<ENTITY_CLASS> {
     }
 
     /**
+     * Get the aggregated hourly cost for all categories except the excluded categories.
+     *
+     * @param excludeCategories The categories to exclude.
+     * @return The hourly cost for all categories except for the categories to exclude.
+     */
+    public double getTotalHourlyCostExcluding(@Nonnull final Set<CostCategory> excludeCategories) {
+        calculateCosts();
+        return finalCostsByCategory.entrySet().stream()
+                .filter(e -> !excludeCategories.contains(e.getKey()))
+                .map(Entry::getValue)
+                .mapToDouble(d -> d)
+                .sum();
+    }
+
+    /**
      * Get the categories that this journal has prices for.
      *
      * @return The set of categories.

@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
+import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -283,7 +284,7 @@ public class CloudTopologyConverter {
         List<MarketTier> primaryMarketTiers =  trader.getShoppingListsList().stream()
                 .map(sl -> traderTOOidToMarketTier.get(sl.getSupplier()))
                 .filter(Objects::nonNull)
-                .filter(mTier -> TopologyConversionConstants.PRIMARY_TIER_ENTITY_TYPES
+                .filter(mTier -> ActionDTOUtil.PRIMARY_TIER_VALUES
                         .contains(mTier.getTier().getEntityType()))
                 .collect(Collectors.toList());
         if (primaryMarketTiers.size() != 1) {

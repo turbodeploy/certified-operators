@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -175,13 +176,16 @@ public class InterpretActionTest {
         long destId = 5678;
         int srcType = 0;
         int destType = 1;
+        int resourceType = 2;
         TopologyDTO.TopologyEntityDTO entityDto =
                 TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        long resourceId = entityDto.getCommoditiesBoughtFromProviders(0).getVolumeId();
 
         Map<Long, Integer> entityIdTypeMap =
             ImmutableMap.of(srcId, srcType,
                             destId, destType,
-                            entityDto.getOid(), entityDto.getEntityType());
+                            entityDto.getOid(), entityDto.getEntityType(),
+                            resourceId, resourceType);
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
@@ -222,6 +226,8 @@ public class InterpretActionTest {
         assertEquals(srcType, actionInfo.getMove().getChanges(0).getSource().getType());
         assertEquals(destId, actionInfo.getMove().getChanges(0).getDestination().getId());
         assertEquals(destType, actionInfo.getMove().getChanges(0).getDestination().getType());
+        assertEquals(resourceId, actionInfo.getMove().getChanges(0).getResource().getId());
+        assertEquals(resourceType, actionInfo.getMove().getChanges(0).getResource().getType());
 
         assertEquals(ActionTypeCase.MOVE, actionInfoWithOutSource.getActionTypeCase());
         assertEquals(1, actionInfoWithOutSource.getMove().getChangesList().size());
@@ -478,7 +484,7 @@ public class InterpretActionTest {
         when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
         when(mockCloudTc.isMarketTier(2l)).thenReturn(true);
 
-        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, null, Arrays.asList());
+        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, null, null, Arrays.asList());
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
@@ -487,7 +493,7 @@ public class InterpretActionTest {
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(2d);
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(3d);
         // Total Source cost = 20
-        when(sourceCostJournal.getTotalHourlyCost()).thenReturn(20d);
+        when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(20d);
         when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
 
         Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
@@ -497,7 +503,7 @@ public class InterpretActionTest {
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(1d);
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(2d);
         // Total destination cost = 15
-        when(projectedCostJournal.getTotalHourlyCost()).thenReturn(15d);
+        when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(15d);
         projectedCosts.put(vm.getOid(), projectedCostJournal);
         ActionInterpreter interpreter = new ActionInterpreter(mock(CommodityConverter.class),
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of());

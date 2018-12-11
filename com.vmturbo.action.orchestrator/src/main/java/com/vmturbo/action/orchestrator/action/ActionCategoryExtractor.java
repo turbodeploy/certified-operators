@@ -47,6 +47,8 @@ public class ActionCategoryExtractor {
                                             return Optional.of(ActionCategory.PERFORMANCE_ASSURANCE);
                                         case PERFORMANCE:
                                             return Optional.of(ActionCategory.PREVENTION);
+                                        case EFFICIENCY:
+                                            return Optional.of(ActionCategory.EFFICIENCY_IMPROVEMENT);
                                         default:
                                             return Optional.<ActionCategory>empty();
                                     }

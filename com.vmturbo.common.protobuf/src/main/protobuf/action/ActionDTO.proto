@@ -27,6 +27,7 @@ message Explanation {
             Evacuation evacuation = 3;
             InitialPlacement initialPlacement = 4;
             Performance performance = 5;
+            Efficiency efficiency = 6;
         }
         // A move explanation suggesting unavailability of commodities.
         message Compliance {
@@ -50,7 +51,21 @@ message Explanation {
         message InitialPlacement {}
 
         // A move explanation suggesting an overall performance improvement.
-        message Performance {}
+        message Performance {
+            // A map of the commodity type to the changes in the commodity
+            map<int32, double> commodity_changes = 1;
+
+            //Is RI destination
+            optional bool is_ri_destination = 2;
+        }
+
+        message Efficiency {
+            // A map of the commodity type to the changes in the commodity
+            map<int32, double> commodity_changes = 1;
+
+            //Is RI destination
+            optional bool is_ri_Destination = 2;
+        }
     }
 
     // A resize explanation contains start and end utilization of the resize commodity.
@@ -137,6 +152,9 @@ message ChangeProvider {
 
     // New provider.
     optional ActionEntity destination = 2;
+
+    // Resource moving. For ex. volume of a VirtualMachine
+    optional ActionEntity resource = 3;
 }
 
 message ActionEntity {

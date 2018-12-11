@@ -61,7 +61,8 @@
           "used": 10.0,
           "peak": 20.0
         }
-      ]
+      ],
+      "volumeId": 9876
     },
     { "providerId" : 205,
       "providerEntityType" : 2,
