@@ -543,6 +543,11 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
+    public MarketApiDTO renameMarket(String marketUuid, String displayName) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
     public List<StatSnapshotApiDTO> getStatsByMarketUuid(final String uuid, final String encodedQuery) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
