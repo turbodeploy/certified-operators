@@ -1,4 +1,9 @@
-FROM ubuntu:17.10
+# increased the version because we were hitting a bug in the latest version of mariadb that was
+# available in ubuntu 17:10
+# strangely enough, ubuntu 18:10 has a version lower than the 17:10 (not sure why)
+# old version: 10.1.30-MariaDB-0ubuntu0.17.10.1
+# new version: 10.1.29-MariaDB-6ubuntu2
+FROM ubuntu:18.10
 MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
 
 RUN apt-get update -q -y && apt-get upgrade -q -y && \

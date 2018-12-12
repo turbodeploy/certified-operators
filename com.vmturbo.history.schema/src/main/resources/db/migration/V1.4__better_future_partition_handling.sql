@@ -168,8 +168,8 @@ BEGIN
 
     # finish the alter partition statement
     set @sql_statement = concat(@sql_statement, ' partition future VALUES LESS THAN MAXVALUE);');
-    # and print it out
-    select @sql_statement;
+    # (debug only) and print it out
+    #select @sql_statement;
     # execute it
     PREPARE stmt from @sql_statement;
     EXECUTE stmt;
