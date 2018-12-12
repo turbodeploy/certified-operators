@@ -18,7 +18,7 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
