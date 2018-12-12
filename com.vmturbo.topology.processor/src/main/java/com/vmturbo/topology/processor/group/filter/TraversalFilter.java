@@ -12,9 +12,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 

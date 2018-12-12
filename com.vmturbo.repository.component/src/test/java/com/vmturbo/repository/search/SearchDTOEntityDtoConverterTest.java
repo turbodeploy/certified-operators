@@ -54,14 +54,14 @@ public class SearchDTOEntityDtoConverterTest {
                     .setValue(2L)
                     .build());
 
-    private static Search.TraversalFilter.Builder TWO_HOPS_TRAVERSAL = Search.TraversalFilter.newBuilder()
-            .setTraversalDirection(Search.TraversalFilter.TraversalDirection.PRODUCES)
-            .setStoppingCondition(Search.TraversalFilter.StoppingCondition.newBuilder()
+    private static Search.SearchFilter.TraversalFilter.Builder TWO_HOPS_TRAVERSAL = Search.SearchFilter.TraversalFilter.newBuilder()
+            .setTraversalDirection(Search.SearchFilter.TraversalFilter.TraversalDirection.PRODUCES)
+            .setStoppingCondition(Search.SearchFilter.TraversalFilter.StoppingCondition.newBuilder()
                     .setNumberHops(2).build());
 
-    private static Search.TraversalFilter.Builder CAPACITY_COND_TRAVERSAL = Search.TraversalFilter.newBuilder()
-            .setTraversalDirection(Search.TraversalFilter.TraversalDirection.CONSUMES)
-            .setStoppingCondition(Search.TraversalFilter.StoppingCondition.newBuilder()
+    private static Search.SearchFilter.TraversalFilter.Builder CAPACITY_COND_TRAVERSAL = Search.SearchFilter.TraversalFilter.newBuilder()
+            .setTraversalDirection(Search.SearchFilter.TraversalFilter.TraversalDirection.CONSUMES)
+            .setStoppingCondition(Search.SearchFilter.TraversalFilter.StoppingCondition.newBuilder()
                     .setStoppingPropertyFilter(CAPACITY_GTE_TWO).build());
 
     @Test
@@ -214,8 +214,8 @@ public class SearchDTOEntityDtoConverterTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testMissingTraversalDirection() throws Throwable {
-        final Search.TraversalFilter missingDirection = Search.TraversalFilter.newBuilder()
-                .setStoppingCondition(Search.TraversalFilter.StoppingCondition.newBuilder()
+        final Search.SearchFilter.TraversalFilter missingDirection = Search.SearchFilter.TraversalFilter.newBuilder()
+                .setStoppingCondition(Search.SearchFilter.TraversalFilter.StoppingCondition.newBuilder()
                         .setStoppingPropertyFilter(CAPACITY_GTE_TWO)
                         .build())
                 .build();
@@ -231,8 +231,8 @@ public class SearchDTOEntityDtoConverterTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testMissingTraversalStoppingCond() throws Throwable {
-        final Search.TraversalFilter missingStoppingCond = Search.TraversalFilter.newBuilder()
-                .setTraversalDirection(Search.TraversalFilter.TraversalDirection.CONSUMES)
+        final Search.SearchFilter.TraversalFilter missingStoppingCond = Search.SearchFilter.TraversalFilter.newBuilder()
+                .setTraversalDirection(Search.SearchFilter.TraversalFilter.TraversalDirection.CONSUMES)
                 .build();
 
         final SearchParameters searchParameters = SearchParameters.newBuilder()

@@ -22,7 +22,7 @@ import javaslang.collection.List;
 import javaslang.control.Option;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;

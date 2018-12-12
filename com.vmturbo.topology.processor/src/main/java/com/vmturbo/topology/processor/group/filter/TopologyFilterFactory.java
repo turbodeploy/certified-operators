@@ -20,9 +20,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -110,13 +108,13 @@ public class TopologyFilterFactory {
     }
 
     /**
-     * Construct a filter for a particular {@link TraversalFilter}.
+     * Construct a filter for a particular {@link SearchFilter.TraversalFilter}.
      *
      * @param traversalCriteria The criteria that define the traversal filter that should be created.
      * @return A filter that corresponds to the input criteria.
      */
     @Nonnull
-    private TraversalFilter filterFor(@Nonnull final Search.TraversalFilter traversalCriteria) {
+    private TraversalFilter filterFor(@Nonnull final SearchFilter.TraversalFilter traversalCriteria) {
         final StoppingCondition stoppingCondition = traversalCriteria.getStoppingCondition();
         switch (stoppingCondition.getStoppingConditionTypeCase()) {
             case NUMBER_HOPS:

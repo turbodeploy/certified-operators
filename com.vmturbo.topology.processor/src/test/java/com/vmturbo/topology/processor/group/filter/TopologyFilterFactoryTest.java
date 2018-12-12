@@ -33,8 +33,8 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
@@ -520,7 +520,7 @@ public class TopologyFilterFactoryTest {
     @Test
     public void testTraversalToDepthFilter() {
         final SearchFilter searchCriteria = SearchFilter.newBuilder()
-            .setTraversalFilter(Search.TraversalFilter.newBuilder()
+            .setTraversalFilter(SearchFilter.TraversalFilter.newBuilder()
                 .setTraversalDirection(TraversalDirection.CONSUMES)
                 .setStoppingCondition(StoppingCondition.newBuilder().setNumberHops(3)))
             .build();
@@ -539,7 +539,7 @@ public class TopologyFilterFactoryTest {
             .build();
 
         final SearchFilter searchCriteria = SearchFilter.newBuilder()
-            .setTraversalFilter(Search.TraversalFilter.newBuilder()
+            .setTraversalFilter(SearchFilter.TraversalFilter.newBuilder()
                 .setTraversalDirection(TraversalDirection.PRODUCES)
                 .setStoppingCondition(StoppingCondition.newBuilder()
                     .setStoppingPropertyFilter(stoppingFilter)))

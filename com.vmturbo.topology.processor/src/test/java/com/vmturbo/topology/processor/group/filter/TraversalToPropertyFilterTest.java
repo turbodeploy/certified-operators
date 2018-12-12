@@ -22,7 +22,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
 import com.vmturbo.stitching.TopologyEntity;

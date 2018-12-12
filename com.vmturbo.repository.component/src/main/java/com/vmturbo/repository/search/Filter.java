@@ -19,7 +19,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 

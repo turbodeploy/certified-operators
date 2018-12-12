@@ -17,9 +17,8 @@ import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition.VerticesCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;

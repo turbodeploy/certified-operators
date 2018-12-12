@@ -13,7 +13,7 @@ import javaslang.control.Either;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -71,7 +71,7 @@ public class SearchDTOConverter {
     }
 
     private static Either<Throwable, Filter<TraversalFilterType>> convertTraversalFilter(
-            final Search.TraversalFilter traversalFilter) {
+            final Search.SearchFilter.TraversalFilter traversalFilter) {
         final Filter.TraversalDirection direction;
 
         if (!traversalFilter.hasTraversalDirection()) {
