@@ -113,7 +113,7 @@ public class SearchIntegration {
                 .addSearchFilter(Search.SearchFilter.newBuilder().setPropertyFilter(
                         displayNameFilter("5")).build())
                 .addSearchFilter(Search.SearchFilter.newBuilder().setTraversalFilter(
-                        traversalCondFilter(Search.SearchFilter.TraversalFilter.TraversalDirection.CONSUMES,
+                        traversalCondFilter(Search.TraversalFilter.TraversalDirection.CONSUMES,
                                             entityTypeFilter("Storage"))).build())
                 .build();
 
@@ -242,11 +242,11 @@ public class SearchIntegration {
                 .build();
     }
 
-    private Search.SearchFilter.TraversalFilter traversalCondFilter(final Search.SearchFilter.TraversalFilter.TraversalDirection direction,
+    private Search.TraversalFilter traversalCondFilter(final Search.TraversalFilter.TraversalDirection direction,
                                                                     final Search.PropertyFilter condition) {
-        return Search.SearchFilter.TraversalFilter.newBuilder()
+        return Search.TraversalFilter.newBuilder()
                 .setTraversalDirection(direction)
-                .setStoppingCondition(Search.SearchFilter.TraversalFilter.StoppingCondition.newBuilder()
+                .setStoppingCondition(Search.TraversalFilter.StoppingCondition.newBuilder()
                         .setStoppingPropertyFilter(condition)
                         .build())
                 .build();
