@@ -14,6 +14,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -398,6 +399,12 @@ public class TemplatesService implements ITemplatesService {
     @Override
     public List<EntityPriceDTO> getTemplatePrices(@Nonnull String entityUuid, @Nonnull String uuidTemplate, @Nonnull String dcUuid)
             throws UnknownObjectException {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Nonnull
+    @Override
+    public List<ServiceEntityApiDTO> getTemplateEntities(@Nonnull String templateUuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 }
