@@ -141,10 +141,10 @@ public class OperationManagerTest {
     private long probeId;
     private long targetId;
 
-    private final long activateVMId = 100l;
-    private final long deactivateVMId = 200l;
-    private final long moveSourceId = 20l;
-    private final long moveDestinationId = 30l;
+    private final long ACTIVATE_VM_ID = 100l;
+    private final long DEACTIVATE_VM_ID = 200l;
+    private final long MOVE_SOURCE_ID = 20l;
+    private final long MOVE_DESTINATION_ID = 30l;
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
@@ -691,7 +691,7 @@ public class OperationManagerTest {
                 null,
                 ActionType.MOVE,
                 actionItemDtos,
-                new HashSet<>(Arrays.asList(moveSourceId, moveDestinationId)),
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
                 Optional.empty());
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(eq(probeId),
             any(ActionRequest.class), any(OperationMessageHandler.class));
@@ -700,32 +700,32 @@ public class OperationManagerTest {
                         .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                         .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertTrue(moveEntityIds.size() == 2);
-        Assert.assertTrue(moveEntityIds.contains(moveSourceId) && moveEntityIds.contains(moveDestinationId));
+        Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
         final Action activateAction = operationManager.requestActions(0,
                targetId,
                null,
                ActionType.START,
                actionItemDtos,
-               Collections.singleton(activateVMId),
+               Collections.singleton(ACTIVATE_VM_ID),
                Optional.empty());
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertTrue(activateEntityIds.size() == 1);
-        Assert.assertTrue(activateEntityIds.contains(activateVMId));
+        Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
         final Action deactivateAction = operationManager.requestActions(0,
                targetId,
                null,
                ActionType.SUSPEND,
                actionItemDtos,
-               Collections.singleton(deactivateVMId),
+               Collections.singleton(DEACTIVATE_VM_ID),
                Optional.empty());
                Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
-               .where(ENTITY_ACTION.ENTITY_ID.eq(deactivateVMId))
+               .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
                .fetch();
        Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
@@ -739,7 +739,7 @@ public class OperationManagerTest {
                 null,
                 ActionType.MOVE,
                 actionItemDtos,
-                new HashSet<>(Arrays.asList(moveSourceId, moveDestinationId)),
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
                 Optional.empty());
 
         final ActionResult result = ActionResult.newBuilder()
@@ -756,32 +756,32 @@ public class OperationManagerTest {
                 .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                 .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertTrue(moveEntityIds.size() == 2);
-        Assert.assertTrue(moveEntityIds.contains(moveSourceId) && moveEntityIds.contains(moveDestinationId));
+        Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
         final Action activateAction = operationManager.requestActions(0,
                 targetId,
                 null,
                 ActionType.START,
                 actionItemDtos,
-                Collections.singleton(activateVMId),
+                Collections.singleton(ACTIVATE_VM_ID),
                 Optional.empty());
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                 .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                 .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertTrue(activateEntityIds.size() == 1);
-        Assert.assertTrue(activateEntityIds.contains(activateVMId));
+        Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
         final Action deactivateAction = operationManager.requestActions(0,
                 targetId,
                 null,
                 ActionType.SUSPEND,
                 actionItemDtos,
-                Collections.singleton(deactivateVMId),
+                Collections.singleton(DEACTIVATE_VM_ID),
                 Optional.empty());
        Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                       .where(ENTITY_ACTION.ENTITY_ID.eq(deactivateVMId))
+                       .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
                        .fetch();
        Assert.assertTrue(deactivateEntityIds.isEmpty());
     }

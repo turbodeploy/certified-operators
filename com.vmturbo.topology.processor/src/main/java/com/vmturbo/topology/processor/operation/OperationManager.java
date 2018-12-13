@@ -151,7 +151,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final DerivedTargetParser derivedTargetParser;
 
-    private static final ImmutableSet<ActionItemDTO.ActionType> controllableOrSuspendableActionTypes
+    private static final ImmutableSet<ActionItemDTO.ActionType> CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES
             = ImmutableSet.of(ActionItemDTO.ActionType.MOVE, ActionItemDTO.ActionType.CHANGE,
             ActionItemDTO.ActionType.CROSS_TARGET_MOVE, ActionItemDTO.ActionType.MOVE_TOGETHER,
             ActionItemDTO.ActionType.START);
@@ -892,10 +892,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                          @Nonnull final ActionItemDTO.ActionType actionType,
                                          @Nonnull final Set<Long> entities) {
         try {
-            if (!shouldInsertActionToEntityActionTable(actionType)) {
-                return;
+            if (shouldInsertActionToEntityActionTable(actionType)) {
+                entityActionDao.insertAction(actionId, actionType, entities);
             }
-            entityActionDao.insertAction(actionId, actionType, entities);
         } catch (DataAccessException | IllegalArgumentException e) {
             logger.error("Failed to create queued activate action records for action: {}",
                     actionId);
@@ -906,7 +905,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * Check if the sdk action type is START, MOVE, CHANGE, CROSS_TARGET_MOVE or MOVE_TOGETHER.
      */
     private boolean shouldInsertActionToEntityActionTable(ActionType actionType) {
-        return controllableOrSuspendableActionTypes.contains(actionType);
+        return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(actionType);
     }
 
     /**
