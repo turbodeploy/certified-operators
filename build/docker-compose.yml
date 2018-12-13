@@ -550,7 +550,7 @@ services:
   mediation-vcenter:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.vcenter.component
     depends_on: *clustermgrdep
     ports:
@@ -567,7 +567,7 @@ services:
   mediation-vcenter-browsing:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.vcenter.browsing.component
     depends_on: *clustermgrdep
     ports:
@@ -584,7 +584,7 @@ services:
   mediation-stressprobe:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.stressprobe.component
     ports:
       - "${MEDIATION_STRESSPROBE_PORT}"
@@ -606,7 +606,7 @@ services:
   mediation-storagestressprobe:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.storagestressprobe.component
     ports:
       - "${MEDIATION_STORAGESTRESSPROBE_PORT}"
@@ -628,7 +628,7 @@ services:
   mediation-delegatingprobe:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.delegatingprobe.component
     ports:
       - "${MEDIATION_DELEGATINGPROBE_PORT}"
@@ -646,7 +646,7 @@ services:
   mediation-hyperv:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.hyperv.component
     depends_on: *clustermgrdep
     ports:
@@ -663,7 +663,7 @@ services:
   mediation-netapp:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.netapp.component
     depends_on: *clustermgrdep
     ports:
@@ -680,7 +680,7 @@ services:
   mediation-ucs:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.ucs.component
     depends_on: *clustermgrdep
     ports:
@@ -712,7 +712,7 @@ services:
   mediation-vmax:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.vmax.component
     depends_on: *clustermgrdep
     ports:
@@ -729,7 +729,7 @@ services:
   mediation-vmm:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.vmm.component
     depends_on: *clustermgrdep
     ports:
@@ -746,7 +746,7 @@ services:
   mediation-hpe3par:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.hpe3par.component
     depends_on: *clustermgrdep
     ports:
@@ -763,7 +763,7 @@ services:
   mediation-pure:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.pure.component
     depends_on: *clustermgrdep
     ports:
@@ -780,7 +780,7 @@ services:
   mediation-scaleio:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.scaleio.component
     depends_on: *clustermgrdep
     ports:
@@ -797,7 +797,7 @@ services:
   mediation-hds:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.hds.component
     depends_on: *clustermgrdep
     ports:
@@ -814,7 +814,7 @@ services:
   mediation-compellent:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.compellent.component
     depends_on: *clustermgrdep
     ports:
@@ -831,7 +831,7 @@ services:
   mediation-xtremio:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.xtremio.component
     depends_on: *clustermgrdep
     ports:
@@ -848,7 +848,7 @@ services:
   mediation-vplex:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.vplex.component
     depends_on: *clustermgrdep
     ports:
@@ -865,7 +865,7 @@ services:
   mediation-rhv:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.rhv.component
     depends_on: *clustermgrdep
     ports:
@@ -882,7 +882,7 @@ services:
   mediation-openstack:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.openstack.component
     depends_on: *clustermgrdep
     ports:
@@ -899,7 +899,7 @@ services:
   mediation-ucsdirector:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.ucsdirector.component
     depends_on: *clustermgrdep
     ports:
@@ -916,7 +916,7 @@ services:
   mediation-aws:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.aws.component
     depends_on: *clustermgrdep
     ports:
@@ -936,7 +936,7 @@ services:
   mediation-awsbilling:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.aws.billing.component
     depends_on: *clustermgrdep
     ports:
@@ -956,7 +956,7 @@ services:
   mediation-awscost:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.aws.cost.component
     depends_on: *clustermgrdep
     ports:
@@ -976,7 +976,7 @@ services:
   mediation-azure:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.azure.component
     depends_on: *clustermgrdep
     ports:
@@ -996,7 +996,7 @@ services:
   mediation-oneview:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.oneview.component
     depends_on: *clustermgrdep
     ports:
@@ -1013,7 +1013,7 @@ services:
   mediation-vcd:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.vcd.component
     depends_on: *clustermgrdep
     ports:
@@ -1030,7 +1030,7 @@ services:
   mediation-mssql:
     extends:
       file: common-services.yml
-      service: dev-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.database.mssql.component
     depends_on: *clustermgrdep
     ports:
