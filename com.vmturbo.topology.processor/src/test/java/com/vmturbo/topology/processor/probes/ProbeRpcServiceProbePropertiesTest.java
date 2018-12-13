@@ -8,6 +8,8 @@ import java.util.Map.Entry;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import io.grpc.Status;
 import io.grpc.StatusException;
@@ -25,6 +27,7 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.ProbePropertyInfo;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.ProbePropertyNameValuePair;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateOneProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertiesTestBase;
 
 /**
@@ -32,7 +35,8 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertiesTestBase;
  */
 public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase {
     // construct service
-    private final ProbeRpcService service = new ProbeRpcService(probeStore, targetStore, keyValueStore);
+    private final ProbeRpcService service =
+        new ProbeRpcService(probeStore, targetStore, keyValueStore, mediationServer);
 
     /**
      * Set up mock probes and targets.
@@ -109,9 +113,11 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
     /**
      * Updating a target-specific probe property table should insert the appropriate properties in the
      * table of the specified target, replacing all previously existing properties.
+     *
+     * @throws Exception should not happen.
      */
     @Test
-    public void testPutTargetSpecificProperties() {
+    public void testPutTargetSpecificProperties() throws Exception {
         // update probe properties under target11 with propertyMap1
         service.updateProbePropertyTable(
             UpdateProbePropertyTableRequest.newBuilder()
@@ -120,12 +126,15 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .setProbeId(PROBE_ID_1)
                         .setTargetId(TARGET_ID_11)
                         .build())
-                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(probePropertyMap1))
+                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(PROBE_PROPERTY_MAP_1))
                 .build(),
             new StreamObserverForSuccess<>());
 
+        // inspect the mediation message passed to the mediation server
+        checkMapInMediationMessageSent(PROBE_PROPERTY_MAP_1);
+
         // use get methods to observe that the probe properties are correctly updated
-        checkMapInTarget11(probePropertyMap1, "C");
+        checkMapInTarget11(PROBE_PROPERTY_MAP_1, "C");
 
         // update probe properties under target11 with propertyMap2
         service.updateProbePropertyTable(
@@ -135,12 +144,15 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .setProbeId(PROBE_ID_1)
                         .setTargetId(TARGET_ID_11)
                         .build())
-                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(probePropertyMap2))
+                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(PROBE_PROPERTY_MAP_2))
                 .build(),
             new StreamObserverForSuccess<>());
 
+        // inspect the mediation message passed to the mediation server
+        checkMapInMediationMessageSent(PROBE_PROPERTY_MAP_2);
+
         // use get methods to observe that the probe properties are correctly updated
-        checkMapInTarget11(probePropertyMap2, "B");
+        checkMapInTarget11(PROBE_PROPERTY_MAP_2, "B");
     }
 
     /**
@@ -155,7 +167,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .setProbeId(PROBE_ID_1)
                         .setTargetId(NON_EXISTENT_TARGET_ID)
                         .build())
-                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(probePropertyMap1))
+                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(PROBE_PROPERTY_MAP_1))
                 .build(),
             new StreamObserverForFailure<>(Status.NOT_FOUND));
     }
@@ -173,7 +185,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .setProbeId(PROBE_ID_1)
                         .setTargetId(TARGET_ID_2)
                         .build())
-                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(probePropertyMap1))
+                .addAllNewProbeProperties(convertPropertyMapToProtobufMessage(PROBE_PROPERTY_MAP_1))
                 .build(),
             new StreamObserverForFailure<>(Status.INVALID_ARGUMENT));
     }
@@ -182,9 +194,11 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
      * This checks the methods that modify a specific probe property
      * {@link ProbeRpcService#updateOneProbeProperty(UpdateOneProbePropertyRequest, StreamObserver)} and
      * {@link ProbeRpcService#deleteProbeProperty(DeleteProbePropertyRequest, StreamObserver)}.
+     *
+     * @throws Exception should not happen.
      */
     @Test
-    public void testSpecificProbePropertyMethods() {
+    public void testSpecificProbePropertyMethods() throws Exception {
         final ProbeOrTarget
             table = ProbeOrTarget.newBuilder().setProbeId(PROBE_ID_1).setTargetId(TARGET_ID_11).build();
 
@@ -202,6 +216,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .build())
                 .build(),
             new StreamObserverForSuccess<>());
+        Mockito.reset(mediationServer);
         service.updateOneProbeProperty(
             UpdateOneProbePropertyRequest.newBuilder()
                 .setNewProbeProperty(
@@ -215,7 +230,8 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .build())
                 .build(),
             new StreamObserverForSuccess<>());
-        checkMapInTarget11(probePropertyMap1, "C");
+        checkMapInMediationMessageSent(PROBE_PROPERTY_MAP_1);
+        checkMapInTarget11(PROBE_PROPERTY_MAP_1, "C");
 
         // modify to create property map 2 and check again
         service.deleteProbeProperty(
@@ -234,6 +250,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                             .build())
                 .build(),
             new StreamObserverForSuccess<>());
+        Mockito.reset(mediationServer);
         service.updateOneProbeProperty(
             UpdateOneProbePropertyRequest.newBuilder()
                 .setNewProbeProperty(
@@ -247,7 +264,8 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .build())
                 .build(),
             new StreamObserverForSuccess<>());
-        checkMapInTarget11(probePropertyMap2, "B");
+        checkMapInMediationMessageSent(PROBE_PROPERTY_MAP_2);
+        checkMapInTarget11(PROBE_PROPERTY_MAP_2, "B");
     }
 
     /**
@@ -274,6 +292,45 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                     .build());
         }
         return result;
+    }
+
+    /**
+     * A call to the mediation server has been made, while modifying the contents of target11.
+     * The present method checks the contents of that call, and in particular:
+     * <ul>
+     *     <li>The id of the probe was {@code PROBE_ID_1}</li>
+     *     <li>Each entry in the property map sent agrees with the corresponding entity of the expected
+     *         property map passed to the present method.</li>
+     * </ul>
+     * <p/>
+     * For the latter point note that the message given to the mediation message adheres to the naming
+     * protocol used in the mediation messages.  In particular, a target-specific key to the table included
+     * in the mediation message looks like this: target.targetName.propertyName.
+     *
+     * @param expectedMap the map of expected probe property values specific to target11.
+     * @throws Exception should not happen.
+     */
+    private void checkMapInMediationMessageSent(Map<String, String> expectedMap) throws Exception {
+        // argument capturing for the "set-properties" message
+        final ArgumentCaptor<SetProperties>
+            captureMessage = ArgumentCaptor.forClass(SetProperties.class);
+
+        // capture the set-properties message sent to the mediation server
+        Mockito
+            .verify(mediationServer)
+            .sendSetPropertiesRequest(Mockito.eq(PROBE_ID_1), captureMessage.capture());
+        final Map<String, String> messageMap = captureMessage.getValue().getPropertiesMap();
+
+        // compare the sent map to the expected map
+        Assert.assertEquals(expectedMap.size(), messageMap.size());
+        for (Entry<String, String> e : expectedMap.entrySet()) {
+            Assert.assertEquals(
+                e.getValue(),
+                messageMap.get("target." + TARGET_ADD_11 + "." + e.getKey()));
+        }
+
+        // reset the mock
+        Mockito.reset(mediationServer);
     }
 
     /**

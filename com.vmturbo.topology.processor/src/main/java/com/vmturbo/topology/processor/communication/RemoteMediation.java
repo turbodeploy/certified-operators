@@ -10,10 +10,10 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
-import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -39,8 +39,8 @@ public interface RemoteMediation {
      * @param probeId probe to perform request on
      * @param discoveryRequest discovery request data
      * @param responseHandler handler to accept discovery responses.
-     * @throws ProbeException it probe requested does not exist.
-     * @throws CommunicationException in some persistent communication error occurred
+     * @throws ProbeException if probe requested does not exist.
+     * @throws CommunicationException if some communication error occurred.
      * @throws InterruptedException if thread is interrupted while sending request.
      */
     void sendDiscoveryRequest(final long probeId, @Nonnull final DiscoveryRequest discoveryRequest,
@@ -54,8 +54,8 @@ public interface RemoteMediation {
      * @param probeId probe to perform request on
      * @param validationRequest validation request data
      * @param responseHandler handler to accept validation responses.
-     * @throws ProbeException it probe requested does not exist.
-     * @throws CommunicationException in some persistent communication error occurred
+     * @throws ProbeException if probe requested does not exist.
+     * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
     void sendValidationRequest(final long probeId,
@@ -70,13 +70,25 @@ public interface RemoteMediation {
      * @param probeId probe to perform request on
      * @param actionRequest action request data
      * @param actionMessageHandler handler to accept action responses.
-     * @throws ProbeException it probe requested does not exist.
-     * @throws CommunicationException in some persistent communication error occurred
+     * @throws ProbeException if probe requested does not exist.
+     * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
     void sendActionRequest(final long probeId,
                            @Nonnull final ActionRequest actionRequest,
                            @Nonnull final IOperationMessageHandler<Action> actionMessageHandler)
+            throws InterruptedException, ProbeException, CommunicationException;
+
+    /**
+     * Sends a "set-properties" request.  No response is expected to this request.
+     *
+     * @param probeId probe to perform the request on.
+     * @param setProperties the request.
+     * @throws InterruptedException thread interrupted.
+     * @throws ProbeException probe does not exist.
+     * @throws CommunicationException communication error.
+     */
+    void sendSetPropertiesRequest(long probeId, @Nonnull SetProperties setProperties)
             throws InterruptedException, ProbeException, CommunicationException;
 
     /**

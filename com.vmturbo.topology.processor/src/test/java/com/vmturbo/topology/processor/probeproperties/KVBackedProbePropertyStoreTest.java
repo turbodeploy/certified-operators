@@ -79,11 +79,11 @@ public class KVBackedProbePropertyStoreTest extends ProbePropertiesTestBase {
      */
     @Test
     public void testPutProbeSpecificProperties() throws Exception {
-        probePropertyStore.putAllProbeSpecificProperties(PROBE_ID_1, probePropertyMap1);
-        checkMapInProbe1(probePropertyMap1, "C");
+        probePropertyStore.putAllProbeSpecificProperties(PROBE_ID_1, PROBE_PROPERTY_MAP_1);
+        checkMapInProbe1(PROBE_PROPERTY_MAP_1, "C");
 
-        probePropertyStore.putAllProbeSpecificProperties(PROBE_ID_1, probePropertyMap2);
-        checkMapInProbe1(probePropertyMap2, "B");
+        probePropertyStore.putAllProbeSpecificProperties(PROBE_ID_1, PROBE_PROPERTY_MAP_2);
+        checkMapInProbe1(PROBE_PROPERTY_MAP_2, "B");
     }
 
     /**
@@ -93,7 +93,7 @@ public class KVBackedProbePropertyStoreTest extends ProbePropertiesTestBase {
      */
     @Test(expected = ProbeException.class)
     public void testPutInNonExistentProbe() throws Exception {
-        probePropertyStore.putAllProbeSpecificProperties(NON_EXISTENT_PROBE_ID, probePropertyMap1);
+        probePropertyStore.putAllProbeSpecificProperties(NON_EXISTENT_PROBE_ID, PROBE_PROPERTY_MAP_1);
     }
 
     /**
@@ -108,13 +108,13 @@ public class KVBackedProbePropertyStoreTest extends ProbePropertiesTestBase {
         // create and check property map 1
         probePropertyStore.putProbeProperty(new ProbePropertyKey(PROBE_ID_1, "A"), "Avalue");
         probePropertyStore.putProbeProperty(new ProbePropertyKey(PROBE_ID_1, "B"), "Bvalue");
-        checkMapInProbe1(probePropertyMap1, "C");
+        checkMapInProbe1(PROBE_PROPERTY_MAP_1, "C");
 
         // modify to create property map 2 and check again
         probePropertyStore.deleteProbeProperty(new ProbePropertyKey(PROBE_ID_1, "B"));
         probePropertyStore.putProbeProperty(new ProbePropertyKey(PROBE_ID_1, "C"), "Cvalue");
         probePropertyStore.putProbeProperty(new ProbePropertyKey(PROBE_ID_1, "A"), "Avalue1");
-        checkMapInProbe1(probePropertyMap2, "B");
+        checkMapInProbe1(PROBE_PROPERTY_MAP_2, "B");
     }
 
     /**

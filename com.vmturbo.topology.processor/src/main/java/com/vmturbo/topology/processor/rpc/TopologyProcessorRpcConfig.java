@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.topology.StitchingREST.StitchingJournalServic
 import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -34,7 +35,8 @@ import com.vmturbo.topology.processor.topology.TopologyRpcService;
     SchedulerConfig.class,
     ProbeConfig.class,
     TargetConfig.class,
-    StitchingConfig.class
+    StitchingConfig.class,
+    SdkServerConfig.class
 })
 public class TopologyProcessorRpcConfig {
 
@@ -67,6 +69,9 @@ public class TopologyProcessorRpcConfig {
 
     @Autowired
     private KeyValueStoreConfig keyValueStoreConfig;
+
+    @Autowired
+    private SdkServerConfig sdkServerConfig;
 
     @Bean
     public DiscoveredGroupRpcService discoveredGroupRpcService() {
@@ -118,7 +123,8 @@ public class TopologyProcessorRpcConfig {
         return new ProbeRpcService(
             probeConfig.probeStore(),
             targetConfig.targetStore(),
-            keyValueStoreConfig.keyValueStore());
+            keyValueStoreConfig.keyValueStore(),
+            sdkServerConfig.remoteMediation());
     }
 
     @Bean

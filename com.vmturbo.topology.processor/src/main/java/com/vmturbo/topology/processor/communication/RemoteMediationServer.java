@@ -13,6 +13,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -38,7 +40,9 @@ import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.probes.ProbeRpcService;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Remote mediation (SDK) server. This class provides routines to interact with remote probes.
@@ -107,14 +111,20 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         registerTransportHandlers(serverEndpoint);
     }
 
+    /**
+     * This method is implemented only for backward-compatibility with OpsManager.
+     * Initialization of probe properties on a newly-registered mediation client is not done
+     * using an initialization message anymore.  Instead, it is done by listener coded which
+     * is found in {@link ProbeRpcService#ProbeRpcService}.
+     *
+     * @return empty {@link InitializationContent} message.
+     */
     @Override
     public InitializationContent getInitializationContent() {
-        /**
-         * Send the property that disables the VC probe listener which is unsupported by XL.
-         */
-        return InitializationContent.newBuilder()
-            .setProbeProperties(SetProperties.newBuilder().putProperties("probe.vCenter.listener.enabled", "false"))
-            .build();
+        return
+            InitializationContent.newBuilder()
+                .setProbeProperties(SetProperties.getDefaultInstance())
+                .build();
     }
 
     private void registerTransportHandlers(
@@ -204,7 +214,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
     private void sendMessageToProbe(long probeId,
                                     MediationServerMessage message,
-                                    IOperationMessageHandler<?> responseHandler)
+                                    @Nullable IOperationMessageHandler<?> responseHandler)
             throws CommunicationException, InterruptedException, ProbeException {
         boolean success = false;
         try {
@@ -214,8 +224,11 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
             // Register the handler before sending the message so there is no gap where there is
             // no registered handler for an outgoing message. Of course this means cleanup is
             // necessary!
-            final MessageAnticipator holder = new MessageAnticipator(transport, responseHandler);
-            messageHandlers.put(message.getMessageID(), holder);
+            if (responseHandler != null) {
+                messageHandlers.put(
+                    message.getMessageID(),
+                    new MessageAnticipator(transport, responseHandler));
+            }
             transport.send(message);
             success = true;
         } finally {
@@ -261,6 +274,18 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setActionRequest(actionRequest).build();
 
         sendMessageToProbe(probeId, message, actionMessageHandler);
+    }
+
+    @Override
+    public void sendSetPropertiesRequest(long probeId, @Nonnull SetProperties setProperties)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final MediationServerMessage message =
+            MediationServerMessage.newBuilder()
+                .setMessageID(nextMessageId())
+                .setProperties(setProperties)
+                .build();
+
+        sendMessageToProbe(probeId, message, null);
     }
 
     /**

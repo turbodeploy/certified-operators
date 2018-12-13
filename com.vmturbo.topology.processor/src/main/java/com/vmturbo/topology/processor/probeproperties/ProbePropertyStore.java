@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.probeproperties;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -8,6 +10,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetStoreException;
 
@@ -21,6 +24,7 @@ public interface ProbePropertyStore {
      *
      * @return a map of all the probe properties in the system to their current values.
      */
+    @Nonnull
     Stream<Entry<ProbePropertyKey, String>> getAllProbeProperties();
 
     /**
@@ -31,6 +35,7 @@ public interface ProbePropertyStore {
      * @return map from names to values of the probe properties specific to the probe.
      * @throws ProbeException probe does not exist.
      */
+    @Nonnull
     Stream<Entry<String, String>> getProbeSpecificProbeProperties(long probeId) throws ProbeException;
 
     /**
@@ -43,6 +48,7 @@ public interface ProbePropertyStore {
      * @throws ProbeException probe does not exist.
      * @throws TargetStoreException target does not exist or is not related to the given probe.
      */
+    @Nonnull
     Stream<Entry<String, String>> getTargetSpecificProbeProperties(long probeId, long targetId)
         throws ProbeException, TargetStoreException;
 
@@ -55,7 +61,8 @@ public interface ProbePropertyStore {
      * @throws TargetStoreException target specified in the key does not exist or
      *                              is not related to the given probe.
      */
-    Optional<String> getProbeProperty(ProbePropertyKey key)
+    @Nonnull
+    Optional<String> getProbeProperty(@Nonnull ProbePropertyKey key)
         throws ProbeException, TargetStoreException;
 
     /**
@@ -66,7 +73,7 @@ public interface ProbePropertyStore {
      * @param newProbeProperties names and values of the new probe properties.
      * @throws ProbeException probe does not exist.
      */
-    void putAllProbeSpecificProperties(long probeId, Map<String, String> newProbeProperties)
+    void putAllProbeSpecificProperties(long probeId, @Nonnull Map<String, String> newProbeProperties)
         throws ProbeException;
 
     /**
@@ -79,7 +86,10 @@ public interface ProbePropertyStore {
      * @throws ProbeException probe does not exist.
      * @throws TargetStoreException target does not exist or is not related to the given probe.
      */
-    void putAllTargetSpecificProperties(long probeId, long targetId, Map<String, String> newProbeProperties)
+    void putAllTargetSpecificProperties(
+            long probeId,
+            long targetId,
+            @Nonnull Map<String, String> newProbeProperties)
         throws ProbeException, TargetStoreException;
 
     /**
@@ -91,7 +101,8 @@ public interface ProbePropertyStore {
      * @throws TargetStoreException target specified in the key does not exist or
      *                              is not related to the given probe.
      */
-    void putProbeProperty(ProbePropertyKey key, String value) throws ProbeException, TargetStoreException;
+    void putProbeProperty(@Nonnull ProbePropertyKey key, @Nonnull String value)
+        throws ProbeException, TargetStoreException;
 
     /**
      * Delete a single probe property.
@@ -101,8 +112,45 @@ public interface ProbePropertyStore {
      * @throws TargetStoreException target specified in the key does not exist or
      *                              is not related to the given probe.
      */
-    void deleteProbeProperty(ProbePropertyKey key) throws ProbeException, TargetStoreException;
-        // TODO: probably throw an exception when property does not exist
+    void deleteProbeProperty(@Nonnull ProbePropertyKey key) throws ProbeException, TargetStoreException;
+
+    /**
+     * Builds a {@link SetProperties} message that contains all probe properties that relate to
+     * a set of probes.  These include the probe-specific probe properties, as well as the target-specific
+     * properties for all targets discovered by any of the probes.  This message is the one sent to a
+     * mediation client responsible for that set of probes:
+     * <ul>
+     *     <li>when the client is registered</li>
+     *     <li>when there is a probe property modification that affects the specific probe</li>
+     * </ul>
+     * <p/>
+     * Note that currently each mediation client corresponds to exactly one probe.  This means that
+     * the set of probes passed to the method is necessarily a singleton.  However, the practice of
+     * one probe per mediation client is likely to change in the future, which is why the method takes
+     * a set of probes as a parameter.
+     *
+     * @param probeIds the ids of all the probes. When empty, the method returns an empty message.
+     * @return a {@link SetProperties} message ready to be sent to the mediation client.
+     * @throws ProbeException one of the probes does not exist.
+     * @throws TargetStoreException unexpected data found in the target store.
+     */
+    @Nonnull
+    SetProperties buildSetPropertiesMessageForProbe(@Nonnull Collection<Long> probeIds)
+        throws ProbeException, TargetStoreException;
+
+    /**
+     * Special case of {@link this#deleteProbeProperty(ProbePropertyKey)} for a single probe id.
+     *
+     * @param probeId the id of the probe.
+     * @return a {@link SetProperties} message ready to be sent to the mediation client.
+     * @throws ProbeException the probe does not exist.
+     * @throws TargetStoreException unexpected data found in the target store.
+     */
+    @Nonnull
+    default SetProperties buildSetPropertiesMessageForProbe(long probeId)
+            throws ProbeException, TargetStoreException {
+        return buildSetPropertiesMessageForProbe(Collections.singleton(probeId));
+    }
 
     /**
      * Identifies a specific probe property.

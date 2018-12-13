@@ -23,6 +23,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
@@ -96,6 +97,11 @@ public class FakeRemoteMediation implements RemoteMediation {
                                   @Nonnull IOperationMessageHandler<Action> actionMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException {
         this.actionMessageHandler = (ActionMessageHandler)actionMessageHandler;
+    }
+
+    @Override
+    public void sendSetPropertiesRequest(long probeId, @Nonnull SetProperties setProperties)
+            throws InterruptedException, ProbeException, CommunicationException {
     }
 
     @Override

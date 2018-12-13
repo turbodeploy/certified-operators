@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.probeproperties;
 
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -10,9 +11,17 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -21,16 +30,14 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
 /**
  * A probe property store using the {@link KeyValueStore} class to persist data.<p/>
  * The class uses {@link ProbeStore} and {@link TargetStore} objects to validate ids that are passed to it.
- * Even though the implementation of these interfaces is irrelevant to {@link KVBackedProbePropertyStore},
- * the convention is adopted that information related to probes lies under the namespace
+ * The convention is adopted that information related to probes lies under the namespace
  * {@link ProbeStore#PROBE_KV_STORE_PREFIX} and that information related to targets lies under the namespace
- * {@link TargetStore#TARGET_KV_STORE_PREFIX}.  These conventions come from specific implementations of
- * the {@link ProbeStore} and {@link TargetStore} interfaces.<p/>
+ * {@link TargetStore#TARGET_KV_STORE_PREFIX}.<p/>
  * Given this convention, {@link KVBackedProbePropertyStore} stores either probe-specific or target-specific
  * probe properties under a sub-namespace {@link KVBackedProbePropertyStore#PROBE_PROPERTY_PREFIX}.  For
  * example, suppose that we have a probe property with name {@code name} specific to probe with id
  * {@code id}.  The value of the property will be stored in the key/value store under key
- * {@code RemoteProbeStore.PROBE_KV_STORE_PREFIX + "/" + id + KVBackedProbePropertyStore.PROBE_PROPERTY_PREFIX + "/" + name}.
+ * {@code ProbeStore.PROBE_KV_STORE_PREFIX + "/" + id + TargetStore.PROBE_PROPERTY_PREFIX + "/" + name}.
  * <p/>
  * Probe property names are assumed to not have illegal characters.  In particular, they only contain
  * alphanumeric characters, dots, and underscores.
@@ -41,6 +48,21 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
     private final KeyValueStore kvStore;
 
     private static final String PROBE_PROPERTY_PREFIX = "probeproperties/";
+    private static final String PROBE_SPECIFIC_PREFIX = "probe.";
+    private static final String TARGET_SPECIFIC_PREFIX = "target.";
+
+    private final Logger logger = LogManager.getLogger();
+
+    /**
+     * This maps probe names to maps of probe properties that are hard-coded, i.e., they are
+     * always set.  It is currently used to disable the listener feature in the vCenter probe
+     * (the feature is not supported in XL).
+     *
+     * The maps are formatted so that they are ready to be added to a "set-properties"
+     * mediation message, i.e., their keys conform to the format "probe.probeName.propertyName".
+     */
+    private static final Map<String, Map<String, String>> HARD_CODED_PROBE_PROPERTIES =
+        ImmutableMap.of("vCenter", ImmutableMap.of("probe.vCenter.listener.enabled", "false"));
 
     /**
      * Create a probe property store.  Access to a probe store and a target store is given, so that
@@ -140,6 +162,59 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
     }
 
     @Override
+    @Nonnull
+    public synchronized SetProperties buildSetPropertiesMessageForProbe(@Nonnull Collection<Long> probeIds)
+            throws ProbeException, TargetStoreException {
+        final SetProperties.Builder resultBuilder = SetProperties.newBuilder();
+
+        // put probe-specific probe properties into the map
+        for (long probeId : probeIds) {
+            // find probe
+            final String probeName =
+                probeStore.getProbe(probeId)
+                    .map(MediationMessage.ProbeInfo::getProbeType)
+                    .orElseThrow(() -> new ProbeException("Unknown probe id " + probeId));
+
+            // first add any hard-coded probe properties for the probe
+            final Map<String, String>
+                hardCodedPropertiesForProbe = HARD_CODED_PROBE_PROPERTIES.get(probeName);
+            if (hardCodedPropertiesForProbe != null) {
+                resultBuilder.putAllProperties(hardCodedPropertiesForProbe);
+            }
+
+            // add probe properties - note that they get priority over hard-coded ones
+            getProbeSpecificProbeProperties(probeId)
+                .forEach(keyValuePair ->
+                    resultBuilder.putProperties(
+                        transformToMediationPropertyKey(true, probeName, keyValuePair.getKey()),
+                        keyValuePair.getValue()));
+        }
+
+        // get all the relevant targets
+        final Collection<Target> targets =
+            Objects.requireNonNull(probeIds).stream()
+                .flatMap(id -> targetStore.getProbeTargets(id).stream())
+                .collect(Collectors.toList());
+
+        // put target-specific probe properties into the map
+        for (Target target : targets) {
+            final long targetId = target.getId();
+            final String targetName = targetStore.getTargetAddress(targetId).orElse(null);
+            if (targetName == null) {
+                logger.warn("Target with id " + targetId + " has no address");
+                continue;
+            }
+            getTargetSpecificProbeProperties(target.getProbeId(), target.getId())
+                .forEach(keyValuePair ->
+                    resultBuilder.putProperties(
+                        transformToMediationPropertyKey(false, targetName, keyValuePair.getKey()),
+                        keyValuePair.getValue()));
+        }
+
+        return resultBuilder.build();
+    }
+
+    @Override
     public synchronized void putAllTargetSpecificProperties(
             long probeId,
             long targetId,
@@ -174,6 +249,36 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             throw new ProbeException("Probe property " + key.toString() + " does not exist");
         }
         kvStore.remove(kvStoreKey);
+    }
+
+    /**
+     * Transform a probe property key to a key that conforms to the conventions of
+     * communication between the topology processor and the mediation clients.  The mediation probe
+     * property key is constructed as follows.  The first part is:
+     * <ul>
+     *     <li>{@code "probe."} if this is a probe-specific probe property</li>
+     *     <li>{@code "target."} if this is a target-specific probe property</li>
+     * </ul>
+     * The second part is the name of the probe or the name of the target, followed by a dot.
+     * The third part is the name of the probe property.
+     *
+     * @param isProbeSpecific whether this a probe specific probe property.
+     * @param probeOrTargetName probe or target name.
+     * @param probePropertyName probe property name.
+     * @return mediation key.
+     */
+    @Nonnull
+    private String transformToMediationPropertyKey(
+            boolean isProbeSpecific,
+            @Nonnull String probeOrTargetName,
+            @Nonnull String probePropertyName) {
+        return
+            new StringBuilder()
+                .append(isProbeSpecific ? PROBE_SPECIFIC_PREFIX : TARGET_SPECIFIC_PREFIX)
+                .append(probeOrTargetName)
+                .append(".")
+                .append(probePropertyName)
+                .toString();
     }
 
     private void validateProbeId(long probeId) throws ProbeException {

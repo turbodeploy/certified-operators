@@ -9,6 +9,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -30,7 +33,9 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateOneProbePropertyResponse
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableResponse;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceImplBase;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore.ProbePropertyKey;
@@ -43,24 +48,47 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
  */
 public class ProbeRpcService extends ProbeRpcServiceImplBase {
     private final ProbePropertyStore probePropertyStore;
+    private final RemoteMediationServer mediationServer;
+    private final Logger logger = LogManager.getLogger();
 
     /**
-     * Construct the service.  Access to probes, targets, and a key/value store (for persistence) is
-     * required.
+     * Construct the service.  Access to probes, targets, mediation,
+     * and a key/value store (for persistence) is required.
      *
      * @param probeStore probe store.
      * @param targetStore target store.
      * @param keyValueStore persistence.
+     * @param mediationServer mediation service.
      */
     public ProbeRpcService(
             @Nonnull ProbeStore probeStore,
             @Nonnull TargetStore targetStore,
-            @Nonnull KeyValueStore keyValueStore) {
+            @Nonnull KeyValueStore keyValueStore,
+            @Nonnull RemoteMediationServer mediationServer) {
         probePropertyStore =
             new KVBackedProbePropertyStore(
                 Objects.requireNonNull(probeStore),
                 Objects.requireNonNull(targetStore),
                 Objects.requireNonNull(keyValueStore));
+            this.mediationServer = Objects.requireNonNull(mediationServer);
+
+            // execute code upon registration of new probe
+            // send relevant probe-property information to the new probe
+            probeStore.addListener(
+                (probeId, probeInfo) -> {
+                    try {
+                        sendProbePropertyMediationMessageForProbe(probeId);
+                    } catch (
+                            InterruptedException |
+                            CommunicationException |
+                            ProbeException |
+                            TargetStoreException e) {
+                        logger.error(
+                            "Could not send probe-property information to newly registered probe with id " +
+                                probeId + " with probe type " + probeInfo.getProbeType(),
+                            e);
+                    }
+                });
     }
 
     @Override
@@ -102,8 +130,6 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
     public void getTableOfProbeProperties(
             @Nonnull GetTableOfProbePropertiesRequest request,
             @Nonnull StreamObserver<GetTableOfProbePropertiesResponse> response) {
-        // TODO: implement OM-40407
-
         // read store
         final ProbeOrTarget table = request.getProbePropertyTable();
         final List<ProbePropertyNameValuePair>
@@ -152,8 +178,6 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
     public void getProbePropertyValue(
             @Nonnull GetProbePropertyValueRequest request,
             @Nonnull StreamObserver<GetProbePropertyValueResponse> response) {
-        // TODO: implement OM-40407
-
         // read store
         final ProbeOrTarget table = request.getProbePropertyTable();
         final ProbePropertyKey key;
@@ -180,8 +204,6 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
     public void updateProbePropertyTable(
             @Nonnull UpdateProbePropertyTableRequest request,
             @Nonnull StreamObserver<UpdateProbePropertyTableResponse> response) {
-        // TODO: implement OM-40407
-
         // read request
         final Map<String, String> newProperties = new HashMap<>();
         for (ProbePropertyNameValuePair nv : request.getNewProbePropertiesList()) {
@@ -189,19 +211,25 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
         }
         final ProbeOrTarget table = request.getProbePropertyTable();
 
-        // update store
+        // update store and send mediation message
+        final long probeId = table.getProbeId();
         final Integer result =
             commonProbePropertyErrorHandler(
                 response,
                 () -> {
+                    // update store
                     if (table.hasTargetId()) {
                         probePropertyStore.putAllTargetSpecificProperties(
-                            table.getProbeId(),
+                            probeId,
                             table.getTargetId(),
                             newProperties);
                     } else {
-                        probePropertyStore.putAllProbeSpecificProperties(table.getProbeId(), newProperties);
+                        probePropertyStore.putAllProbeSpecificProperties(probeId, newProperties);
                     }
+
+                    // send mediation message
+                    sendProbePropertyMediationMessageForProbe(probeId);
+
                     // dummy return value
                     return 0;
                 });
@@ -218,25 +246,29 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
     public void updateOneProbeProperty(
             @Nonnull UpdateOneProbePropertyRequest request,
             @Nonnull StreamObserver<UpdateOneProbePropertyResponse> response) {
-        // TODO: implement OM-40407
-
         // read request
         final ProbeOrTarget table = request.getNewProbeProperty().getProbePropertyTable();
         final ProbePropertyNameValuePair
             nameValue = request.getNewProbeProperty().getProbePropertyNameAndValue();
         final ProbePropertyKey key;
+        final long probeId = table.getProbeId();
         if (table.hasTargetId()) {
-            key = new ProbePropertyKey(table.getProbeId(), table.getTargetId(), nameValue.getName());
+            key = new ProbePropertyKey(probeId, table.getTargetId(), nameValue.getName());
         } else {
-            key = new ProbePropertyKey(table.getProbeId(), nameValue.getName());
+            key = new ProbePropertyKey(probeId, nameValue.getName());
         }
 
-        // update store
+        // update store and send mediation message
         final Integer result =
             commonProbePropertyErrorHandler(
                 response,
                 () -> {
+                    // update store
                     probePropertyStore.putProbeProperty(key, nameValue.getValue());
+
+                    // send mediation message
+                    sendProbePropertyMediationMessageForProbe(probeId);
+
                     // dummy return value
                     return 0;
                 });
@@ -253,23 +285,27 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
     public void deleteProbeProperty(
             @Nonnull DeleteProbePropertyRequest request,
             @Nonnull StreamObserver<DeleteProbePropertyResponse> response) {
-        // TODO: implement OM-40407
-
         // read request
         final ProbeOrTarget table = request.getProbePropertyTable();
+        final long probeId = table.getProbeId();
         final ProbePropertyKey key;
         if (table.hasTargetId()) {
-            key = new ProbePropertyKey(table.getProbeId(), table.getTargetId(), request.getName());
+            key = new ProbePropertyKey(probeId, table.getTargetId(), request.getName());
         } else {
-            key = new ProbePropertyKey(table.getProbeId(), request.getName());
+            key = new ProbePropertyKey(probeId, request.getName());
         }
 
-        // update store
+        // update store and send mediation message
         final Integer result =
             commonProbePropertyErrorHandler(
                 response,
                 () -> {
+                    // update store
                     probePropertyStore.deleteProbeProperty(key);
+
+                    // send mediation message
+                    sendProbePropertyMediationMessageForProbe(probeId);
+
                     // dummy return value
                     return 0;
                 });
@@ -280,6 +316,17 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
         // send void response
         response.onNext(DeleteProbePropertyResponse.newBuilder().build());
         response.onCompleted();
+    }
+
+    private void sendProbePropertyMediationMessageForProbe(long probeId)
+            throws
+                InterruptedException,
+                CommunicationException,
+                ProbeException,
+                TargetStoreException {
+        mediationServer.sendSetPropertiesRequest(
+            probeId,
+            probePropertyStore.buildSetPropertiesMessageForProbe(probeId));
     }
 
     private <T> T commonProbePropertyErrorHandler(
@@ -293,11 +340,14 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
         } catch (TargetStoreException e) {
             responseStream.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
             return null;
+        } catch (InterruptedException | CommunicationException e) {
+            responseStream.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            return null;
         }
     }
 
     @FunctionalInterface
     private interface ProbePropertyStoreCall<T> {
-        T call() throws ProbeException, TargetStoreException;
+        T call() throws ProbeException, TargetStoreException, InterruptedException, CommunicationException;
     }
 }
