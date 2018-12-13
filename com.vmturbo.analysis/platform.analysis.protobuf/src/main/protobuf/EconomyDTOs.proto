@@ -101,6 +101,9 @@ message TraderSettingsTO {
 
     // Whether a trader is controllable or not.
     optional bool controllable = 14;
+
+    // Whether actions on a trader can be simulated or not during shoptogether phase
+    optional bool canSimulateAction = 15;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

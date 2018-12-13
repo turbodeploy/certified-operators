@@ -25,6 +25,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
 
     // Fields for TraderSettings
+    private boolean canSimulate_ = true;
     private boolean controllable_ = true;
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
@@ -131,6 +132,10 @@ final class TraderWithSettings extends Trader implements TraderSettings {
         return isProviderMustClone_;
     }
 
+    public boolean isCanSimulateAction() {
+        return canSimulate_;
+    }
+
     @Override
     @Pure
     public boolean canAcceptNewCustomers() {
@@ -230,6 +235,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderSettings setCanAcceptNewCustomers(boolean canAcceptNewCustomers) {
         canAcceptNewCustomers_ = canAcceptNewCustomers;
+        return this;
+    }
+
+    @Override
+    public TraderSettings setCanSimulateAction(final boolean canSimulate) {
+        canSimulate_ = canSimulate;
         return this;
     }
 

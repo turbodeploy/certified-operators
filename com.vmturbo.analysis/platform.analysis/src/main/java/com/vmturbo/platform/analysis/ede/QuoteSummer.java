@@ -10,6 +10,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -20,6 +22,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
@@ -52,6 +55,8 @@ final class QuoteSummer {
     // Cached data
     // Cached unmodifiable view of the bestSellers_ list.
     private final @NonNull List<@Nullable Trader> unmodifiableBestSellers_ = Collections.unmodifiableList(bestSellers_);
+
+    static final Logger logger = LogManager.getLogger(QuoteSummer.class);
 
     private final Map<ShoppingList, QuoteTracker> unplacedShoppingListQuoteTrackers = new HashMap<>();
 
@@ -151,17 +156,12 @@ final class QuoteSummer {
         @NonNull QuoteMinimizer minimizer = stream.collect(()->new QuoteMinimizer(economy_,entry.getKey()),
                                                            QuoteMinimizer::accept, QuoteMinimizer::combine);
 
+
         totalQuote_ += minimizer.getBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();
-        if (minimizer.getBestSeller() != null
-                        && (entry.getKey().getSupplier() != minimizer.getBestSeller())) {
-            // when we have a best seller for a shoppingList, we simulate the move to this seller
-            // not doing so can lead to ping-pongs as observed in OM-34056
-            simulatedMoveActions_.add((new Move(economy_, entry.getKey(), minimizer.getBestSeller())).take());
-        } else {
-            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
-        }
+        Trader bestSeller = minimizer.getBestSeller();
+        simulate(minimizer, entry, bestSeller);
     }
 
     /**
@@ -185,6 +185,27 @@ final class QuoteSummer {
                 unplacedShoppingListQuoteTrackers.put(sl, otherQuoteTracker);
             }
         });
+    }
+
+    /**
+     * Method to simulate a MOVE if possible
+     *
+     * @param minimizer  The current minimizer
+     * @param entry  Entry object corresponding to shopping list and market
+     * @param bestSeller The best provider
+     */
+    public void simulate(QuoteMinimizer minimizer, @NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry, Trader bestSeller) {
+        if (bestSeller != null
+                && (entry.getKey().getSupplier() != bestSeller)) {
+            TraderSettings providerSettings = bestSeller.getSettings();
+            if (providerSettings.isCanSimulateAction()) {
+                // when we have a best seller for a shoppingList, we simulate the move to this seller
+                // not doing so can lead to ping-pongs as observed in OM-34056
+                simulatedMoveActions_.add((new Move(economy_, entry.getKey(), minimizer.getBestSeller())).take());
+            }
+        } else {
+            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
+        }
     }
 
 } // end QuoteSummer class

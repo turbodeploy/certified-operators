@@ -280,6 +280,7 @@ public final class ProtobufToAnalysis {
         destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
         destination.setQuoteFactor(source.getQuoteFactor());
         destination.setMoveCostFactor(source.getMoveCostFactor());
+        destination.setCanSimulateAction(source.getCanSimulateAction());
         if (source.getQuoteFunction().hasRiskBased() && source.getQuoteFunction().getRiskBased().hasCloudCost()) {
             destination.setCostFunction(
                             CostFunctionFactory.createCostFunction(source.getQuoteFunction().getRiskBased().getCloudCost()));

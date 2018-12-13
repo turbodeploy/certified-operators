@@ -77,7 +77,7 @@ public final class Market implements Serializable {
      * @param basketToAssociate The basket to associate with the new market. It it referenced and
      *                          not copied.
      */
-    Market(@NonNull Basket basketToAssociate) {
+    public Market(@NonNull Basket basketToAssociate) {
         basket_ = basketToAssociate;
     }
 

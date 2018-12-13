@@ -76,6 +76,11 @@ public interface TraderSettings {
     boolean isProviderMustClone();
 
     /**
+     * Whether the associated {@link Trader} can simulate an action
+     */
+    boolean isCanSimulateAction();
+
+    /**
      * Returns the associated {@link CostFunction} if there is any.
      */
     CostFunction getCostFunction();
@@ -132,6 +137,8 @@ public interface TraderSettings {
      * </p>
      */
     double getMoveCostFactor();
+
+
 
     /**
      * Sets the value of the <b>cloneable</b> field.
@@ -193,6 +200,14 @@ public interface TraderSettings {
      */
     @NonNull
     TraderSettings setCanAcceptNewCustomers(boolean canAcceptNewCustomers);
+
+    /**
+     * Sets the value of the <b>canSimulateAction</b> field
+     *
+     * @param canSimulate new value for this field
+     * @return {@code this}
+     */
+    TraderSettings setCanSimulateAction(boolean canSimulate);
 
 
     /**
