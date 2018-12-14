@@ -1,12 +1,14 @@
-package com.vmturbo.topology.processor.actions.data;
+package com.vmturbo.topology.processor.actions.data.spec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -25,16 +27,34 @@ public class ActionDataManager {
 
     /**
      * Initialize the action data manager, and create the default list of data requirement specs
+     *
+     * @param searchServiceRpc an interface for making remote calls to the Search service
      */
-    public ActionDataManager() {
+    public ActionDataManager(@Nonnull final SearchServiceBlockingStub searchServiceRpc) {
+        Objects.requireNonNull(searchServiceRpc);
+
         // Create a spec for container resize
-        DataRequirementSpecBuilder specBuilder = new DataRequirementSpecBuilder()
+        allDataRequirements.add(new DataRequirementSpecBuilder()
                 .addMatchCriteria(actionInfo -> actionInfo.hasResize())
-                .addMatchCriteria(actionInfo -> EntityType.CONTAINER.equals(
-                        EntityType.forNumber(actionInfo.getResize().getTarget().getType())))
+                .addMatchCriteria(actionInfo -> EntityType.CONTAINER.getNumber() ==
+                        actionInfo.getResize().getTarget().getType())
                 .addDataRequirement(SDKConstants.VAPP_UUID, actionInfo ->
-                        getVappUuidForAction(actionInfo));
-        allDataRequirements.add(specBuilder.build());
+                        getVappUuidForAction(actionInfo))
+                .build());
+
+        // Create a spec for host provision
+        allDataRequirements.add(new DataRequirementSpecBuilder()
+                .addMatchCriteria(actionInfo -> actionInfo.hasProvision())
+                .addMatchCriteria(actionInfo -> EntityType.PHYSICAL_MACHINE.getNumber() ==
+                        actionInfo.getProvision().getEntityToClone().getType())
+                .addDataRequirement("clusterDisplayName", actionInfo ->
+                        getClusterNameForAction(actionInfo))
+                .build());
+
+        // Create a spec for storage provision
+        StorageProvisionSpecFactory storageProvisionSpecFactory =
+                new StorageProvisionSpecFactory(searchServiceRpc);
+        allDataRequirements.add(storageProvisionSpecFactory.getStorageProvisionSpec());
     }
 
     /**
@@ -55,6 +75,12 @@ public class ActionDataManager {
 
     //TODO: Figure out how to get this data (see OM-40109)
     private String getVappUuidForAction(ActionInfo actionInfo) {
-        return null;
+        return "";
     }
+
+    // TODO: Look this up from the Group service. There is no current way to get this in XL.
+    private String getClusterNameForAction(ActionInfo actionInfo) {
+        return "";
+    }
+
 }
