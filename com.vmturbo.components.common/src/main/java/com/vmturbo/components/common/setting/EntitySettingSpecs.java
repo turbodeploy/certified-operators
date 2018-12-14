@@ -246,7 +246,7 @@ public enum EntitySettingSpecs {
     ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
             string(), true),
     /**
      * Automation Policy for the Resize Workflow. The value is the name of an

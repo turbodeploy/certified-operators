@@ -16,6 +16,8 @@ import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.actions.data.spec.DataRequirementSpec;
+import com.vmturbo.topology.processor.actions.data.spec.DataRequirementSpecBuilder;
 
 public class DataRequirementSpecTest {
 

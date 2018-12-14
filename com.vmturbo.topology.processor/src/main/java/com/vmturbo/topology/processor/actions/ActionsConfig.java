@@ -6,8 +6,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
-import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -15,6 +17,7 @@ import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
@@ -25,6 +28,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
         EntityConfig.class,
         OperationConfig.class,
         RepositoryConfig.class,
+        TopologyProcessorRpcConfig.class,
         TargetConfig.class})
 public class ActionsConfig {
 
@@ -45,7 +49,8 @@ public class ActionsConfig {
 
     @Bean
     public ActionDataManager actionDataManager() {
-        return new ActionDataManager();
+        return new ActionDataManager(
+                SearchServiceGrpc.newBlockingStub(repositoryConfig.repositoryChannel()));
     }
 
     @Bean

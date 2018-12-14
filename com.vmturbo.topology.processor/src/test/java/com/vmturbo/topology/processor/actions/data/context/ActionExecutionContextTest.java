@@ -19,7 +19,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
-import com.vmturbo.topology.processor.actions.data.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -640,8 +640,15 @@ public class ActionExecutionContextTest {
         Mockito.when(actionDataManagerMock.getContextData(provision))
                 .thenReturn(Collections.emptyList());
 
-        // We need entity info for just the primary entity -- physical machines don't have hosts
+        // The XL-domain TopologyEntityDTO will be retrieved, before later being converted into
+        // an EntityDTO.
         final EntityType entityType = EntityType.PHYSICAL_MACHINE;
+        TopologyEntityDTO primaryTopologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(entityId)
+                .setEntityType(entityType.getNumber())
+                .build();
+
+        // We need entity info for just the primary entity -- physical machines don't have hosts
         final Entity entity = new Entity(entityId, entityType);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
                 .setEntityType(entityType)
@@ -649,8 +656,12 @@ public class ActionExecutionContextTest {
                 .build();
         entity.addTargetInfo(targetId, entityDTO);
 
-        // Retrieve the full entity info
-        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
+        // The XL-domain TopologyEntityDTO will be retrieved, before later being converted into
+        // an EntityDTO.
+        Mockito.when(entityRetrieverMock.retrieveTopologyEntity(entityId))
+                .thenReturn(Optional.of(primaryTopologyEntityDTO));
+        Mockito.when(entityRetrieverMock.convertToEntityDTO(primaryTopologyEntityDTO))
+                .thenReturn(entityDTO);
 
         // Construct a provision action context to pull in additional data for action execution
         // This is the method call being tested
@@ -674,7 +685,8 @@ public class ActionExecutionContextTest {
         Mockito.verifyZeroInteractions(entityStoreMock);
 
         // Check that the full entity was retrieved
-        Mockito.verify(entityRetrieverMock).fetchAndConvertToEntityDTO(entityId);
+        Mockito.verify(entityRetrieverMock).retrieveTopologyEntity(entityId);
+        Mockito.verify(entityRetrieverMock).convertToEntityDTO(primaryTopologyEntityDTO);
         Mockito.verifyNoMoreInteractions(entityRetrieverMock);
 
         // Verify the expected call was made to retrieve context data
