@@ -14,6 +14,7 @@ import java.util.Map;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -79,6 +80,11 @@ public class SqlAccountExpensesStoreTest {
         flyway.clean();
         flyway.migrate();
         expensesStore = new SqlAccountExpensesStore(dsl, clock, 1);
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     @Test
@@ -176,29 +182,29 @@ public class SqlAccountExpensesStoreTest {
         final AccountExpensesFilter entityCostFilter = new AccountExpensesFilter(
                 ImmutableSet.of(2l),
                 ImmutableSet.of(43),
-                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 TimeFrame.LATEST);
 
         final AccountExpensesFilter entityCostFilter1 = new AccountExpensesFilter(
                 ImmutableSet.of(2l), //Not in the table
                 Collections.EMPTY_SET,
-                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 TimeFrame.LATEST);
 
         final AccountExpensesFilter entityCostFilter2 = new AccountExpensesFilter(
                 Collections.EMPTY_SET, //any
                 ImmutableSet.of(43),
-                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 TimeFrame.LATEST);
 
         final AccountExpensesFilter entityCostFilter3 = new AccountExpensesFilter(
                 ImmutableSet.of(Long.MAX_VALUE),
                 ImmutableSet.of(Integer.MAX_VALUE),
-                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 TimeFrame.LATEST);
 
         // INSERT
@@ -235,8 +241,8 @@ public class SqlAccountExpensesStoreTest {
         final AccountExpensesFilter entityCostFilter = new AccountExpensesFilter(
                 Collections.EMPTY_SET,
                 Collections.EMPTY_SET,
-                now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 TimeFrame.LATEST);
 
         // INSERT

@@ -18,6 +18,7 @@ import java.util.Map;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -97,6 +98,11 @@ public class SqlEntityCostStoreTest {
         flyway.clean();
         flyway.migrate();
         store = new SqlEntityCostStore(dsl, clock, 1);
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     @Test
@@ -216,8 +222,11 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterWithEntityId() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(ImmutableSet.of(1L, 2L), Collections.emptySet(), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
+        final EntityCostFilter entityCostFilter =
+                new EntityCostFilter(ImmutableSet.of(1L, 2L), Collections.emptySet(),
+                        now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        TimeFrame.LATEST);
 
         // insert
         saveCosts();
@@ -236,8 +245,11 @@ public class SqlEntityCostStoreTest {
     public void testGetCostWithEntityCostFilterWithEntityTypeFilter() throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = new EntityCostFilter(ImmutableSet.of(1L, 2L), ImmutableSet.of(1), now.toInstant(ZoneOffset.UTC).toEpochMilli(),
-                now.plusDays(1l).toInstant(ZoneOffset.UTC).toEpochMilli(), TimeFrame.LATEST);
+        final EntityCostFilter entityCostFilter =
+                new EntityCostFilter(ImmutableSet.of(1L, 2L), ImmutableSet.of(1),
+                        now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        TimeFrame.LATEST);
 
         // insert
         saveCosts();

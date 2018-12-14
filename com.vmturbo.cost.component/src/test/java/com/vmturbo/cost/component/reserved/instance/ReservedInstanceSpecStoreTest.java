@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -93,6 +94,11 @@ public class ReservedInstanceSpecStoreTest {
         flyway.migrate();
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
                 new IdentityProvider(0));
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     @Test

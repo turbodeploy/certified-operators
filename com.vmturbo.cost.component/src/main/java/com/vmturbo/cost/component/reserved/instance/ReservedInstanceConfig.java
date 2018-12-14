@@ -11,11 +11,18 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
+import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class})
+@Import({IdentityProviderConfig.class,
+        MarketClientConfig.class,
+        MarketListenerConfig.class,
+        SQLDatabaseConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${numRetainedMinutes}")
@@ -29,6 +36,9 @@ public class ReservedInstanceConfig {
 
     @Value("${riCoverageCacheExpireMinutes:120}")
     private int riCoverageCacheExpireMinutes;
+
+    @Autowired
+    private MarketComponent marketComponent;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -78,6 +88,11 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public ProjectedRICoverageStore projectedEntityRICoverageStore() {
+        return new ProjectedRICoverageStore();
+    }
+
+    @Bean
     public TimeFrameCalculator timeFrameCalculator() {
         return new TimeFrameCalculator(Clock.systemUTC(), numRetainedMinutes, numRetainedHours, numRetainedDays);
     }
@@ -85,7 +100,7 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                reservedInstanceCoverageStore(), timeFrameCalculator());
+                reservedInstanceCoverageStore(), projectedEntityRICoverageStore(), timeFrameCalculator());
     }
 
     @Bean
@@ -109,5 +124,14 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
                 riCoverageCacheExpireMinutes);
+    }
+
+
+    @Bean
+    public ProjectedRICoverageListener projectedRICoverageListener() {
+        final ProjectedRICoverageListener projectedRICoverageListener =
+                new ProjectedRICoverageListener(projectedEntityRICoverageStore());
+        marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
+        return projectedRICoverageListener;
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -27,6 +28,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
+import com.vmturbo.cost.component.reserved.instance.ProjectedRICoverageStore;
 
 /**
  * A rpc service for get reserved instance utilization and coverage stats.
@@ -39,14 +41,20 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
     private final ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
+    private final ProjectedRICoverageStore projectedRICoverageStore;
+
     private final TimeFrameCalculator timeFrameCalculator;
+
+    private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
 
     public ReservedInstanceUtilizationCoverageRpcService(
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
+            @Nonnull final ProjectedRICoverageStore projectedRICoverageStore,
             @Nonnull final TimeFrameCalculator timeFrameCalculator) {
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
         this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;
+        this.projectedRICoverageStore = projectedRICoverageStore;
         this.timeFrameCalculator = timeFrameCalculator;
     }
 
@@ -76,11 +84,14 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                             request.getStartDate(), request.getEndDate(), timeFrame);
             final List<ReservedInstanceStatsRecord> statRecords =
                     reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(filter);
-            final List<ReservedInstanceStatsRecord> riStatsRecordWithLatestStats =
-                    addLatestRIStats(statRecords);
+            float usedCouponsTotal = (float)getProjectedRICoverageCouponTotal();
+            statRecords.add(ReservedInstanceUtil.createRIStatsRecord(
+                        statRecords.isEmpty() ? usedCouponsTotal : statRecords.get(statRecords.size()-1).getCapacity().getTotal(),
+                        usedCouponsTotal,
+                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS)));
             GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
-                            .addAllReservedInstanceStatsRecords(riStatsRecordWithLatestStats)
+                            .addAllReservedInstanceStatsRecords(statRecords)
                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -116,11 +127,16 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                             request.getStartDate(), request.getEndDate(), timeFrame);
             final List<ReservedInstanceStatsRecord> statRecords =
                     reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
-            final List<ReservedInstanceStatsRecord> riStatsRecordWithLatestStats =
-                    addLatestRIStats(statRecords);
+            float usedCouponsTotal = (float)getProjectedRICoverageCouponTotal();
+            // Instead of again computing the total capacity stats for the projected stats, we use the one from the last record
+            // as it should be the same.
+            statRecords.add(ReservedInstanceUtil.createRIStatsRecord(
+                        statRecords.isEmpty() ? usedCouponsTotal : statRecords.get(statRecords.size()-1).getCapacity().getTotal(),
+                        usedCouponsTotal,
+                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS)));
             GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()
-                            .addAllReservedInstanceStatsRecords(riStatsRecordWithLatestStats)
+                            .addAllReservedInstanceStatsRecords(statRecords)
                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
@@ -223,5 +239,13 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             records.add(newCurrentRIStatsRecord);
         }
         return records;
+    }
+
+    private double getProjectedRICoverageCouponTotal() {
+        return projectedRICoverageStore.getAllProjectedEntitiesRICoverages()
+            .values().stream()
+            .flatMap(map -> map.values().stream())
+            .mapToDouble(i -> i)
+            .sum();
     }
 }

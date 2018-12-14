@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -97,6 +98,11 @@ public class SQLPriceTableStoreTest {
         when(merge.merge(any())).thenReturn(MERGED_PRICE_TABLE);
         when(merge.mergeRi(any())).thenReturn(MERGED_RI_PRICE_TABLE);
         when(mergeFactory.newMerge()).thenReturn(merge);
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
     }
 
     @Test

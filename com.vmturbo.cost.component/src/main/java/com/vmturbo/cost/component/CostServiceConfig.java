@@ -14,10 +14,9 @@ import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({
-        SQLDatabaseConfig.class,
+@Import({CostConfig.class,
         ReservedInstanceConfig.class,
-        CostConfig.class,
+        SQLDatabaseConfig.class,
         TopologyListenerConfig.class
 })
 public class CostServiceConfig {

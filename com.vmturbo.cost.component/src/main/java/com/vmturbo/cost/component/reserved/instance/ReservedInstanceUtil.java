@@ -94,4 +94,22 @@ public class ReservedInstanceUtil {
         statsRecord.setSnapshotDate(record.getValue(SNAPSHOT_TIME, Timestamp.class).getTime());
         return statsRecord.build();
     }
+
+    public static ReservedInstanceStatsRecord createRIStatsRecord(float totalCoupons,
+                                                                  float usedCoupons,
+                                                                  long snapshotTime) {
+        final ReservedInstanceStatsRecord.Builder statsRecord = ReservedInstanceStatsRecord.newBuilder();
+        statsRecord.setCapacity(StatValue.newBuilder()
+                .setTotal(totalCoupons)
+                .setAvg(usedCoupons)
+                .setMax(usedCoupons)
+                .setMin(usedCoupons));
+        statsRecord.setValues(StatValue.newBuilder()
+                .setTotal(usedCoupons)
+                .setAvg(usedCoupons)
+                .setMax(usedCoupons)
+                .setMin(usedCoupons));
+        statsRecord.setSnapshotDate(snapshotTime);
+        return statsRecord.build();
+    }
 }

@@ -150,7 +150,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             riServiceEntityApiDtoMap);
             return paginationRequest.allResultsResponse(Lists.newArrayList(result));
         } else if (riStatsName.equals(StringConstants.RI_COUPON_UTILIZATION)) {
-            // TODO: add the projected reserved instance utilization stats.
             final List<ReservedInstanceStatsRecord> riStatsRecords =
                     getRiUtilizationStats(Long.valueOf(inputDto.getPeriod().getStartDate()),
                             Long.valueOf(inputDto.getPeriod().getEndDate()), scope, groupOptional);
