@@ -795,7 +795,7 @@ public class ActionSpecMapper {
                 readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
         } else {
             actionApiDTO.setDetails(MessageFormat.format(
-                "Reconfigure {0} as it is unplaced.",
+                "Reconfigure {0} as it is unplaced",
                 readableEntityTypeAndName(actionApiDTO.getTarget())));
         }
     }
@@ -890,11 +890,15 @@ public class ActionSpecMapper {
         actionApiDTO.getRisk()
                 .setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
 
-        final StringBuilder detailStrBuilder = new StringBuilder()
-                .append(actionType == ActionType.START ? "Start " : "Add provider " )
-                .append(readableEntityTypeAndName(actionApiDTO.getTarget()))
-                .append(" due to increased demand for resources");
-        actionApiDTO.setDetails(detailStrBuilder.toString());
+        String detailsMessage;
+        if (actionType == ActionType.START) {
+            detailsMessage = MessageFormat.format("Start {0} due to increased demand for resources",
+                readableEntityTypeAndName(actionApiDTO.getTarget()));
+        } else {
+            detailsMessage = MessageFormat.format("Add provider {0} due to increased demand for resources",
+                readableEntityTypeAndName(actionApiDTO.getTarget()));
+        }
+        actionApiDTO.setDetails(detailsMessage);
     }
 
     private void addDeactivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -902,6 +906,8 @@ public class ActionSpecMapper {
                                    @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTarget().getId(), context);
+
+        // Similar to 6.1, if entity is Disk Array, then it's DELETE, else it's SUSPEND
         ActionType actionType = actionType(deactivate, context);
         actionApiDTO.setActionType(actionType);
 
@@ -914,11 +920,13 @@ public class ActionSpecMapper {
 
         actionApiDTO.getRisk().setReasonCommodity(
             reasonCommodityNames.stream().collect(Collectors.joining(",")));
-        String detailStrBuilder = MessageFormat.format(CaseFormat
-                        .LOWER_CAMEL
-                        .to(CaseFormat.UPPER_CAMEL, actionType.name().toLowerCase()) + " {0}.",
-                readableEntityTypeAndName(actionApiDTO.getTarget()));
-        actionApiDTO.setDetails(detailStrBuilder);
+
+        String detailsMessage = MessageFormat.format("{0} {1}",
+            // this will convert from "SUSPEND" to "Suspend" case format
+            // we need to do it dynamically because also a "Delete" can be generated as action type
+            CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, actionType.name().toLowerCase()),
+            readableEntityTypeAndName(actionApiDTO.getTarget()));
+        actionApiDTO.setDetails(detailsMessage);
     }
 
     /**

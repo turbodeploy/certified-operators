@@ -372,7 +372,7 @@ public class ActionSpecMapperTest {
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 Target as it is unplaced.",
+            "Reconfigure C 0 Target as it is unplaced",
             actionApiDTO.getDetails());
     }
 
@@ -593,7 +593,7 @@ public class ActionSpecMapperTest {
                         IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
         assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
-                " " + entityToDeactivateName + "."));
+                " " + entityToDeactivateName));
     }
 
     /**
@@ -627,7 +627,7 @@ public class ActionSpecMapperTest {
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
         assertThat(actionApiDTO.getDetails(), is("Delete " + prettyClassName +
-                " " + entityToDeactivateName + "."));
+                " " + entityToDeactivateName));
     }
 
     @Test
