@@ -30,7 +30,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -91,7 +91,6 @@ public class MoveContext extends AbstractActionExecutionContext {
         }
         // This is not a move together, so only a single provider is being placed
         // This could be either a MOVE or a CHANGE depending on whether the provider is storage
-        // The appropriate type will have already been set in the ActionItemDTO when it was created
         // Lookup the actual type from the (only) ActionItemDTO
         return getActionItems().stream()
                 .map(ActionItemDTO::getActionType)
@@ -291,7 +290,6 @@ public class MoveContext extends AbstractActionExecutionContext {
         }
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder()
-                // Storage moves are reproesented as CHANGE in the SDK, but are MOVES in the market
                 .setActionType(srcEntityType == EntityType.STORAGE
                         ? ActionType.CHANGE
                         : ActionType.MOVE)

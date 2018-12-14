@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -9,14 +8,10 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
@@ -80,64 +75,9 @@ public class ProvisionContext extends AbstractActionExecutionContext {
      */
     @Override
     protected List<ActionItemDTO.Builder> initActionItemBuilders() {
-        // Retrieve the full, stitched representation of the entity to clone from the repository
-        final long primaryEntityId = getPrimaryEntityId();
-        final TopologyEntityDTO entityToClone = entityRetriever.retrieveTopologyEntity(primaryEntityId)
-                .orElseThrow(() ->
-                        new ContextCreationException("No entity found for id " + primaryEntityId));
-        // Build the primary action item for this provision, where the targetSE is the entity to clone
-        final EntityDTO entityToCloneSdkDTO = entityRetriever.convertToEntityDTO(entityToClone);
-        final List<ActionItemDTO.Builder> builders = buildPrimaryActionItem(entityToCloneSdkDTO);
-        // Create an action item for each provider of the entity to clone. For each action item
+        List<ActionItemDTO.Builder> builders = super.initActionItemBuilders();
+        // TODO: Create an action item for each provider of the entity to clone. For each action item
         // the provider should be the new service entity and current service entity should be empty.
-        final List<Long> allProviderIds = entityToClone.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .collect(Collectors.toList());
-        // If providers are found, create an ADD_PROVIDER action item for each provider
-        if ( !  allProviderIds.isEmpty()) {
-            final List<TopologyEntityDTO> allProviders =
-                    entityRetriever.retrieveTopologyEntities(allProviderIds);
-            allProviders.stream()
-                    .map(topologyEntityDTO -> entityRetriever.convertToEntityDTO(topologyEntityDTO))
-                    .filter(provider -> filterProvider(entityToCloneSdkDTO, provider))
-                    .forEach(entityDTO -> builders.add(
-                            createAddProviderActionItem(entityToCloneSdkDTO, entityDTO)));
-        }
         return  builders;
-    }
-
-    private boolean filterProvider(@Nonnull final EntityDTO entityToCloneDTO,
-                                   @Nonnull final EntityDTO providerEntityDTO) {
-        // Providers must be filtered because probes are expecting a specific number of action items.
-        // Including extraneous providers can cause probes to fail to extract the needed information.
-        switch (entityToCloneDTO.getEntityType()) {
-            // Provisioning a PM requires the datacenter as an ADD_PROVIDER action item
-            case PHYSICAL_MACHINE: return EntityType.DATACENTER == providerEntityDTO.getEntityType();
-            // Provisioning a Storage requires sending any disk arrays and logical pools that are
-            // present as providers.
-            case STORAGE: return EntityType.DISK_ARRAY == providerEntityDTO.getEntityType() ||
-                    EntityType.LOGICAL_POOL == providerEntityDTO.getEntityType();
-            // By default, include all providers
-            default: return true;
-        }
-    }
-
-    /**
-     * Build an ADD_PROVIDER actionItem for this action.
-     *
-     * @param providerEntityDTO a {@link EntityDTO} representing a provider entity for this action
-     * @return a single {@link ActionItemDTO.Builder ActionItemDTO builder} representing the
-     * ADD_PROVIDER for the supplied provider for this action
-     */
-    protected ActionItemDTO.Builder createAddProviderActionItem(
-            @Nonnull final EntityDTO entityToCloneDTO,
-            @Nonnull final EntityDTO providerEntityDTO) {
-        final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
-        actionItemBuilder.setActionType(ActionType.ADD_PROVIDER);
-        actionItemBuilder.setUuid(Long.toString(getActionId()));
-        actionItemBuilder.setTargetSE(entityToCloneDTO);
-        actionItemBuilder.setNewSE(providerEntityDTO);
-        return actionItemBuilder;
     }
 }

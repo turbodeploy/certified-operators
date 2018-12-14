@@ -20,7 +20,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
@@ -230,19 +230,6 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected List<ActionItemDTO.Builder> initActionItemBuilders() {
         // Get the full entity, including a combination of both stitched and raw data
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
-        return buildPrimaryActionItem(fullEntityDTO);
-    }
-
-    /**
-     * Build the primary actionItem for this action.
-     * This is separated out from the call to retrieve the fullEntityDTO so that subclasses
-     * don't need to repeat the remote call.
-     *
-     * @param fullEntityDTO a {@link EntityDTO} representing the primary entity for this action
-     * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders} containing a single
-     * item representing the primary actionItem for this action
-     */
-    protected List<ActionItemDTO.Builder> buildPrimaryActionItem(final EntityDTO fullEntityDTO) {
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
         actionItemBuilder.setActionType(getSDKActionType());
         actionItemBuilder.setUuid(Long.toString(getActionId()));

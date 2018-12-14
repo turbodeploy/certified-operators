@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.actions.data.spec;
+package com.vmturbo.topology.processor.actions.data;
 
 import java.util.List;
 import java.util.function.Function;

@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.actions.data;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -64,11 +63,6 @@ public class EntityRetriever {
         }
     }
 
-    @Nonnull
-    public EntityDTO convertToEntityDTO(TopologyEntityDTO topologyEntityDTO) {
-        return entityConverter.convertToEntityDTO(topologyEntityDTO);
-    }
-
     /**
      * Retrieve entity data from Repository service
      *
@@ -81,16 +75,5 @@ public class EntityRetriever {
                 .getEntitiesList()
                 .stream()
                 .findFirst();
-    }
-
-    /**
-     * Retrieve entity data from Repository service
-     *
-     * @param entities the entities to fetch data about
-     * @return entity data corresponding to the provided entities
-     */
-    public List<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        return repositoryClient.retrieveTopologyEntities(entities, realtimeTopologyContextId)
-                .getEntitiesList();
     }
 }

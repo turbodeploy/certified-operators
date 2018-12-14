@@ -9,7 +9,6 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
-import com.vmturbo.stitching.utilities.MergeEntities;
 
 /**
  * Stitch a physical machine discovered by a fabric probe with the corresponding physical machine
@@ -59,8 +58,8 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
                 // fabric-probe discovered providers
                 .queueChangeRelationships(hypervisorPM,
                         toUpdate -> CopyCommodities.copyCommodities().from(fabricPM).to(toUpdate))
-                // Merge the fabric-probe discovered PM (required for USC-D action execution)
-                .queueEntityMerger(MergeEntities.mergeEntity(fabricPM).onto(hypervisorPM));
+                // Remove the fabric-probe discovered PM
+                .queueEntityRemoval(fabricPM);
 
     }
 
