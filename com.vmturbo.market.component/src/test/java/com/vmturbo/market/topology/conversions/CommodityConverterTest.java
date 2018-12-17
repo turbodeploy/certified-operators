@@ -39,7 +39,7 @@ public class CommodityConverterTest {
     public void testCreateCommonCommoditySoldTO() {
         // Arrange
         NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
-        Map<EconomyCommodityId, CommodityType> commoditySpecMap = Mockito.mock(Map.class);
+        Map<String, CommodityType> commoditySpecMap = Mockito.mock(Map.class);
         boolean includeGuaranteedBuyer = false;
         BiCliquer dsBasedBicliquer = Mockito.mock(BiCliquer.class);
         Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable = Mockito.mock(Table.class);

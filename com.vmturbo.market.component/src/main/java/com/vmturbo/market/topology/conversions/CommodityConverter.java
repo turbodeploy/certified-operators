@@ -38,14 +38,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 public class CommodityConverter {
     private static final Logger logger = LogManager.getLogger();
     private final NumericIDAllocator commodityTypeAllocator;
-    private final Map<EconomyCommodityId, CommodityType> commoditySpecMap;
+    // Mapping of CommoditySpecificationTO (string representation of type and baseType from
+    // CommoditySpecificationTO) to specific CommodityType.
+    private final Map<String, CommodityType> commoditySpecMap;
     private final boolean includeGuaranteedBuyer;
     private final BiCliquer dsBasedBicliquer;
     private int bcBaseType = -1;
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
 
     CommodityConverter(NumericIDAllocator commodityTypeAllocator,
-                       Map<EconomyCommodityId, CommodityType> commoditySpecMap,
+                       Map<String, CommodityType> commoditySpecMap,
                        boolean includeGuaranteedBuyer, BiCliquer dsBasedBicliquer,
                        Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable) {
         this.commodityTypeAllocator = commodityTypeAllocator;
@@ -245,8 +247,20 @@ public class CommodityConverter {
                         .setCloneWithNewType(AnalysisUtil.CLONE_COMMODITIES_WITH_NEW_TYPE
                                 .contains(topologyCommodity.getType()))
                         .build();
-        commoditySpecMap.put(new EconomyCommodityId(economyCommodity), topologyCommodity);
+        commoditySpecMap.put(getKeyFromCommoditySpecification(economyCommodity), topologyCommodity);
         return economyCommodity;
+    }
+
+    /**
+     * Return specific key based on type and base type of CommoditySpecificationTO.
+     * @param economyCommodity to generate key from.
+     * @return generated key.
+     */
+    private String getKeyFromCommoditySpecification(
+            @Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
+        return String.valueOf(economyCommodity.getType()) +
+                    TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR +
+                    String.valueOf(economyCommodity.getBaseType());
     }
 
     /**
@@ -401,7 +415,7 @@ public class CommodityConverter {
     Optional<CommodityType> economyToTopologyCommodity(
             @Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
         final CommodityType topologyCommodity =
-                commoditySpecMap.get(new EconomyCommodityId(economyCommodity));
+                commoditySpecMap.get(getKeyFromCommoditySpecification(economyCommodity));
         if (topologyCommodity == null) {
             if (commodityTypeAllocator.getName(economyCommodity.getBaseType()).equals(
                     TopologyConversionConstants.BICLIQUE)) {

@@ -126,7 +126,9 @@ public class TopologyConverter {
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
 
-    private final Map<EconomyCommodityId, CommodityType>
+    // Mapping of CommoditySpecificationTO (string representation of type and baseType from
+    // CommoditySpecificationTO) to specific CommodityType.
+    private final Map<String, CommodityType>
             commoditySpecMap = Maps.newHashMap();
 
     private long shoppingListId = 1000L; // Arbitrary start value
