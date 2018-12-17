@@ -5,6 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,7 +16,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.util.Assert;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
@@ -53,6 +56,9 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
  **/
 
 public class AuthenticationService implements IAuthenticationService {
+
+    @Autowired
+    private SessionRegistry sessionRegistry;
 
     public static final String ADMINISTRATOR = "ADMINISTRATOR";
     /**
@@ -193,6 +199,13 @@ public class AuthenticationService implements IAuthenticationService {
             }
             // TODO: it's a hack to avoid infinite loop, remove it when OM-24011 is fixed
             setSessionMaxInactiveInterval(0);
+            // manually register this session for manual login
+            if (request.getSession() != null) {
+                sessionRegistry.registerNewSession(request.getSession().getId(), user.getUuid());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Added user: " + username + "'s session to SessionRegistry");
+                }
+            }
             return user;
         } catch (AuthenticationException e) {
             logger.warn("Authentication for user " + username + " failed");

@@ -23,11 +23,14 @@ import com.google.gson.GsonBuilder;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.validation.Errors;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -104,6 +107,10 @@ public class UsersService implements IUsersService {
     private final Gson GSON_ = new GsonBuilder().create();
     private final String idpURL;
     private final boolean samlEnabled, isSingleLogoutEnabled;
+
+    // Uses to expire deleted user active sessions
+    @Autowired
+    private SessionRegistry sessionRegistry;
 
     private final GroupsService groupsService;
 
@@ -367,7 +374,24 @@ public class UsersService implements IUsersService {
             logger_.error("Unable to remove user {}", uuid, e.getCause());
             throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
         }
+        expireActiveSessions(uuid);
         return Boolean.TRUE;
+    }
+
+    // Expire active sessions
+    private void expireActiveSessions(@Nonnull final String uuid) {
+        for (Object principal : sessionRegistry.getAllPrincipals()) {
+            if (principal instanceof String) {
+                final String userUuid = (String) principal;
+                if (uuid.equals(userUuid)) {
+                    sessionRegistry.getAllSessions(principal, false)
+                            .forEach(SessionInformation::expireNow);
+                    if (logger_.isDebugEnabled()) {
+                        logger_.debug("Expired active sessions for user with UUID: " + uuid);
+                    }
+                }
+            }
+        }
     }
 
     /**

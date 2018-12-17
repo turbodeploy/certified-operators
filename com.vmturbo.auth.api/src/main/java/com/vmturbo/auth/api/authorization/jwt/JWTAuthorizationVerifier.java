@@ -315,7 +315,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
          * @return A {@link AuthUserDTO} object from this entry.
          */
         AuthUserDTO asAuthUserDTO() {
-            return new AuthUserDTO(null, principal_, null, uuid_, null, null,
+            return new AuthUserDTO(null, principal_, null, null, uuid_, null,
                     roles_ == null ? roles_ : ImmutableList.copyOf(roles_),
                     scope_groups_);
         }

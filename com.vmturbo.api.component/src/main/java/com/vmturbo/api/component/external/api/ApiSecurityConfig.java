@@ -32,6 +32,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.saml.SAMLAuthenticationProvider;
 import org.springframework.security.saml.SAMLBootstrap;
 import org.springframework.security.saml.SAMLEntryPoint;
@@ -80,6 +82,7 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
@@ -216,6 +219,11 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
                     .antMatchers(base_uri + "saml/**").permitAll()
                     .antMatchers(base_uri + "**").authenticated();
         }
+
+        // enable session management to keep active session in SessionRegistry,
+        // also allow multiple sessions for same user (-1).
+        http.sessionManagement().maximumSessions(-1).sessionRegistry(sessionRegistry());
+
     }
 
     // Initialization of the velocity engine for parsing SAML messages
@@ -627,6 +635,20 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         if (samlEnabled) {
             auth.authenticationProvider(samlAuthenticationProvider());
         }
+    }
+
+
+    // Publish http session event to remove destroyed sessions from
+    // {@link org.springframework.security.core.session.SessionRegistry}.
+    @Bean
+    public HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
+    }
+
+    // Keep user sessions, so they can be used to expire deleted user's active sessions
+    @Bean
+    SessionRegistry sessionRegistry() {
+        return new SessionRegistryImpl();
     }
 }
 

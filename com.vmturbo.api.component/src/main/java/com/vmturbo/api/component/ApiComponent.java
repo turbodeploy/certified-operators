@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
@@ -135,6 +136,8 @@ public class ApiComponent extends BaseVmtComponent {
         // Setup Spring context
         final ContextLoaderListener springListener = new ContextLoaderListener(rootContext);
         contextServer.addEventListener(springListener);
+        // Publish HTTP session lifecycle events to remove destroyed sessions from SessionRgistry
+        contextServer.addEventListener(new HttpSessionEventPublisher());
         return restContext;
     }
 
