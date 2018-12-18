@@ -34,7 +34,7 @@ public class FunctionalOperatorUtil {
      * Creates {@link CostFunction} for a given seller.
      *
      * @param costDTO the DTO carries the cost information
-     * @param updateFunctionDTO contains the updateFunctionType
+     * @param updateFunctionTO contains the updateFunctionType
      * @return CostFunction
      */
     public static @NonNull FunctionalOperator createUpdatingFunction(CostDTO costDTO,
@@ -154,15 +154,30 @@ public class FunctionalOperatorUtil {
                             // The capacity of coupon commodity sold by the matching tp holds the
                             // number of coupons associated with the template. This is the number of
                             // coupons consumed by a vm that got placed on a cbtp.
+
+                            // Determining the coupon quantity for buyers in consistent scaling
+                            // groups requires special handling when there is partial RI coverage.
+                            //
+                            // For example, if a m4.large needs 16 coupons and there are three VMs
+                            // in the scaling group. There is an m4.large CBTP that has 16 coupons.
+                            //
+                            // Since scaling actions are synthesized from a master buyer, we need to
+                            // spread the available coupons over all VMs in the scaling group in
+                            // order to be able to provide a consistent discounted cost for all
+                            // actions.  So, instead of one VM having 100% RI coverage and the other
+                            // two having 0% coverage, all VMs will have 33% coverage.
+
                             int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
                             int indexOfCouponCommByTp = matchingTP.getBasketSold()
                                             .indexOfBaseType(couponCommBaseType);
                             CommoditySold couponCommSoldByTp =
                                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                            double requestedCoupons = couponCommSoldByTp.getCapacity() *
-                                    buyer.getGroupFactor();
+                            long groupFactor = buyer.getGroupFactor();
+                            double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
+                            // QuoteFunctionFactory.computeCost() already returns a cost that is
+                            // scaled by the group factor, so adjust for a single buyer.
                             double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
-                                .getQuoteValue();
+                                .getQuoteValue() / groupFactor;
                             double availableCoupons = commSold.getCapacity() - commSold.getQuantity();
 
                             double discountedCost = 0;
@@ -170,8 +185,10 @@ public class FunctionalOperatorUtil {
                             double allocatedCoupons = 0;
                             if (availableCoupons > 0) {
                                 allocatedCoupons = Math.min(requestedCoupons, availableCoupons);
-                                buyer.setQuantity(boughtIndex, allocatedCoupons);
                                 discountCoefficient = allocatedCoupons / requestedCoupons;
+                                // normalizing allocatedCoupons for a single buyer
+                                allocatedCoupons = allocatedCoupons / groupFactor;
+                                buyer.setQuantity(boughtIndex, allocatedCoupons);
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                                                 * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                             }
@@ -197,7 +214,8 @@ public class FunctionalOperatorUtil {
                              * This was changed few lines above to what is allocated and not to what was
                              * requested by buyer.
                              */
-                            return new double[]{(commSold.getQuantity() + allocatedCoupons), 0};
+                            return new double[]
+                                    {commSold.getQuantity() + allocatedCoupons * groupFactor, 0};
                         };
                         return UPDATE_COUPON_COMM;
     }
