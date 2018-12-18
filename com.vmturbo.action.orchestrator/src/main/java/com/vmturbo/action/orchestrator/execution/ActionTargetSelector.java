@@ -260,23 +260,17 @@ public class ActionTargetSelector {
      *
      * @param action TopologyProcessor Action
      * @param entityType the type of the primary entity that this action is acting upon
-     * @param entityInfos a Map of entityId -> EntityInfo. The purpose of this map is to provide
-     *      target/probe data. This data is pre-fetched when dealing with multiple actions for
-     *      perfomance reasons, as it involves a remote call.
      * @return EntityInfo for the selected entity
      * @throws EntitiesResolutionException if entities related to the target failed to
      *         resolve in TopologyProcessor
      */
     private EntityInfo getExecutantEntity(@Nonnull ActionDTO.Action action,
-                             @Nonnull EntityDTO.EntityType entityType,
-                             @Nonnull Map<Long, EntityInfo> entityInfos)
+                             @Nonnull EntityDTO.EntityType entityType)
             throws EntitiesResolutionException, UnsupportedActionException {
+        // Select which entity to use for action execution.
         long selectedEntityId = getExecutantEntityId(action, entityType);
-        // Retrieve the discovered entity data from the pre-fetched map if possible, otherwise fetch
-        // from the Topology Processor.
-        EntityInfo entityInfo = entityInfos.containsKey(selectedEntityId) ?
-                entityInfos.get(selectedEntityId) :
-                getEntityInfo(selectedEntityId);
+        // Retrieve the discovered entity data for this entity from the Topology Processor.
+        EntityInfo entityInfo = getEntityInfo(selectedEntityId);
         return entityInfo;
     }
 
@@ -320,8 +314,7 @@ public class ActionTargetSelector {
         // Get the entity type associated with this action
         EntityDTO.EntityType entityType = getEntityTypeForAction(action);
         // Determine the entity to execute this action against
-        // (without providing any pre-fetched entity data, thus the empty map)
-        EntityInfo executantEntity = getExecutantEntity(action, entityType, Collections.emptyMap());
+        EntityInfo executantEntity = getExecutantEntity(action, entityType);
         // Determine the targetId
         return getTargetId(action, executantEntity);
     }
@@ -441,7 +434,7 @@ public class ActionTargetSelector {
                 .filter(entityInfo -> entityId == entityInfo.getEntityId())
                 .findFirst()
                 .orElseThrow(() ->
-                        new EntitiesResolutionException("Entity id: " + entityId
+                        new EntitiesResolutionException("Entity id " + entityId
                                 + " not found in Topology Processor."));
     }
 

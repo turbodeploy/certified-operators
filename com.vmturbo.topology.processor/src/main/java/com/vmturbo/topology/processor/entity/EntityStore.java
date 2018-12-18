@@ -92,7 +92,9 @@ public class EntityStore {
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
-                EntityStore.this.purgeTarget(target.getId(), null);
+                final long targetId = target.getId();
+                logger.info("Deleting target {} and all related entity data.", targetId);
+                EntityStore.this.purgeTarget(targetId, null);
             }
         });
     }
@@ -237,14 +239,23 @@ public class EntityStore {
         synchronized (topologyUpdateLock) {
             final TargetEntityIdInfo idInfo = targetEntities.get(targetId);
             if (idInfo != null) {
+                logger.info("Purging entity data from target {}.", targetId);
                 idInfo.getEntityIds().stream()
                     .map(entityMap::get)
                     .filter(Objects::nonNull)
                     .forEach(entity -> {
                         // Remove this target's info.
                         entity.removeTargetInfo(targetId);
-                        if (entity.getNumTargets() == 0 && (shouldRemove == null || shouldRemove.apply(entity))) {
-                            entityMap.remove(entity.getId());
+                        final long entityId = entity.getId();
+                        final EntityType entityType = entity.getEntityType();
+                        if (entity.getNumTargets() == 0 &&
+                                (shouldRemove == null || shouldRemove.apply(entity))) {
+                            logger.debug("Removing entity {} of type {} from the topology due to "
+                                    + "the purging of target {}.", entityId, entityType, targetId);
+                            entityMap.remove(entityId);
+                        } else {
+                            logger.trace("Skipping removal of entity {} of type {} from the topology.",
+                                    entityId, entityType);
                         }
                     });
 
@@ -347,6 +358,8 @@ public class EntityStore {
                 Entity entity = entityMap.get(entry.getKey());
                 if (entity == null) {
                     entity = new Entity(entry.getKey(), entry.getValue().getEntityType());
+                    logger.debug("Adding new entity {} of type {} to the topology.", entity.getId(),
+                            entity.getEntityType());
                     entityMap.put(entry.getKey(), entity);
                 }
                 entity.addTargetInfo(targetId, entry.getValue());
@@ -433,7 +446,9 @@ public class EntityStore {
 
             if (existingEntity == null) {
                 // No information about this entity yet. Create new information to add.
-                final Entity newEntity = new Entity(oid, entry.getValue().getEntityType());
+                final EntityType entityType = entry.getValue().getEntityType();
+                logger.debug("Restoring entity {} of type {} to the topology.", oid, entityType);
+                final Entity newEntity = new Entity(oid, entityType);
                 newEntity.addTargetInfo(targetId, dto);
                 entityMap.put(oid, newEntity);
             } else {
