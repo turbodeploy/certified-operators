@@ -95,6 +95,10 @@ public class ServiceConfig {
     @Value("${cpuInfoCacheLifetimeHours}")
     private int cpuCatalogLifeHours;
 
+    @Value("${sessionTimeoutSeconds}")
+    private int sessionTimeoutSeconds;
+
+
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
@@ -144,8 +148,12 @@ public class ServiceConfig {
 
     @Bean
     public AuthenticationService authenticationService() {
-        return new AuthenticationService(authConfig.getAuthHost(), authConfig.getAuthPort(),
-                securityConfig.verifier(), communicationConfig.serviceRestTemplate(), targetStore());
+        return new AuthenticationService(authConfig.getAuthHost(),
+                authConfig.getAuthPort(),
+                securityConfig.verifier(),
+                communicationConfig.serviceRestTemplate(),
+                targetStore(),
+                sessionTimeoutSeconds);
     }
 
     @Bean

@@ -231,6 +231,8 @@ api:
   externalApiSwaggerUri: "/vmturbo/apidoc/**"
   externalApiFileSystemBase: "file:/swagger/"
   cpuInfoCacheLifetimeHours: 8
+  sessionTimeoutSeconds: 1800
+
   <<: *auth_conn_info
 
 auth:

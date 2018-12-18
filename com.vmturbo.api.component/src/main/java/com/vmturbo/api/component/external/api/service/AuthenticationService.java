@@ -5,7 +5,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,7 +17,6 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
-import org.springframework.util.Assert;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
@@ -37,9 +35,7 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
-import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
-import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
@@ -57,10 +53,12 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 public class AuthenticationService implements IAuthenticationService {
 
-    @Autowired
-    private SessionRegistry sessionRegistry;
-
     public static final String ADMINISTRATOR = "ADMINISTRATOR";
+    /**
+     * The error message returned if the Auth component is not running.
+     */
+    private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
+            "The Authorization Service is not responding";
     /**
      * The auth service host.
      */
@@ -85,31 +83,28 @@ public class AuthenticationService implements IAuthenticationService {
      * To provide component based JWT token.
      */
     private final IComponentJwtStore componentJwtStore_;
-
+    private final Logger logger = LogManager.getLogger(getClass());
+    private final int sessionTimeoutSeconds;
+    @Autowired
+    private SessionRegistry sessionRegistry;
     /**
      * The remote HTTP request.
      */
     @Autowired
     private HttpServletRequest request;
 
-    /**
-     * The error message returned if the Auth component is not running.
-     */
-    private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
-            "The Authorization Service is not responding";
-
-    private final Logger logger = LogManager.getLogger(getClass());
-
     public AuthenticationService(final @Nonnull String authHost,
                                  final int authPort,
                                  final @Nonnull JWTAuthorizationVerifier verifier,
                                  final @Nonnull RestTemplate restTemplate,
-                                 final @Nonnull IComponentJwtStore componentJwtStore) {
+                                 final @Nonnull IComponentJwtStore componentJwtStore,
+                                 final int sessionTimeoutSeconds) {
         authHost_ = authHost;
         authPort_ = authPort;
         verifier_ = verifier;
         restTemplate_ = restTemplate;
         componentJwtStore_ = componentJwtStore;
+        this.sessionTimeoutSeconds = sessionTimeoutSeconds;
     }
 
     /**
@@ -120,10 +115,10 @@ public class AuthenticationService implements IAuthenticationService {
     @Override
     public boolean checkInit() {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
-                                                           .scheme("http")
-                                                           .host(authHost_)
-                                                           .port(authPort_)
-                                                           .path("/users/checkAdminInit");
+                .scheme("http")
+                .host(authHost_)
+                .port(authPort_)
+                .path("/users/checkAdminInit");
         final String request = builder.build().toUriString();
         ResponseEntity<Boolean> result;
         try {
@@ -143,12 +138,12 @@ public class AuthenticationService implements IAuthenticationService {
      */
     public BaseApiDTO initAdmin(String username, String password) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
-                                                           .scheme("http")
-                                                           .host(authHost_)
-                                                           .port(authPort_)
-                                                           .path("/users/initAdmin");
+                .scheme("http")
+                .host(authHost_)
+                .port(authPort_)
+                .path("/users/initAdmin");
         final AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
-                                          null, null, ImmutableList.of(ADMINISTRATOR), null);
+                null, null, ImmutableList.of(ADMINISTRATOR), null);
         try {
             restTemplate_.postForObject(builder.build().toUriString(), dto, String.class);
             UserApiDTO user = new UserApiDTO();
@@ -156,7 +151,7 @@ public class AuthenticationService implements IAuthenticationService {
             // administrator user will always have "administrator" role.
             user.setRoleName(ADMINISTRATOR);
             return user;
-        } catch(RestClientException e) {
+        } catch (RestClientException e) {
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
     }
@@ -186,10 +181,10 @@ public class AuthenticationService implements IAuthenticationService {
         // authenticate
         try {
             final Authentication result = authProvider.authenticate(auth);
-                // prevent session fixation attack, it should be put before setting security context.
+            // prevent session fixation attack, it should be put before setting security context.
             changeSessionId();
             SecurityContextHolder.getContext().setAuthentication(result);
-            final AuthUserDTO dto = (AuthUserDTO)result.getPrincipal();
+            final AuthUserDTO dto = (AuthUserDTO) result.getPrincipal();
             user.setUuid(dto.getUuid());
             user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
             user.setAuthToken(dto.getToken());
@@ -197,8 +192,10 @@ public class AuthenticationService implements IAuthenticationService {
             if (!dto.getRoles().isEmpty()) {
                 user.setRoleName(dto.getRoles().get(0));
             }
-            // TODO: it's a hack to avoid infinite loop, remove it when OM-24011 is fixed
-            setSessionMaxInactiveInterval(0);
+            setSessionMaxInactiveInterval(sessionTimeoutSeconds);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Setting session max inactive interval to: " + sessionTimeoutSeconds);
+            }
             // manually register this session for manual login
             if (request.getSession() != null) {
                 sessionRegistry.registerNewSession(request.getSession().getId(), user.getUuid());
@@ -218,7 +215,7 @@ public class AuthenticationService implements IAuthenticationService {
     /**
      * Authorize SAML user.
      *
-     * @param username user name
+     * @param username  user name
      * @param groupName group name
      * @param ipAddress user IP address
      * @return {@link AuthUserDTO}
@@ -238,8 +235,8 @@ public class AuthenticationService implements IAuthenticationService {
     public BaseApiDTO logout() {
         final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         final RequestAttributes attrs = RequestContextHolder.currentRequestAttributes();
-        final HttpServletRequest request = ((ServletRequestAttributes)attrs).getRequest();
-        final HttpServletResponse response = ((ServletRequestAttributes)attrs).getResponse();
+        final HttpServletRequest request = ((ServletRequestAttributes) attrs).getRequest();
+        final HttpServletResponse response = ((ServletRequestAttributes) attrs).getResponse();
         if (auth != null) {
             new SecurityContextLogoutHandler().logout(request, response, auth);
             BaseApiDTO success = new BaseApiDTO();
@@ -255,13 +252,14 @@ public class AuthenticationService implements IAuthenticationService {
     /**
      * The HttpServletRequest.changeSessionId() is the default method for protecting against
      * Session Fixation attacks in Servlet 3.1 and higher.
+     *
      * @see <a href="https://docs.spring.io/spring-security/site/docs/current/reference/html/servletapi.html/">
      * Servlet API integration</a>
      * {@link com.vmturbo.api.component.external.api.ApiSecurityConfig#configure}
      */
     private void changeSessionId() {
         final RequestAttributes attrs = RequestContextHolder.currentRequestAttributes();
-        final HttpServletRequest request = ((ServletRequestAttributes)attrs).getRequest();
+        final HttpServletRequest request = ((ServletRequestAttributes) attrs).getRequest();
         if (request != null && request.getSession(false) != null) {
             request.changeSessionId();
         }
@@ -276,7 +274,7 @@ public class AuthenticationService implements IAuthenticationService {
      */
     private void setSessionMaxInactiveInterval(int interval) {
         final RequestAttributes attrs = RequestContextHolder.currentRequestAttributes();
-        final HttpServletRequest request = ((ServletRequestAttributes)attrs).getRequest();
+        final HttpServletRequest request = ((ServletRequestAttributes) attrs).getRequest();
         if (request != null && request.getSession() != null) {
             request.getSession().setMaxInactiveInterval(interval);
         }

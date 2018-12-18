@@ -67,8 +67,8 @@ public class AuthenticationServiceTest {
                 AUTH_PORT,
                 mockVerifier,
                 mockRestTemplate,
-                componentJwtStore
-        );
+                componentJwtStore,
+                1);
     }
 
     @Test
