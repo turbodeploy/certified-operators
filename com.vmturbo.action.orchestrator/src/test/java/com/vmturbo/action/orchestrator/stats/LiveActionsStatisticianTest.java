@@ -7,10 +7,14 @@ import static com.vmturbo.action.orchestrator.db.tables.ActionStatsLatest.ACTION
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -182,7 +186,77 @@ public class LiveActionsStatisticianTest {
         assertThat(snapshotRecord.getTopologyCreationTime(), is(LocalDateTime.now(clock)));
         assertThat(snapshotRecord.getTopologyId(), is(1L));
         assertThat(snapshotRecord.getActionsCount(), is(3));
+    }
 
+    @Test
+    public void testActionAggregatorStartFail() throws UnsupportedActionException {
+        final ActionView action1 = mock(ActionView.class);
+        final SingleActionSnapshot snapshot1 = mock(SingleActionSnapshot.class);
+        when(snapshotFactory.newSnapshot(eq(action1))).thenReturn(snapshot1);
+
+        final ActionAggregator aggregator = mock(ActionAggregator.class);
+        when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
+
+        doThrow(new RuntimeException("foo")).when(aggregator).start();
+
+        final long topologyId = 1;
+        statistician.recordActionStats(topologyId, Stream.of(action1));
+
+        verify(aggregator, times(0)).processAction(any());
+
+        // No stats aggregated, so stats table should be empty.
+        assertTrue(dsl.selectFrom(ACTION_STATS_LATEST)
+            .fetch()
+            .into(ActionStatsLatestRecord.class)
+            .isEmpty());
+
+        // Should still make a record for the snapshot.
+        final List<ActionSnapshotLatestRecord> snapshotRecords =
+            dsl.selectFrom(ACTION_SNAPSHOT_LATEST)
+                .fetch()
+                .into(ActionSnapshotLatestRecord.class);
+        assertThat(snapshotRecords.size(), is(1));
+        ActionSnapshotLatestRecord snapshotRecord = snapshotRecords.get(0);
+        assertThat(snapshotRecord.getSnapshotRecordingTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getTopologyCreationTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getTopologyId(), is(1L));
+        assertThat(snapshotRecord.getActionsCount(), is(1));
+    }
+
+    @Test
+    public void testActionAggregatorProcessFail() throws UnsupportedActionException {
+        final ActionView action1 = mock(ActionView.class);
+        final SingleActionSnapshot snapshot1 = mock(SingleActionSnapshot.class);
+        when(snapshotFactory.newSnapshot(eq(action1))).thenReturn(snapshot1);
+
+        final ActionAggregator aggregator = mock(ActionAggregator.class);
+        when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
+
+        doThrow(new RuntimeException("foo")).when(aggregator).processAction(any());
+
+        final long topologyId = 1;
+        statistician.recordActionStats(topologyId, Stream.of(action1));
+
+        // Started properly
+        verify(aggregator).start();
+
+        // No stats aggregated, so stats table should be empty.
+        assertTrue(dsl.selectFrom(ACTION_STATS_LATEST)
+            .fetch()
+            .into(ActionStatsLatestRecord.class)
+            .isEmpty());
+
+        // Should still make a record for the snapshot.
+        final List<ActionSnapshotLatestRecord> snapshotRecords =
+            dsl.selectFrom(ACTION_SNAPSHOT_LATEST)
+                .fetch()
+                .into(ActionSnapshotLatestRecord.class);
+        assertThat(snapshotRecords.size(), is(1));
+        ActionSnapshotLatestRecord snapshotRecord = snapshotRecords.get(0);
+        assertThat(snapshotRecord.getSnapshotRecordingTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getTopologyCreationTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getTopologyId(), is(1L));
+        assertThat(snapshotRecord.getActionsCount(), is(1));
     }
 
     private ActionStatsLatestRecord newRecord(final int mgmtSubgroupId, final int actionGroupId) {

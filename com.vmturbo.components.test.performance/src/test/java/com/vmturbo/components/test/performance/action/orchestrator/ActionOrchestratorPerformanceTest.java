@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsRespon
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
@@ -89,12 +90,17 @@ public class ActionOrchestratorPerformanceTest {
             .withComponentCluster(ComponentCluster.newBuilder()
                 .withService(ComponentCluster.newService("action-orchestrator")
                         .withConfiguration("marketHost", ComponentUtils.getDockerHostRoute())
+                        .withConfiguration("groupHost", ComponentUtils.getDockerHostRoute())
                         .withConfiguration("topologyProcessorHost", ComponentUtils.getDockerHostRoute())
                         .withMemLimit(2.5, MetricPrefix.GIGA)
                         .logsToLogger(logger)))
         .withStubs(ComponentStubHost.newBuilder()
-                .withGrpcServices(new ProbeActionCapabilitiesServiceStub(), entityServiceStub))
-        .scrapeClusterAndLocalMetricsToInflux();
+                .withGrpcServices(new ProbeActionCapabilitiesServiceStub(),
+                    entityServiceStub,
+                    // Empty group service returns no clusters/groups.
+                    new GroupServiceMole()))
+        .noMetricsCollection();
+//        .scrapeClusterAndLocalMetricsToInflux();
 
     @BeforeClass
     public static void setupClass() {

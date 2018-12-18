@@ -2,6 +2,8 @@ package com.vmturbo.action.orchestrator.stats;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,7 @@ import org.jooq.Batch;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -100,6 +103,15 @@ public class LiveActionsStatistician {
      */
     public void recordActionStats(final long topologyId,
                                   @Nonnull final Stream<ActionView> actionStream) {
+        try {
+            internalRecordActionStats(topologyId, actionStream);
+        } catch (RuntimeException e) {
+            logger.error("Failed to record action stats due to error!", e);
+        }
+    }
+
+    private void internalRecordActionStats(final long topologyId,
+                                           @Nonnull final Stream<ActionView> actionStream) {
         // TODO (roman, Nov 15 2018): We should use the creation time of the topology as the
         // snapshot time, so that it's in sync with the other information about the topology.
         final LocalDateTime topologyCreationTime = LocalDateTime.now(clock);
@@ -146,9 +158,36 @@ public class LiveActionsStatistician {
 
         try (DataMetricTimer timer = Metrics.ACTION_STAT_RECORD_AGGREGATE_TIME.startTimer()) {
             // Aggregate the actions.
-            aggregators.forEach(ActionAggregator::start);
-            snapshot.actions().forEach(action ->
-                    aggregators.forEach(aggregator -> aggregator.processAction(action)));
+            final List<ActionAggregator> startedAggregators = new ArrayList<>(aggregators.size());
+            aggregators.forEach(aggregator -> {
+                try {
+                    aggregator.start();
+                    startedAggregators.add(aggregator);
+                } catch (RuntimeException e) {
+                    logger.error("Failed to start aggregator {}. Error: {}",
+                        aggregator, e.getLocalizedMessage());
+                }
+            });
+
+            final Map<ActionAggregator, Integer> aggregatorErrorCounts = new HashMap<>();
+            snapshot.actions().forEach(action -> {
+                startedAggregators.forEach(startedAggregator -> {
+                    try {
+                        startedAggregator.processAction(action);
+                    } catch (RuntimeException e) {
+                        logger.debug("Aggregator {} got exception when processing action." +
+                                " Message: {}", e.getLocalizedMessage());
+                        aggregatorErrorCounts.compute(startedAggregator,
+                            (k, existingCount) -> existingCount == null ? 1 : existingCount + 1);
+                    }
+                });
+            });
+
+            if (!aggregatorErrorCounts.isEmpty()) {
+                logger.error("Some aggregators encounted the following number of errors. Turn on " +
+                    "debug level logging for more detail. \n{}",
+                    Joiner.on(",\n").withKeyValueSeparator(" error count = ").join(aggregatorErrorCounts));
+            }
         }
 
         // Record the snapshot.
@@ -206,7 +245,9 @@ public class LiveActionsStatistician {
 
             logger.info("Completed action stats aggregation of {} records. Inserted {} rows.",
                     recordCount, successfulInsertions);
-            Metrics.ACTION_STAT_RECORDS.increment((double) recordCount.get());
+            if (recordCount.get() > 0) {
+                Metrics.ACTION_STAT_RECORDS.increment((double) recordCount.get());
+            }
         }
     }
 

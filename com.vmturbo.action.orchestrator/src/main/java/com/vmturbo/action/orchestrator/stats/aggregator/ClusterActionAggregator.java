@@ -87,6 +87,11 @@ public class ClusterActionAggregator extends ActionAggregator {
                         });
                     });
 
+            // Short-circuit if there are no clusters with members.
+            if (entitiesInCluster.isEmpty()) {
+                return;
+            }
+
             final MultiSupplyChainsRequest.Builder requestBuilder = MultiSupplyChainsRequest.newBuilder();
             entitiesInCluster.asMap().forEach((clusterId, clusterEntities) -> {
                 // For clusters we don't expect any hy

@@ -167,5 +167,10 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
         public Set<ActionGroupKey> getActionGroupKeys() {
             return Collections.unmodifiableSet(actionStats.columnKeySet());
         }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + " (aggregating " + getManagementUnitType() + ")";
+        }
     }
 }
