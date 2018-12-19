@@ -31,14 +31,16 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainLink;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainLinkBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
-import com.vmturbo.platform.sdk.probe.IProbe;
+import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
+import com.vmturbo.platform.sdk.probe.ISupplyChainAwareProbe;
 
 /**
  * A probe that delegates discovery to an external service, essentially acting as a man-in-the-middle.
  * Discovery requests are delegated out to a discovery driver and the discovery results
  * from the driver are passed back through to the original requester.
  */
-public class DelegatingProbe implements IProbe<DelegatingProbeAccount> {
+public class DelegatingProbe implements IDiscoveryProbe<DelegatingProbeAccount>,
+        ISupplyChainAwareProbe<DelegatingProbeAccount> {
 
     private final Logger logger = Logger.getLogger(getClass());
     private AtomicInteger discoveryIndex = new AtomicInteger(0);

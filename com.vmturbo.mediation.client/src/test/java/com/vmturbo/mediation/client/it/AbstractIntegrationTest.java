@@ -46,6 +46,7 @@ import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
+import com.vmturbo.mediation.common.tests.util.ProbeCompiler;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
 import com.vmturbo.mediation.common.tests.util.ThreadNaming;
@@ -229,12 +230,6 @@ public abstract class AbstractIntegrationTest {
             writer.write("\n");
             writer.write("<bean id=\"probeInstance\" class=\"" + probeConfig.getProbeClass()
                             + "\"/>\n");
-            if (probeConfig.getExecutorClass() != null) {
-                writer.write("<bean id=\"executorClass\" class=\"java.lang.Class\" factory-method=\"forName\">\n");
-                writer.write("  <constructor-arg value=\"" + probeConfig.getExecutorClass()
-                                + "\"/>\n");
-                writer.write("</bean>\n");
-            }
             writer.write("</beans>\n");
         }
     }
