@@ -38,14 +38,20 @@ public class StorageAccessPostStitchingOpTest {
     private final StorageAccessCapacityPostStitchingOperation diskArrayOp =
         new StorageAccessCapacityPostStitchingOperation(EntityType.DISK_ARRAY, diskCapacityCalculator);
 
+    private final StorageAccessCapacityPostStitchingOperation storageControllerOp =
+            new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER,
+                    diskCapacityCalculator);
+
     private UnitTestResultBuilder resultBuilder;
 
-    private final TopologyEntityBuilder baseTe = TopologyEntityBuilder.newBuilder()
-        .withProperty("common_dto.EntityDTO.DiskArrayData.diskCounts", "asdf");
+    private final TopologyEntityBuilder baseTe = TopologyEntityBuilder.newBuilder().withProperty(
+            StorageAccessCapacityPostStitchingOperation.DISK_COUNTS_KEY_BY_ENTITY_TYPE
+                    .get(EntityType.DISK_ARRAY_VALUE), "asdf");
 
     private static final float GOOD_VALUE = 987;
     private static final float BAD_VALUE_1 = 456;
     private static final float BAD_VALUE_2 = 123;
+    private static double DELTA = 1e-5;
 
     @SuppressWarnings("unchecked")
     private final IStitchingJournal<TopologyEntity> journal =
@@ -83,7 +89,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 
     @Test
@@ -103,7 +109,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertTrue(resultBuilder.getChanges().isEmpty());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 
     @Test
@@ -122,7 +128,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
     }
 
     @Test
@@ -137,7 +143,7 @@ public class StorageAccessPostStitchingOpTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
+        assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
 
     }
 
@@ -150,4 +156,40 @@ public class StorageAccessPostStitchingOpTest {
         assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
+    @Test
+    public void testCalculateCapacityFromHostedEntities() {
+        // "common_dto.EntityDTO.StorageControllerData.diskCounts"
+        String diskCountsPropertyKeyStr = StorageAccessCapacityPostStitchingOperation
+                .DISK_COUNTS_KEY_BY_ENTITY_TYPE.get(EntityType.STORAGE_CONTROLLER_VALUE);
+        String diskCountsPropertyValueStr = "calculateFromHostedEntities: true\n";
+
+        final double DISK_ARRAY_1_STORAGE_ACCESS_CAPACITY = 12800;
+        TopologyEntityBuilder DISK_ARRAY_1 = TopologyEntityBuilder.newBuilder()
+                .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
+                        .withType(CommodityType.STORAGE_ACCESS)
+                        .withCapacity(DISK_ARRAY_1_STORAGE_ACCESS_CAPACITY)
+                        .build());
+
+        final double DISK_ARRAY_2_STORAGE_ACCESS_CAPACITY = 4800;
+        TopologyEntityBuilder DISK_ARRAY_2 = TopologyEntityBuilder.newBuilder()
+                .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
+                        .withType(CommodityType.STORAGE_ACCESS)
+                        .withCapacity(DISK_ARRAY_2_STORAGE_ACCESS_CAPACITY)
+                        .build());
+
+        final TopologyEntity storageController = TopologyEntityBuilder.newBuilder()
+                .withEntityType(EntityType.STORAGE_CONTROLLER_VALUE)
+                .withCommoditiesSold(emptyCommodity)
+                .withProperty(diskCountsPropertyKeyStr, diskCountsPropertyValueStr)
+                .withConsumers(DISK_ARRAY_1, DISK_ARRAY_2)
+                .build();
+
+        storageControllerOp.performOperation(Stream.of(storageController), settingsMock,
+                resultBuilder);
+        assertEquals(1, resultBuilder.getChanges().size());
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        // check capacity which should be sum of capacities of two disk arrays
+        assertEquals(DISK_ARRAY_1_STORAGE_ACCESS_CAPACITY + DISK_ARRAY_2_STORAGE_ACCESS_CAPACITY,
+                storageController.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), DELTA);
+    }
 }

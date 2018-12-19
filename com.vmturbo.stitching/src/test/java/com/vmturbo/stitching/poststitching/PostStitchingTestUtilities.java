@@ -272,6 +272,20 @@ public class PostStitchingTestUtilities {
             return this;
         }
 
+        TopologyEntityBuilder withConsumers(@Nonnull final List<TopologyEntity.Builder> consumers) {
+            for (final Builder consumer : consumers) {
+                builder.addConsumer(consumer);
+            }
+            return this;
+        }
+
+        TopologyEntityBuilder withConsumers(@Nonnull final TopologyEntityBuilder... consumers) {
+            for (final TopologyEntityBuilder consumer : consumers) {
+                builder.addConsumer(consumer.getBuilder());
+            }
+            return this;
+        }
+
         TopologyEntityBuilder withProperty(@Nonnull final String key, @Nonnull final String value) {
             innerBuilder.putEntityPropertyMap(key, value);
             return this;

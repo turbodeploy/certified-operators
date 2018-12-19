@@ -1,20 +1,30 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.TextFormat;
+import com.google.protobuf.TextFormat.ParseException;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskArrayData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskCountData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LogicalPoolData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageControllerData;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.StitchingScope;
@@ -56,6 +66,18 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
     private static final String NUM_DISKS_KEY = DiskArrayData.newBuilder().getDescriptorForType()
         .findFieldByNumber(DiskArrayData.DISKCOUNTS_FIELD_NUMBER).getFullName();
 
+    // map from entity type to the diskCounts key (which will be used to look up property string
+    // value from the entity properties map), for example: for storage controller the key is:
+    // "common_dto.EntityDTO.StorageControllerData.diskCounts"
+    public static final Map<Integer, String> DISK_COUNTS_KEY_BY_ENTITY_TYPE = ImmutableMap.of(
+            EntityType.DISK_ARRAY_VALUE, DiskArrayData.getDefaultInstance().getDescriptorForType()
+                    .findFieldByNumber(DiskArrayData.DISKCOUNTS_FIELD_NUMBER).getFullName(),
+            EntityType.LOGICAL_POOL_VALUE, LogicalPoolData.getDefaultInstance().getDescriptorForType()
+                    .findFieldByNumber(LogicalPoolData.DISKCOUNTS_FIELD_NUMBER).getFullName(),
+            EntityType.STORAGE_CONTROLLER_VALUE, StorageControllerData.getDefaultInstance().getDescriptorForType()
+                    .findFieldByNumber(StorageControllerData.DISKCOUNTS_FIELD_NUMBER).getFullName()
+    );
+
     private Predicate<CommoditySoldDTOOrBuilder> IS_STORAGE_ACCESS = commodity ->
         commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE;
 
@@ -84,11 +106,13 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
                 settingsCollection.getEntityUserSetting(entity, EntitySettingSpecs.IOPSCapacity);
             if (userSetting.isPresent()) {
                 queueSingleUpdate(userSetting.get().getNumericSettingValue().getValue(), entity, resultBuilder);
-            } else if (hasCommoditiesUnset(entity)){
-                final double calculatedFromDisks = calculateCapacityFromDisks(entity);
+            } else if (hasCommoditiesUnset(entity)) {
+                final double calculatedCapacity = shouldCalculateFromHostedEntities(entity)
+                        ? calculateCapacityFromHostedEntities(entity)
+                        : calculateCapacityFromDisks(entity);
 
-                if (calculatedFromDisks > 0) {
-                    queueSingleUpdate(calculatedFromDisks, entity, resultBuilder);
+                if (calculatedCapacity > 0) {
+                    queueSingleUpdate(calculatedCapacity, entity, resultBuilder);
                 } else {
                     final Optional<Setting> defaultSetting =
                         settingsCollection.getEntitySetting(entity, EntitySettingSpecs.IOPSCapacity);
@@ -112,6 +136,54 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
     @Override
     public String getOperationName() {
         return getClass().getSimpleName() + "_" + scopeType;
+    }
+
+    /**
+     * Checks whether the storage access capacity for this entity should be calculated based on
+     * its hosted entities.
+     *
+     * @param entity the TopologyEntity to check for
+     * @return whether capacity should be calculated from hosted entities
+     */
+    private boolean shouldCalculateFromHostedEntities(@Nonnull final TopologyEntity entity) {
+        String diskCountsKey = DISK_COUNTS_KEY_BY_ENTITY_TYPE.get(entity.getEntityType());
+        if (diskCountsKey == null) {
+            return false;
+        }
+
+        String diskCountProperty = entity.getTopologyEntityDtoBuilder()
+                .getEntityPropertyMapMap().get(diskCountsKey);
+        if (diskCountProperty == null) {
+            return false;
+        }
+        try {
+            // parse the text-format message "DiskCountData" into "DiskCountData" proto java object
+            // for example: parse text "calculateFromHostedEntities: true\n" to DiskCountData
+            // java object with a field "calculateFromHostedEntities" which is set to true
+            DiskCountData.Builder diskCountData = DiskCountData.newBuilder();
+            TextFormat.getParser().merge(diskCountProperty, diskCountData);
+            return diskCountData.getCalculateFromHostedEntities();
+        } catch (ParseException e) {
+            logger.error("Invalid string value for DiskCountData: {}", diskCountProperty);
+            return false;
+        }
+    }
+
+    /**
+     * Calculate storage access capacity for the given entity by summing the capacities of all the
+     * consumers' sold StorageAccess commodity.
+     *
+     * @param entity the TopologyEntity to calculate storage access capacity for
+     * @return the calculated storage access capacity for given entity
+     */
+    private double calculateCapacityFromHostedEntities(@Nonnull final TopologyEntity entity) {
+        return entity.getConsumers().stream()
+                .mapToDouble(consumer -> consumer.getTopologyEntityDtoBuilder()
+                        .getCommoditySoldListList().stream()
+                        .filter(IS_STORAGE_ACCESS)
+                        .map(CommoditySoldDTO::getCapacity)
+                        .findAny().orElse(0d))
+                .sum();
     }
 
     /**
