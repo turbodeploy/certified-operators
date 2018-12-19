@@ -184,7 +184,9 @@ group:
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 4
   createDefaultSettingPolicyRetryIntervalSec: 30
-  tempGroupExpirationTimeMins: 10
+  # make sure the value is the same as in api:sessionTimeoutSeconds
+  # TODO: find a better way to sync it with api:sessionTimeoutSeconds
+  tempGroupExpirationTimeMins: 30
   realtimeTopologyContextId: 777777
 
   # START - database-related properties.
