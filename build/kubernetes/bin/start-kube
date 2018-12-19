@@ -27,8 +27,8 @@ kubectl create -f base/nginx.yaml
 kubectl create -f base/api.yaml
 
 # Start historical stats or reports components
-#kubectl create -f services/history.yaml
-#kubectl create -f services/reporting.yaml
+kubectl create -f services/history.yaml
+kubectl create -f services/reporting.yaml
 
 # Start probes
 kubectl create -f probes/mediation-vcenter.yaml

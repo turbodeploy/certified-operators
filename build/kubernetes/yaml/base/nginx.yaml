@@ -118,6 +118,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
       volumes:
       - name: nginx-claim0
         persistentVolumeClaim:

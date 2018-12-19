@@ -10,8 +10,8 @@ kubectl delete -f optional-probes/mediation-aws.yaml
 #kubectl delete -f probes/mediation-vmm.yaml
 
 # Delete historical stats or reports components
-#kubectl delete -f services/reporting.yaml
-#kubectl delete -f services/history.yaml
+kubectl delete -f services/reporting.yaml
+kubectl delete -f services/history.yaml
 
 # Delete ui and api components
 kubectl delete -f base/arangodb.yaml
