@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <!--
+        This is parent POM for XL-related SDK probes. It is almost a copy of sdk-probe-parent pom.xml from
+        OpsManager with the only difference in dependency versions included
+    -->
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.10.0-SNAPSHOT</version>
+        <relativePath>../build/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>xl-sdk-probe-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>com.vmturbo</groupId>
+                    <artifactId>vmturbo-sdk-plugin</artifactId>
+                    <version>${vmturbo.mt.branch.version}</version>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <id>package-the-probe</id>
+                            <goals>
+                                <goal>package</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <phase>verify</phase>
+                            <id>verify-the-probe</id>
+                            <goals>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                            <phase>prepare-package</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>vmturbo-snapshots</id>
+            <name>VMTurbo plugin repository</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/</url>
+        </pluginRepository>
+        <pluginRepository>
+            <id>vmturbo</id>
+            <name>VMTurbo plugin repository</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo/</url>
+        </pluginRepository>
+    </pluginRepositories>
+</project>
