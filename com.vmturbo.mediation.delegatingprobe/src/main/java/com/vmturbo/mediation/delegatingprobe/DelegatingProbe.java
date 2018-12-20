@@ -8,8 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -43,7 +42,7 @@ import com.vmturbo.platform.sdk.probe.ISupplyChainAwareProbe;
 public class DelegatingProbe implements IDiscoveryProbe<DelegatingProbeAccount>,
         ISupplyChainAwareProbe<DelegatingProbeAccount> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private final Logger logger = Logger.getLogger(getClass());
     private AtomicInteger discoveryIndex = new AtomicInteger(0);
 
     /**
