@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -676,12 +677,15 @@ public class Analysis {
      * @return A set of the OIDS of entities skipped during conversion.
      */
     @Nonnull
-    public Set<Long> getSkippedEntities() {
+    public Set<SkippedEntity> getSkippedEntities() {
         if (!isDone()) {
             throw new IllegalStateException("Attempting to get skipped entities before analysis is done.");
         }
         return converter.getSkippedEntities().stream()
-            .map(TopologyEntityDTO::getOid)
+            .map(entity -> SkippedEntity.newBuilder()
+                .setOid(entity.getOid())
+                .setEntityType(entity.getEntityType())
+                .build())
             .collect(Collectors.toSet());
     }
 

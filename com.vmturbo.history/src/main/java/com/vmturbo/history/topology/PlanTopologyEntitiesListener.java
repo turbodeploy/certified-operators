@@ -18,7 +18,6 @@ import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.PlanStatsWriter;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 
 /**
@@ -71,9 +70,8 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
         final long topologyId = topologyInfo.getTopologyId();
         final long creationTime = topologyInfo.getCreationTime();
         logger.info("Receiving plan topology, context: {}, id: {}", topologyContextId, topologyId);
-        TopologyOrganizer topologyOrganizer = new TopologyOrganizer(topologyContextId, topologyId, creationTime);
         try {
-            int numEntities = planStatsWriter.processChunks(topologyOrganizer, dtosIterator);
+            int numEntities = planStatsWriter.processChunks(topologyInfo, dtosIterator);
             availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.PLAN);
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
@@ -82,7 +80,7 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
         } catch (CommunicationException | TimeoutException | InterruptedException
                 | VmtDbException e) {
             logger.warn("Error occurred while processing data for topology broadcast "
-                    + topologyOrganizer.getTopologyId(), e);
+                    + topologyInfo.getTopologyId(), e);
         }
     }
 }

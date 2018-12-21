@@ -17,10 +17,10 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
  * Unit tests for {@link LiveStatsAggregator}.
@@ -49,11 +49,14 @@ public class LiveStatsAggregatorTest {
             ImmutableList.copyOf("Application CLUSTER DATACENTER DATASTORE DSPMAccess NETWORK"
                 .toLowerCase().split(" "));
 
-        TopologyOrganizer topologyOrganizer = new TopologyOrganizer(123456, 55555);
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(123456)
+            .setTopologyId(55555)
+            .build();
 
         stmt = Mockito.mock(InsertSetMoreStep.class);
         historydbIO = mockdbIO();
-        aggregator = new LiveStatsAggregator(historydbIO, topologyOrganizer, exclude, 3);
+        aggregator = new LiveStatsAggregator(historydbIO, topologyInfo, exclude, 3);
 
         // includes a forward reference: vm processed before the pm it is buying from
         Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(

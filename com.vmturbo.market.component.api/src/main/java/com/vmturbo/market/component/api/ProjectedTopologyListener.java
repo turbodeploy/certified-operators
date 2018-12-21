@@ -4,6 +4,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -19,12 +20,13 @@ public interface ProjectedTopologyListener {
      *
      * @param projectedTopologyId id of the projected topology
      * @param sourceTopologyInfo contains basic information of source topology.
-     * @param skippedEntities The OIDs of entities in the original topology that were skipped,
-     *                        and therefore not considered for market analysis.
+     * @param skippedEntities The {@link SkippedEntity} objects describing entities in the original
+     *                        topology that were skipped, and therefore not considered for market
+     *                        analysis.
      * @param topology contains the traders after the plan has completed.
      */
     void onProjectedTopologyReceived(final long projectedTopologyId,
                                  @Nonnull final TopologyInfo sourceTopologyInfo,
-                                 @Nonnull final Set<Long> skippedEntities,
+                                 @Nonnull final Set<SkippedEntity> skippedEntities,
                                  @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology);
 }

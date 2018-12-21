@@ -3,41 +3,42 @@ package com.vmturbo.history.stats;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Query;
-import org.jooq.Table;
 
-import com.google.common.collect.Iterables;
+import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.history.topology.TopologySnapshotRegistry;
-import com.vmturbo.history.utils.TopologyOrganizer;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
+import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 
 /**
  * Write stats derived from a PriceIndex message to the RDB.
  */
 public class PriceIndexWriter {
-    private static final double DEFAULT_PRICE_IDX = 1.0;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -46,44 +47,10 @@ public class PriceIndexWriter {
     // the number of entities for which stats are persisted in a single DB Insert operations
     private final int writeTopologyChunkSize;
 
-    /**
-     * a utility class to coordinate async receipt of Topology and PriceIndex messages for the
-     * same topologyContext.
-     */
-    private final TopologySnapshotRegistry snapshotRegistry;
 
-
-    public PriceIndexWriter(TopologySnapshotRegistry topologySnapshotRegistry,
-                            HistorydbIO historydbIO, int writeTopologyChunkSize) {
+    public PriceIndexWriter(HistorydbIO historydbIO, int writeTopologyChunkSize) {
         this.historydbIO = historydbIO;
-        this.snapshotRegistry = topologySnapshotRegistry;
         this.writeTopologyChunkSize = writeTopologyChunkSize;
-    }
-
-    /**
-     * Persist priceIndex values to the DB, once the corresponding topology has been received.
-     * The {@link TopologySnapshotRegistry} tracks the two components, managing the async
-     * delivery.
-     *
-     * @param topologyContextId the long-running topology context to which this priceIndex info
-     *                          belongs
-     * @param topologyId        id for this specific topology
-     * @param priceIndexByEntity A map from entity ID to the price index for the entity.
-     */
-    public void persistPriceIndexInfo(final long topologyContextId,
-                                      final long topologyId,
-                                      @Nonnull final Map<Long, Double> priceIndexByEntity) {
-        // use the snapshotRegistry to sequence the processing, ensuring the topology is
-        // processed before the priceIndex
-        snapshotRegistry.registerPriceIndexInfo(topologyContextId, topologyId, topologyOrganizer -> {
-            // this block will run when the full topology is available; might already be, but
-            // ... might not yet be
-            logger.debug("persisting live priceIndex, contextId: {}, topo: {}, items: {}",
-                    topologyContextId, topologyId, priceIndexByEntity.size());
-            SharedMetrics.UPDATE_PRICE_INDEX_DURATION_SUMMARY
-                    .labels(SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                    .time(() -> persistPriceIndexInfoInternal(priceIndexByEntity, topologyOrganizer));
-        });
     }
 
     /**
@@ -98,63 +65,104 @@ public class PriceIndexWriter {
      * <p>The database is determined based on the Entity Type, so we use the snapshotRegistry to
      * provide that information.
      *
-     * @param priceIndexByEntity the priceIndex information to persist - entityId -> priceIndex
-     * @param topologyOrganizer     the snapshot map  used to look up {@link TopologyDTO.TopologyEntityDTO} by oid
+     * @param sourceTopologyInfo The topology info about the topology this price index information
+     *                           belongs to.
+     * @param priceIndexByTypeAndId A table of (entity type) -> (entity ID) -> (price index)
+     * @param skippedEntities A set of entities that have no price index.
      */
-    private void persistPriceIndexInfoInternal(@Nonnull final Map<Long, Double> priceIndexByEntity,
-                                       TopologyOrganizer topologyOrganizer) {
+    public void persistPriceIndexInfo(@Nonnull final TopologyInfo sourceTopologyInfo,
+                                  @Nonnull final Table<Integer, Long, Double> priceIndexByTypeAndId,
+                                  @Nonnull final Set<SkippedEntity> skippedEntities) {
+        SharedMetrics.UPDATE_PRICE_INDEX_DURATION_SUMMARY
+            .labels(SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
+            .time(() -> persistPriceIndexInfoInternal(sourceTopologyInfo,
+                priceIndexByTypeAndId, skippedEntities));
+    }
+
+    private void persistPriceIndexInfoInternal(
+                @Nonnull final TopologyInfo sourceTopologyInfo,
+                @Nonnull final Table<Integer, Long, Double> priceIndexByEntity,
+                @Nonnull final Set<SkippedEntity> skippedEntities) {
         logger.debug("Persisting priceIndex info for context: {}, topology: {}, count: {}",
-                topologyOrganizer.getTopologyContextId(),
-                topologyOrganizer.getTopologyId(),
+                sourceTopologyInfo.getTopologyContextId(),
+                sourceTopologyInfo.getTopologyId(),
                 priceIndexByEntity.size());
         Instant start = Instant.now();
         try {
+            final Map<EntityType, MarketStatsData> marketStatsDataByEntityType = new HashMap<>();
+
+            logger.debug("Inserting default price index {} for {} skipped entities.",
+                HistoryStatsUtils.DEFAULT_PRICE_IDX, skippedEntities.size());
+            skippedEntities.forEach(skippedEntity ->
+                priceIndexByEntity.put(skippedEntity.getEntityType(),
+                    skippedEntity.getOid(), HistoryStatsUtils.DEFAULT_PRICE_IDX));
+
+            final long snapshotTime = sourceTopologyInfo.getCreationTime();
 
             // accumulate a batch of SQL statements to insert the commodity rows; execute in batches
+            final Set<Integer> notFoundEntityTypes = new HashSet<>();
             List<Query> commodityInsertStatements = Lists.newArrayList();
+            for (final Integer entityType : priceIndexByEntity.rowKeySet()) {
+                final Optional<EntityType> dbEntityTypeOpt = historydbIO.getEntityType(entityType);
+                if (dbEntityTypeOpt.isPresent()) {
+                    final MarketStatsData marketDataForType =
+                        marketStatsDataByEntityType.computeIfAbsent(dbEntityTypeOpt.get(), k ->
+                            new MarketStatsData(k.getClsName(),
+                                StringConstants.PRICE_INDEX,
+                                StringConstants.PRICE_INDEX,
+                                RelationType.METRICS));
+                    final org.jooq.Table<?> dbTable = dbEntityTypeOpt.get().getLatestTable();
+                    for (final Entry<Long, Double> priceIndexEntry :
+                                priceIndexByEntity.row(entityType).entrySet()) {
+                        final Long oid = priceIndexEntry.getKey();
+                        final Double priceIndex = priceIndexEntry.getValue();
+                        marketDataForType.accumulate(priceIndex, priceIndex, priceIndex, priceIndex);
 
-            final Set<Long> missingEntityOids = Sets.newHashSet();
-
-            // We want to write price index
-            for (final Entry<Long, Double> idAndPriceIdx : priceIndexByEntity.entrySet()) {
-                final Optional<Integer> entityTypeId = topologyOrganizer.getEntityType(idAndPriceIdx.getKey());
-                if (!entityTypeId.isPresent()) {
-                    missingEntityOids.add(idAndPriceIdx.getKey());
-                } else {
-                    final long snapshotTime = topologyOrganizer.getSnapshotTime();
-                    final Table<?> dbTable = historydbIO.getLatestDbTableForEntityType(entityTypeId.get());
-                    if (dbTable != null) {
                         final InsertSetMoreStep<?> insertStmt = historydbIO.getCommodityInsertStatement(dbTable);
                         historydbIO.initializeCommodityInsert(StringConstants.PRICE_INDEX, snapshotTime,
-                                idAndPriceIdx.getKey(), RelationType.METRICS, null, null, null,
-                                null, insertStmt, dbTable);
+                            oid, RelationType.METRICS, null, null, null,
+                            null, insertStmt, dbTable);
                         // set the values specific to used component of commodity and write
-                        historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, idAndPriceIdx.getValue(),
-                                insertStmt, dbTable);
+                        historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, priceIndex,
+                            insertStmt, dbTable);
                         commodityInsertStatements.add(insertStmt);
-                        if (commodityInsertStatements.size() > writeTopologyChunkSize) {
+                        if (commodityInsertStatements.size() >= writeTopologyChunkSize) {
                             // execute a batch of updates - FORCED implies repeat until successful
                             historydbIO.execute(BasedbIO.Style.FORCED, commodityInsertStatements);
                             commodityInsertStatements = new ArrayList<>(writeTopologyChunkSize);
                         }
                     }
+                } else {
+                    notFoundEntityTypes.add(entityType);
                 }
             }
 
-            if (missingEntityOids.size() > 0) {
-                logger.warn("missing entity DTOs from topology context {};  " +
-                                "topology ID {};  skipping {}",
-                        topologyOrganizer.getTopologyContextId(),
-                        topologyOrganizer.getTopologyId(),
-                        missingEntityOids);
+            if (!notFoundEntityTypes.isEmpty()) {
+                logger.error("History DB Entity Types not found for entity types: {}",
+                    notFoundEntityTypes);
             }
+
             // now execute the remaining batch of updates, if any
-            if (commodityInsertStatements.size() > 0) {
+            if (!commodityInsertStatements.isEmpty()) {
                 historydbIO.execute(BasedbIO.Style.FORCED, commodityInsertStatements);
             }
+
+            // Insert the accumulated price index stats.
+            final List<Query> insertStmts = marketStatsDataByEntityType.values().stream()
+                .map(marketStatsData -> historydbIO.getMarketStatsInsertStmt(
+                    marketStatsData, sourceTopologyInfo))
+                .collect(Collectors.toList());
+            if (!insertStmts.isEmpty()) {
+                logger.info("Inserting aggregate market price index entries for types: {}",
+                    Joiner.on(",").join(marketStatsDataByEntityType.keySet().stream()
+                        .map(EntityType::getClsName)
+                        .iterator()));
+                historydbIO.execute(BasedbIO.Style.FORCED, insertStmts);
+            }
+
             Duration elapsed = Duration.between(start, Instant.now());
             logger.debug("Done persisting priceIndex info for context: {}, topology: {}, time {}",
-                    topologyOrganizer.getTopologyContextId(), topologyOrganizer.getTopologyId(),
+                    sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId(),
                     elapsed
             );
         } catch (VmtDbException e) {

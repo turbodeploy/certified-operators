@@ -20,15 +20,14 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
-import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.SystemLoadHelper;
-import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
  * Persist information in a Live Topology to the History DB. This includes persisting the entities,
@@ -49,35 +48,16 @@ public class LiveStatsWriter {
 
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * a utility class to coordinate async receipt of Topology and PriceIndex messages for the
-     * same topologyContext.
-     */
-    private final TopologySnapshotRegistry snapshotRegistry;
-
-    public LiveStatsWriter(TopologySnapshotRegistry topologySnapshotRegistry,
-                           HistorydbIO historydbIO, int writeTopologyChunkSize,
+    public LiveStatsWriter(HistorydbIO historydbIO, int writeTopologyChunkSize,
                            ImmutableList<String> commoditiesToExclude) {
         this.historydbIO = historydbIO;
-        this.snapshotRegistry = topologySnapshotRegistry;
         this.writeTopologyChunkSize = writeTopologyChunkSize;
         this.commoditiesToExclude = commoditiesToExclude;
     }
 
-    /**
-     * Handle receipt of an invalid topology. Record in the {@link TopologySnapshotRegistry} that
-     * the corresponding PriceIndex information should be discarded.
-     *
-     * @param topologyContextId the topology context for the invalid topology
-     * @param topologyId the unique id for the invalid topology
-     */
-    public void invalidTopologyReceived(long topologyContextId, long topologyId) {
-        snapshotRegistry.registerInvalidTopology(topologyContextId, topologyId);
-    }
-
     public int processChunks(
-            @Nonnull TopologyOrganizer topologyOrganizer,
-            @Nonnull RemoteIterator<TopologyEntityDTO> dtosIterator,
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final RemoteIterator<TopologyEntityDTO> dtosIterator,
             GroupServiceBlockingStub groupServiceClient,
             SystemLoadHelper systemLoadHelper
     ) throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
@@ -86,19 +66,20 @@ public class LiveStatsWriter {
         int chunkNumber = 0;
         int numberOfEntities = 0;
         Stopwatch chunkTimer = Stopwatch.createStarted();
+        // TODO (roman, Dec 19 2018) OM-41526: Process in chunks instead of collecting all DTOs.
         while (dtosIterator.hasNext()) {
             Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
 
             numberOfEntities += chunk.size();
             logger.debug("Received chunk #{} of size {} for topology {} and context {} [soFar={}]",
-                ++chunkNumber, chunk.size(), topologyOrganizer.getTopologyId(),
-                topologyOrganizer.getTopologyContextId(), numberOfEntities);
+                ++chunkNumber, chunk.size(), topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId(), numberOfEntities);
             allTopologyDTOs.addAll(chunk);
         }
         logger.debug("time to receive chunks & organize: {}", chunkTimer);
 
         // create class to buffer chunks of stats and insert in batches for efficiency
-        LiveStatsAggregator aggregator = new LiveStatsAggregator(historydbIO, topologyOrganizer,
+        LiveStatsAggregator aggregator = new LiveStatsAggregator(historydbIO, topologyInfo,
                 commoditiesToExclude, writeTopologyChunkSize);
         // look up existing entity information
         chunkTimer.reset().start();
@@ -116,14 +97,12 @@ public class LiveStatsWriter {
         // process all the TopologyEntityDTOs
         chunkTimer.reset().start();
         final List<EntitiesRecord> entityRecordsToPersist = new ArrayList<>();
-        final long snapshotTime = topologyOrganizer.getSnapshotTime();
+        final long snapshotTime = topologyInfo.getCreationTime();
         for (TopologyEntityDTO entityDTO : allTopologyDTOs) {
             // persist this entity if necessary
             final Optional<EntitiesRecord> record = createRecord(entityDTO.getOid(), snapshotTime,
                     entityDTO, knownChunkEntities);
             record.ifPresent(entityRecordsToPersist::add);
-            // save the type information for processing priceIndex message
-            topologyOrganizer.addEntityType(entityDTO);
             aggregator.aggregateEntity(entityDTO, entityByOid);
         }
         historydbIO.persistEntities(entityRecordsToPersist);
@@ -132,12 +111,9 @@ public class LiveStatsWriter {
         // write the per-entity-type aggregate stats (e.g. counts), and write the partial chunks
         aggregator.writeFinalStats();
 
-        // register that this topology has been processed; may trigger additional processing
-        snapshotRegistry.registerTopologySnapshot(topologyOrganizer.getTopologyContextId(),
-            topologyOrganizer);
         logger.info("Done handling topology notification for realtime topology {} and context {}."
-                        + " Number of entities: {}", topologyOrganizer.getTopologyId(),
-                        topologyOrganizer.getTopologyContextId(), numberOfEntities);
+                        + " Number of entities: {}", topologyInfo.getTopologyId(),
+                        topologyInfo.getTopologyContextId(), numberOfEntities);
         if (groupServiceClient != null) {
             snapshot.saveSnapshot(allTopologyDTOs, groupServiceClient, systemLoadHelper);
         }

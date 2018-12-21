@@ -36,6 +36,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -61,13 +62,8 @@ import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.history.topology.TopologySnapshotRegistry;
-import com.vmturbo.history.utils.SystemLoadHelper;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.history.topology.TopologyListenerConfig;
-//import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-
-//import com.vmturbo.history.util.IDGen;
+import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Write live stats to real DB table.
@@ -127,8 +123,6 @@ public class LiveStatsDBTest {
     @Test
     public void writeTopologyStatsTest() throws Exception {
         // Arrange
-        TopologySnapshotRegistry topologySnapshotRegistry =
-                Mockito.mock(TopologySnapshotRegistry.class);
         int writeTopologyChunkSize = 10;
         List<CommodityTypeUnits> excludedCommodities = Arrays.asList(
                 CommodityTypeUnits.APPLICATION,
@@ -141,15 +135,18 @@ public class LiveStatsDBTest {
                 excludedCommodities.stream()
                         .map(CommodityTypeUnits::getMixedCase)
                         .collect(Collectors.toList()));
-        LiveStatsWriter writerUnderTest = new LiveStatsWriter(topologySnapshotRegistry,
+        LiveStatsWriter writerUnderTest = new LiveStatsWriter(
                 historydbIO, writeTopologyChunkSize, commoditiesToExclude);
 
         List<TopologyEntityDTO> allEntityDTOs
                 = new ArrayList<>(StatsTestUtils.generateEntityDTOs(TEST_TOPOLOGY_PATH, TEST_TOPOLOGY_FILE_NAME));
         int listSize = allEntityDTOs.size();
 
-        TopologyOrganizer topologyOrganizer = new TopologyOrganizer(REALTIME_TOPOLOGY_CONTEXT_ID,
-                TEST_TOPOLOGY_ID);
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
+            .setTopologyId(TEST_TOPOLOGY_ID)
+            .setCreationTime(1000)
+            .build();
 
         GroupServiceBlockingStub groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
         SystemLoadHelper systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
@@ -161,7 +158,7 @@ public class LiveStatsDBTest {
             .thenReturn(allEntityDTOs.subList(listSize * 2 / 3, listSize));
 
         // Act
-        writerUnderTest.processChunks(topologyOrganizer, allDTOs, groupServiceClient, systemLoadHelper);
+        writerUnderTest.processChunks(topologyInfo, allDTOs, groupServiceClient, systemLoadHelper);
 
         // Assert
         // expected row counts from the sample topology

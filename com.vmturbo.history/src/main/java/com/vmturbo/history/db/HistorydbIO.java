@@ -1,12 +1,5 @@
 package com.vmturbo.history.db;
 
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.dateOrTimestamp;
-import static com.vmturbo.history.db.jooq.JooqUtils.doubl;
-import static com.vmturbo.history.db.jooq.JooqUtils.relType;
-import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
-import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
 import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
 import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
@@ -21,10 +14,17 @@ import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.RELATION;
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.history.db.jooq.JooqUtils.dField;
+import static com.vmturbo.history.db.jooq.JooqUtils.dateOrTimestamp;
+import static com.vmturbo.history.db.jooq.JooqUtils.doubl;
+import static com.vmturbo.history.db.jooq.JooqUtils.relType;
+import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
+import static com.vmturbo.history.db.jooq.JooqUtils.str;
+import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
 import static com.vmturbo.history.schema.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
-import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
@@ -77,12 +77,12 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.common.protobuf.search.SearchREST.Entity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -91,7 +91,6 @@ import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
-import com.vmturbo.history.schema.abstraction.tables.PmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.Scenarios;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
@@ -99,7 +98,6 @@ import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRe
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -387,23 +385,20 @@ public class HistorydbIO extends BasedbIO {
      * table.
      *
      * @param marketStatsData the data for one stats item; will be written to one row
-     * @param snapshotTime the snapshot time being summarized
-     * @param topologyContextId the fixed topology context id, constant for live market and plan/over/plan
-     * @param topologyId the unique id for this snapshot
+     * @param topologyInfo Information about the topology causing the market stats insert.
      * @return an SQL statement to insert one row in the stats table
      */
-    public InsertSetMoreStep<?> getMarketStatsInsertStmt(@Nonnull MarketStatsAccumulator.MarketStatsData marketStatsData,
-                                                         long snapshotTime,
-                                                         long topologyContextId,
-                                                         long topologyId) {
+    public InsertSetMoreStep<?> getMarketStatsInsertStmt(
+                @Nonnull final MarketStatsAccumulator.MarketStatsData marketStatsData,
+                @Nonnull final TopologyInfo topologyInfo) {
 
         return getCommodityInsertStatement(MarketStatsLatest.MARKET_STATS_LATEST)
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.SNAPSHOT_TIME,
-                        new Timestamp(snapshotTime))
+                        new Timestamp(topologyInfo.getCreationTime()))
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
-                        topologyContextId)
+                        topologyInfo.getTopologyContextId())
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_ID,
-                        topologyId)
+                        topologyInfo.getTopologyId())
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
                         marketStatsData.getEntityType())
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE,
@@ -852,25 +847,25 @@ public class HistorydbIO extends BasedbIO {
      * Retrieve the SCENARIOS record for the given topologyContextId, if already recorded;
      * otherwise, add a new record.
      *
-     * @param topologyContextId the id for the context in which this topology is defined, either
-     *                          the single live context, or one of the several plan contexts
-     * @param topologyId the unique id for the topology within the given context
+     * @param topologyInfo the information about this topology, including the
+     *                          context id and snapshot time.
      * @return the SCENARIOS record for the given topologyContextId
      * @throws VmtDbException if there is a database error in the
      */
-    public ScenariosRecord getOrAddScenariosRecord(long topologyContextId, long topologyId, long snapshotTime)
+    public ScenariosRecord getOrAddScenariosRecord(@Nonnull final TopologyInfo topologyInfo)
             throws VmtDbException {
-        Optional<ScenariosRecord> scenarioInfo = getScenariosRecord(topologyContextId);
+        Optional<ScenariosRecord> scenarioInfo =
+            getScenariosRecord(topologyInfo.getTopologyContextId());
         if (!scenarioInfo.isPresent()) {
-            logger.debug("Persisting scenario with topologyContextId {}", topologyContextId);
-            TopologyOrganizer tempTopologyOrganizer = new TopologyOrganizer(topologyContextId,
-                    topologyId, snapshotTime);
-            addMktSnapshotRecord(tempTopologyOrganizer);
-            scenarioInfo = getScenariosRecord(topologyContextId);
+            logger.debug("Persisting scenario with topologyContextId {}",
+                topologyInfo.getTopologyContextId());
+            addMktSnapshotRecord(topologyInfo);
+            scenarioInfo = getScenariosRecord(topologyInfo.getTopologyContextId());
         }
 
         return scenarioInfo.orElseThrow(() -> new VmtDbException(VmtDbException.INSERT_ERR,
-                "Error writing scenarios record for plan priceIndexInfo for " + topologyContextId));
+                "Error writing scenarios record for plan priceIndexInfo for " +
+                    topologyInfo.getTopologyContextId()));
     }
 
 
@@ -884,15 +879,15 @@ public class HistorydbIO extends BasedbIO {
      * and the times. This may be provided in the future by adding a listener to the
      * Plan Orchestrator.
      *
-     * @param topologyOrganizer the information about this topology, including the
+     * @param topologyInfo the information about this topology, including the
      *                          context id and snapshot time.
      * @throws VmtDbException if there's an error writing to the RDB
      */
-    public void addMktSnapshotRecord(TopologyOrganizer topologyOrganizer) throws VmtDbException {
+    public void addMktSnapshotRecord(TopologyInfo topologyInfo) throws VmtDbException {
 
-        long topologyContextId = topologyOrganizer.getTopologyContextId();
+        long topologyContextId = topologyInfo.getTopologyContextId();
         // add this topology to the scenarios table
-        final Timestamp snapshotTimestamp = new Timestamp(topologyOrganizer.getSnapshotTime());
+        final Timestamp snapshotTimestamp = new Timestamp(topologyInfo.getCreationTime());
         execute(Style.FORCED, getJooqBuilder()
                 .insertInto(SCENARIOS)
                 .set(SCENARIOS.ID, topologyContextId)
@@ -906,7 +901,7 @@ public class HistorydbIO extends BasedbIO {
                 .set(MKT_SNAPSHOTS.ID, topologyContextId)
                 .set(MKT_SNAPSHOTS.SCENARIO_ID, topologyContextId)
                 .set(MKT_SNAPSHOTS.DISPLAY_NAME, "scenario: "
-                        + topologyOrganizer.getSnapshotTime())
+                        + topologyInfo.getCreationTime())
                 .set(MKT_SNAPSHOTS.RUN_COMPLETE_TIME, snapshotTimestamp)
                 .onDuplicateKeyIgnore());
     }

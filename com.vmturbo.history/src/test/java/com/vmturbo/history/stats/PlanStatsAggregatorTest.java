@@ -20,9 +20,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -55,7 +55,10 @@ public class PlanStatsAggregatorTest {
         final TopologyEntityDTO pm2 = pm(40, CPU_MAX);
         final TopologyEntityDTO pm3 = pm(50, CPU_MID);
 
-        TopologyOrganizer topologyOrganizer = new TopologyOrganizer(CONTEXT_ID, 200);
+        final TopologyInfo topologyOrganizer = TopologyInfo.newBuilder()
+            .setTopologyContextId(CONTEXT_ID)
+            .setTopologyId(200)
+            .build();
         HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class));
         aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));

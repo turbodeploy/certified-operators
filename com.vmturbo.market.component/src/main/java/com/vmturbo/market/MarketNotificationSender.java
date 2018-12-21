@@ -3,7 +3,9 @@ package com.vmturbo.market;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -13,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -114,7 +117,7 @@ public class MarketNotificationSender extends
      */
     public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
                                     final long projectedTopologyId,
-                                    final Set<Long> skippedEntities,
+                                    final Set<SkippedEntity> skippedEntities,
                                     @Nonnull final Collection<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
         sendProjectedTopologySegment(ProjectedTopology.newBuilder()

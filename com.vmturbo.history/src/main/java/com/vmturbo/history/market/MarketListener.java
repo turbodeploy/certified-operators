@@ -1,8 +1,6 @@
 package com.vmturbo.history.market;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -12,6 +10,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -23,8 +25,6 @@ import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
-import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 
 /**
@@ -77,7 +77,7 @@ public class MarketListener implements ProjectedTopologyListener {
     @Override
     public void onProjectedTopologyReceived(final long projectedTopologyId,
                         @Nonnull final TopologyInfo sourceTopologyInfo,
-                        @Nonnull final Set<Long> skippedEntities,
+                        @Nonnull final Set<SkippedEntity> skippedEntities,
                         @Nonnull final RemoteIterator<ProjectedTopologyEntity> topologyDTOs) {
         final long topologyContextId = sourceTopologyInfo.getTopologyContextId();
         final String contextType = topologyContextId == realtimeTopologyContextId ?
@@ -96,7 +96,7 @@ public class MarketListener implements ProjectedTopologyListener {
 
     private void handlePlanProjectedTopology(final long projectedTopologyId,
                      @Nonnull final TopologyInfo sourceTopologyInfo,
-                     @Nonnull final Set<Long> skippedEntities,
+                     @Nonnull final Set<SkippedEntity> skippedEntities,
                      @Nonnull final RemoteIterator<ProjectedTopologyEntity> dtosIterator) {
         final long topologyContextId = sourceTopologyInfo.getTopologyContextId();
         logger.info("Receiving projected plan topology, context: {}, projected id: {}, "
@@ -104,33 +104,31 @@ public class MarketListener implements ProjectedTopologyListener {
                 topologyContextId, projectedTopologyId,
                 sourceTopologyInfo.getTopologyId(), sourceTopologyInfo.getCreationTime());
 
-        TopologyOrganizer topologyOrganizer = new TopologyOrganizer(topologyContextId,
-                projectedTopologyId, sourceTopologyInfo.getCreationTime());
-            try {
-                int numEntities = planStatsWriter.processProjectedChunks(topologyOrganizer, skippedEntities, dtosIterator);
-                availabilityTracker.projectedTopologyAvailable(topologyContextId, TopologyContextType.PLAN);
+        try {
+            int numEntities = planStatsWriter.processProjectedChunks(sourceTopologyInfo, skippedEntities, dtosIterator);
+            availabilityTracker.projectedTopologyAvailable(topologyContextId, TopologyContextType.PLAN);
 
-                SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
-                    .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                    .observe(numEntities);
-            } catch (CommunicationException | TimeoutException | InterruptedException
-                | VmtDbException e) {
-                logger.warn("Error occurred while processing data for projected topology "
-                        + "broadcast " + topologyOrganizer.getTopologyId(), e);
-                throw new RuntimeException("Error occurred while receiving topology broadcast", e);
-            }
+            SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
+                .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
+                .observe(numEntities);
+        } catch (CommunicationException | TimeoutException | InterruptedException
+            | VmtDbException e) {
+            logger.warn("Error occurred while processing data for projected topology "
+                    + "broadcast " + sourceTopologyInfo.getTopologyId(), e);
+            throw new RuntimeException("Error occurred while receiving topology broadcast", e);
+        }
     }
 
     private void handleLiveProjectedTopology(final long projectedTopologyId,
-                                             @Nonnull final TopologyInfo sourceTopologyInfo,
-                                             @Nonnull final Set<Long> skippedEntities,
-                                             RemoteIterator<ProjectedTopologyEntity> dtosIterator) {
+                 @Nonnull final TopologyInfo sourceTopologyInfo,
+                 @Nonnull final Set<SkippedEntity> skippedEntities,
+                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> dtosIterator) {
         final long topologyContextId = sourceTopologyInfo.getTopologyContextId();
         logger.info("Receiving projected live topology, context: {}, projected id: {}, source id: {}",
                     topologyContextId, projectedTopologyId, sourceTopologyInfo.getTopologyId());
         try {
-            final Map<Long, Double> originalPriceIdxByEntity = new HashMap<>();
-            skippedEntities.forEach(oid -> originalPriceIdxByEntity.put(oid, HistoryStatsUtils.DEFAULT_PRICE_IDX));
+            final Table<Integer, Long, Double> originalPriceIdxByTypeAndEntity =
+                HashBasedTable.create();
 
             final RemoteIterator<ProjectedTopologyEntity> priceIndexRecordingIterator =
                     new RemoteIterator<ProjectedTopologyEntity>() {
@@ -145,7 +143,8 @@ public class MarketListener implements ProjectedTopologyListener {
                     final Collection<ProjectedTopologyEntity> nextChunk = dtosIterator.nextChunk();
                     for (ProjectedTopologyEntity entity : nextChunk) {
                         if (entity.hasOriginalPriceIndex()) {
-                            originalPriceIdxByEntity.put(entity.getEntity().getOid(), entity.getOriginalPriceIndex());
+                            originalPriceIdxByTypeAndEntity.put(entity.getEntity().getEntityType(),
+                                entity.getEntity().getOid(), entity.getOriginalPriceIndex());
                         }
                     }
                     return nextChunk;
@@ -157,9 +156,9 @@ public class MarketListener implements ProjectedTopologyListener {
             // This needs to happen after updating the projected topology.
             // The projected stats store consumes the iterator, which should fill up the price
             // index map.
-            priceIndexWriter.persistPriceIndexInfo(topologyContextId,
-                    sourceTopologyInfo.getTopologyId(),
-                    originalPriceIdxByEntity);
+            priceIndexWriter.persistPriceIndexInfo(sourceTopologyInfo,
+                    originalPriceIdxByTypeAndEntity,
+                    skippedEntities);
 
             availabilityTracker.projectedTopologyAvailable(topologyContextId, TopologyContextType.LIVE);
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM

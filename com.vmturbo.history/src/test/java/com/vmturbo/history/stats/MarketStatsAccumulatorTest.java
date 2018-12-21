@@ -16,12 +16,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Query;
@@ -35,14 +29,20 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
-import com.vmturbo.history.utils.TopologyOrganizer;
 
 
 /**
@@ -57,6 +57,12 @@ public class MarketStatsAccumulatorTest {
     private static final String PM_ENTITY_TYPE = "PhysicalMachine";
     private static final String APP_ENTITY_TYPE = "Application";
     private static final long ENTITY_ID = 999L;
+
+    private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
+        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+        .setTopologyId(TOPOLOGY_ID)
+        .setCreationTime(SNAPSHOT_TIME)
+        .build();
 
     private ImmutableList<String> commoditiesToExclude =
             ImmutableList.copyOf(("ApplicationCommodity CLUSTERCommodity DATACENTERCommodity " +
@@ -77,8 +83,6 @@ public class MarketStatsAccumulatorTest {
     @Mock
     private HistorydbIO historydbIO;
 
-    @Mock
-    private TopologyOrganizer topologyOrganizer;
 
     @Captor
     private ArgumentCaptor<MarketStatsData> statsDataCaptor;
@@ -88,10 +92,6 @@ public class MarketStatsAccumulatorTest {
 
     @Before
     public void setup() {
-        when(topologyOrganizer.getSnapshotTime()).thenReturn(SNAPSHOT_TIME);
-        when(topologyOrganizer.getTopologyContextId()).thenReturn(TOPOLOGY_CONTEXT_ID);
-        when(topologyOrganizer.getTopologyId()).thenReturn(TOPOLOGY_ID);
-
         BasedbIO.setSharedInstance(historydbIO);
 
         try {
@@ -116,14 +116,13 @@ public class MarketStatsAccumulatorTest {
 
         // act
         final int hostCount = 10;
-        marketStatsAccumulator.persistMarketStats(hostCount, topologyOrganizer);
+        marketStatsAccumulator.persistMarketStats(hostCount, TOPOLOGY_INFO);
 
         // assert
         assertThat(marketStatsAccumulator.values().size(), is(1));
         verify(historydbIO).getCommodityInsertStatement(StatsTestUtils.PM_LATEST_TABLE);
         verify(historydbIO).execute(Mockito.anyObject(), queryListCaptor.capture());
-        verify(historydbIO).getMarketStatsInsertStmt(statsDataCaptor.capture(), eq(SNAPSHOT_TIME),
-                eq(TOPOLOGY_CONTEXT_ID), eq(TOPOLOGY_ID));
+        verify(historydbIO).getMarketStatsInsertStmt(statsDataCaptor.capture(), eq(TOPOLOGY_INFO));
         verifyNoMoreInteractions(historydbIO);
         assertThat(statsDataCaptor.getValue().getPropertyType(), is(NUM_HOSTS));
         assertThat(statsDataCaptor.getValue().getUsed(), is((double)hostCount));

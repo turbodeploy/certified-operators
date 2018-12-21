@@ -21,7 +21,6 @@ import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.utils.SystemLoadHelper;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
 /**
@@ -86,8 +85,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         final long topologyId = topologyInfo.getTopologyId();
         logger.warn("Going to skip writing data for topology {} since one is still in progress.",
                 topologyId);
-        // register this topology as invalid
-        liveStatsWriter.invalidTopologyReceived(topologyContextId,topologyId);
         // drain the remote iterator
         try {
             while (iterator.hasNext()) {
@@ -113,9 +110,9 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             // not skipping -- add to list of topologies being processed
             topologiesInProcess.add(topologyInfo);
         }
-        TopologyOrganizer topologyOrganizer = new TopologyOrganizer(topologyContextId, topologyId, creationTime);
         try {
-            int numEntities = liveStatsWriter.processChunks(topologyOrganizer, dtosIterator, groupServiceClient, systemLoadHelper);
+            int numEntities = liveStatsWriter.processChunks(topologyInfo, dtosIterator,
+                groupServiceClient, systemLoadHelper);
             availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.LIVE);
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
@@ -123,8 +120,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 .observe(numEntities);
         } catch (Exception e) {
             logger.warn("Error occurred while processing data for realtime topology broadcast "
-                            + topologyOrganizer.getTopologyId(), e);
-            liveStatsWriter.invalidTopologyReceived(topologyContextId, topologyId);
+                            + topologyInfo.getTopologyId(), e);
         } finally {
             // remove from the in-progress list
             synchronized (topologiesInProcess) {

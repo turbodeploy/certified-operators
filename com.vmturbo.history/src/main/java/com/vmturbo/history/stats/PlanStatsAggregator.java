@@ -30,11 +30,11 @@ import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -59,11 +59,12 @@ public class PlanStatsAggregator {
     private final long topologyContextId;
 
     public PlanStatsAggregator(
-                @Nonnull HistorydbIO historydbIO, @Nonnull TopologyOrganizer topologyOrganizer,
+                @Nonnull HistorydbIO historydbIO,
+                @Nonnull TopologyInfo topologyInfo,
                 boolean isProcessingSourceTopologyStats) {
-        topologyId = topologyOrganizer.getTopologyId();
-        topologyContextId = topologyOrganizer.getTopologyContextId();
-        snapshotTimestamp = new Timestamp(topologyOrganizer.getSnapshotTime());
+        topologyId = topologyInfo.getTopologyId();
+        topologyContextId = topologyInfo.getTopologyContextId();
+        snapshotTimestamp = new Timestamp(topologyInfo.getCreationTime());
         this.historydbIO = historydbIO;
 
         this.isProcessingSourceTopologyStats = isProcessingSourceTopologyStats;

@@ -4,7 +4,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
@@ -90,10 +89,6 @@ public class LiveTopologyListenerTest {
         // New notification comes in while processing is still in progress.
         serviceUndertest.onTopologyNotification(topology2, iterator);
 
-        // It should get dropped.
-        verify(liveStatsWriter).invalidTopologyReceived(eq(REALTIME_TOPOLOGY_ID),
-                eq(topology2.getTopologyId()));
-
         // unblock the processor
         latch.countDown();
 
@@ -110,8 +105,6 @@ public class LiveTopologyListenerTest {
                 .build();
 
         serviceUndertest.onTopologyNotification(topology3,iterator);
-        // verify that topology 3 was processed.
-        verify(liveStatsWriter,never()).invalidTopologyReceived(eq(REALTIME_TOPOLOGY_ID), eq(3L));
 
         // done with the threads
         threadPool.shutdown();

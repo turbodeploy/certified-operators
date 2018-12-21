@@ -1,7 +1,5 @@
 package com.vmturbo.history.db;
 
-import static org.mockito.Mockito.when;
-
 import java.util.Collection;
 import java.util.Collections;
 
@@ -9,7 +7,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -20,9 +17,9 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.PlanStatsAggregator;
-import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
  * Edge unit test for {@link PlanStatsAggregator}.
@@ -42,7 +39,11 @@ public class PlanStatsAggregatorInfinityCapacityTest {
     private String testDbName;
     private HistorydbIO historydbIO;
 
-    private TopologyOrganizer topologyOrganizer = Mockito.mock(TopologyOrganizer.class);
+    private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
+        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+        .setTopologyId(TOPOLOGY_ID)
+        .setCreationTime(SNAPSHOT_TIME)
+        .build();
 
     @Before
     public void setup() throws Exception {
@@ -52,10 +53,6 @@ public class PlanStatsAggregatorInfinityCapacityTest {
         System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
         historydbIO.init(true, null, testDbName);
-
-        when(topologyOrganizer.getSnapshotTime()).thenReturn(SNAPSHOT_TIME);
-        when(topologyOrganizer.getTopologyContextId()).thenReturn(TOPOLOGY_CONTEXT_ID);
-        when(topologyOrganizer.getTopologyId()).thenReturn(TOPOLOGY_ID);
 
         BasedbIO.setSharedInstance(historydbIO);
 
@@ -74,9 +71,9 @@ public class PlanStatsAggregatorInfinityCapacityTest {
 
     @Test
     public void testSettingCommodityCapacityToInfinity() throws VmtDbException {
-        historydbIO.addMktSnapshotRecord(topologyOrganizer);
+        historydbIO.addMktSnapshotRecord(TOPOLOGY_INFO);
         final PlanStatsAggregator aggregator
-                = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
+                = new PlanStatsAggregator(historydbIO, TOPOLOGY_INFO, true);
         final TopologyEntityDTO topology2 =
                 TopologyEntityDTO.newBuilder().setOid(2L).setEntityType(2)
                         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
@@ -92,9 +89,9 @@ public class PlanStatsAggregatorInfinityCapacityTest {
 
     @Test
     public void testSettingCommodityCapacityToInfinityMultipleChunk() throws VmtDbException {
-        historydbIO.addMktSnapshotRecord(topologyOrganizer);
+        historydbIO.addMktSnapshotRecord(TOPOLOGY_INFO);
         final PlanStatsAggregator aggregator
-                = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
+                = new PlanStatsAggregator(historydbIO, TOPOLOGY_INFO, true);
         final TopologyEntityDTO topology1 =
                 TopologyEntityDTO.newBuilder().setOid(2L).setEntityType(2)
                         .addCommoditySoldList(CommoditySoldDTO.newBuilder()

@@ -11,8 +11,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Collections2;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.HistorydbIO;
@@ -21,7 +23,6 @@ import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
  * Persist stats from a plan topology to the mkt_snapshots tables in the relational database.
@@ -78,7 +79,8 @@ public class PlanStatsWriter {
     /**
      * Process message with chunks of projected plan topology DTOs.
      *
-     * @param topologyOrganizer the topology organizer for this topology
+     * @param topologyInfo the topology information about this topology
+     * @param skippedEntities entities from the original topology not in the projected topology.
      * @param dtosIterator an iterator of chunks
      * @throws CommunicationException if there is a problem getting the next chunk
      * @throws TimeoutException if there is a timeout getting the next chunk
@@ -86,13 +88,11 @@ public class PlanStatsWriter {
      * @throws VmtDbException if there is a problem writing to the DB
      * @return The number of entities processed.
      */
-    public int processProjectedChunks(@Nonnull final TopologyOrganizer topologyOrganizer,
-                @Nonnull final Set<Long> skippedEntities,
+    public int processProjectedChunks(@Nonnull final TopologyInfo topologyInfo,
+                @Nonnull final Set<SkippedEntity> skippedEntities,
                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
-        final ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(
-            topologyOrganizer.getTopologyContextId(), topologyOrganizer.getTopologyId(),
-            topologyOrganizer.getSnapshotTime());
+        final ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(topologyInfo);
 
         // prepare records to write to the mkt_snapshots_stats table for current and projected
         final MktSnapshotsStatsRecord currentPriceIndexRecord = buildPriceIndexRecord(scenarioInfo,
@@ -105,9 +105,9 @@ public class PlanStatsWriter {
             tabulateCapacityMinMax(currentPriceIndexRecord, HistoryStatsUtils.DEFAULT_PRICE_IDX));
 
         int numberOfEntities = 0;
-        historydbIO.addMktSnapshotRecord(topologyOrganizer);
+        historydbIO.addMktSnapshotRecord(topologyInfo);
         final PlanStatsAggregator aggregator
-                = new PlanStatsAggregator(historydbIO, topologyOrganizer, false);
+                = new PlanStatsAggregator(historydbIO, topologyInfo, false);
         while (dtosIterator.hasNext()) {
             final Collection<ProjectedTopologyEntity> chunk = dtosIterator.nextChunk();
             aggregator.handleChunk(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity));
@@ -123,7 +123,7 @@ public class PlanStatsWriter {
             numberOfEntities += chunk.size();
         }
         logger.debug("Writing aggregates for topology {} and context {}",
-                topologyOrganizer.getTopologyId(), topologyOrganizer.getTopologyContextId());
+                topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
         aggregator.writeAggregates();
 
         // add the priceIndex current and projected values
@@ -138,8 +138,8 @@ public class PlanStatsWriter {
                 .set(projectedPriceIndexRecord));
 
         logger.debug("Done handling topology notification for projected topology {} in context {}."
-                        + " Number of entities: {}", topologyOrganizer.getTopologyId(),
-                topologyOrganizer.getTopologyContextId(), numberOfEntities);
+                        + " Number of entities: {}", topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId(), numberOfEntities);
 
         return numberOfEntities;
     }
@@ -147,7 +147,7 @@ public class PlanStatsWriter {
     /**
      * Process message with chunks of plan topology DTOs.
      *
-     * @param topologyOrganizer the topology organizer for this topology
+     * @param topologyInfo the information about this topology.
      * @param dtosIterator an iterator of chunks
      * @throws CommunicationException if there is a problem getting the next chunk
      * @throws TimeoutException if there is a timeout getting the next chunk
@@ -155,13 +155,13 @@ public class PlanStatsWriter {
      * @throws VmtDbException if there is a problem writing to the DB
      * @return The number of entities processed.
      */
-    public int processChunks(@Nonnull final TopologyOrganizer topologyOrganizer,
+    public int processChunks(@Nonnull final TopologyInfo topologyInfo,
                              @Nonnull final RemoteIterator<TopologyEntityDTO> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
         int numberOfEntities = 0;
-        historydbIO.addMktSnapshotRecord(topologyOrganizer);
+        historydbIO.addMktSnapshotRecord(topologyInfo);
         final PlanStatsAggregator aggregator
-                = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
+                = new PlanStatsAggregator(historydbIO, topologyInfo, true);
         while (dtosIterator.hasNext()) {
             final Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
             aggregator.handleChunk(chunk);
@@ -169,8 +169,8 @@ public class PlanStatsWriter {
         }
         aggregator.writeAggregates();
         logger.debug("Done handling topology notification for source topology {} in context {}."
-                        + " Number of entities: {}", topologyOrganizer.getTopologyId(),
-                topologyOrganizer.getTopologyContextId(), numberOfEntities);
+                        + " Number of entities: {}", topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId(), numberOfEntities);
 
         return numberOfEntities;
     }

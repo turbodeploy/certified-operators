@@ -19,15 +19,14 @@ import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
-import com.vmturbo.history.stats.live.SystemLoadWriter;
-import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
+import com.vmturbo.history.stats.live.SystemLoadReader;
+import com.vmturbo.history.stats.live.SystemLoadWriter;
 import com.vmturbo.history.stats.live.TimeFrameCalculator;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
-import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
@@ -120,7 +119,7 @@ public class StatsConfig {
 
     @Bean
     public LiveStatsWriter liveStatsWriter() {
-        return new LiveStatsWriter(topologySnapshotRegistry(), historyDbConfig.historyDbIO(),
+        return new LiveStatsWriter(historyDbConfig.historyDbIO(),
                 writeTopologyChunkSize, excludedCommoditiesList());
     }
 
@@ -166,11 +165,6 @@ public class StatsConfig {
     @Bean
     public PlanStatsReader planStatsReader() {
         return new PlanStatsReader(historyDbConfig.historyDbIO());
-    }
-
-    @Bean
-    public TopologySnapshotRegistry topologySnapshotRegistry() {
-        return new TopologySnapshotRegistry();
     }
 
     @Bean

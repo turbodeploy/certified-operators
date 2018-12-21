@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.BasedbIO;
@@ -40,7 +41,6 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
@@ -228,10 +228,11 @@ public class MarketStatsAccumulator {
      *
      * Note: not batched.
      *
-     * @param topologyOrganizer the representation of the entire topology
+     * @param entityCount The number of entities in the topology.
+     * @param topologyInfo Information about the topology.
      * @throws VmtDbException if there's a DB error writing the market_stats_latest table.
      */
-    public void persistMarketStats(int entityCount, @Nonnull TopologyOrganizer topologyOrganizer)
+    public void persistMarketStats(final int entityCount, @Nonnull final TopologyInfo topologyInfo)
             throws VmtDbException {
 
         // first add counts for the given entity, if applicable
@@ -243,9 +244,7 @@ public class MarketStatsAccumulator {
         // create a list of "insert" statements, one for each stat value.
         List<Query> insertStmts = values().stream()
                 .map(marketStatsData -> historydbIO.getMarketStatsInsertStmt(marketStatsData,
-                        topologyOrganizer.getSnapshotTime(),
-                        topologyOrganizer.getTopologyContextId(),
-                        topologyOrganizer.getTopologyId()))
+                        topologyInfo))
                 .collect(Collectors.toList());
 
         historydbIO.execute(BasedbIO.Style.FORCED, insertStmts);

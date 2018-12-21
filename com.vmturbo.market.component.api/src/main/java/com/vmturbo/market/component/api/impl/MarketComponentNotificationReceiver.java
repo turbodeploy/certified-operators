@@ -16,11 +16,12 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -287,7 +288,7 @@ public class MarketComponentNotificationReceiver extends
     }
 
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
-            final long topologyId, final TopologyInfo topologyInfo, final Set<Long> skippedEntities) {
+            final long topologyId, final TopologyInfo topologyInfo, final Set<SkippedEntity> skippedEntities) {
         return projectedTopologyListenersSet.stream().map(listener -> {
             final Consumer<RemoteIterator<ProjectedTopologyEntity>> consumer =
                     iterator -> listener.onProjectedTopologyReceived(

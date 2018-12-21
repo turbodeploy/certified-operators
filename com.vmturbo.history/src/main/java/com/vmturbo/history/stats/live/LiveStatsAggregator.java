@@ -8,6 +8,8 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,13 +21,13 @@ import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -40,7 +42,7 @@ public class LiveStatsAggregator {
 
     private final HistorydbIO historydbIO;
 
-    private final TopologyOrganizer topologyOrganizer;
+    private final TopologyInfo topologyInfo;
 
     /**
      * Each string should be a value of {@link CommodityTypes}.
@@ -91,12 +93,12 @@ public class LiveStatsAggregator {
      */
 
 
-    public LiveStatsAggregator(HistorydbIO historydbIO,
-                               TopologyOrganizer topologyOrganizer,
+    public LiveStatsAggregator(@Nonnull final HistorydbIO historydbIO,
+                               @Nonnull final TopologyInfo topologyInfo,
                                ImmutableList<String> commoditiesToExclude,
                                int writeTopologyChunkSize) {
-        this.topologyOrganizer = topologyOrganizer;
         this.historydbIO = historydbIO;
+        this.topologyInfo = topologyInfo;
         this.commoditiesToExclude = commoditiesToExclude;
         this.writeTopologyChunkSize = writeTopologyChunkSize;
     }
@@ -184,7 +186,7 @@ public class LiveStatsAggregator {
                 type -> new MarketStatsAccumulator(type, historydbIO, writeTopologyChunkSize,
                         commoditiesToExclude));
 
-        long snapshotTime = topologyOrganizer.getSnapshotTime();
+        long snapshotTime = topologyInfo.getCreationTime();
         marketStatsAccumulator.persistCommoditiesBought(snapshotTime, entityDTO, capacities,
                 delayedCommoditiesBought, entityByOid);
         marketStatsAccumulator.persistCommoditiesSold(snapshotTime, entityDTO.getOid(),
@@ -225,7 +227,7 @@ public class LiveStatsAggregator {
             String baseType = statsEntry.getKey();
             MarketStatsAccumulator statsAccumulator = statsEntry.getValue();
             statsAccumulator.writeQueuedRows();
-            statsAccumulator.persistMarketStats(perTypeCounters.get(baseType).value(), topologyOrganizer);
+            statsAccumulator.persistMarketStats(perTypeCounters.get(baseType).value(), topologyInfo);
         }
     }
 

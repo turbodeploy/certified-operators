@@ -27,15 +27,14 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.topology.TopologyListenerConfig;
-import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.SystemLoadHelper;
-import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
@@ -44,7 +43,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 public class LiveStatsWriterTest {
 
     private static final long TEST_OID = 123;
-    private static int writeTopologyChunkSize = 100;
+
+    private static final int writeTopologyChunkSize = 100;
+
+    private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
+            .setTopologyContextId(12341)
+            .setTopologyId(11111)
+            .build();
+
     private static final EntityDTO.EntityType sdkEntityType =
             EntityDTO.EntityType.VIRTUAL_DATACENTER;
     private static final int vmEntityTypeNumber = sdkEntityType.getNumber();
@@ -57,8 +63,6 @@ public class LiveStatsWriterTest {
 
     private EntitiesRecord mockEntitiesRecord;
     private HistorydbIO mockHistorydbIO;
-    private TopologySnapshotRegistry topologySnapshotRegistry;
-    private TopologyOrganizer topologyOrganizer;
     private GroupServiceBlockingStub groupServiceClient;
     private SystemLoadHelper systemLoadHelper;
     private DSLContext mockDSLContext;
@@ -76,8 +80,6 @@ public class LiveStatsWriterTest {
         // the entities to persist, and TopologyOrganizer, etc.
         allEntities = Lists.newArrayList(
                 buildEntityDTO(sdkEntityType, TEST_OID, displayName));
-        topologySnapshotRegistry = Mockito.mock(TopologySnapshotRegistry.class);
-        topologyOrganizer = Mockito.mock(TopologyOrganizer.class);
 
         groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
         systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
@@ -99,13 +101,14 @@ public class LiveStatsWriterTest {
     }
 
     private void consumeDTOs() throws Exception {
-        LiveStatsWriter testStatsWriter = new LiveStatsWriter(topologySnapshotRegistry,
-                mockHistorydbIO, writeTopologyChunkSize, commodityExcludeList);
+        LiveStatsWriter testStatsWriter = new LiveStatsWriter(mockHistorydbIO,
+            writeTopologyChunkSize, commodityExcludeList);
         RemoteIterator<TopologyEntityDTO> allDTOs = Mockito.mock(RemoteIterator.class);
         when(allDTOs.hasNext()).thenReturn(true).thenReturn(false);
         when(allDTOs.nextChunk()).thenReturn(allEntities);
 
-        testStatsWriter.processChunks(topologyOrganizer, allDTOs, groupServiceClient, systemLoadHelper);
+
+        testStatsWriter.processChunks(TOPOLOGY_INFO, allDTOs, groupServiceClient, systemLoadHelper);
     }
 
     /**

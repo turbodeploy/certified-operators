@@ -82,11 +82,12 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
@@ -1021,7 +1022,7 @@ public class PlacementPolicySysTest {
         @Override
         public void onProjectedTopologyReceived(final long projectedTopologyId,
                                                 @Nonnull final TopologyInfo sourceTopologyInfo,
-                                                @Nonnull final Set<Long> skippedEntities,
+                                                @Nonnull final Set<SkippedEntity> skippedEntities,
                                                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopology) {
             this.projectedTopology = new HashMap<>();
             this.projectedEntities = new ArrayList<>();
