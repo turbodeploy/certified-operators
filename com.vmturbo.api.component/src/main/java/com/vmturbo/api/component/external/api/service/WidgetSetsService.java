@@ -33,13 +33,17 @@ import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc.WidgetsetsServi
  **/
 public class WidgetSetsService implements IWidgetSetsService {
 
+    private final WidgetsetMapper widgetsetMapper;
+
     // the GRPC service stub to call for Widgetset services
     private final WidgetsetsServiceBlockingStub widgetsetsService;
 
     private final Logger logger = LogManager.getLogger();
 
-    public WidgetSetsService(WidgetsetsServiceBlockingStub widgetsetsService) {
+    public WidgetSetsService(@Nonnull final WidgetsetsServiceBlockingStub widgetsetsService,
+                             @Nonnull final WidgetsetMapper widgetsetMapper) {
         this.widgetsetsService = widgetsetsService;
+        this.widgetsetMapper = widgetsetMapper;
     }
 
     @Override
@@ -57,7 +61,7 @@ public class WidgetSetsService implements IWidgetSetsService {
         final List<WidgetsetApiDTO> answer = Lists.newLinkedList();
         widgetsetsService.getWidgetsetList(widgetsetListRequest.build())
                 .forEachRemaining(widgetsetRecord ->
-                        answer.add(WidgetsetMapper.toUiWidgetset(widgetsetRecord)));
+                        answer.add(widgetsetMapper.toUiWidgetset(widgetsetRecord)));
         return answer;
     }
 
@@ -73,7 +77,7 @@ public class WidgetSetsService implements IWidgetSetsService {
                 .setOid(widgetsetOid)
                 .build());
         if (result.hasOid()) {
-            return WidgetsetMapper.toUiWidgetset(result);
+            return widgetsetMapper.toUiWidgetset(result);
         } else {
             throw new UnknownObjectException("cannot find widgetset " + uuid);
         }
@@ -81,12 +85,12 @@ public class WidgetSetsService implements IWidgetSetsService {
 
     @Override
     public WidgetsetApiDTO createWidgetset(@Nonnull WidgetsetApiDTO input) {
-        Widgets.WidgetsetInfo widgetsetInfo = WidgetsetMapper.fromUiWidgetsetApiDTO(input);
+        Widgets.WidgetsetInfo widgetsetInfo = widgetsetMapper.fromUiWidgetsetApiDTO(input);
         try {
             Widgets.Widgetset result = widgetsetsService.createWidgetset(CreateWidgetsetRequest.newBuilder()
                     .setWidgetsetInfo(widgetsetInfo)
                     .build());
-            return WidgetsetMapper.toUiWidgetset(result);
+            return widgetsetMapper.toUiWidgetset(result);
         } catch(Exception e) {
             logger.error("create widget exception ", e);
             throw e;
@@ -96,13 +100,13 @@ public class WidgetSetsService implements IWidgetSetsService {
     @Override
     public WidgetsetApiDTO updateWidgetset(String uuid, WidgetsetApiDTO input) throws
             UnknownObjectException, OperationFailedException {
-        Widgets.Widgetset updatedWidgetset = WidgetsetMapper.fromUiWidgetset(input);
+        Widgets.Widgetset updatedWidgetset = widgetsetMapper.fromUiWidgetset(input);
         try {
             Widgets.Widgetset result = widgetsetsService.updateWidgetset(UpdateWidgetsetRequest.newBuilder()
                     .setOid(updatedWidgetset.getOid())
                     .setWidgetsetInfo(updatedWidgetset.getInfo())
                     .build());
-            return WidgetsetMapper.toUiWidgetset(result);
+            return widgetsetMapper.toUiWidgetset(result);
         } catch (StatusRuntimeException e) {
             if (e.getStatus().equals(Status.NOT_FOUND)) {
                 throw new UnknownObjectException("Cannot find widgetset: " + uuid);
