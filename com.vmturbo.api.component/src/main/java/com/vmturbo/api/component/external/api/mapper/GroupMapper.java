@@ -29,6 +29,7 @@ import jdk.nashorn.internal.ir.annotations.Immutable;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -69,6 +70,13 @@ public class GroupMapper {
     public static final String GROUP = "Group";
     public static final String CLUSTER = "Cluster";
     public static final String STORAGE_CLUSTER = "StorageCluster";
+
+    /**
+     * The API "class types" (as returned by {@link BaseApiDTO#getClassName()}
+     * which indicate that the {@link BaseApiDTO} in question is a group.
+     */
+    public static final Set<String> GROUP_CLASSES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER);
+
     public static final String OID = "oid";
 
     // For normal criteria, user just need to provide a string (like a display name). But for

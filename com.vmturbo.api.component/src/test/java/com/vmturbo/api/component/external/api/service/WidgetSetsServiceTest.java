@@ -1,11 +1,15 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -27,7 +31,11 @@ import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.widgets.Widgets;
+import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
+import com.vmturbo.common.protobuf.widgets.Widgets.WidgetsetInfo;
 import com.vmturbo.common.protobuf.widgets.WidgetsMoles;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -67,8 +75,14 @@ public class WidgetSetsServiceTest {
     private WidgetApiDTO widget1 = new WidgetApiDTO();
     private WidgetApiDTO widget2 = new WidgetApiDTO();
 
-    private Widgets.Widgetset widgetsetProto1;
-    private Widgets.Widgetset widgetsetProto2;
+    private final Widgets.Widgetset widgetsetProto1 = Widgets.Widgetset.newBuilder()
+        .setOid(1)
+        .build();
+    private final Widgets.Widgetset widgetsetProto2 = Widgets.Widgetset.newBuilder()
+        .setOid(2)
+        .build();
+
+    private WidgetsetMapper widgetsetMapper = mock(WidgetsetMapper.class);
 
 
 
@@ -98,12 +112,12 @@ public class WidgetSetsServiceTest {
         widgetset2.setScopeType(WIDGETSET_SCOPETYPE_2);
         widgetset2.setWidgets(ImmutableList.of(widget2));
 
-        widgetsetProto1 = WidgetsetMapper.fromUiWidgetset(widgetset1);
-        widgetsetProto2 = WidgetsetMapper.fromUiWidgetset(widgetset2);
+        when(widgetsetMapper.toUiWidgetset(widgetsetProto1)).thenReturn(widgetset1);
+        when(widgetsetMapper.toUiWidgetset(widgetsetProto2)).thenReturn(widgetset2);
 
         // initialize test instance
         widgetSetsService = new WidgetSetsService(WidgetsetsServiceGrpc.newBlockingStub(
-                grpcServer.getChannel()));
+                grpcServer.getChannel()), widgetsetMapper);
     }
 
     /**
@@ -175,13 +189,20 @@ public class WidgetSetsServiceTest {
         newWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
         newWidgetset.setWidgets(ImmutableList.of(widget1));
 
-        when(widgetsetsserviceSpy.createWidgetset(anyObject()))
-                .thenReturn(widgetsetProto2);
+        final WidgetsetInfo mappedWidgetSetInfo =  WidgetsetInfo.newBuilder()
+            .setCategory("foo")
+            .build();
+        when(widgetsetMapper.fromUiWidgetsetApiDTO(newWidgetset)).thenReturn(mappedWidgetSetInfo);
+
+        when(widgetsetsserviceSpy.createWidgetset(CreateWidgetsetRequest.newBuilder()
+            .setWidgetsetInfo(mappedWidgetSetInfo)
+            .build())).thenReturn(widgetsetProto2);
+
         // Act
         WidgetsetApiDTO created = widgetSetsService.createWidgetset(newWidgetset);
         // Assert
-        // convert to protobuf so 'equals()' can be used
-        assertThat(WidgetsetMapper.fromUiWidgetset(created), equalTo(widgetsetProto2));
+        verify(widgetsetMapper).toUiWidgetset(widgetsetProto2);
+        assertThat(created, is(widgetset2));
 
     }
 
@@ -199,16 +220,20 @@ public class WidgetSetsServiceTest {
         updatedWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
         updatedWidgetset.setWidgets(ImmutableList.of(widget1));
 
-        when(widgetsetsserviceSpy.updateWidgetset(anyObject()))
-                .thenReturn(widgetsetProto2);
+        when(widgetsetMapper.fromUiWidgetset(updatedWidgetset)).thenReturn(widgetsetProto1);
+
+        when(widgetsetsserviceSpy.updateWidgetset(UpdateWidgetsetRequest.newBuilder()
+            .setOid(widgetsetProto1.getOid())
+            .setWidgetsetInfo(widgetsetProto1.getInfo())
+            .build())).thenReturn(widgetsetProto2);
 
         // Act
         WidgetsetApiDTO updatedAnswer = widgetSetsService.updateWidgetset(WIDGETSET_UUID_1,
                 updatedWidgetset);
 
         // Assert
-        // convert to protobuf so 'equals()' can be used
-        assertThat(WidgetsetMapper.fromUiWidgetset(updatedAnswer), equalTo(widgetsetProto2));
+        verify(widgetsetMapper).toUiWidgetset(widgetsetProto2);
+        assertThat(updatedAnswer, is(widgetset2));
     }
 
     /**
@@ -224,6 +249,8 @@ public class WidgetSetsServiceTest {
         updatedWidgetset.setCategory(WIDGETSET_CATEGORY_1);
         updatedWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
         updatedWidgetset.setWidgets(ImmutableList.of(widget1));
+        
+        when(widgetsetMapper.fromUiWidgetset(updatedWidgetset)).thenReturn(widgetsetProto1);
 
         when(widgetsetsserviceSpy.updateWidgetsetError(anyObject()))
                 .thenReturn(Optional.of((Status.NOT_FOUND.asException())));
@@ -245,7 +272,7 @@ public class WidgetSetsServiceTest {
         // Act
         widgetSetsService.deleteWidgetset(WIDGETSET_UUID_1);
         // Assert
-        Mockito.verify(widgetsetsserviceSpy).deleteWidgetset(DeleteWidgetsetRequest.newBuilder()
+        verify(widgetsetsserviceSpy).deleteWidgetset(DeleteWidgetsetRequest.newBuilder()
                 .setOid(Long.valueOf(WIDGETSET_UUID_1)).build());
     }
 
