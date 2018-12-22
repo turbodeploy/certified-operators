@@ -222,11 +222,6 @@ public class MapperConfig {
     }
 
     @Bean
-    public WidgetsetMapper widgetsetMapper() {
-        return new WidgetsetMapper(groupMapper(), communicationConfig.groupRpcService());
-    }
-
-    @Bean
     public WorkflowMapper workflowMapper() {
         return new WorkflowMapper();
     }

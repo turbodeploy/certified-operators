@@ -439,8 +439,7 @@ public class ServiceConfig {
 
     @Bean
     public WidgetSetsService widgetSetsService() {
-        return new WidgetSetsService(communicationConfig.widgetsetsServiceBlockingStub(),
-            mapperConfig.widgetsetMapper());
+        return new WidgetSetsService(communicationConfig.widgetsetsServiceBlockingStub());
     }
 
     @Bean
