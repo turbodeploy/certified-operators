@@ -9,14 +9,13 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
-import com.google.common.collect.Lists;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -28,15 +27,21 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import io.grpc.Channel;
 import io.grpc.Status;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
@@ -292,6 +297,50 @@ public class GroupsServiceTest {
         assertTrue(retIds.isPresent());
         assertEquals(1, retIds.get().size());
         assertEquals(memberId, retIds.get().iterator().next().longValue());
+    }
+
+    @Test
+    public void testGetGroupMembersByUuid() throws UnknownObjectException {
+        // Arrange
+        final long memberId = 7;
+        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
+            .setId(1L)
+            .build()))
+            .thenReturn(GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addIds(memberId))
+                .build());
+
+        final ServiceEntityApiDTO memberDto = new ServiceEntityApiDTO();
+        memberDto.setUuid("7");
+        when(repositoryApi.getServiceEntitiesById(
+                ServiceEntitiesRequest.newBuilder(Sets.newHashSet(memberId)).build()))
+            .thenReturn(ImmutableMap.of(memberId, Optional.of(memberDto)));
+
+        // Act
+        final List<?> members = groupsService.getMembersByGroupUuid("1");
+
+        // Assert
+        assertThat(members.size(), is(1));
+        assertThat(members.get(0), is(memberDto));
+    }
+
+    @Test
+    public void testGetGroupMembersByUuidNoMembers() throws UnknownObjectException {
+        // Arrange
+        when(groupServiceSpy.getMembers(GetMembersRequest.newBuilder()
+                .setId(1L)
+                .build()))
+            // No members in group.
+            .thenReturn(GetMembersResponse.newBuilder()
+                .build());
+
+        // Act
+        List<?> members = groupsService.getMembersByGroupUuid("1");
+
+        // Assert
+        assertTrue(members.isEmpty());
+        // Should be no call to repository to get entity information.
+        verifyZeroInteractions(repositoryApi);
     }
 
     @Test(expected = UnknownObjectException.class)

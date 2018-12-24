@@ -21,6 +21,7 @@ import org.springframework.validation.Errors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -640,21 +641,27 @@ public class GroupsService implements IGroupsService {
                     new IllegalArgumentException("Can't get members in invalid group: " + uuid));
             logger.info("Number of members for group {} is {}", uuid, memberIds.size());
 
-            // Get entities of group members from the repository component
-            final Map<Long, Optional<ServiceEntityApiDTO>> entities =
+            // Special handling for the empty member list, because passing empty to
+            // repositoryApi returns all entities.
+            if (memberIds.isEmpty()) {
+                return Collections.emptyList();
+            } else {
+                // Get entities of group members from the repository component
+                final Map<Long, Optional<ServiceEntityApiDTO>> entities =
                     repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
-                            Sets.newHashSet(memberIds)).build());
+                        Sets.newHashSet(memberIds)).build());
 
-            final List<ServiceEntityApiDTO> results = new ArrayList<>();
+                final List<ServiceEntityApiDTO> results = new ArrayList<>();
 
-            entities.forEach((oid, se) -> {
-                if (se.isPresent()) {
-                    results.add(se.get());
-                } else {
-                    logger.warn("Cannot find entity with oid " + oid);
-                }
-            });
-            return results;
+                entities.forEach((oid, se) -> {
+                    if (se.isPresent()) {
+                        results.add(se.get());
+                    } else {
+                        logger.warn("Cannot find entity with oid " + oid);
+                    }
+                });
+                return results;
+            }
         }
     }
 
