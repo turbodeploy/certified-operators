@@ -13,9 +13,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -52,7 +54,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -73,6 +77,10 @@ public class TopologyEditorTest {
     private static final CommodityType CPU = CommodityType.newBuilder().setType(40).build();
     private static final CommodityType LATENCY = CommodityType.newBuilder().setType(3).build();
     private static final CommodityType IOPS = CommodityType.newBuilder().setType(4).build();
+    private static final CommodityType DATASTORE = CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.DATASTORE_VALUE).build();
+    private static final CommodityType DSPM = CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE).build();
 
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
@@ -124,6 +132,8 @@ public class TopologyEditorTest {
                 .setAccesses(vmId).build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CPU).setUsed(USED)
                 .setAccesses(vmId).build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DATASTORE)
+                            .setAccesses(stId).build())
     );
 
     private final TopologyEntity.Builder st = TopologyEntityUtils.topologyEntityBuilder(
@@ -135,16 +145,32 @@ public class TopologyEditorTest {
                 .setAccesses(vmId).setUsed(USED).build())
             .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(IOPS)
                 .setAccesses(vmId).setUsed(USED).build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DSPM)
+                            .setAccesses(pmId).build())
     );
 
     private static final int NUM_CLONES = 5;
 
     private static final long TEMPLATE_ID = 123;
 
-    private static final ScenarioChange ADD = ScenarioChange.newBuilder()
+    private static final ScenarioChange ADD_VM = ScenarioChange.newBuilder()
                     .setTopologyAddition(TopologyAddition.newBuilder()
                         .setAdditionCount(NUM_CLONES)
                         .setEntityId(vmId)
+                        .build())
+                    .build();
+
+    private static final ScenarioChange ADD_HOST = ScenarioChange.newBuilder()
+                    .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setAdditionCount(NUM_CLONES)
+                        .setEntityId(pmId)
+                        .build())
+                    .build();
+
+    private static final ScenarioChange ADD_STORAGE = ScenarioChange.newBuilder()
+                    .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setAdditionCount(NUM_CLONES)
+                        .setEntityId(stId)
                         .build())
                     .build();
 
@@ -187,10 +213,10 @@ public class TopologyEditorTest {
      * Test adding entities in a plan.
      */
     @Test
-    public void testTopologyAddition() {
+    public void testTopologyAdditionVMClone() {
         Map<Long, TopologyEntity.Builder> topology = Stream.of(vm, pm, st)
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
-        List<ScenarioChange> changes = Lists.newArrayList(ADD);
+        List<ScenarioChange> changes = Lists.newArrayList(ADD_VM);
 
         topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
 
@@ -233,6 +259,103 @@ public class TopologyEditorTest {
             assertEquals(cloneCommBought.getCommodityBoughtList(),
                 vmCommBought.getCommodityBoughtList());
         }
+    }
+
+    /**
+     * Test adding host and storages in a plan.
+     */
+    @Test
+    public void testTopologyAdditionHostAndStorageClones() {
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(vm, pm, st)
+                        .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
+
+                // Add hosts and storages
+                List<ScenarioChange> changes = Lists.newArrayList(ADD_HOST);
+                changes.addAll(Lists.newArrayList(ADD_STORAGE));
+
+                topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+
+                List<TopologyEntity.Builder> pmClones = topology.values().stream()
+                                .filter(entity -> entity.getOid() != pm.getOid())
+                                .filter(entity -> entity.getEntityType() == pm.getEntityType())
+                                .collect(Collectors.toList());
+
+                List<TopologyEntity.Builder> storageClones = topology.values().stream()
+                                .filter(entity -> entity.getOid() != st.getOid())
+                                .filter(entity -> entity.getEntityType() == st.getEntityType())
+                                .collect(Collectors.toList());
+
+                assertEquals(NUM_CLONES, pmClones.size());
+                assertEquals(NUM_CLONES, storageClones.size());
+
+                // Verify display names are (e.g.) "PM - Clone #123"
+                List<String> pmNames = pmClones.stream().map(TopologyEntity.Builder::getDisplayName)
+                                .collect(Collectors.toList());
+                pmNames.sort(String::compareTo);
+                IntStream.range(0, NUM_CLONES).forEach(i -> {
+                    assertEquals(pmNames.get(i), pm.getDisplayName() + " - Clone #" + i);
+                });
+
+                List<String> storageNames = storageClones.stream().map(TopologyEntity.Builder::getDisplayName)
+                                .collect(Collectors.toList());
+                pmNames.sort(String::compareTo);
+                IntStream.range(0, NUM_CLONES).forEach(i -> {
+                    assertEquals(storageNames.get(i), st.getDisplayName() + " - Clone #" + i);
+                });
+
+                // clones are unplaced - all provider IDs are negative
+                Stream.concat(pmClones.stream(), storageClones.stream()).forEach(clone -> {
+                    boolean allNegative = clone.getEntityBuilder()
+                                    .getCommoditiesBoughtFromProvidersList().stream()
+                                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                                    .allMatch(key -> key < 0);
+                    assertTrue(allNegative);
+                });
+
+                // Check if pm clones' datastore commodity is added and its access set to
+                // original entity's accessed storage.
+                Set<Long> connectedStorages = storageClones.stream().map(clone -> clone.getOid()).collect(Collectors.toSet());
+                connectedStorages.add(stId);
+                assertEquals(6, connectedStorages.size());
+                pmClones.stream()
+                    .forEach(pmClone -> {
+                       List<CommoditySoldDTO> bicliqueCommList = pmClone.getEntityBuilder().getCommoditySoldListList().stream()
+                            .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
+                            .collect(Collectors.toList());
+                       Set<Long> connectedStoragesFound = new HashSet<>();
+                       // For each PM : 1 initial storage and 5 new storages that were cloned
+                       assertEquals(6, bicliqueCommList.size());
+                       bicliqueCommList.stream().forEach(comm -> {
+                           assertEquals(DATASTORE.getType(), comm.getCommodityType().getType());
+                           // add storage id we find access to
+                           connectedStoragesFound.add(comm.getAccesses());
+                       });
+                       // Each clone should be connected to all storages
+                       assertTrue(connectedStoragesFound.equals(connectedStorages));
+                    });
+
+                // Check if storage clones' DSPM commodity is added and its access set to
+                // original entity's accessed host.
+                Set<Long> connectedHosts = pmClones.stream().map(clone -> clone.getOid()).collect(Collectors.toSet());
+                connectedHosts.add(pmId);
+                assertEquals(6, connectedHosts.size());
+                storageClones.stream()
+                    .forEach(stClone -> {
+                       List<CommoditySoldDTO> bicliqueCommList = stClone.getEntityBuilder().getCommoditySoldListList().stream()
+                            .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
+                            .collect(Collectors.toList());
+                       Set<Long> connectedHostsFound = new HashSet<>();
+                       // For each Storage : 1 initial host and 5 new hosts that were cloned
+                       assertEquals(6, bicliqueCommList.size());
+                       bicliqueCommList.stream().forEach(comm -> {
+                           assertEquals(DSPM.getType(), comm.getCommodityType().getType());
+                           // add host id we find access to
+                           connectedHostsFound.add(comm.getAccesses());
+                       });
+                       // Each clone should be connected to all hosts
+                       assertTrue(connectedHostsFound.equals(connectedHosts));
+                    });
+
     }
 
     @Test

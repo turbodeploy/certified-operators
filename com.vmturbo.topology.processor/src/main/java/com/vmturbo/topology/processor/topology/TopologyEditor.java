@@ -1,3 +1,4 @@
+
 package com.vmturbo.topology.processor.topology;
 
 import java.util.Collections;
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.Utili
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -42,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanOr
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -167,7 +170,8 @@ public class TopologyEditor {
                 for (int i = 0; i < addCount; ++i) {
                     // Create the new entity being added, but set the plan origin so these added
                     // entities aren't counted in plan "current" stats
-                    TopologyEntityDTO.Builder clone = clone(entity.getEntityBuilder(), identityProvider, i)
+                    TopologyEntityDTO.Builder clone =
+                        clone(entity.getEntityBuilder(), identityProvider, i, topology)
                             .setOrigin(entityOrigin);
                     topology.put(clone.getOid(), TopologyEntity.newBuilder(clone));
                 }
@@ -310,11 +314,13 @@ public class TopologyEditor {
      * @param entity source topology entity
      * @param identityProvider used to generate an oid for the clone
      * @param cloneCounter used in the display name
+     * @param topology to which entities belong to
      * @return the cloned entity
      */
     private static TopologyEntityDTO.Builder clone(TopologyEntityDTO.Builder entity,
                                                    @Nonnull final IdentityProvider identityProvider,
-                                                   int cloneCounter) {
+                                                   int cloneCounter,
+                                                   Map<Long, TopologyEntity.Builder> topology) {
         final TopologyEntityDTO.Builder cloneBuilder = entity.clone()
                 .clearCommoditiesBoughtFromProviders();
         // unplace all commodities bought, so that the market creates a Placement action for them.
@@ -326,6 +332,7 @@ public class TopologyEditor {
             CommoditiesBoughtFromProvider.Builder clonedProvider =
                 CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(--noProvider)
+                    .setMovable(true)
                     .setProviderEntityType(bought.getProviderEntityType());
             // In legacy opsmgr, during topology addition, all constraints are
             // implicitly ignored. We do the same thing here.
@@ -338,6 +345,34 @@ public class TopologyEditor {
             cloneBuilder.addCommoditiesBoughtFromProviders(clonedProvider.build());
             oldProvidersMap.put(noProvider, oldProvider);
         }
+
+        long cloneId = identityProvider.getCloneId(entity);
+        cloneBuilder.getCommoditySoldListBuilderList().stream()
+             // for each commodity sold for clone, update utilization to 0
+            .map(commSold -> {
+                commSold.setUsed(0d);
+                commSold.setPeak(0d);
+                return commSold;
+            })
+            .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
+            .forEach(bicliqueCommSold -> {
+                // Set commodity sold for storage/host in case of a DSPM/DATASTORE commodity.
+                // This will make sure we have an edge for biclique creation between newly cloned host
+                // to original storages or newly cloned storage to original hosts.
+                TopologyEntity.Builder connectedEntity = topology.get(bicliqueCommSold.getAccesses());
+                if (connectedEntity != null) {
+                    int commType =
+                            bicliqueCommSold.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE
+                            ? CommodityType.DATASTORE_VALUE : CommodityType.DSPM_ACCESS_VALUE;
+                    connectedEntity.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                            .setKey("CommodityInClone::" + commType + "::" + cloneId)
+                            .setType(commType))
+                        .setAccesses(cloneId)
+                        .build());
+                }
+            });
+
         Map<String, String> entityProperties =
                 Maps.newHashMap(cloneBuilder.getEntityPropertyMapMap());
         if (!oldProvidersMap.isEmpty()) {
@@ -346,7 +381,7 @@ public class TopologyEditor {
         }
         return cloneBuilder
                 .setDisplayName(entity.getDisplayName() + " - Clone #" + cloneCounter)
-                .setOid(identityProvider.getCloneId(entity))
+                .setOid(cloneId)
                 .putAllEntityPropertyMap(entityProperties);
     }
 
