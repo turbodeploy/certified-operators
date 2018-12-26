@@ -1,12 +1,25 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
+import com.vmturbo.stitching.TopologicalChangelog;
+import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 
 public abstract class StorageProvisionedPostStitchingOperation extends OverprovisionCapacityPostStitchingOperation {
@@ -22,16 +35,22 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
     }
 
     /**
-     * Post-stitching operation for the purpose of setting Storage Provisioned commodity capacities for
-     * Storage entities.
+     * Post-stitching operation for the purpose of setting sold StorageProvisioned commodity
+     * capacity and bought StorageProvisioned used for Storage entities.
      *
      * If the entity in question has a Storage Amount commodity, a Storage Provisioned commodity with
      * unset capacity, and a setting for storage overprovisioned percentage, then the Storage
      * Provisioned commodity's capacity is set to the Storage Amount commodity capacity multiplied by
      * the overprovisioned percentage.
+     *
+     * If the entity buys a StorageProvisioned commodity, and sells a StorageAmount commodity, and
+     * the StorageAmount has capacity set, it should set the bought StorageProvisioned used to be
+     * the capacity of sold StorageAmount.
      */
     public static class StorageEntityStorageProvisionedPostStitchingOperation extends
                                                     StorageProvisionedPostStitchingOperation {
+
+        private static final Logger logger = LogManager.getLogger();
 
         @Nonnull
         @Override
@@ -40,6 +59,42 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
             return stitchingScopeFactory.entityTypeScope(EntityType.STORAGE);
         }
 
+        @Nonnull
+        @Override
+        public TopologicalChangelog<TopologyEntity> performOperation(
+                @Nonnull Stream<TopologyEntity> entities,
+                @Nonnull EntitySettingsCollection settingsCollection,
+                @Nonnull EntityChangesBuilder<TopologyEntity> resultBuilder) {
+            // collect to list so the entities can be looped twice
+            List<TopologyEntity> list = entities.collect(Collectors.toList());
+            // set sold StorageProvisioned capacity
+            super.performOperation(list.stream(), settingsCollection, resultBuilder);
+            // set bought StorageProvisioned used value to be the same of its sold StorageAmount capacity
+            list.forEach(entity -> {
+                TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+                entityBuilder.getCommoditySoldListBuilderList().stream()
+                        .filter(commoditySoldDTO -> commoditySoldDTO.getCommodityType().getType() ==
+                                CommodityType.STORAGE_AMOUNT_VALUE && commoditySoldDTO.hasCapacity())
+                        .map(CommoditySoldDTO.Builder::getCapacity)
+                        .findAny()
+                        .ifPresent(storageAmountCapacity ->
+                                entityBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                                    .flatMap(commoditiesBoughtFromProvider ->
+                                            commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
+                                    .filter(commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getType() ==
+                                            CommodityType.STORAGE_PROVISIONED_VALUE)
+                                    .forEach(commodityBoughtDTO -> resultBuilder.queueUpdateEntityAlone(entity,
+                                            entityForUpdate -> {
+                                        commodityBoughtDTO.setUsed(storageAmountCapacity);
+                                        logger.debug("Setting bought StorageProvisioned used " +
+                                                        "value for entity {} to its sold " +
+                                                        "StorageAmount capacity {}",
+                                                entityForUpdate.getOid(), storageAmountCapacity);
+                                    }))
+                        );
+            });
+            return resultBuilder.build();
+        }
     }
 
     /**

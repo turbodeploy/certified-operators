@@ -28,16 +28,20 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
 
@@ -293,6 +297,91 @@ public class StorageProvisionedPostStitchingOpTest {
                 thirdCommodityList);
         assertEquals(fourthTestTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
                 fourthCommodityList);
+    }
+
+    @Test
+    public void testSetStorageProvisionedBoughtUsed() {
+        // mock sold storage amount whose capacity value comes from vc
+        CommoditySoldDTO soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 1200);
+        CommoditySoldDTO soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
+        CommoditySoldDTO soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
+
+        // mock bought storage provisioned whose used value comes from storage probe
+        CommodityBoughtDTO boughtStorageProvisioned = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_PROVISIONED_VALUE).build())
+                .setUsed(1500).build();
+        CommodityBoughtDTO boughtStorageLatency = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_LATENCY_VALUE).build())
+                .setUsed(2).build();
+
+        final TopologyEntity storage = makeTopologyEntity(EntityType.STORAGE_VALUE,
+                Lists.newArrayList(soldStorageAmount, soldStorageLatency, soldStorageProvisioned),
+                Lists.newArrayList(boughtStorageLatency, boughtStorageProvisioned),
+                Collections.emptyList());
+
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(
+                Stream.of(storage), settingsMock, resultBuilder);
+
+        if (operation instanceof StorageEntityStorageProvisionedPostStitchingOperation) {
+            // check that the number of changes is 2 (one is for StorageProvisioned sold capacity,
+            // the other is for StorageProvisioned bought used
+            assertEquals(2, result.getChanges().size());
+            result.getChanges().forEach(change -> change.applyChange(journal));
+
+            // check that StorageProvisioned bought used value is set to StorageAmount sold capacity
+            assertEquals(1200, storage.getTopologyEntityDtoBuilder()
+                    .getCommoditiesBoughtFromProviders(0).getCommodityBoughtList().stream()
+                    .filter(commodityBoughtDTO -> commodityBoughtDTO.getCommodityType().getType() ==
+                            CommodityType.STORAGE_PROVISIONED_VALUE)
+                    .map(CommodityBoughtDTO::getUsed).findAny().get(), 0);
+        } else {
+            // only one change for StorageProvisioned sold capacity
+            assertEquals(1, result.getChanges().size());
+        }
+    }
+
+    @Test
+    public void testSetStorageProvisionedBoughtUsed_NoStorageProvisonedBought() {
+        // mock sold storage amount whose capacity value comes from vc
+        CommoditySoldDTO soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 1200);
+        CommoditySoldDTO soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
+        CommoditySoldDTO soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
+
+        final TopologyEntity storage = makeTopologyEntity(EntityType.STORAGE_VALUE,
+                Lists.newArrayList(soldStorageAmount, soldStorageLatency, soldStorageProvisioned));
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(
+                Stream.of(storage), settingsMock, resultBuilder);
+        // only one change for StorageProvisioned sold capacity
+        assertEquals(1, result.getChanges().size());
+    }
+
+    @Test
+    public void testSetStorageProvisionedBoughtUsed_NoStorageAmountSold() {
+        // mock sold commodities
+        CommoditySoldDTO soldStorageLatency = makeCommoditySold(CommodityType.STORAGE_LATENCY, 5000);
+        CommoditySoldDTO soldStorageProvisioned = makeCommoditySold(CommodityType.STORAGE_PROVISIONED);
+        // mock bought commodities
+        CommodityBoughtDTO boughtStorageProvisioned = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_PROVISIONED_VALUE).build())
+                .setUsed(1500).build();
+        CommodityBoughtDTO boughtStorageLatency = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_LATENCY_VALUE).build())
+                .setUsed(2).build();
+
+        final TopologyEntity storage = makeTopologyEntity(EntityType.STORAGE_VALUE,
+                Lists.newArrayList(soldStorageLatency, soldStorageProvisioned),
+                Lists.newArrayList(boughtStorageLatency, boughtStorageProvisioned),
+                Collections.emptyList());
+
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(
+                Stream.of(storage), settingsMock, resultBuilder);
+        // no change for StorageProvisioned sold capacity, or StorageProvisioned bought used
+        // since StorageAmount is not sold
+        assertEquals(0, result.getChanges().size());
     }
 }
 
