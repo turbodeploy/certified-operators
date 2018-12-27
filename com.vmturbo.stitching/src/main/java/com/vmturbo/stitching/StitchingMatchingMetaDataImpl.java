@@ -56,7 +56,7 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
                     public List<String> getMessagePath() {
                         // path may be empty since the field may be in EntityDTO directly, no nested layers
                         return entityField.getMessagePathList().isEmpty() ? Collections.emptyList()
-                                : entityField.getMessagePathList().subList(0, entityField.getMessagePathCount() - 1);
+                                : entityField.getMessagePathList().subList(0, entityField.getMessagePathCount());
                     }
                 })
                 .collect(Collectors.toList());
