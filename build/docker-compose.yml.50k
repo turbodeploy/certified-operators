@@ -38,6 +38,7 @@ volumes:
 #  cost: *localdriver
   ml-datastore: *localdriver
   reporting: *localdriver
+  mediation-actionscript: *localdriver
   mediation-vcenter: *localdriver
 #  mediation-vcenter-browsing: *localdriver
   mediation-hyperv: *localdriver
@@ -500,3 +501,12 @@ services:
 #      JAVA_OPTS: "-Xmx2000M"
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep
+
+  mediation-actionscript:
+    extends:
+      file: prod-services.yml
+      service: mediation-actionscript-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
+    mem_limit: 4096M
+    depends_on: *clustermgrdep

@@ -305,6 +305,8 @@
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
+                <module>../com.vmturbo.mediation.actionscript</module>
+                <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
             </modules>
@@ -702,6 +704,8 @@
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.actionscript</module>
+                <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>

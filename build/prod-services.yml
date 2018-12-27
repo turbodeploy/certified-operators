@@ -647,3 +647,16 @@ services:
     volumes:
       - mediation-mssql:/home/turbonomic/data
     restart: always
+
+  mediation-actionscript-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.actionscript.component
+    environment:
+      consul_host: consul
+      component_type: mediation-actionscript
+      instance_id: mediation-actionscript-1
+    volumes:
+    - mediation-actionscript:/home/turbonomic/data
+    restart: always
