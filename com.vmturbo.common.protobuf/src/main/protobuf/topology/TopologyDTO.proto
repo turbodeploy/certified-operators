@@ -109,9 +109,6 @@ message TypeSpecificInfo {
 
         // String identifying the replication type needed for cost calculations
         optional .common_dto.EntityDTO.VirtualVolumeData.RedundancyType redundancy_type = 3;
-
-        // List of files for VC storage browsing.
-        repeated .common_dto.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor files = 4;
     }
 
     // specific data for a Storage entity

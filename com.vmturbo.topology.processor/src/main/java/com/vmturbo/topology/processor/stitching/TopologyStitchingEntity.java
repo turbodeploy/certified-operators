@@ -62,8 +62,6 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private final Map<ConnectionType, Set<StitchingEntity>> connectedTo = new IdentityHashMap<>();
 
-    private final Map<ConnectionType, Set<StitchingEntity>> connectedFrom = new IdentityHashMap<>();
-
     public TopologyStitchingEntity(@Nonnull final StitchingEntityData stitchingEntityData) {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
@@ -128,9 +126,8 @@ public class TopologyStitchingEntity implements StitchingEntity {
                         .map(CommoditiesBought::deepCopy)
                         .collect(Collectors.toList())));
 
-        // copy connectedTo and connectedFrom
+        // copy connectedTo
         copy.connectedTo.putAll(connectedTo);
-        copy.connectedFrom.putAll(connectedFrom);
 
         // Copy merge information
         getMergeInformation().forEach(mergeInfo -> copy.addMergeInformation(
@@ -172,11 +169,6 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public Map<ConnectionType, Set<StitchingEntity>> getConnectedToByType() {
         return Collections.unmodifiableMap(connectedTo);
-    }
-
-    @Override
-    public Map<ConnectionType, Set<StitchingEntity>> getConnectedFromByType() {
-        return Collections.unmodifiableMap(connectedFrom);
     }
 
     @Override
@@ -278,37 +270,6 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final Set<StitchingEntity> entities) {
         connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).addAll(entities);
-    }
-
-    public boolean removeConnectedTo(@Nonnull final ConnectionType connectionType,
-                                     @Nonnull final StitchingEntity entity) {
-        Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        Set<StitchingEntity> connectedToEntities = connectedTo.get(connectionType);
-        if (connectedToEntities == null) {
-            return false;
-        }
-        return connectedToEntities.remove(entity);
-    }
-
-    public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
-                               @Nonnull final StitchingEntity entity) {
-        Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        addConnectedFrom(connectionType, Sets.newHashSet(entity));
-    }
-
-    public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
-                               @Nonnull final Set<StitchingEntity> entities) {
-        connectedFrom.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).addAll(entities);
-    }
-
-    public boolean removeConnectedFrom(@Nonnull final ConnectionType connectionType,
-                                       @Nonnull final StitchingEntity entity) {
-        Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        Set<StitchingEntity> connectedFromEntities = connectedFrom.get(connectionType);
-        if (connectedFromEntities == null) {
-            return false;
-        }
-        return connectedFromEntities.remove(entity);
     }
 
     @Override

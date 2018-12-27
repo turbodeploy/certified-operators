@@ -9,7 +9,6 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.stitching.prestitching.MergeSharedDatacentersPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
-import com.vmturbo.stitching.prestitching.SharedVirtualVolumePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.StorageVolumePreStitchingOperation;
 
 /**
@@ -30,8 +29,7 @@ public class PreStitchingOperationLibrary {
                 new RemoveNonMarketEntitiesPreStitchingOperation(),
                 new SharedStoragePreStitchingOperation(),
                 new MergeSharedDatacentersPreStitchingOperation(),
-                new StorageVolumePreStitchingOperation(),
-                new SharedVirtualVolumePreStitchingOperation()
+                new StorageVolumePreStitchingOperation()
         );
     }
 

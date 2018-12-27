@@ -197,11 +197,10 @@ public class TopologyStitchingGraph {
 
         // add connected entity, this is currently only used by cloud entities (AWS/Azure)
         // cloud entities use layeredOver to represent normal connection, and consistsOf to
-        // represent owns connection. some entities may used layeredOver for other purposes,
-        // we don't want to add connected for them, so we need a check here to see if we should
-        // use connectedTo.
+        // represent owns connection. on-prem entities may used layeredOver for other purposes,
+        // we don't want to add connected for them, so we need a check for cloud entity here.
         // layeredOver means normal connection
-        if (entityData.supportsConnectedTo()) {
+        if (entityData.isCloud()) {
             entityDtoBuilder.getLayeredOverList().forEach(connectedEntityId -> {
                 final StitchingEntityData connectedEntityData = entityMap.get(connectedEntityId);
                 if (connectedEntityData == null) {
@@ -216,7 +215,6 @@ public class TopologyStitchingGraph {
                             " does not match connected entity localId value: " + connectedEntity.getLocalId());
                 }
                 entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, connectedEntity);
-                connectedEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
             });
             // consistsOf means owns connection
             entityDtoBuilder.getConsistsOfList().forEach(connectedEntityId -> {
@@ -233,7 +231,6 @@ public class TopologyStitchingGraph {
                             " does not match connected entity localId value: " + connectedEntity.getLocalId());
                 }
                 entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, connectedEntity);
-                connectedEntity.addConnectedFrom(ConnectionType.OWNS_CONNECTION, entity);
             });
         }
 

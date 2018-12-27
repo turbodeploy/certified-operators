@@ -84,20 +84,6 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
     }
 
     /**
-     * Get the connected {@link StitchingEntity} instances that are "connectedTo" this entity
-     * grouped by connection type.
-     *
-     * This is the inverse of the connectedTo relationship and it used by cloud probes as well
-     * as Storage Browsing probes.
-     *
-     * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
-     * are connectedTo this entity.
-     */
-    default Map<ConnectionType, Set<StitchingEntity>> getConnectedFromByType() {
-        return Collections.emptyMap();
-    }
-
-    /**
      * Get the {@link EntityType} of this {@link StitchingEntity}.
      *
      * @return the {@link EntityType} of this {@link StitchingEntity}.

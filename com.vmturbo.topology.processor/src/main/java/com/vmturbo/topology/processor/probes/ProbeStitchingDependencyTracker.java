@@ -96,7 +96,6 @@ public class ProbeStitchingDependencyTracker {
     @Nullable public static ProbeStitchingDependencyTracker getDefaultStitchingDependencyTracker() {
         try {
             return newBuilder().requireThat(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.STORAGE_BROWSING).stitchAfter(ProbeCategory.HYPERVISOR)
                     .requireThat(ProbeCategory.FABRIC).stitchAfter(ProbeCategory.HYPERVISOR)
                     .requireThat(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
                     .requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.HYPERVISOR)

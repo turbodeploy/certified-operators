@@ -155,36 +155,8 @@ public class TopologyStitchingChanges {
             });
 
             // merge "connectedTo" from "from" entity to "onto" entity
-            from.getConnectedToByType().forEach((connectionType, connectedEntities) -> {
-                onto.addConnectedTo(connectionType, connectedEntities);
-                connectedEntities.stream()
-                        .filter(stitchingEntity -> stitchingEntity
-                                instanceof TopologyStitchingEntity)
-                        .map(TopologyStitchingEntity.class::cast)
-                        .forEach(topoStitchingEntity -> {
-                            changeset.beforeChange(topoStitchingEntity);
-                            topoStitchingEntity.removeConnectedFrom(connectionType, from);
-                            topoStitchingEntity.addConnectedFrom(connectionType, onto);
-                        });
-                    }
-            );
-
-            // merge "connectedFrom" from "from" entity to "onto" entity.  In this case, we need to
-            // make sure the other end of connectedFrom has connectedTo moved from the "from" entity
-            // to the "onto" entity.
-            from.getConnectedFromByType().forEach((connectionType, connectedEntities) -> {
-                    onto.addConnectedFrom(connectionType, connectedEntities);
-                        connectedEntities.stream()
-                                .filter(stitchingEntity -> stitchingEntity
-                                        instanceof TopologyStitchingEntity)
-                                .map(TopologyStitchingEntity.class::cast)
-                                .forEach(topoStitchingEntity -> {
-                                    changeset.beforeChange(topoStitchingEntity);
-                                    topoStitchingEntity.removeConnectedTo(connectionType, from);
-                                    topoStitchingEntity.addConnectedTo(connectionType, onto);
-                                });
-                    }
-
+            from.getConnectedToByType().forEach((connectionType, connectedEntities) ->
+                    onto.addConnectedTo(connectionType, connectedEntities)
             );
 
             trackMergeInformation(from, onto);

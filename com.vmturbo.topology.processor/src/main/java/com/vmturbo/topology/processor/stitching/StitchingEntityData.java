@@ -20,7 +20,7 @@ public class StitchingEntityData {
     private final long targetId;
     private final long oid;
     private final long lastUpdatedTime;
-    private final boolean supportsConnectedTo;
+    private final boolean isCloud;
 
     /**
      * Create a new {@link StitchingEntityData} object for constructing a {@link TopologyStitchingEntity}.
@@ -29,20 +29,17 @@ public class StitchingEntityData {
      * @param targetId The ID of the target that discovered the DTO.
      * @param oid The OID (object ID) of the entity.
      * @param lastUpdatedTime The time at which the DTO was received from the probe.
-     * @param supportsConnectedTo Indicates if this entity supports the connectedTo relationship.
-     *                            If this is true layeredOver and consistsOf will be converted
-     *                            to NORMAL and OWNS connectedTo relationships, respectively.
      */
     protected StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
             final long targetId,
             final long oid,
             final long lastUpdatedTime,
-            final boolean supportsConnectedTo) {
+            final boolean isCloud) {
         this.entityDtoBuilder = entityDtoBuilder;
         this.targetId = targetId;
         this.oid = oid;
         this.lastUpdatedTime = lastUpdatedTime;
-        this.supportsConnectedTo = supportsConnectedTo;
+        this.isCloud = isCloud;
     }
 
     public EntityDTO.Builder getEntityDtoBuilder() {
@@ -65,8 +62,8 @@ public class StitchingEntityData {
         return lastUpdatedTime;
     }
 
-    public boolean supportsConnectedTo() {
-        return supportsConnectedTo;
+    public boolean isCloud() {
+        return isCloud;
     }
 
     @Override
@@ -106,7 +103,7 @@ public class StitchingEntityData {
         private long targetId;
         private long oid;
         private long lastUpdatedTime;
-        private boolean supportsConnectedTo;
+        private boolean isCloud;
 
         private Builder(@Nonnull final EntityDTO.Builder builder) {
             this.entityDtoBuilder = Objects.requireNonNull(builder);
@@ -145,22 +142,13 @@ public class StitchingEntityData {
             return this;
         }
 
-        /**
-         * Indicates whether or not this DTO supoorts connectedTo relationships.  If true,
-         * layeredOver and consistsOf in the DTO will be converted to NORMAL and OWNS connectedTo
-         * relationships, respectively.
-         *
-         * @param supportsConnectedTo True if connectedTo is supported, false otherwise.
-         * @return A reference to {@link this} to support method chaining.
-         */
-        public Builder supportsConnectedTo(final boolean supportsConnectedTo) {
-            this.supportsConnectedTo = supportsConnectedTo;
+        public Builder cloud(final boolean isCloud) {
+            this.isCloud = isCloud;
             return this;
         }
 
         public StitchingEntityData build() {
-            return new StitchingEntityData(entityDtoBuilder, targetId, oid, lastUpdatedTime,
-                    supportsConnectedTo);
+            return new StitchingEntityData(entityDtoBuilder, targetId, oid, lastUpdatedTime, isCloud);
         }
     }
 
