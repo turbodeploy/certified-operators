@@ -248,6 +248,7 @@ services:
       - "${NGINX_HTTPS_PORT}"
     environment:
       API: api
+      TOPOLOGY: topology-processor
       DNS_RESOLVER: 127.0.0.11
     volumes:
       - /tmp/certs:/etc/nginx/certs

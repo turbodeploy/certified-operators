@@ -179,7 +179,7 @@ http {
 
         # For proxying websockets
         location = /vmturbo/remoteMediation {
-            set $topology_processor_servers topology-processor;
+            set $topology_processor_servers $TOPOLOGY;
 
             # For proxying of websockets to topology processor SSL port
             #proxy_pass https://$topology_processor_servers:9443/remoteMediation;

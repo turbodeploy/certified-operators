@@ -142,6 +142,7 @@ services:
       service: nginx-prod
     environment:
       API: api
+      TOPOLOGY: topology-processor
       DNS_RESOLVER: 127.0.0.11
     volumes:
       - nginx-home:/home/nginx
