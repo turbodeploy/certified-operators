@@ -195,7 +195,7 @@ public class EntityStore {
                                                 .oid(oid)
                                                 .targetId(targetInfoEntry.getKey())
                                                 .lastUpdatedTime(getTargetLastUpdatedTime(targetInfoEntry.getKey()).orElse(0L))
-                                                .cloud(isCloud(targetInfoEntry.getKey()))
+                                                .supportsConnectedTo(supportsConnectedTo(targetInfoEntry.getKey()))
                                                 .build())
                                 .forEach(stitchingDataMap::put);
                     });
@@ -211,18 +211,22 @@ public class EntityStore {
     }
 
     /**
-     * Check if the probe type of the given target is cloud (AWS/Azure) or not. This is used in
+     * Check if the probe type of the given target uses layeredOver and consistsOf in the DTO to
+     * represent normal connectedTo relationships and owns connectedTo relationships respectively
+     * or not. This is used in
      * {@link TopologyStitchingGraph#addStitchingData(StitchingEntityData, Map)} to add connected
      * entity. This logic can be removed once EntityDTO itself supports connected relationship.
      *
      * @param targetId the id of the target
-     * @return true if the target is AWS or Azure, otherwise false
+     * @return true if the target is AWS, Azure, or VC_STORAGE_BROWSE otherwise false
      */
-    private boolean isCloud(long targetId) {
+    private boolean supportsConnectedTo(long targetId) {
         Optional<SDKProbeType> optionalProbeType = targetStore.getProbeTypeForTarget(targetId);
         if (optionalProbeType.isPresent()) {
             final SDKProbeType probeType = optionalProbeType.get();
-            return probeType == SDKProbeType.AWS || probeType == SDKProbeType.AZURE;
+            // include VC_STORAGE_BROWSE here since it also uses layeredOver with VirtualVolumes
+            return probeType == SDKProbeType.AWS || probeType == SDKProbeType.AZURE ||
+                    probeType == SDKProbeType.VC_STORAGE_BROWSE;
         }
         return false;
     }

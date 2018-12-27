@@ -13,6 +13,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.compute.VMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
+import com.vmturbo.stitching.storage.StorageBrowsingStitchingOperation;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 
 /**

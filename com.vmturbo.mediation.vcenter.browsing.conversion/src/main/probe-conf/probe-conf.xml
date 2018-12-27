@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.vcenter.VimStorageBrowsingConversionProbe</full-class-name>
+    <type>vCenter Storage Browsing</type>
+    <category>Storage Browsing</category>
+    <version>1.0.0</version>
+</probe>

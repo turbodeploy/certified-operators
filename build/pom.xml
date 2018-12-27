@@ -299,6 +299,7 @@
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.vcd.component</module>
@@ -501,8 +502,9 @@
         <profile>
             <id>mediation-vcenter-browsing</id>
             <modules>
+                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
-            </modules>
+           </modules>
         </profile>
 
         <profile>
@@ -703,6 +705,7 @@
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>

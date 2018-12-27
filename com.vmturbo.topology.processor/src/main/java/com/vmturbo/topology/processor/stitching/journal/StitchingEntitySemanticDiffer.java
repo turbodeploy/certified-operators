@@ -5,10 +5,12 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -26,6 +28,7 @@ import com.google.common.collect.Sets.SetView;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
@@ -90,6 +93,8 @@ public class StitchingEntitySemanticDiffer implements SemanticDiffer<StitchingEn
             changed |= appendMergeInformationDiff(entityA, entityB, builder);
             changed |= appendProviderDiff(entityA, entityB, builder);
             changed |= appendConsumersDiff(entityA, entityB, builder);
+            changed |= appendConnectedToDiff(entityA, entityB, builder);
+            changed |= appendConnectedFromDiff(entityA, entityB, builder);
             changed |= appendCommoditiesSoldDiff(entityA, entityB, builder);
             changed |= appendCommoditiesBoughtByProviderDiff(entityA, entityB, builder);
             changed |= appendEntityPropertyDiff(entityA, entityB, builder);
@@ -195,7 +200,56 @@ public class StitchingEntitySemanticDiffer implements SemanticDiffer<StitchingEn
             return appendRemoveAddDiff(builder, removedConsumers, addedConsumers, "Consumers", this::getTargetOidString);
         }
 
-        private <T> boolean appendRemoveAddDiff(@Nonnull final StringBuilder builder,
+    private boolean appendConnectedToDiff(@Nonnull final StitchingEntity entityA,
+                                          @Nonnull final StitchingEntity entityB,
+                                          @Nonnull final StringBuilder builder) {
+        Set<ConnectionType> connectionTypes = Sets.union(entityA.getConnectedToByType().keySet(),
+                entityB.getConnectedToByType().keySet());
+        Set<StitchingEntity> emptySet = Collections.EMPTY_SET;
+        return connectionTypes.stream()
+                .map(connectionType ->
+                        compareSets(entityA.getConnectedToByType().get(connectionType) == null ?
+                                        emptySet
+                                : entityA.getConnectedToByType().get(connectionType),
+                                entityB.getConnectedToByType().get(connectionType) == null ?
+                                        emptySet
+                                        : entityB.getConnectedToByType().get(connectionType),
+                        builder, "ConnectedTo type " + connectionType.name()))
+                .reduce(Boolean.FALSE, (a, b) -> a || b);
+    }
+
+    private boolean appendConnectedFromDiff(@Nonnull final StitchingEntity entityA,
+                                          @Nonnull final StitchingEntity entityB,
+                                          @Nonnull final StringBuilder builder) {
+        Set<ConnectionType> connectionTypes = Sets.union(entityA.getConnectedFromByType().keySet(),
+                entityB.getConnectedFromByType().keySet());
+        Set<StitchingEntity> emptySet = Sets.newHashSet();
+        return connectionTypes.stream()
+                .map(connectionType ->
+                        compareSets(entityA.getConnectedFromByType().get(connectionType) == null ?
+                                        emptySet
+                                        : entityA.getConnectedFromByType().get(connectionType),
+                                entityB.getConnectedFromByType().get(connectionType) == null ?
+                                        emptySet
+                                        : entityB.getConnectedFromByType().get(connectionType),
+                        builder, "ConnectedFrom type " + connectionType.name()))
+                .reduce(Boolean.FALSE, (a, b) -> a || b);
+    }
+
+    private <T extends StitchingEntity> boolean compareSets(@Nonnull final Set<T> firstEntitySet,
+                                                           @Nonnull final Set<T> secondEntitySet,
+                                                           @Nonnull final StringBuilder builder,
+                                                           @Nonnull final String headerMessage) {
+        final SetView<T> removedConnectedTo =
+                Sets.difference(firstEntitySet, secondEntitySet);
+        final SetView<T> addedConnectedTo =
+                Sets.difference(secondEntitySet, firstEntitySet);
+
+        return appendRemoveAddDiff(builder, removedConnectedTo, addedConnectedTo, headerMessage,
+                this::getTargetOidString);
+
+    }
+    private <T> boolean appendRemoveAddDiff(@Nonnull final StringBuilder builder,
                                                 @Nonnull final Collection<T> removed,
                                                 @Nonnull final Collection<T> added,
                                                 @Nonnull final String header,
