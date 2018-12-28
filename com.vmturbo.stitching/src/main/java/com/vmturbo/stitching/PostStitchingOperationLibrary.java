@@ -40,6 +40,7 @@ import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperat
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.VirtualDatacenterCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.WastedFilesPostStitchingOperation;
 
 /**
  * A library of {@link PostStitchingOperation}s. Maintains the known topology preStitching operations
@@ -114,7 +115,8 @@ public class PostStitchingOperationLibrary {
             new SetTransactionsCapacityPostStitchingOperation(EntityType.DATABASE_SERVER,
                     ProbeCategory.DATABASE_SERVER,
                     "transactionsCapacity",
-                    "autoSetTransactionsCapacity")
+                    "autoSetTransactionsCapacity"),
+            new WastedFilesPostStitchingOperation()
         );
     }
 
