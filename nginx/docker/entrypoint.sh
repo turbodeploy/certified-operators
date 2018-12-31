@@ -5,6 +5,9 @@ set -eo pipefail
 # rsyslog
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
+if [ "DNS_RESOLVER" == "" ]; then
+    export DNS_RESOLVER=`cat /etc/resolv.conf | grep "nameserver" | awk '{print $2}' | tr '\n' ' '`
+fi
 envsubst '${API} ${TOPOLOGY} ${DNS_RESOLVER}' < /home/nginx/conf/nginx.conf.template > /home/nginx/conf/nginx.conf
 
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.

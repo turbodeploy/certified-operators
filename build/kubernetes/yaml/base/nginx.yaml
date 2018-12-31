@@ -82,8 +82,6 @@ spec:
           value: api.turbonomic.svc.cluster.local
         - name: TOPOLOGY
           value: topology-processor.turbonomic.svc.cluster.local
-        - name: DNS_RESOLVER
-          value: 10.233.0.3
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
