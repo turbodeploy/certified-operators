@@ -54,6 +54,10 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.reports.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: reporting
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         resources:
           requests:
             memory: MEMORY_REQUEST

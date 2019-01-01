@@ -50,6 +50,10 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.mediation.hds.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: mediation-hds
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         ports:
         - containerPort: 8080
           name: hds-port

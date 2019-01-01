@@ -71,6 +71,10 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8529
+        readinessProbe:
+          httpGet:
+            port: 8529
+            path: /
         name: arangodb
         resources:
           requests:

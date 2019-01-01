@@ -51,6 +51,9 @@ spec:
         name: zoo
         ports:
         - containerPort: 2181
+        readinessProbe:
+          tcpSocket:
+            port: 2181
         imagePullPolicy: IfNotPresent
         resources:
           requests:

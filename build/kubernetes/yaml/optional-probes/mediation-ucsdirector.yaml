@@ -50,6 +50,10 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.mediation.ucsdirector.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: mediation-ucsdirector
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         resources:
           requests:
             memory: MEMORY_REQUEST

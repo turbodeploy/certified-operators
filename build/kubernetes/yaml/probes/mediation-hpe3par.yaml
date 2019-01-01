@@ -48,6 +48,10 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.mediation.hpe3par.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: mediation-hpe3par
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         ports:
         - containerPort: 8080
         - containerPort: 8000

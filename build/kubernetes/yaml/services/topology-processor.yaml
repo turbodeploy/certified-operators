@@ -42,6 +42,10 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         name: topology-processor
         resources:
           requests:

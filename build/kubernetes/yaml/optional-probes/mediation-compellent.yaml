@@ -50,6 +50,10 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.mediation.compellent.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: mediation-compellent
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         ports:
         - containerPort: 8080
           name: compellent-port

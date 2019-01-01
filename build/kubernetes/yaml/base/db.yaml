@@ -70,6 +70,9 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3306
+        readinessProbe:
+          tcpSocket:
+            port: 3306
         resources:
           requests:
             memory: MEMORY_REQUEST

@@ -62,6 +62,10 @@ spec:
         - containerPort: 8600
           name: consuldns
         - containerPort: 8300
+        readinessProbe:
+          httpGet:
+            port: 8500
+            path: /ui/
         resources:
           limits:
             memory: "52428800"

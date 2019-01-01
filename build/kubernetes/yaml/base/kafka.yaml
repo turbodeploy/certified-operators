@@ -64,6 +64,9 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9092
+        readinessProbe:
+          tcpSocket:
+            port: 9092
         resources:
           requests:
             memory: MEMORY_REQUEST

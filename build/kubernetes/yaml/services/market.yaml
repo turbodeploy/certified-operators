@@ -52,6 +52,10 @@ spec:
         image: localhost:5000/turbonomic/market-component:BRANCH
         imagePullPolicy: IfNotPresent
         name: market
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         resources:
           requests:
             memory: MEMORY_REQUEST

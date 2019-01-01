@@ -74,6 +74,10 @@ spec:
         ports:
         - containerPort: 8080
           name: api-port
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         resources:
           requests:
             memory: MEMORY_REQUEST

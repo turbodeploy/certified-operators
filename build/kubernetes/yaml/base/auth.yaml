@@ -52,6 +52,10 @@ spec:
         image: localhost:5000/turbonomic/auth:BRANCH
         imagePullPolicy: IfNotPresent
         name: auth
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         ports:
         - containerPort: 8080
           name: auth-port

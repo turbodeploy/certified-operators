@@ -52,7 +52,9 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 2514
-        resources: {}
+        readinessProbe:
+          tcpSocket:
+            port: 2514
         securityContext:
           capabilities:
             drop:

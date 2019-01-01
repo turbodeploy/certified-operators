@@ -54,6 +54,10 @@ spec:
         image: localhost:5000/turbonomic/action-orchestrator:BRANCH
         imagePullPolicy: IfNotPresent
         name: action-orchestrator
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         resources:
           requests:
             memory: MEMORY_REQUEST

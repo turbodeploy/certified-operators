@@ -50,6 +50,10 @@ spec:
         image: localhost:5000/turbonomic/com.vmturbo.mediation.rhv.component:BRANCH
         imagePullPolicy: IfNotPresent
         name: mediation-rhv
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
         resources:
           requests:
             memory: MEMORY_REQUEST
