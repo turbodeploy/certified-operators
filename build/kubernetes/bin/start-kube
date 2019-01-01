@@ -1,40 +1,18 @@
 #!/bin/bash
 #kubectl get storageclass
 #kubectl patch storageclass fast -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-kubectl create -f namespace/turbo.yaml
-kubectl create secret docker-registry turbocred -n turbonomic --docker-server=registry.turbonomic.com --docker-username=turbodeploy --docker-password=Sysdreamworks123 --docker-email=billy.oconnell@turbonomic.com
 
-# Start base components
-kubectl create -f base/rsyslog.yaml
-kubectl create -f base/auth.yaml
-kubectl create -f base/db.yaml
-kubectl create -f base/clustermgr.yaml
-kubectl create -f base/consul.yaml
-kubectl create -f base/kafka.yaml
-kubectl create -f base/zookeeper.yaml
-kubectl create -f services/group.yaml
-kubectl create -f services/plan-orchestrator.yaml
-kubectl create -f services/topology-processor.yaml
+# Install the complete XL application using helm
+cd ~/git/xl/build/kubernetes/helm
+helm dependency build xl
+helm install xl --name xl-release --namespace turbonomic \
+    --set-string global.repository=registry.turbonomic.com/turbonomic \
+    --set-string global.tag=7.9.0-SNAPSHOT
+helm upgrade xl-release xl --namespace turbonomic \
+    --set-string global.repository=registry.turbonomic.com/turbonomic \
+    --set-string global.tag=7.10.0-SNAPSHOT
 
-# Start analytics control components
-kubectl create -f services/market.yaml
-kubectl create -f services/repository.yaml
-kubectl create -f services/action-orchestrator.yaml
-
-# Start ui and api components
-kubectl create -f base/arangodb.yaml
-kubectl create -f base/nginx.yaml
-kubectl create -f base/api.yaml
-
-# Start historical stats or reports components
-kubectl create -f services/history.yaml
-kubectl create -f services/reporting.yaml
-
-# Start probes
-kubectl create -f probes/mediation-vcenter.yaml
-kubectl create -f optional-probes/mediation-aws.yaml
-#kubectl create -f probes/mediation-hyperv.yaml
-#kubectl create -f probes/mediation-netapp.yaml
-#kubectl create -f probes/mediation-ucs.yaml
-#kubectl create -f probes/mediation-vmax.yaml
-#kubectl create -f probes/mediation-vmm.yaml
+# or install an individual component
+#helm install base/rsyslog --name syslog-release --namespace turbonomic \
+#    --set-string image.repository=registry.turbonomic.com/turbonomic \
+#    --set-string image.tag=7.10.0-SNAPSHOT

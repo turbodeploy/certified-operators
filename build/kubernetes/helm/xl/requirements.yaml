@@ -1,0 +1,135 @@
+dependencies:
+# Base dependencies
+  - name: api
+    repository: file://../base/api
+    version: 0.1.0
+  - name: arangodb
+    repository: file://../base/arangodb
+    version: 0.1.0
+  - name: auth
+    repository: file://../base/auth
+    version: 0.1.0
+  - name: clustermgr
+    repository: file://../base/clustermgr
+    version: 0.1.0
+  - name: consul
+    repository: file://../base/consul
+    version: 0.1.0
+  - name: db
+    repository: file://../base/db
+    version: 0.1.0
+  - name: kafka
+    repository: file://../base/kafka
+    version: 0.1.0
+  - name: nginx
+    repository: file://../base/nginx
+    version: 0.1.0
+  - name: rsyslog
+    repository: file://../base/rsyslog
+    version: 0.1.0
+  - name: zookeeper
+    repository: file://../base/zookeeper
+    version: 0.1.0
+
+# Services dependencies
+  - name: action-orchestrator
+    repository: file://../services/action-orchestrator
+    version: 0.1.0
+#  - name: cost
+#    repository: file://../services/cost
+#    version: 0.1.0
+  - name: group
+    repository: file://../services/group
+    version: 0.1.0
+  - name: history
+    repository: file://../services/history
+    version: 0.1.0
+  - name: market
+    repository: file://../services/market
+    version: 0.1.0
+  - name: plan-orchestrator
+    repository: file://../services/plan-orchestrator
+    version: 0.1.0
+  - name: reporting
+    repository: file://../services/reporting
+    version: 0.1.0
+  - name: repository
+    repository: file://../services/repository
+    version: 0.1.0
+  - name: topology-processor
+    repository: file://../services/topology-processor
+    version: 0.1.0
+
+# Mediation dependencies
+  - name: mediation-aws
+    repository: file://../probes/mediation-aws
+    version: 0.1.0
+    condition: aws.enabled
+  - name: mediation-awsbilling
+    repository: file://../probes/mediation-awsbilling
+    version: 0.1.0
+    condition: awsbilling.enabled
+  - name: mediation-compellent
+    repository: file://../probes/mediation-compellent
+    version: 0.1.0
+    condition: compellent.enabled
+  - name: mediation-hds
+    repository: file://../probes/mediation-hds
+    version: 0.1.0
+    condition: hds.enabled
+  - name: mediation-hpe3par
+    repository: file://../probes/mediation-hpe3par
+    version: 0.1.0
+    condition: hpe3par.enabled
+  - name: mediation-hyperv
+    repository: file://../probes/mediation-hyperv
+    version: 0.1.0
+    condition: hyperv.enabled
+  - name: mediation-netapp
+    repository: file://../probes/mediation-netapp
+    version: 0.1.0
+    condition: netapp.enabled
+  - name: mediation-openstack
+    repository: file://../probes/mediation-openstack
+    version: 0.1.0
+    condition: openstack.enabled
+  - name: mediation-pure
+    repository: file://../probes/mediation-pure
+    version: 0.1.0
+    condition: pure.enabled
+  - name: mediation-rhv
+    repository: file://../probes/mediation-rhv
+    version: 0.1.0
+    condition: rhv.enabled
+  - name: mediation-scaleio
+    repository: file://../probes/mediation-scaleio
+    version: 0.1.0
+    condition: scaleio.enabled
+  - name: mediation-ucs
+    repository: file://../probes/mediation-ucs
+    version: 0.1.0
+    condition: ucs.enabled
+  - name: mediation-ucsdirector
+    repository: file://../probes/mediation-ucsdirector
+    version: 0.1.0
+    condition: ucsdirector.enabled
+  - name: mediation-vcenter
+    repository: file://../probes/mediation-vcenter
+    version: 0.1.0
+    condition: vcenter.enabled
+  - name: mediation-vmax
+    repository: file://../probes/mediation-vmax
+    version: 0.1.0
+    condition: vmax.enabled
+  - name: mediation-vmm
+    repository: file://../probes/mediation-vmm
+    version: 0.1.0
+    condition: vmm.enabled
+  - name: mediation-vplex
+    repository: file://../probes/mediation-vplex
+    version: 0.1.0
+    condition: vplex.enabled
+  - name: mediation-xtremio
+    repository: file://../probes/mediation-xtremio
+    version: 0.1.0
+    condition: xtremio.enabled

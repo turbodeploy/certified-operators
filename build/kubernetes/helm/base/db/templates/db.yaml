@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mysql-data
+  name: mysql-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 70Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mysql-log
+  name: mysql-log
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+#apiVersion: v1
+#kind: PersistentVolumeClaim
+#metadata:
+#  labels:
+#    zone: secure
+#    io.kompose.service: mysql-var
+#  name: {{ .Chart.Name }}-var
+#
+#spec:
+#  accessModes:
+#  - ReadWriteOnce
+#  resources:
+#    requests:
+#      storage: 1Gi
+#---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: db
+  name: {{ .Chart.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        zone: secure
+        io.kompose.service: db
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ template "image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: DB_MEM_PCT_FOR_BUFFER_POOL
+          value: "80"
+        ports:
+        - containerPort: 3306
+        readinessProbe:
+          tcpSocket:
+            port: 3306
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: mysql-data
+        - mountPath: /var/log/mysql
+          name: mysql-log
+#        - mountPath: /var/run
+#          name: mysql-var
+        - mountPath: /tmp
+          name: db-tmpfs0
+      imagePullSecrets:
+      - name: turbocred
+      restartPolicy: Always
+      securityContext:
+        runAsUser: 0
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-data
+      - name: mysql-log
+        persistentVolumeClaim:
+          claimName: mysql-log
+#      - name: mysql-var
+#        persistentVolumeClaim:
+#          claimName: mysql-var
+      - emptyDir:
+          medium: Memory
+        name: db-tmpfs0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: db
+  name: {{ .Chart.Name }}
+spec:
+  ports:
+  - name: "3306"
+    port: 3306
+    targetPort: 3306
+  selector:
+    io.kompose.service: db

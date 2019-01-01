@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vcenter
+  name: mediation-vcenter
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vcenter
+  name: mediation-vcenter
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        zone: secure
+        io.kompose.service: mediation-vcenter
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ template "vcenter_image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: JAVA_OPTS
+          value: {{ .Values.java.options }}
+        - name: clustermgr_host
+          value: clustermgr
+        - name: clustermgr_port
+          value: "8080"
+        - name: clustermgr_retry_delay_sec
+          value: "10"
+        - name: component_type
+          value: mediation-vcenter
+        - name: consul_host
+          value: consul
+        - name: instance_id
+          value: mediation-vcenter-1
+        ports:
+        - containerPort: 8080
+          name: vcenter-port
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /home/turbonomic/data
+          name: mediation-vcenter
+        - mountPath: /tmp
+          name: mediation-vcenter-tmpfs0
+      imagePullSecrets:
+      - name: turbocred
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
+      volumes:
+      - name: mediation-vcenter
+        persistentVolumeClaim:
+          claimName: mediation-vcenter
+      - emptyDir:
+          medium: Memory
+        name: mediation-vcenter-tmpfs0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vcenter
+  name: mediation-vcenter
+spec:
+  ports:
+  - name: "vcenter-port"
+    port: 8080
+    targetPort: 8080
+  - name: "vcenter-debug-port"
+    port: 20013
+    targetPort: 8000
+  selector:
+    io.kompose.service: mediation-vcenter

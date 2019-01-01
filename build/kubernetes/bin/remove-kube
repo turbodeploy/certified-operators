@@ -1,39 +1,5 @@
 #!/bin/bash
 
-# Delete base components
-kubectl delete -f probes/mediation-vcenter.yaml
-kubectl delete -f optional-probes/mediation-aws.yaml
-#kubectl delete -f probes/mediation-hyperv.yaml
-#kubectl delete -f probes/mediation-netapp.yaml
-#kubectl delete -f probes/mediation-ucs.yaml
-#kubectl delete -f probes/mediation-vmax.yaml
-#kubectl delete -f probes/mediation-vmm.yaml
-
-# Delete historical stats or reports components
-kubectl delete -f services/reporting.yaml
-kubectl delete -f services/history.yaml
-
-# Delete ui and api components
-kubectl delete -f base/arangodb.yaml
-kubectl delete -f services/repository.yaml
-kubectl delete -f base/nginx.yaml
-kubectl delete -f base/api.yaml
-
-# Delete analytics control components
-kubectl delete -f services/market.yaml
-kubectl delete -f services/action-orchestrator.yaml
-
-# Delete base components
-kubectl delete -f base/auth.yaml
-kubectl delete -f base/db.yaml
-kubectl delete -f services/topology-processor.yaml
-kubectl delete -f services/group.yaml
-kubectl delete -f base/clustermgr.yaml
-kubectl delete -f base/consul.yaml
-kubectl delete -f base/kafka.yaml
-kubectl delete -f base/zookeeper.yaml
-kubectl delete -f base/rsyslog.yaml
-kubectl delete -f services/plan-orchestrator.yaml
-
-kubectl delete secret turbocred -n turbonomic
-kubectl delete -f namespace/turbo.yaml
+# Delete the complete XL application using helm
+cd ~/git/xl/build/kubernetes/helm
+helm delete --purge xl-release

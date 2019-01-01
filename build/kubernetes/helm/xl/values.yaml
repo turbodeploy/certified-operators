@@ -1,0 +1,75 @@
+# Default values for xl.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+imageCredentials:
+  registry: registry.turbonomic.com
+  username: turbodeploy
+  password: Sysdreamworks123
+
+global:
+  repository: registry.turbonomic.com/turbonomic
+  tag: 7.10.0-SNAPSHOT
+
+gluster:
+  enabled: false
+
+# Enable medation
+hpe3par:
+  enabled: false
+hyperv:
+  enabled: false
+netapp:
+  enabled: false
+pure:
+  enabled: false
+ucs:
+  enabled: false
+scaleio:
+  enabled: false
+vmax:
+  enabled: false
+vmm:
+  enabled: false
+
+# Enable optional mediation
+aws:
+  enabled: false
+awsbilling:
+  enabled: false
+compellent:
+  enabled: false
+hds:
+  enabled: false
+openstack:
+  enabled: false
+rhv:
+  enabled: false
+ucsdirector:
+  enabled: false
+vcenter:
+  enabled: false
+vplex:
+  enabled: false
+xtremio:
+  enabled: false
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

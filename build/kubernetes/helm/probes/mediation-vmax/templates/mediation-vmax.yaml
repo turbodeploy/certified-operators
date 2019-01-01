@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vmax
+  name: mediation-vmax
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vmax
+  name: mediation-vmax
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        zone: secure
+        io.kompose.service: mediation-vmax
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ template "vmax_image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: JAVA_OPTS
+          value: {{ .Values.java.options }}
+        - name: clustermgr_host
+          value: clustermgr
+        - name: clustermgr_port
+          value: "8080"
+        - name: clustermgr_retry_delay_sec
+          value: "10"
+        - name: component_type
+          value: mediation-vmax
+        - name: consul_host
+          value: consul
+        - name: instance_id
+          value: mediation-vmax-1
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /home/turbonomic/data
+          name: mediation-vmax
+        - mountPath: /tmp
+          name: mediation-vmax-tmpfs0
+      imagePullSecrets:
+      - name: turbocred
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
+      volumes:
+      - name: mediation-vmax
+        persistentVolumeClaim:
+          claimName: mediation-vmax
+      - emptyDir:
+          medium: Memory
+        name: mediation-vmax-tmpfs0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vmax
+  name: mediation-vmax
+spec:
+  ports:
+  - name: "8080"
+    port: 8080
+    targetPort: 8080
+  - name: "20119"
+    port: 20119
+    targetPort: 8000
+  selector:
+    io.kompose.service: mediation-vmax
