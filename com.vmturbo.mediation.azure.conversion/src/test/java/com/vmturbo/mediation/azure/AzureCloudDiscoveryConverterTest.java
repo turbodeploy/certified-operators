@@ -35,6 +35,7 @@ import com.vmturbo.mediation.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.cloud.util.CloudService;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
 import com.vmturbo.mediation.cloud.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -194,6 +195,12 @@ public class AzureCloudDiscoveryConverterTest {
             assertEquals(EntityType.REGION, azureConverter.getNewEntityBuilder(
                     newEntity.getLayeredOver(0)).getEntityType());
 
+            // check bought commodities
+            assertEquals(1, newEntity.getCommoditiesBoughtCount());
+            // check DB doesn't buy Application commodity
+            assertFalse(newEntity.getCommoditiesBought(0).getBoughtList().stream().anyMatch(
+                    commodityDTO -> commodityDTO.getCommodityType() == CommodityType.APPLICATION));
+
             // check db owned by BusinessAccount
             assertThat(azureConverter.getNewEntityBuilder(businessAccountId).getConsistsOfList(), hasItem(dbId));
         });
@@ -257,7 +264,7 @@ public class AzureCloudDiscoveryConverterTest {
                     .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.DB_MEM,
                     CommodityType.TRANSACTION, CommodityType.TRANSACTION_LOG,
                     CommodityType.CONNECTION, CommodityType.DB_CACHE_HIT_RATE,
-                    CommodityType.RESPONSE_TIME, CommodityType.APPLICATION, CommodityType.LICENSE_ACCESS));
+                    CommodityType.RESPONSE_TIME, CommodityType.LICENSE_ACCESS));
 
             // check that database tier is owned by cloud service
             assertThat(azureConverter.getNewEntityBuilder(CloudService.AZURE_DATA_SERVICES.getId())
@@ -364,7 +371,8 @@ public class AzureCloudDiscoveryConverterTest {
             // check only one sold commodities: DataCenter
             assertEquals(1, newEntity.getCommoditiesSoldCount());
             assertEquals(CommodityType.DATACENTER, newEntity.getCommoditiesSold(0).getCommodityType());
-            assertEquals("DataCenter::" + entityId, newEntity.getCommoditiesSold(0).getKey());
+            assertEquals(ConverterUtils.DATACENTER_ACCESS_COMMODITY_PREFIX + entityId,
+                    newEntity.getCommoditiesSold(0).getKey());
         });
     }
 

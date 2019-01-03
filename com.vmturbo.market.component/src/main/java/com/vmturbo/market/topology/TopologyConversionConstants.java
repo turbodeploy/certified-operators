@@ -30,6 +30,7 @@ public class TopologyConversionConstants {
     public static final Set<Integer> CLOUD_ENTITY_TYPES_TO_SKIP_CONVERSION = Collections.unmodifiableSet(
             Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE,
                     EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE,
+                    EntityType.DATABASE_SERVER_TIER_VALUE,
                     EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
                     EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
 

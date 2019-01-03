@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.cloud.IEntityConverter;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -27,7 +28,7 @@ public class RegionConverter implements IEntityConverter {
         // add DataCenterCommodity (used for merging two regions in TopologyProcessor and market side)
         entity.addCommoditiesSold(CommodityDTO.newBuilder()
                 .setCommodityType(CommodityType.DATACENTER)
-                .setKey("DataCenter::" + entity.getId())
+                .setKey(ConverterUtils.DATACENTER_ACCESS_COMMODITY_PREFIX + entity.getId())
                 .build());
         return true;
     }

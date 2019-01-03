@@ -105,6 +105,14 @@ public class TopologyConverter {
         // TODO: Add container collection
         EntityType.CONTAINER_VALUE);
 
+    // if cloud entity buys from this set of cloud entity types, then we need to create DataCenter
+    // commodity bought for it
+    private static final Set<Integer> CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT = ImmutableSet.of(
+            EntityType.COMPUTE_TIER_VALUE,
+            EntityType.DATABASE_TIER_VALUE,
+            EntityType.DATABASE_SERVER_TIER_VALUE
+    );
+
     private static final Logger logger = LogManager.getLogger();
 
     // TODO: In legacy this is taken from LicenseManager and is currently false
@@ -1342,7 +1350,8 @@ public class TopologyConverter {
     }
 
     /**
-     * Creates a DC Comm bought for a cloud entity which has a provider as a Compute tier.
+     * Creates a DC Comm bought for a cloud entity which has a provider as a Compute tier,
+     * DatabaseTier or DatabaseServerTier.
      *
      * @param providerOid oid of the market tier provider oid
      * @param buyerOid oid of the buyer of the shopping list
@@ -1353,7 +1362,7 @@ public class TopologyConverter {
         MarketTier marketTier = cloudTc.getMarketTier(providerOid);
         int providerEntityType = marketTier.getTier().getEntityType();
         CommodityBoughtTO dcCommBought = null;
-        if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
+        if (CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT.contains(providerEntityType)) {
             TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(entityOidToDto.get(buyerOid));
             List<CommoditySoldDTO> dcCommSoldList = region.getCommoditySoldListList().stream()
                     .filter(c -> c.getCommodityType().getType()

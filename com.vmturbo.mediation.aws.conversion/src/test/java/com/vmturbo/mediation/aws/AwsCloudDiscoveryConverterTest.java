@@ -41,6 +41,7 @@ import com.vmturbo.mediation.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.cloud.util.CloudService;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
 import com.vmturbo.mediation.cloud.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -199,6 +200,12 @@ public class AwsCloudDiscoveryConverterTest {
             // fields not modified
             verifyUnmodifiedFields(oldDBS, newDBS);
 
+            // check bought commodities
+            assertEquals(1, newDBS.getCommoditiesBoughtCount());
+            // check DBS doesn't buy Application commodity
+            assertFalse(newDBS.getCommoditiesBought(0).getBoughtList().stream().anyMatch(
+                    commodityDTO -> commodityDTO.getCommodityType() == CommodityType.APPLICATION));
+
             // check providers changed
             verifyProvidersChanged(oldDBS, newDBS, ImmutableMap.of(
                     EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER_TIER), Collections.emptyList());
@@ -280,7 +287,7 @@ public class AwsCloudDiscoveryConverterTest {
                     .map(CommodityDTO::getCommodityType)
                     .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.VMEM,
                     CommodityType.VCPU, CommodityType.VSTORAGE, CommodityType.IO_THROUGHPUT,
-                    CommodityType.APPLICATION, CommodityType.LICENSE_ACCESS));
+                    CommodityType.LICENSE_ACCESS));
 
             // check that database server tier is owned by cloud service
             assertThat(awsConverter.getNewEntityBuilder(
@@ -404,7 +411,8 @@ public class AwsCloudDiscoveryConverterTest {
             // check only one sold commodities: DataCenter
             assertEquals(1, newEntity.getCommoditiesSoldCount());
             assertEquals(CommodityType.DATACENTER, newEntity.getCommoditiesSold(0).getCommodityType());
-            assertEquals("DataCenter::" + entityId, newEntity.getCommoditiesSold(0).getKey());
+            assertEquals(ConverterUtils.DATACENTER_ACCESS_COMMODITY_PREFIX + entityId,
+                    newEntity.getCommoditiesSold(0).getKey());
         });
     }
 

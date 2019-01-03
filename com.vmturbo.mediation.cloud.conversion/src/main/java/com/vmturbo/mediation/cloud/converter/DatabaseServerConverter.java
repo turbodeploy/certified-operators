@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.cloud.IEntityConverter;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -42,6 +43,8 @@ public class DatabaseServerConverter implements IEntityConverter {
         List<CommodityBought> newCommodityBoughtList = entity.getCommoditiesBoughtList().stream()
                 .map(commodityBought -> {
                     CommodityBought.Builder cbBuilder = commodityBought.toBuilder();
+                    // remove Application commodity
+                    ConverterUtils.removeApplicationCommodity(cbBuilder);
 
                     String providerId = commodityBought.getProviderId();
                     EntityDTO provider = converter.getRawEntityDTO(providerId);

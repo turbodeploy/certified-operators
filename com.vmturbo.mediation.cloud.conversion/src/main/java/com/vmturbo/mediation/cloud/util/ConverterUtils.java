@@ -12,6 +12,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.DBProfileDTO;
 
@@ -27,6 +28,9 @@ public class ConverterUtils {
      * capacity is not available.
      */
     public static final float DEFAULT_ACCESS_COMMODITY_CAPACITY = 1.0E9f;
+
+    // the prefix for the key of DataCenter access commodity
+    public static final String DATACENTER_ACCESS_COMMODITY_PREFIX = "DataCenter::";
 
     /**
      * Create sold commodities based on CommodityProfile list in EntityProfileDTO.
@@ -67,25 +71,30 @@ public class ConverterUtils {
     public static List<CommodityDTO> createSoldCommoditiesFromDBProfileDTO(@Nonnull DBProfileDTO dbProfileDTO) {
         final List<CommodityDTO> soldCommodities = Lists.newArrayList();
         dbProfileDTO.getLicenseList().stream()
-                .flatMap(licenseMapEntry -> {
-                    final String regionId = licenseMapEntry.getRegion();
-                        // create application commodity for each region
-                    soldCommodities.add(CommodityDTO.newBuilder()
-                                .setCommodityType(CommodityType.APPLICATION)
-                                .setKey("Application::" + regionId)
-                                .setCapacity(DEFAULT_ACCESS_COMMODITY_CAPACITY)
-                                .build());
-                    return licenseMapEntry.getLicenseNameList().stream();
-                }).distinct()
+                .flatMap(licenseMapEntry -> licenseMapEntry.getLicenseNameList().stream())
+                .distinct()
                 .forEach(license ->
-                // create license access commodity for each distinct license
-                soldCommodities.add(CommodityDTO.newBuilder()
-                        .setCommodityType(CommodityType.LICENSE_ACCESS)
-                        .setKey(license)
-                        .setCapacity(DEFAULT_ACCESS_COMMODITY_CAPACITY)
-                        .build())
-        );
+                        // create license access commodity for each distinct license
+                        soldCommodities.add(CommodityDTO.newBuilder()
+                                .setCommodityType(CommodityType.LICENSE_ACCESS)
+                                .setKey(license)
+                                .setCapacity(DEFAULT_ACCESS_COMMODITY_CAPACITY)
+                                .build())
+                );
         return soldCommodities;
+    }
+
+    /**
+     * Given a CommodityBought, remove the Application commodity from the bought list.
+     *
+     * @param commodityBought the CommodityBought for which to remove Application commodity
+     */
+    public static void removeApplicationCommodity(@Nonnull CommodityBought.Builder commodityBought) {
+        List<CommodityDTO> newBoughtCommodities = commodityBought.getBoughtList().stream()
+                .filter(commodityDTO -> commodityDTO.getCommodityType() != CommodityType.APPLICATION)
+                .collect(Collectors.toList());
+        commodityBought.clear();
+        commodityBought.addAllBought(newBoughtCommodities);
     }
 
     // a wrapper class to represent the storage amount and storage access commodity's min and max capacity
