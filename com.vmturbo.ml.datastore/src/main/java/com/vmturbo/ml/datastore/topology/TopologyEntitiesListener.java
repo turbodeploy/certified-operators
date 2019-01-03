@@ -9,7 +9,7 @@ import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.time.StopWatch;
+import com.vmturbo.ml.datastore.influx.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
@@ -19,12 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.utils.TimeUtil;
-import com.vmturbo.ml.datastore.influx.InfluxMetricsWriter;
-import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory;
 import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory.InfluxUnavailableException;
-import com.vmturbo.ml.datastore.influx.MetricJitter;
-import com.vmturbo.ml.datastore.influx.MetricsStoreWhitelist;
-import com.vmturbo.ml.datastore.influx.Obfuscator;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -64,7 +59,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * Present if the listener has an open connection to influx.
      * May be closed and re-opened if an error occurs writing to influx.
      */
-    private Optional<InfluxMetricsWriter> metricsWriter;
+    private Optional<InfluxTopologyMetricsWriter> metricsWriter;
 
     /**
      * How long it takes to write topology metrics to influx.
@@ -114,22 +109,17 @@ public class TopologyEntitiesListener implements EntitiesListener {
             topologyInfo.getTopologyContextId(),
             topologyInfo.getCreationTime(),
             topologyInfo.getTopologyType());
-        final StopWatch stopWatch = new StopWatch();
-        stopWatch.start();
-        stopWatch.suspend();
 
         long totalDataPointsWritten = 0;
         try {
-            final InfluxMetricsWriter metricsWriter = getOrCreateMetricsWriter();
+            final InfluxTopologyMetricsWriter metricsWriter = getOrCreateMetricsWriter();
 
             final DataMetricTimer topologyWriterTimer = TOPOLOGY_METRIC_WRITE_TIME_HISTOGRAM.startTimer();
             while (entityIterator.hasNext()) {
-                stopWatch.resume();
-                totalDataPointsWritten += metricsWriter.writeTopologyMetrics(entityIterator.nextChunk(), timeMs,
+                totalDataPointsWritten += metricsWriter.writeMetrics(entityIterator.nextChunk(), timeMs,
                     boughtStatistics,
                     soldStatistics,
                     clusterStatistics);
-                stopWatch.suspend();
             }
 
             // Flush to write through any cached data points after we have received the full topology.
@@ -191,7 +181,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * @param clusterStatistics Statistics about the cluster memberships written to influx.
      *                          Each cluster membership results in one field value written to influx.
      *                          (ie STORAGE_CLUSTER and COMPUTE_CLUSTER would be 2 field values)
-     * @param totalDataPoitnsWritten The total number of data points written to influx.
+     * @param totalDataPointsWritten The total number of data points written to influx.
      *                               Each entity selling at least one commodity results in one data point.
      *                               One data point is written for each provider of a commodity bought
      *                               for a service entity.
@@ -200,7 +190,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                                @Nonnull final Map<String, Long> boughtStatistics,
                                @Nonnull final Map<String, Long> soldStatistics,
                                @Nonnull final Map<String, Long> clusterStatistics,
-                               final long totalDataPoitnsWritten) {
+                               final long totalDataPointsWritten) {
         final String timeTaken = TimeUtil.humanReadable(
             Duration.ofSeconds((long) timeTakenSeconds, (long) ((timeTakenSeconds % 1) * 1e9)));
         final long totalBought = totalWritten(boughtStatistics);
@@ -214,7 +204,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                 "\n\tCluster Membership: Total {} {}",
             timeTaken,
             totalBought + totalSold + totalCluster,
-            totalDataPoitnsWritten,
+            totalDataPointsWritten,
             connectionFactory.getDatabase(),
             connectionFactory.getRetentionPolicyName(),
             totalBought, boughtStatistics,
@@ -230,10 +220,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * @return a metrics writer capable of writing to influx.
      * @throws InfluxUnavailableException if no connection to influx can be established.
      */
-    private InfluxMetricsWriter getOrCreateMetricsWriter() throws InfluxUnavailableException {
+    private InfluxTopologyMetricsWriter getOrCreateMetricsWriter() throws InfluxUnavailableException {
         if (!metricsWriter.isPresent() || !connectionIsHealthy()) {
             metricsWriter = Optional.of(
-                connectionFactory.createMetricsWriter(metricsStoreWhitelist, metricJitter, obfuscator));
+                    connectionFactory.createTopologyMetricsWriter(metricsStoreWhitelist, metricJitter, obfuscator));
         }
 
         return metricsWriter.get();

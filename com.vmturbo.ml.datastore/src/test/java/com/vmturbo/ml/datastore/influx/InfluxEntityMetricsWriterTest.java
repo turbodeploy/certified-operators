@@ -34,13 +34,13 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
-public class InfluxMetricsWriterTest {
+public class InfluxEntityMetricsWriterTest {
     private final MetricsStoreWhitelist metricStoreWhitelist = mock(MetricsStoreWhitelist.class);
     private final MetricJitter metricJitter = new MetricJitter(false, 0);
     private final Obfuscator obfuscator = mock(Obfuscator.class);
     private final InfluxDB influx = mock(InfluxDB.class);
 
-    private InfluxMetricsWriter metricsWriter;
+    private InfluxTopologyMetricsWriter metricsWriter;
 
     private static final long TOPOLOGY_TIME = 999999L;
     private static final long PROVIDER_ID = 12345L;
@@ -82,7 +82,7 @@ public class InfluxMetricsWriterTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
 
-        metricsWriter = new InfluxMetricsWriter(influx, DATABASE, RETENTION_POLICY,
+        metricsWriter = new InfluxTopologyMetricsWriter(influx, DATABASE, RETENTION_POLICY,
             metricStoreWhitelist, metricJitter, obfuscator);
         when(metricStoreWhitelist.getClusterSupport()).thenReturn(false);
     }
@@ -92,13 +92,13 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testWriteCommodityBought() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.USED, MetricType.PEAK));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.singleton(CommonDTO.CommodityDTO.CommodityType.CPU.getNumber()));
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Both used and peak stats should be written.
@@ -119,14 +119,14 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testWriteCommoditySold() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.USED, MetricType.PEAK, MetricType.CAPACITY));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(ImmutableSet.of(CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber(),
                 CommodityDTO.CommodityType.VMEM.getNumber()));
 
         entity.addCommoditySoldList(soldDTO);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // VMEM USED and CAPACITY should be written. PEAK should not because it is not on the
@@ -143,13 +143,13 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testBoughtNotOnCommodityTypeWhitelist() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.USED, MetricType.PEAK, MetricType.CAPACITY));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.singleton(CommonDTO.CommodityDTO.CommodityType.MEM.getNumber()));
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // No available metrics are on the whitelist so nothing should be written.
@@ -161,13 +161,13 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testBoughtNotOnMetricTypeWhitelist() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(Collections.singleton(MetricType.PEAK));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.singleton(CommonDTO.CommodityDTO.CommodityType.CPU.getNumber()));
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Only peak should be written.
@@ -182,13 +182,13 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testSoldNotOnCommodityTypeWhitelist() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.USED, MetricType.PEAK, MetricType.CAPACITY));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.singleton(CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber()));
 
         entity.addCommoditySoldList(soldDTO);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         verifyNoMoreInteractions(influx);
@@ -199,14 +199,14 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testSoldNotOnMetricTypeWhitelist() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.CAPACITY));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(ImmutableSet.of(CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber(),
                 CommodityDTO.CommodityType.VMEM.getNumber()));
 
         entity.addCommoditySoldList(soldDTO);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // VMEM USED and CAPACITY should be written. PEAK should not because it is not on the
@@ -223,14 +223,14 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testBoughtNotActive() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.USED, MetricType.PEAK));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.singleton(CommonDTO.CommodityDTO.CommodityType.CPU.getNumber()));
 
         boughtFromProvider.getCommodityBoughtBuilder(0).setActive(false);
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.
@@ -242,15 +242,15 @@ public class InfluxMetricsWriterTest {
      */
     @Test
     public void testSoldNotActive() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(ImmutableSet.of(MetricType.USED, MetricType.PEAK, MetricType.CAPACITY));
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(ImmutableSet.of(CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber(),
                 CommodityDTO.CommodityType.VMEM.getNumber()));
 
         soldDTO.setActive(false);
         entity.addCommoditySoldList(soldDTO);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.
@@ -259,9 +259,9 @@ public class InfluxMetricsWriterTest {
 
     @Test
     public void testWriteComputeClusterSold() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(Collections.emptySet());
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.emptySet());
         when(metricStoreWhitelist.getClusterSupport()).thenReturn(true);
         when(obfuscator.obfuscate("foo")).thenReturn("bar");
@@ -273,7 +273,7 @@ public class InfluxMetricsWriterTest {
                 .setKey("foo"));
 
         entity.addCommoditySoldList(soldDTO);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.
@@ -287,9 +287,9 @@ public class InfluxMetricsWriterTest {
 
     @Test
     public void testWriteStorageClusterBought() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(Collections.emptySet());
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.emptySet());
         when(metricStoreWhitelist.getClusterSupport()).thenReturn(true);
         when(obfuscator.obfuscate("foo")).thenReturn("bar");
@@ -300,7 +300,7 @@ public class InfluxMetricsWriterTest {
                 .setKey("foo"));
 
         entity.addCommoditiesBoughtFromProviders(boughtFromProvider);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.
@@ -314,9 +314,9 @@ public class InfluxMetricsWriterTest {
 
     @Test
     public void testClusterNotWrittenIfNotEnabled() {
-        when(metricStoreWhitelist.getWhitelistMetricTypes())
+        when(metricStoreWhitelist.getWhitelist(MetricsStoreWhitelist.METRIC_TYPE))
             .thenReturn(Collections.emptySet());
-        when(metricStoreWhitelist.getWhitelistCommodityTypeNumbers())
+        when(metricStoreWhitelist.getWhitelistAsInteger(MetricsStoreWhitelist.COMMODITY_TYPE))
             .thenReturn(Collections.emptySet());
         when(metricStoreWhitelist.getClusterSupport()).thenReturn(false);
         when(obfuscator.obfuscate("foo")).thenReturn("bar");
@@ -328,7 +328,7 @@ public class InfluxMetricsWriterTest {
                 .setKey("foo"));
 
         entity.addCommoditySoldList(soldDTO);
-        metricsWriter.writeTopologyMetrics(Collections.singleton(entity.build()),
+        metricsWriter.writeMetrics(Collections.singleton(entity.build()),
             TOPOLOGY_TIME, boughtStatistics, soldStatistics, clusterStatistics);
 
         // Inactive metrics should not be written.

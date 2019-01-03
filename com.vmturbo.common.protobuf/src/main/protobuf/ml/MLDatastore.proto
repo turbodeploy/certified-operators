@@ -42,6 +42,32 @@ message MetricTypeWhitelist {
     repeated MetricType metric_types = 1;
 }
 
+// The different action states that we filter
+message ActionStateWhitelist {
+    enum ActionState {
+        // these are the actions received from actionConverter after every round of analysis
+        RECOMMENDED_ACTIONS = 1;
+        // these are the actions that have succeeded executing
+        COMPLETED_ACTIONS = 2;
+    }
+
+    repeated ActionState action_states = 1;
+}
+
+// The different action types that we allow/disallow through the whitelists
+message ActionTypeWhitelist {
+    enum ActionType {
+        PROVISION = 1;
+        DEACTIVATE = 2;
+        ACTIVATE = 3;
+        MOVE = 4;
+        RESIZE = 5;
+        RECONFIGURE = 6;
+    }
+
+    repeated ActionType action_types = 1;
+}
+
 // Whether the component should support writing cluster membership information.
 message ClusterSupport {
     optional bool writer_cluster_memberships = 1;
@@ -59,6 +85,18 @@ message GetMetricTypeWhitelistRequest {
 message SetMetricTypeWhitelistResponse {
 }
 
+message GetActionTypeWhitelistRequest {
+}
+
+message SetActionTypeWhitelistResponse {
+}
+
+message GetActionStateWhitelistRequest {
+}
+
+message SetActionStateWhitelistResponse {
+}
+
 message GetClusterSupportRequest {
 }
 
@@ -74,6 +112,12 @@ service MLDatastoreService {
     // Get the metric type whitelist.
     rpc GetMetricTypeWhitelist(GetMetricTypeWhitelistRequest) returns (MetricTypeWhitelist);
     rpc SetMetricTypeWhitelist(MetricTypeWhitelist) returns (SetMetricTypeWhitelistResponse);
+
+    rpc GetActionTypeWhitelist(GetActionTypeWhitelistRequest) returns (ActionTypeWhitelist);
+    rpc SetActionTypeWhitelist(ActionTypeWhitelist) returns (SetActionTypeWhitelistResponse);
+
+    rpc GetActionStateWhitelist(GetActionStateWhitelistRequest) returns (ActionStateWhitelist);
+    rpc SetActionStateWhitelist(ActionStateWhitelist) returns (SetActionStateWhitelistResponse);
 
     // Get cluster support.
     rpc GetClusterSupport(GetClusterSupportRequest) returns (ClusterSupport);

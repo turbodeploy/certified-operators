@@ -5,6 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import com.vmturbo.ml.datastore.topology.ActionsListenerConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,7 @@ import com.vmturbo.ml.datastore.topology.TopologyListenerConfig;
 @Import({
     MLDatastoreConfig.class,
     TopologyListenerConfig.class,
+    ActionsListenerConfig.class,
     MLDatastoreRpcConfig.class,
     InfluxConfig.class
 })

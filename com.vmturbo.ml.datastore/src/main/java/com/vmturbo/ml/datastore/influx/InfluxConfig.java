@@ -1,11 +1,15 @@
 package com.vmturbo.ml.datastore.influx;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +19,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.MetricTypeWhitelist.MetricType;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.ActionStateWhitelist.ActionState;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.ActionTypeWhitelist.ActionType;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -70,6 +76,12 @@ public class InfluxConfig {
     @Value("${defaultMetricTypeWhitelist}")
     private String[] defaultMetricTypeWhitelist;
 
+    @Value("${defaultActionTypeWhitelist}")
+    private String[] defaultActionTypeWhitelist;
+
+    @Value("${defaultActionStateWhitelist}")
+    private String[] defaultActionStateWhitelist;
+
     @Value("${clustersSupported}")
     private boolean clustersSupported;
 
@@ -102,8 +114,14 @@ public class InfluxConfig {
 
     @Bean
     public MetricsStoreWhitelist metricsStoreWhitelist() {
-        return new MetricsStoreWhitelist(defaultCommodityTypeWhitelist(),
-            defaultMetricTypeWhitelist(), clustersSupported, baseVmtComponentConfig.keyValueStore());
+        Map<MetricsStoreWhitelist.WhitelistType<?>, Set<? extends Enum<?>>> defaultWhitelists = new HashMap<>();
+        defaultWhitelists.put(MetricsStoreWhitelist.COMMODITY_TYPE, defaultCommodityTypeWhitelist());
+        defaultWhitelists.put(MetricsStoreWhitelist.METRIC_TYPE, defaultMetricTypeWhitelist());
+        defaultWhitelists.put(MetricsStoreWhitelist.ACTION_STATE, defaultActionStateWhitelist());
+        defaultWhitelists.put(MetricsStoreWhitelist.ACTION_TYPE, defaultActionTypeWhitelist());
+        return new MetricsStoreWhitelist(defaultWhitelists,
+                clustersSupported,
+                baseVmtComponentConfig.keyValueStore());
     }
 
     @Bean
@@ -125,6 +143,22 @@ public class InfluxConfig {
             .map(this::stripArrayCharacters)
             .map(MetricType::valueOf)
             .collect(Collectors.toSet());
+    }
+
+    @Bean
+    public Set<ActionType> defaultActionTypeWhitelist() {
+        return Arrays.stream(defaultActionTypeWhitelist)
+                .map(this::stripArrayCharacters)
+                .map(ActionType::valueOf)
+                .collect(Collectors.toSet());
+    }
+
+    @Bean
+    public Set<MLDatastore.ActionStateWhitelist.ActionState> defaultActionStateWhitelist() {
+        return Arrays.stream(defaultActionStateWhitelist)
+                .map(this::stripArrayCharacters)
+                .map(ActionState::valueOf)
+                .collect(Collectors.toSet());
     }
 
     @Nonnull

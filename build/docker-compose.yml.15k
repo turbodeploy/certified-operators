@@ -279,8 +279,8 @@ services:
       file: prod-services.yml
       service: ml-datastore-prod
     environment:
-      JAVA_OPTS: "-Xmx384M"
-    mem_limit: 512M
+      JAVA_OPTS: "-Xmx512M"
+    mem_limit: 640M
     depends_on:
       - influxdb
       - clustermgr

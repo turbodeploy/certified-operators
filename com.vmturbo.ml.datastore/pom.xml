@@ -77,6 +77,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>action-orchestrator-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.influxdb</artifactId>
         </dependency>
         <dependency>

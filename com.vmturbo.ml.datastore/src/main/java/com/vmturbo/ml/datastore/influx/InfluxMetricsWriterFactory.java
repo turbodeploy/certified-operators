@@ -97,13 +97,28 @@ public class InfluxMetricsWriterFactory {
      * @throws InfluxUnavailableException If no connection to influx can be established.
      */
     @Nonnull
-    public InfluxMetricsWriter createMetricsWriter(@Nonnull final MetricsStoreWhitelist whitelist,
+    public InfluxTopologyMetricsWriter createTopologyMetricsWriter(@Nonnull final MetricsStoreWhitelist whitelist,
                                                    @Nonnull final MetricJitter metricJitter,
                                                    @Nonnull final Obfuscator obfuscator)
         throws InfluxUnavailableException {
 
-        return new InfluxMetricsWriter(createInfluxConnection(), getDatabase(),
-            getRetentionPolicyName(), whitelist, metricJitter, obfuscator);
+            return new InfluxTopologyMetricsWriter(createInfluxConnection(), getDatabase(),
+                    getRetentionPolicyName(), whitelist, metricJitter, obfuscator);
+    }
+
+    /**
+     * Create a new actionMetricsWriter to write metrics to influx.
+     *
+     * @param whitelist The whitelist of commodities and metrics to write.
+     * @return a new metricsWriter to write metrics to influx.
+     * @throws InfluxUnavailableException If no connection to influx can be established.
+     */
+    @Nonnull
+    public InfluxActionsWriter createActionMetricsWriter(@Nonnull final MetricsStoreWhitelist whitelist)
+            throws InfluxUnavailableException {
+
+            return new InfluxActionsWriter(createInfluxConnection(), getDatabase(),
+                    getRetentionPolicyName(), whitelist);
     }
 
     /**
