@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # turboEnv.sh
 # Set up the kubernetes namespace, network policies and registry to use.
@@ -55,8 +55,9 @@ then
   echo "Create Namespace"
   echo "----------------"
   kubectl create -f ${yamlBasePath}/namespace/turbo.yaml
-  kubectl config set-context turbo --namespace=${namespace}
-  kubectl config use-context turbo
+  #kubectl config set-context turbo --namespace=${namespace}
+  #kubectl config use-context turbo
+  kubectl config set-context $(kubectl config current-context) --namespace=turbonomic
   echo
 fi
 
