@@ -15,7 +15,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 @Configuration
 public class GlobalConfig {
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     /**

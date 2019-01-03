@@ -36,7 +36,7 @@ public class ActionOrchestratorClientConfig {
     @Value("${actionOrchestratorHost}")
     private String actionOrchestratorHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

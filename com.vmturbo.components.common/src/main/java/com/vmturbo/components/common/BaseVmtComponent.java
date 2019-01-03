@@ -1,11 +1,13 @@
 package com.vmturbo.components.common;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
@@ -19,13 +21,6 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletRegistration;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.netty.NettyServerBuilder;
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.exporter.MetricsServlet;
-import io.prometheus.client.hotspot.DefaultExports;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,9 +43,16 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.netty.NettyServerBuilder;
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.exporter.MetricsServlet;
+import io.prometheus.client.hotspot.DefaultExports;
+
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
-import com.vmturbo.api.serviceinterfaces.IClusterService;
-import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -93,8 +95,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     public static final String PROP_COMPNENT_TYPE = "component_type";
     public static final String PROP_INSTANCE_ID = "instance_id";
-    public static final String PROP_SERVER_PORT = "server_port";
-    public static final String PROP_SECURE_PORT = "secure_server_port";
+    public static final String PROP_serverHttpPort = "serverHttpPort";
+    public static final String PROP_SECURE_PORT = "secure_serverHttpPort";
     public static final String PROP_KEYSTORE_FILE = "keystore_file";
     public static final String PROP_KEYSTORE_PASS = "keystore_pass";
     public static final String PROP_SECURE_CIPHER_SUITES = "secure_cipher_suites";
@@ -113,24 +115,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private static final Logger logger = LogManager.getLogger();
 
-    private ExecutionStatus status = ExecutionStatus.NEW;
-    private final AtomicBoolean startFired = new AtomicBoolean(false);
+    private static String componentType;
+    private static String instanceId;
+    private static long clusterMgrConnectionRetryDelayMs;
 
     private static final DataMetricGauge STARTUP_DURATION_METRIC = DataMetricGauge.builder()
             .withName("component_startup_duration_ms")
             .withHelp("Duration in ms from component instantiation to Spring context built.")
             .build()
             .register();
+    private static final String COMPONENT_DEFAULT_PATH =
+            "config/component_default.properties";
 
-    @Value("${" + PROP_COMPNENT_TYPE + ":}")
-    private String componentType;
+    private ExecutionStatus status = ExecutionStatus.NEW;
+    private final AtomicBoolean startFired = new AtomicBoolean(false);
 
     private static final int SCHEDULED_METRICS_DELAY_MS=60000;
 
     @Value("${scheduledMetricsIntervalMs:60000}")
     private int scheduledMetricsIntervalMs;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     // the max message size (in bytes) that the GRPC server for this component will accept. Default
@@ -144,14 +149,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private final Object grpcServerLock = new Object();
 
-    @SuppressWarnings("SpringAutowiredFieldsWarningInspection")
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired
     BaseVmtComponentConfig baseVmtComponentConfig;
 
-    @SuppressWarnings("SpringAutowiredFieldsWarningInspection")
     @Autowired(required = false)
     DiagnosticService diagnosticService;
 
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired
     private ServletContext servletContext;
 
@@ -193,6 +198,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     @Override
     public String getComponentName() {
+        // we are using the component type as the 'name' until we have more than one instance of a
+        // given component type
         return componentType;
     }
 
@@ -248,20 +255,19 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @return the {@link CompositeHealthMonitor instance} embedded in this component
      */
     @Override
-    public CompositeHealthMonitor getHealthMonitor() { return healthMonitor; }
+    public CompositeHealthMonitor getHealthMonitor() {
+        return healthMonitor;
+    }
 
     /**
      * {@inheritDoc}
      */
     @Override
     public final void startComponent() {
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-        @Override
-            public void run() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutting down {} component.", getComponentName());
                 stopComponent();
-            }
-        });
+            }));
         setStatus(ExecutionStatus.STARTING);
         DefaultExports.initialize();
         // start up the default scheduled metrics too
@@ -549,9 +555,21 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Nonnull
     protected static ConfigurableApplicationContext startContext(
             @Nonnull ContextConfigurer contextConfigurer) {
-        fetchConfigurationProperties();
+        // fetch the component information from the environment
+        componentType = requireEnvProperty(PROP_COMPNENT_TYPE);
+        instanceId = requireEnvProperty(PROP_INSTANCE_ID);
+
+        // get a pointer to the ClusterMgr client api
+        ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
+
+        // send the default config properties to clustermgr - blocking call
+        updateDefaultConfigurationProperties(clusterMgrClient);
+
+        // call ClusterMgr to fetch the configuration for this component type - blocking call
+        fetchConfigurationProperties(clusterMgrClient);
+
         logger.info("Starting web server with spring context");
-        final String serverPort = requireEnvProperty(PROP_SERVER_PORT);
+        final String serverPort = requireEnvProperty(PROP_serverHttpPort);
         System.setProperty("org.jooq.no-logo", "true");
 
         final org.eclipse.jetty.server.Server server =
@@ -579,6 +597,20 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
         // Could should never reach here
         return null;
+    }
+
+    private static ClusterMgrRestClient getClusterMgrClient() {
+        final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
+        final int clusterMgrConnectionRetryDelaySecs = EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
+        clusterMgrConnectionRetryDelayMs =
+                Duration.ofSeconds(clusterMgrConnectionRetryDelaySecs).toMillis();
+        final String clusterMgrHost = requireEnvProperty("clustermgr_host");
+
+        logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
+        return ClusterMgrClient.createClient(
+                ComponentApiConnectionConfig.newBuilder()
+                        .setHostAndPort(clusterMgrHost, clusterMgrPort)
+                        .build());
     }
 
     /**
@@ -626,52 +658,94 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
+     * Read the default configuration properties for this component from the resource file and
+     * publish those to the clustermgr configuration port.
+     *
+     * @param clusterMgrClient the clustermgr api client handle
+     */
+    private static void updateDefaultConfigurationProperties(
+            @Nonnull final ClusterMgrRestClient clusterMgrClient) {
+        logger.info("Sending the default configuration for this component to ClusterMgr");
+        // first read the default config from a resource
+        final Properties defaultProperties = new Properties();
+        try (final InputStream configPropertiesStream = BaseVmtComponent.class.getClassLoader()
+                .getResourceAsStream(COMPONENT_DEFAULT_PATH)) {
+            if (configPropertiesStream != null) {
+                defaultProperties.load(configPropertiesStream);
+            } else {
+                logger.warn("Cannot find component default properties file: {} for component: {}",
+                    COMPONENT_DEFAULT_PATH, componentType);
+            }
+        } catch (IOException e) {
+            // if the component defaults cannot be found we still need to send an empty
+            // default properties to ClusterMgr where the global defaults will be used.
+            logger.warn("Cannot read default configuration properties file: {} for component: {};" +
+                    "- assuming empty configuration.", COMPONENT_DEFAULT_PATH,
+                    componentType);
+        }
+        // now loop forever trying to call the clustermgr client to store those default properties
+        final ComponentPropertiesDTO defaultComponentProperties = new ComponentPropertiesDTO();
+        defaultProperties.forEach((defaultKey, defaultValue) ->
+            defaultComponentProperties.put(defaultKey.toString(), defaultValue.toString()));
+        int tryCount = 1;
+        do {
+            try {
+                clusterMgrClient.putComponentDefaultProperties(componentType, defaultComponentProperties);
+                logger.info("Default property values for component type '{}' successfully stored:",
+                    componentType);
+                defaultProperties.forEach((configKey, configValue) ->
+                    logger.info("       {} = >{}<", configKey, configValue));
+                break;
+            } catch (ResourceAccessException e) {
+                logger.error("Error in attempt {} to send default configuration from ClusterMgr: {}",
+                    tryCount++, e.getMessage());
+                sleepWaitingForClusterMgr();
+            }
+        } while(true);
+    }
+
+    /**
      * Fetch the configuration for this component type from ClusterMgr and store them in
      * the System properties. Retry until you succeed - this is a blocking call.
      *
      * This method is intended to be called by each component's main() method before
      * beginning Spring instantiation.
+     *
+     * @param clusterMgrClient the clustermgr api client handle
      */
-    private static void fetchConfigurationProperties() {
-        final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
-        final int clusterMgrConnectionRetryDelaySecs =
-                EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
-        final long clusterMgrConnectionRetryDelayMs =
-                Duration.ofSeconds(clusterMgrConnectionRetryDelaySecs).toMillis();
-        final String componentType = requireEnvProperty(PROP_COMPNENT_TYPE);
-        final String clusterMgrHost = requireEnvProperty("clustermgr_host");
-        final String instanceId = requireEnvProperty(PROP_INSTANCE_ID);
+    private static void fetchConfigurationProperties(ClusterMgrRestClient clusterMgrClient) {
 
         logger.info("Fetching configuration from ClusterMgr for '{}' component of type '{}'",
                 instanceId, componentType);
-        logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
-
-        // call ClusterMgr to fetch the configuration for this component type
-        final IClusterService clusterMgrClient = ClusterMgrClient.createClient(
-                ComponentApiConnectionConfig.newBuilder()
-                        .setHostAndPort(clusterMgrHost, clusterMgrPort)
-                        .build());
         do {
             try {
                 ComponentPropertiesDTO componentProperties =
                         clusterMgrClient.getComponentInstanceProperties(componentType, instanceId);
                 componentProperties.forEach((configKey, configValue) -> {
-                    logger.info("       {} = {}", configKey, configValue);
+                    logger.info("       {} = >{}<", configKey, configValue);
                     System.setProperty(configKey, configValue);
                 });
                 break;
             } catch(ResourceAccessException e) {
                 logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
-                try {
-                    logger.info("...trying again...");
-                    Thread.sleep(clusterMgrConnectionRetryDelayMs);
-                } catch (InterruptedException e2) {
-                    logger.warn("Interrupted while waiting for ClusterMgr; continuing to wait.");
-                    Thread.currentThread().interrupt();
-                }
+                sleepWaitingForClusterMgr();
             }
         } while (true);
         logger.info("configuration initialized");
+    }
+
+    /**
+     * Sleep while wait/looping for ClusterMgr to respond.
+     */
+    private static void sleepWaitingForClusterMgr() {
+        try {
+            logger.info("...sleeping for {} ms and then trying again...",
+                    clusterMgrConnectionRetryDelayMs);
+            Thread.sleep(clusterMgrConnectionRetryDelayMs);
+        } catch (InterruptedException e2) {
+            logger.warn("Interrupted while waiting for ClusterMgr; continuing to wait.");
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**

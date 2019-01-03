@@ -34,7 +34,7 @@ public class HistoryClientConfig {
     @Value("${historyHost}")
     private String historyHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Autowired

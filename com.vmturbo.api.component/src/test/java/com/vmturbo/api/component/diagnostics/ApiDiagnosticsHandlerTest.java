@@ -26,7 +26,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
-import com.vmturbo.api.serviceinterfaces.IClusterService;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricUtilities;
 
@@ -36,7 +36,7 @@ public class ApiDiagnosticsHandlerTest {
     final SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder builder =
         Mockito.mock(SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder.class);
     final AdminService adminService = Mockito.mock(AdminService.class);
-    final IClusterService clusterService = Mockito.mock(IClusterService.class);
+    final ClusterMgrRestClient clusterService = Mockito.mock(ClusterMgrRestClient.class);
     final DiagnosticsWriter diagnosticsWriter = Mockito.mock(DiagnosticsWriter.class);
     final ZipOutputStream diagnosticZip = Mockito.mock(ZipOutputStream.class);
     final long liveTopologyContextId = 123456L;

@@ -29,7 +29,7 @@ public class GroupClientConfig {
     @Value("${groupHost}")
     private String groupHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

@@ -120,7 +120,7 @@ services:
       node_name: default
       consul_host: consul
       kafkaServers: kafka1:9092
-      server_port: 8080
+      serverHttpPort: 8080
       JAVA_OPTS: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
     volumes:
       - clustermgr:/home/turbonomic/data
@@ -136,7 +136,6 @@ services:
       component_type: api
       instance_id: api-1
       consul_host: consul
-      realtimeTopologyContextId: 777777
       kafkaServers: kafka1:9092
     volumes:
       - api:/home/turbonomic/data
@@ -166,7 +165,6 @@ services:
       component_type: action-orchestrator
       instance_id: action-orchestrator-1
       consul_host: consul
-      realtimeTopologyContextId: 777777
       kafkaServers: kafka1:9092
     volumes:
       - action-orchestrator:/home/turbonomic/data
@@ -182,7 +180,6 @@ services:
       instance_id: topology-processor-1
       node_name: default
       consul_host: consul
-      realtimeTopologyContextId: 777777
       kafkaServers: kafka1:9092
     volumes:
       - topology-processor:/home/turbonomic/data
@@ -211,7 +208,6 @@ services:
       component_type: repository
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
-      realtimeTopologyContextId: 777777
       kafkaServers: kafka1:9092
     volumes:
       - repository:/home/turbonomic/data
@@ -229,7 +225,6 @@ services:
       component_type: group
       instance_id: group-1
       kafkaServers: kafka1:9092
-      realtimeTopologyContextId: 777777
     restart: always
 
   history-prod:
@@ -243,7 +238,6 @@ services:
       consul_host: consul
       component_type: history
       instance_id: history-1
-      realtimeTopologyContextId: 777777
       logging.level.com.vmturbo.history: info # change to debug to enable more debugging output
       kafkaServers: kafka1:9092
     restart: always
@@ -259,7 +253,6 @@ services:
       consul_host: consul
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
-      realtimeTopologyContextId: 777777
       kafkaServers: kafka1:9092
     restart: always
 

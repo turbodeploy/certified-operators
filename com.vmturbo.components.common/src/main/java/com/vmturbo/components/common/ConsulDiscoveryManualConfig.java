@@ -25,7 +25,7 @@ public class ConsulDiscoveryManualConfig {
     private String consulHost;
     @Value("${consul_port}")
     private Integer consulPort;
-    @Value("${" + BaseVmtComponent.PROP_SERVER_PORT + '}')
+    @Value("${" + BaseVmtComponent.PROP_serverHttpPort + '}')
     private Integer serverPort;
 
     @Value("${" + BaseVmtComponent.PROP_COMPNENT_TYPE + '}')

@@ -205,7 +205,7 @@ services:
     environment:
       component_type: clustermgr
       instance_id: clustermgr-1
-      server_port: 8080
+      serverHttpPort: 8080
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${CLUSTERMGR_XMX_MB}M ${CLUSTERMGR_SYSTEM_PROPERTIES}"
       node_name: default
       consul_host: consul
@@ -229,7 +229,6 @@ services:
     environment:
       component_type: api
       instance_id: api-1
-      realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${API_XMX_MB}M ${API_SYSTEM_PROPERTIES}"
     volumes:
@@ -294,7 +293,6 @@ services:
     environment:
       component_type: action-orchestrator
       instance_id: action-orchestrator-1
-      realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ACTION_ORCHESTRATOR_XMX_MB}M ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     volumes:
@@ -318,7 +316,6 @@ services:
       component_type: topology-processor
       instance_id: topology-processor-1
       node_name: default
-      realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${TOPOLOGY_PROCESSOR_XMX_MB}M ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
     volumes:
@@ -451,7 +448,6 @@ services:
     environment:
       component_type: group
       instance_id: group-1
-      realtimeTopologyContextId: 777777
       logging.level.com.vmturbo.group: info # change to debug to enable more debugging output
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${GROUP_XMX_MB}M ${GROUP_SYSTEM_PROPERTIES}"
       kafkaServers: ${KAFKA_SERVERS}
@@ -475,7 +471,6 @@ services:
     environment:
       component_type: history
       instance_id: history-1
-      realtimeTopologyContextId: 777777
       logging.level.com.vmturbo.history: INFO
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${HISTORY_XMX_MB}M ${HISTORY_SYSTEM_PROPERTIES}"
@@ -499,7 +494,6 @@ services:
     environment:
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
-      realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${PLAN_ORCHESTRATOR_XMX_MB}M ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
@@ -595,8 +589,8 @@ services:
     environment:
       component_type: mediation-stressprobe
       instance_id: mediation-stressprobe-1
-      server_port: 8080
-      server.grpcPort: 9001
+      serverHttpPort: 8080
+      serverGrpcPort: 9001
       consul_host: consul
       consul_port: 8500
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STRESSPROBE_XMX_MB}M ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
@@ -615,8 +609,8 @@ services:
       - "${MEDIATION_STORAGESTRESSPROBE_DEBUG_PORT}"
     depends_on: *clustermgrdep
     environment:
-      server_port: 8080
-      server.grpcPort: 9001
+      serverHttpPort: 8080
+      serverGrpcPort: 9001
       consul_host: consul
       consul_port: 8500
       component_type: mediation-stressprobe

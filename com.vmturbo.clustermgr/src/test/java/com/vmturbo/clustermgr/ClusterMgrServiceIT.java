@@ -10,7 +10,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 /**
  * Integration tests for {@link ClusterMgrService}. Run against live consul (started
@@ -28,21 +27,16 @@ public class ClusterMgrServiceIT {
     public final ConsulResource consul = new ConsulResource();
 
     private ClusterMgrService svc;
-    private ComponentPropertiesMap factoryInstalledComponents;
 
     @Before
     public void startup() {
-        factoryInstalledComponents = new ComponentPropertiesMap();
-        final FactoryInstalledComponentsService fic =
-                Mockito.mock(FactoryInstalledComponentsService.class);
-        Mockito.when(fic.getFactoryInstalledComponents()).thenReturn(factoryInstalledComponents);
         final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort());
-        svc = new ClusterMgrService(consulService, fic);
-
-        final ComponentProperties componentProperties = new ComponentProperties();
-        componentProperties.put(PROP_1, PROP_1_DEF_VAL);
-        componentProperties.put(PROP_2, PROP_2_DEF_VAL);
-        factoryInstalledComponents.addComponentConfiguration(COMP_TYPE_1, componentProperties);
+        svc = new ClusterMgrService(consulService);
+        svc.loadGlobalDefaultProperties();
+        final ComponentProperties defaultProperties = new ComponentProperties();
+        defaultProperties.put(PROP_1, PROP_1_DEF_VAL);
+        defaultProperties.put(PROP_2, PROP_2_DEF_VAL);
+        svc.putDefaultPropertiesForComponentType(COMP_TYPE_1, defaultProperties);
     }
 
     /**
@@ -50,7 +44,6 @@ public class ClusterMgrServiceIT {
      */
     @Test
     public void testInitDefaultValues() {
-        svc.initializeClusterKVStore();
 
         Assert.assertEquals(PROP_1_DEF_VAL,
                 svc.getDefaultPropertiesForComponentType(COMP_TYPE_1).get(PROP_1));
@@ -69,12 +62,11 @@ public class ClusterMgrServiceIT {
 
     /**
      * Tests reinitialization of default values (mimics restart migration to a new version of
-     * appliance). It is expected, that new components will receive new set of properties,
-     * defined in new factoryInstalledComponents.yml file
+     * appliance). It is expected, that new components will receive new set of properties
      */
     @Test
     public void testsChangeOfPropertiesSet() {
-        svc.initializeClusterKVStore();
+        svc.loadGlobalDefaultProperties();
         final String instanceId = svc.getComponentInstanceIds(COMP_TYPE_1).iterator().next();
         Assert.assertEquals(Sets.newHashSet(PROP_1, PROP_2),
                 svc.getComponentInstanceProperties(COMP_TYPE_1, instanceId).keySet());
@@ -85,10 +77,9 @@ public class ClusterMgrServiceIT {
         final String prop3val = "Expelliarmus";
         final ComponentProperties componentProperties = new ComponentProperties();
         componentProperties.put(PROP_1, val1);
-        componentProperties.put(PROP_2, PROP_2_DEF_VAL);
+        componentProperties.put(PROP_2, val2);
         componentProperties.put(prop3, prop3val);
-        factoryInstalledComponents.addComponentConfiguration(COMP_TYPE_1, componentProperties);
-        svc.initializeClusterKVStore();
+        svc.putComponentInstanceProperties(COMP_TYPE_1, instanceId, componentProperties);
         Assert.assertEquals(componentProperties,
                 svc.getComponentInstanceProperties(COMP_TYPE_1, instanceId));
 
@@ -100,7 +91,7 @@ public class ClusterMgrServiceIT {
      */
     @Test
     public void testGetInstanceProperties() {
-        svc.initializeClusterKVStore();
+        svc.loadGlobalDefaultProperties();
         final String instanceId = svc.getComponentInstanceIds(COMP_TYPE_1).iterator().next();
         svc.setPropertyForComponentInstance(COMP_TYPE_1, instanceId, PROP_1, "new value");
         final Map<String, String> props =

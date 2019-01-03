@@ -15,10 +15,6 @@
         <constructor-arg value="com.vmturbo.clustermgr.ClusterMgrService"/>
     </bean>
 
-    <bean id="factoryInstalledComponentsService" class="org.mockito.Mockito" factory-method="mock">
-        <constructor-arg value="com.vmturbo.clustermgr.FactoryInstalledComponentsService"/>
-    </bean>
-
     <bean id="consulService" class="org.mockito.Mockito" factory-method="mock">
         <constructor-arg value="com.vmturbo.clustermgr.ConsulService"/>
     </bean>

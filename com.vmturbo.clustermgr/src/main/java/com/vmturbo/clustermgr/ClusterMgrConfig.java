@@ -123,20 +123,13 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public ClusterMgrService clusterMgrService() {
-        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService(),
-                factoryInstalledComponentsService());
-        clusterMgrService.initializeClusterKVStore();
+        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService());
         return clusterMgrService;
     }
 
     @Bean
     public ConsulService consulService() {
         return new ConsulService(consulHost, consulPort);
-    }
-
-    @Bean
-    public FactoryInstalledComponentsService factoryInstalledComponentsService() {
-        return new FactoryInstalledComponentsService();
     }
 
     @Bean

@@ -72,7 +72,7 @@ public class ClusterMgrMain {
     public static void main(String[] args) throws Exception {
         final Logger logger = LogManager.getLogger();
         logger.info("Starting web server with spring context");
-        final String serverPort = requireEnvProperty("server_port");
+        final String serverPort = requireEnvProperty("serverHttpPort");
 
         final org.eclipse.jetty.server.Server server =
                 new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));

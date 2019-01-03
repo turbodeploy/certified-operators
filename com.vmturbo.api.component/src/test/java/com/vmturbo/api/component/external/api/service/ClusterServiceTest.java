@@ -13,7 +13,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
-import com.vmturbo.api.serviceinterfaces.IClusterService;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 
 /**
  * Test services for {@link ClusterService}
@@ -31,7 +31,7 @@ public class ClusterServiceTest {
     public static final String DB = "db";
     public static final String USERNAME = "username";
 
-    private static IClusterService clusterManagerClient = Mockito.mock(IClusterService.class);
+    private static ClusterMgrRestClient clusterManagerClient = Mockito.mock(ClusterMgrRestClient.class);
 
     @Autowired
     ClusterService serviceUnderTest;

@@ -40,10 +40,10 @@ public class TopologyProcessorClientConfig {
     @Value("${topologyProcessorHost}")
     private String topologyProcessorHost;
 
-    @Value("${topologyProcessorPort}")
+    @Value("${serverHttpPort}")
     private int topologyProcessorPort;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int topologyProcessorRpcPort;
 
     @Bean(destroyMethod = "shutdownNow")

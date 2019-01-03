@@ -52,7 +52,7 @@ public class InfluxConfig {
     @Value("${authHost}")
     private String authHost;
 
-    @Value("${authPort}")
+    @Value("${serverHttpPort}")
     private int authPort;
 
     @Value("${authRetryDelaySecs}")

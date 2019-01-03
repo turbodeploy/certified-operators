@@ -16,7 +16,7 @@ public class HistoryDbConfig {
     @Value("${authHost}")
     public String authHost;
 
-    @Value("${authPort}")
+    @Value("${serverHttpPort}")
     public int authPort;
 
     @Value("${authRetryDelaySecs}")

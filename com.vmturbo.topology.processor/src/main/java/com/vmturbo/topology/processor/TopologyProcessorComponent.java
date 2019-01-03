@@ -148,6 +148,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     }
 
     @Override
+    @Nonnull
     public SortedMap<String, Migration> getMigrations() {
             return migrationsConfig.migrationsList().getMigrationsList();
     }

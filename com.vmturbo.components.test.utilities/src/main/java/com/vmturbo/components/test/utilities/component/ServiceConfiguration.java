@@ -10,8 +10,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.palantir.docker.compose.connection.Container;
 import com.palantir.docker.compose.connection.DockerPort;
 
-import com.vmturbo.api.serviceinterfaces.IClusterService;
-import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 
 /**
@@ -66,7 +66,7 @@ public class ServiceConfiguration {
     public void apply(final Container clusterManagerContainer)
         throws ServiceConfigurationException {
         DockerPort dockerPort = clusterManagerContainer.port(ComponentUtils.GLOBAL_HTTP_PORT);
-        final IClusterService clusterMgrClient = ClusterMgrClient.createClient(
+        final ClusterMgrRestClient clusterMgrClient = ClusterMgrClient.createClient(
                 ComponentApiConnectionConfig.newBuilder()
                         .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort())
                         .build());
@@ -90,7 +90,7 @@ public class ServiceConfiguration {
      * @throws ServiceConfigurationException If at least one configuration fails to be applied.
      */
     @VisibleForTesting
-    void apply(@Nonnull final IClusterService clusterMgrClient)
+    void apply(@Nonnull final ClusterMgrRestClient clusterMgrClient)
             throws ServiceConfigurationException {
         configurations.entrySet()
                 .forEach(entry -> putProperty(clusterMgrClient, entry.getKey(), entry.getValue()));
@@ -103,7 +103,7 @@ public class ServiceConfiguration {
      * @param key The key at which to put the value
      * @param value The value where the key should be put
      */
-    private void putProperty(@Nonnull final IClusterService clustermgr,
+    private void putProperty(@Nonnull final ClusterMgrRestClient clustermgr,
                              @Nonnull final String key, @Nonnull final String value)
         throws ServiceConfigurationException {
         try {

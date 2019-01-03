@@ -36,10 +36,10 @@ public class RepositoryClientConfig {
     @Value("${repositoryHost}")
     private String repositoryHost;
 
-    @Value("${repositoryPort}")
+    @Value("${serverHttpPort}")
     private int repositoryPort;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

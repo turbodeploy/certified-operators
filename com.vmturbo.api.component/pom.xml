@@ -29,9 +29,6 @@
         <external.swagger.basepath>/vmturbo/rest</external.swagger.basepath>
         <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
-        <generated.asciidoc.directory>${base.generated.docs.dir}/asciidoc</generated.asciidoc.directory>
-        <asciidoctor.input.directory>${generated.asciidoc.directory}</asciidoctor.input.directory>
-        <asciidoctor.html.output.directory>${base.generated.docs.dir}/html</asciidoctor.html.output.directory>
         <env.svn.revision>${env.SVN_REVISION}</env.svn.revision>
     </properties>
 
@@ -56,6 +53,7 @@
                                     <basePath>/vmturbo/rest</basePath>
                                     <locations>
                                         <location>com.vmturbo.api</location>
+                                        <location>com.vmturbo.api.xlcontroller</location>
                                     </locations>
                                     <info>
                                         <title>${external.swagger.name}</title>

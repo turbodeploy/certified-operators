@@ -12,16 +12,11 @@ public class ClusterMgrServiceTestConfiguration {
 
     @Bean
     public ClusterMgrService clusterMgrService() {
-        return new ClusterMgrService(consulService(), factoryInstalledComponentsService());
+        return new ClusterMgrService(consulService()/*, factoryInstalledComponentsService()*/);
     }
 
     @Bean
     public ConsulService consulService() {
         return Mockito.mock(ConsulService.class);
-    }
-
-    @Bean
-    public FactoryInstalledComponentsService factoryInstalledComponentsService() {
-        return new FactoryInstalledComponentsService();
     }
 }

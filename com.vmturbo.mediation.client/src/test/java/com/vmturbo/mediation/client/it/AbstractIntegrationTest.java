@@ -149,7 +149,7 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("identityGeneratorPrefix", "0");
         environment.setProperty("kvStoreRetryIntervalMillis", "1000");
         environment.setProperty("websocket.pong.timeout", "10000");
-        environment.setProperty("server.grpcPort", "0");
+        environment.setProperty("serverGrpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
         environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
@@ -324,8 +324,8 @@ public abstract class AbstractIntegrationTest {
             // JVM
             environment.setProperty("spring.jmx.default-domain",
                             "sdk-container-" + jmxCounter.getAndIncrement());
-            environment.setProperty("server_port", "0");
-            environment.setProperty("server.grpcPort", "1");
+            environment.setProperty("serverHttpPort", "0");
+            environment.setProperty("serverGrpcPort", "1");
 
             final String instanceId =
                             testName.getMethodName() + "-" + instanceCounter.getAndIncrement();

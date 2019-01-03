@@ -18,7 +18,7 @@ public class RepositoryConfig {
     @Value("${repositoryHost}")
     private String repositoryHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

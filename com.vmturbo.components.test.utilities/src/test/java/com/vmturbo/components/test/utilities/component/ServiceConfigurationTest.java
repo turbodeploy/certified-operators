@@ -6,12 +6,11 @@ import static org.mockito.Mockito.verify;
 
 import org.junit.Test;
 
-import com.vmturbo.api.serviceinterfaces.IClusterService;
-import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 
 public class ServiceConfigurationTest {
 
-    final IClusterService clusterMgr = mock(IClusterService.class);
+    final ClusterMgrRestClient clusterMgr = mock(ClusterMgrRestClient.class);
 
     @Test
     public void testInstance() throws Exception {

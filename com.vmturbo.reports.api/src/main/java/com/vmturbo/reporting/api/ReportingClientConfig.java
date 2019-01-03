@@ -32,7 +32,7 @@ public class ReportingClientConfig {
 
     @Value("${reportingHost}")
     private String reportingHost;
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;

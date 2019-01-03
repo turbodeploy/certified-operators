@@ -21,10 +21,10 @@ public class AuthClientConfig {
     @Value("${authHost}")
     private String authHost;
 
-    @Value("${authPort}")
+    @Value("${serverHttpPort}")
     private Integer authPort;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

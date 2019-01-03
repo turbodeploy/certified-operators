@@ -25,7 +25,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.serviceinterfaces.IClusterService;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricDefinitions;
 
@@ -43,13 +43,13 @@ public class ApiDiagnosticsHandler {
 
     private final AdminService adminService;
 
-    private final IClusterService clusterService;
+    private final ClusterMgrRestClient clusterService;
 
     private final long liveTopologyContextId;
 
     public ApiDiagnosticsHandler(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                  @Nonnull final AdminService adminService,
-                                 @Nonnull IClusterService clusterManagerClient,
+                                 @Nonnull ClusterMgrRestClient clusterManagerClient,
                                  @Nonnull final DiagnosticsWriter diagnosticsWriter,
                                  final long liveTopologyContextId) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);

@@ -1,7 +1,0 @@
-# the path for Spring Cloud Actuator
-management:
-  context-path: /service
-# enable the Spring Cloud Actuator "restart" endpoint - disabled by default
-endpoints:
-  restart:
-    enabled: true

@@ -74,13 +74,16 @@ public class ComponentHealthCheckTest {
     @Before
     public void setup() throws Exception {
         final MockEnvironment env = new MockEnvironment();
-        env.setProperty("server.grpcPort", "1");
+        env.setProperty("serverGrpcPort", "1");
         env.setProperty("kvStoreRetryIntervalMillis", "4");
         env.setProperty("consul_host", "consul");
         env.setProperty("consul_port", "5");
+        env.setProperty("clustermgr_port", "8889");
+        env.setProperty("clustermgr_retry_delay_sec", "10");
+        env.setProperty("clusterMgrHost", "clustermgr");
         env.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
         env.setProperty(BaseVmtComponent.PROP_COMPNENT_TYPE, "componentType");
-        env.setProperty(BaseVmtComponent.PROP_SERVER_PORT, "8080");
+        env.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8080");
         env.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
         final IntegrationTestServer server =
                 new IntegrationTestServer(testName, ContextConfiguration.class, env);

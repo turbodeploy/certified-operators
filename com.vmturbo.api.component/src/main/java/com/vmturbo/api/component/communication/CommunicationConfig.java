@@ -19,15 +19,13 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
-import com.vmturbo.api.component.external.api.service.ProbesService;
-import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
-import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
-import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
@@ -209,7 +207,7 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public IClusterService clusterMgr() {
+    public ClusterMgrRestClient clusterMgr() {
         return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(clusterMgrHost, clusterMgrPort)
                 .build());

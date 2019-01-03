@@ -1,28 +1,40 @@
 package com.vmturbo.clustermgr;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Optional;
-import com.orbitz.consul.model.catalog.CatalogService;
-import com.orbitz.consul.model.kv.Value;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import javax.annotation.Nonnull;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.*;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import org.springframework.test.context.web.WebAppConfiguration;
 
-import javax.annotation.Nonnull;
-import java.io.InputStream;
-import java.util.*;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Optional;
+import com.orbitz.consul.model.catalog.CatalogService;
+import com.orbitz.consul.model.kv.Value;
 
 /**
  * test for ClusterMgr Service
@@ -38,15 +50,6 @@ public class ClusterMgrServiceTest {
 
     @Autowired
     ConsulService consulServiceMock;
-
-    @Autowired
-    private FactoryInstalledComponentsService factoryInstalledComponentsServiceMock;
-
-    @Captor
-    ArgumentCaptor<String> stringCaptor;
-
-    @Captor
-    ArgumentCaptor<String> valueCaptor;
 
     private List<Value> mockValues = getMockConsulValues(
             "vmturbo/components/c1/", null,
@@ -153,7 +156,9 @@ public class ClusterMgrServiceTest {
         ComponentProperties newProperties = new ComponentProperties();
         newProperties.put("p1", "v1");
         newProperties.put("p2", "v2");
-        String defaultPropertiesKeyStem = "vmturbo/components/c1/defaults/";
+        String componentTypeKeyStem = "vmturbo/components/c1/";
+        String defaultPropertiesKeyStem = componentTypeKeyStem + "defaults/";
+        String componentInstanceKeyStem = componentTypeKeyStem + "instances/c1-1/";
         List<CatalogService> mockServiceList= new ArrayList<>();
         when(consulServiceMock.getService("c1")).thenReturn(mockServiceList);
         // Act
@@ -167,9 +172,19 @@ public class ClusterMgrServiceTest {
                 defaultPropertiesKeyStem + "p1",
                 defaultPropertiesKeyStem + "p2"));
         assertThat(valCaptor.getAllValues(), containsInAnyOrder("v1", "v2"));
+
+        // ensure that the type exists
+        verify(consulServiceMock, times(1)).putValue(componentTypeKeyStem);
+
+        // create the new instance
+        verify(consulServiceMock, times(1)).keyExist(componentInstanceKeyStem);
+        verify(consulServiceMock, times(1)).putValue(componentInstanceKeyStem);
+        verify(consulServiceMock, times(1)).getKeys(componentInstanceKeyStem);
+
+        // fetch the values
+        verify(consulServiceMock).getKeys(defaultPropertiesKeyStem);
         verify(consulServiceMock, times(1)).getValues(defaultPropertiesKeyStem);
         verify(consulServiceMock, times(1)).getService("c1");
-        verify(consulServiceMock).getKeys(defaultPropertiesKeyStem);
         verifyNoMoreInteractions(consulServiceMock);
     }
 
@@ -251,90 +266,6 @@ public class ClusterMgrServiceTest {
         verify(consulServiceMock).putValue(getInstancePropertyKey("c1", "c1_1", "prop2"), "val2");
         verify(consulServiceMock).putValue(getInstancePropertyKey("c2", "c2_1", "prop3"), "val3");
         // etc
-    }
-
-    /**
-     * Test that the k/v store is initialized as desired. This is keyed on whether or not the VMTurbo base key,
-     * "vmturbo/" is set the the Consul k/v store.
-     *
-     * The template for the VMTurbo components and values is factoryInstalledComponents.yml
-     */
-    @Test
-    public void testInitializeClusterKVStore() throws Exception {
-        // Arrange
-        List<Value> values = getMockConsulValues(
-                "vmturbo/components/k1/", null // this value
-        );
-        when(consulServiceMock.getValues("vmturbo/components/"))
-                .thenReturn(values);
-        when(consulServiceMock.getValueAsString("vmturbo/components/test-component-1/instances/test-component-1-1/"))
-                .thenReturn(Optional.absent());
-        when(consulServiceMock.getValueAsString("vmturbo/components/test-component-2/instances/test-component-2-1/"))
-                .thenReturn(Optional.absent());
-        when(consulServiceMock.getValueAsString("vmturbo/components/test-component-3/instances/test-component-3-1/"))
-                .thenReturn(Optional.absent());
-
-
-        String[] keyList = new String[]{
-                "vmturbo/components/test-component-1/",
-                "vmturbo/components/test-component-1/instances/test-component-1-1/",
-                "vmturbo/components/test-component-2/",
-                "vmturbo/components/test-component-2/instances/test-component-2-1/",
-                "vmturbo/components/test-component-3/",
-                "vmturbo/components/test-component-3/instances/test-component-3-1/",
-                "vmturbo/components/test-component-1/defaults/property-1",
-                "vmturbo/components/test-component-1/defaults/property-2",
-                "vmturbo/components/test-component-2/defaults/property-3",
-        };
-        // the value list contains two copies - one for the instance value and one for the defaults value
-        String[] valueList = new String[] {
-                "value-1",
-                "value-2",
-                "value-3"
-        };
-        // Act
-        clusterMgrService.initializeClusterKVStore();
-        // Assert
-        // initializing the KV store results in create operations for each component type and an instance for that type,
-        // as read from "factoryInstalledComponents.yml
-        verify(consulServiceMock, times(6)).putValue(stringCaptor.capture());
-        verify(consulServiceMock, times(3)).putValue(stringCaptor.capture(), valueCaptor.capture());
-        assertThat(stringCaptor.getAllValues(), containsInAnyOrder(keyList));
-        assertThat(valueCaptor.getAllValues(), containsInAnyOrder(valueList));
-    }
-
-    /**
-     * Test that the initialization is rewriting all the existing default values.
-     */
-    @Test
-    public void testPreviouslyInitializeClusterKVStore() {
-        // Arrange
-        String vmturboKeyBase = "vmturbo/";
-        List<String> keys = Arrays.asList(vmturboKeyBase);
-        when(consulServiceMock.getKeys(vmturboKeyBase))
-                .thenReturn(keys);
-        when(consulServiceMock.keyExist(Mockito.startsWith(
-                "vmturbo/components/test-component-1/instances/test-component-1"))).thenReturn(
-                true);
-        Mockito.when(consulServiceMock.getValueAsString(Mockito.anyString()))
-                .thenReturn(Optional.absent());
-        // Act
-        clusterMgrService.initializeClusterKVStore();
-        // Assert
-        Mockito.verify(consulServiceMock)
-                .putValue(Mockito.eq("vmturbo/components/test-component-1/defaults/property-1"),
-                        Mockito.anyString());
-        Mockito.verify(consulServiceMock)
-                .putValue(Mockito.eq("vmturbo/components/test-component-1/defaults/property-2"),
-                        Mockito.anyString());
-        Mockito.verify(consulServiceMock)
-                .putValue(Mockito.eq("vmturbo/components/test-component-2/defaults/property-3"),
-                        Mockito.anyString());
-        Mockito.verify(consulServiceMock, Mockito.never())
-                .putValue(Mockito.startsWith(
-                        "vmturbo/components/test-component-1/instances/test-component-1" +
-                                "-1/properties"),
-                        Mockito.anyString());
     }
 
     private List<Value> getMockConsulValues(String... keyValuePairs) {

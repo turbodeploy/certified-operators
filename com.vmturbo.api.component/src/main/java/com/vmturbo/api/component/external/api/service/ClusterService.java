@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 
 /**
  * Implementation for the Cluster Manager Service API calls.
@@ -19,7 +20,7 @@ import com.vmturbo.api.serviceinterfaces.IClusterService;
 public class ClusterService implements IClusterService {
 
     public static final String ASTERISKS = "*****";
-    private IClusterService clusterMgrApi;
+    private ClusterMgrRestClient clusterMgrApi;
 
     // the sensitive keys that we need to mask the values.
     // TODO centralized these keys, so we won't miss them if they are changed.
@@ -29,7 +30,7 @@ public class ClusterService implements IClusterService {
             , "sslKeystorePassword"
             , "readonlyPassword");
 
-    public ClusterService(@Nonnull IClusterService clusterManagerClient) {
+    public ClusterService(@Nonnull ClusterMgrRestClient clusterManagerClient) {
         clusterMgrApi = Objects.requireNonNull(clusterManagerClient);
     }
 

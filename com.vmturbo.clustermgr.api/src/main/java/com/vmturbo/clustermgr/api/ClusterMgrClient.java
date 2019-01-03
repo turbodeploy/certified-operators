@@ -1,8 +1,7 @@
-package com.vmturbo.clustermgr.api.impl;
+package com.vmturbo.clustermgr.api;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 
 /**
@@ -14,7 +13,7 @@ public class ClusterMgrClient {
     private ClusterMgrClient() {}
 
     @Nonnull
-    public static IClusterService createClient(
+    public static ClusterMgrRestClient createClient(
             @Nonnull ComponentApiConnectionConfig connectionConfig) {
         return new ClusterMgrRestClient(connectionConfig);
     }

@@ -71,6 +71,7 @@ public class GroupComponent extends BaseVmtComponent {
             new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
     }
 
+    @Override
     @Nonnull
     protected SortedMap<String, Migration> getMigrations() {
         return migrationConfig.groupMigrationsLibrary().getMigrationsList();

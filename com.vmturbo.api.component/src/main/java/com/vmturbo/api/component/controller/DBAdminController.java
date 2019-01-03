@@ -34,7 +34,7 @@ public class DBAdminController {
     @Value("${authHost:auth}")
     private String authHost;
 
-    @Value("${authPort:8080}")
+    @Value("${serverHttpPort}")
     private int authPort;
 
     /**

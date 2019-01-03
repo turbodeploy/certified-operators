@@ -3,6 +3,7 @@ package com.vmturbo.clustermgr;
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_ENABLED;
 import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_LOCKED;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,9 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -27,6 +27,21 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.http.MediaType;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
 import com.google.common.net.InetAddresses;
@@ -34,26 +49,6 @@ import com.google.common.net.InternetDomainName;
 import com.orbitz.consul.model.catalog.CatalogService;
 import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 
 /**
  * Implement the ClusterMgr Services: component status, component configuration, node configuration.
@@ -98,11 +93,14 @@ public class ClusterMgrService {
     private static final String DEFAULT_NODE_NAME = "default";
     private static final String SERVICE_RESTART_REQUEST = "/service/restart";
 
-    private static final int REST_CONNECTION_TIMEOUT_MS = 5000;
-
     // constant values used for parsing consul health check results
     private static final String CONSUL_HEALTH_CHECK_PASSING_RESULT = "passing";
     private static final String CONSUL_HEALTH_CHECK_UNSUCCESSFUL_FRAGMENT = "no such host";
+    private static final String GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH =
+        "config/global_defaults.properties";
+
+    // Default configuration properties global to all component types
+    private final ComponentProperties globalDefaultProperties = new ComponentProperties();
 
     private Logger log = LogManager.getLogger();
 
@@ -112,54 +110,48 @@ public class ClusterMgrService {
      */
     private final ConsulService consulService;
 
-    /**
-     * The {@link FactoryInstalledComponentsService} handles the VMT Components definition file.
-     */
-    private final FactoryInstalledComponentsService factoryInstalledComponentsService;
-
     private final AtomicBoolean kvInitialized = new AtomicBoolean(false);
 
-    public ClusterMgrService(@Nonnull final ConsulService consulService,
-            @Nonnull final FactoryInstalledComponentsService installedComponents) {
+    public ClusterMgrService(@Nonnull final ConsulService consulService) {
         this.consulService = Objects.requireNonNull(consulService);
-        this.factoryInstalledComponentsService = Objects.requireNonNull(installedComponents);
+        loadGlobalDefaultProperties();
     }
+
     /**
-     * Populate the Consul Key/Value store with an initial configuration of component types and instances.
-     *
-     * The product ships with a VMT Component definition file: factoryInstalledComponents - which lists
-     * the available components, with the default configuration properties for each.
+     * Read the Global Default Configuration properties from the .properties file.
+     * These properties will be used for setting Default Configuration properties for
+     * each component when they register. This method is called during a static {} initializer.
      */
-    public void initializeClusterKVStore() {
-        // initialize default instances & defaults values from factoryInstalledComponents
-        log.info(">>>>> Initializing the Cluster K/V Store");
-        for (Map.Entry<String, ComponentProperties> factoryComponentEntry : factoryInstalledComponentsService
-                .getFactoryInstalledComponents()
-                .getComponents()
-                .entrySet()) {
-            String componentType = factoryComponentEntry.getKey();
-            // establish the component base
-            addComponentType(componentType);
-            // record the defaults for the component
-            ComponentProperties newProperties = factoryComponentEntry.getValue();
-            setComponentDefaults(componentType, newProperties);
-            // automatically register a new instance
-            final String newInstanceId = addComponentInstance(componentType);
-            if (newInstanceId != null) {
-                // assign the new instance to the default node
-                setNodeForComponentInstance(componentType, newInstanceId, DEFAULT_NODE_NAME);
-                addInstanceProperrtiesNode(componentType, newInstanceId);
+    @VisibleForTesting
+    void loadGlobalDefaultProperties() {
+        Properties globalDefaultsFromFile = new Properties();
+        log.info("Loading global default properties from file: {}",
+                GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH);
+        try (final InputStream configPropertiesStream = ClusterMgrService.class.getClassLoader()
+                .getResourceAsStream(GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH)) {
+            if (configPropertiesStream == null) {
+                throw new RuntimeException("Cannot find default configuration properties file: " +
+                        GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH, new FileNotFoundException());
             }
+            globalDefaultsFromFile.load(configPropertiesStream);
+        } catch (IOException e) {
+            // if the component defaults cannot be found we still need to send an empty
+            // default properties to ClusterMgr where the global defaults will be used.
+            throw new RuntimeException("Cannot read global default configuration properties file:" +
+                    GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH, e);
         }
-        String compositeKey = getComponentsBaseKey();
-        Set<String> answer = getComponentsWithPrefix(compositeKey);
-        if (answer.isEmpty()) {
-            throw new RuntimeException(
-                    "Error initializing known components list - no components found.");
+        // clear any previous global defaults and then populate the defaults from the file
+        synchronized (globalDefaultProperties) {
+            globalDefaultProperties.clear();
+            globalDefaultsFromFile.forEach((defaultKey, defaultValue) ->
+                    globalDefaultProperties.put(defaultKey.toString(), defaultValue.toString()));
         }
 
         // Mark the KV store as initialized.
         kvInitialized.set(true);
+
+        // log the result
+        globalDefaultProperties.forEach((key, value) -> log.info("   {} = >{}<", key, value));
     }
 
     public boolean isClusterKvStoreInitialized() {
@@ -180,9 +172,7 @@ public class ClusterMgrService {
         String compositeKey = getComponentsBaseKey();
         Set<String> answer = getComponentsWithPrefix(compositeKey);
         if (answer.isEmpty()) {
-            if (answer.isEmpty()) {
-                throw new RuntimeException("Error initializing known components list - no components found.");
-            }
+            throw new RuntimeException("Error initializing known components list - no components found.");
         }
         return answer;
     }
@@ -216,8 +206,6 @@ public class ClusterMgrService {
         String newInstanceId = componentType + '-' + nextInstance;
         String newInstanceKey = getComponentInstanceKey(componentType, newInstanceId);
         // check for previously existing component instance with this ID. TODO: this should be done with locking
-        final com.google.common.base.Optional<String> value =
-                consulService.getValueAsString(newInstanceKey);
         try {
             if (consulService.keyExist(newInstanceKey)) {
                 return null;
@@ -251,20 +239,6 @@ public class ClusterMgrService {
             log.info("No subkeys are found for " + valueKeyPrefix);
         }
         setAllValues(valueKeyPrefix, componentProperties);
-    }
-
-    /**
-     * Set the default property values for a given component instance given a
-     * {@link ComponentProperties} object containing the property key/value pairs.
-     * Note: this removes any previous default property values.
-     *
-     * @param componentType component type for which the default values should be set
-     * @param componentProperties a {@link ComponentProperties} map of key/value pairs to set.
-     */
-    private void setComponentDefaults(@Nonnull String componentType,
-            @Nonnull ComponentProperties componentProperties) {
-        final String componentDefaultsKeyPrefix = getComponentDefaultsKey(componentType);
-        setAllValues(componentDefaultsKeyPrefix, componentProperties);
     }
 
     /**
@@ -753,8 +727,11 @@ public class ClusterMgrService {
     /**
      * Send an HTTP GET to a given VMT Component Instance and process the response.
      *
+     * Note: we treat an http request as a non-fatal error; most likely cause is the target
+     * component is not currently running.
+     *
      * @param componentInfo the VMT Component service to send the request to
-     * @param request the HttpUriRequest to execut
+     * @param request the HttpUriRequest to execute
      * @param responseEntityProcessor the processor for the response.getEntity() after the http request completes.
      */
     private void sendRequestToComponent(CatalogService componentInfo, HttpUriRequest request,
@@ -774,7 +751,11 @@ public class ClusterMgrService {
                 }
             }
         } catch (IOException e) {
-            log.error(componentInfo.toString() + " --- Error fetching the information", e);
+            // log the error and continue to the next service
+            log.error("{} --- Error executing http request {}: {}",
+                    componentInfo.toString(),
+                    request.getURI().toString(),
+                    e.getMessage());
         }
     }
 
@@ -918,8 +899,8 @@ public class ClusterMgrService {
         return getNodeForComponentInstance(componentType, instanceId);
     }
 
-    public void addInstanceProperrtiesNode(@Nonnull final String componentType,
-            @Nonnull final String instanceId) {
+    public void addInstancePropertiesNode(@Nonnull final String componentType,
+                                          @Nonnull final String instanceId) {
         final String propertiesNodeKey =
                 getComponentInstancePropertiesKey(componentType, instanceId);
         consulService.putValue(propertiesNodeKey);
@@ -937,17 +918,41 @@ public class ClusterMgrService {
     }
 
     /**
-     * Replace the default {@link ComponentProperties} for the given component type.
+     * Replace the default {@link ComponentProperties} for the given component type. Begin with
+     * the Global Default properties as a base, and then overlay the new Default properties on
+     * top of that.
      *
      * @param componentType the component type for which to store the default ComponentProperties
-     * @param newProperties the new values for the default {@link ComponentProperties} for the given component type
-     * @return a {@link ComponentProperties} object containing all default configuration properties for the given
-     * component type.
+     * @param newComponentDefaultProperties the new values for the default {@link ComponentProperties} for
+     *                             the given component type
+     * @return a {@link ComponentProperties} object containing all default configuration properties
+     * for the given component type.
      */
-    public ComponentProperties putDefaultPropertiesForComponentType(String componentType, ComponentProperties newProperties) {
-        log.debug("updating default properties for: " + componentType);
-        setComponentDefaults(componentType, newProperties);
+    public ComponentProperties putDefaultPropertiesForComponentType(
+            String componentType,
+            ComponentProperties newComponentDefaultProperties) {
+
+        // begin with the 'global default properties'
+        ComponentProperties combinedDefaultProperties = new ComponentProperties();
+        combinedDefaultProperties.putAll(globalDefaultProperties);
+
+        // add the new default properties
+        combinedDefaultProperties.putAll(newComponentDefaultProperties);
+
+        // ensure that the component type exists; if already exists, this is a no-op
+        addComponentType(componentType);
+
+        // ensure at least one instance for this Component type if doesn't exists
+        addComponentInstance(componentType);
+
+        // store those as the new component defaults
+        final String componentDefaultsKeyPrefix = getComponentDefaultsKey(componentType);
+        setAllValues(componentDefaultsKeyPrefix, combinedDefaultProperties);
+
+        // broadcast to components that the configuration has changed
         notifyInstanceConfigurationChanged(componentType);
+
+        // return the updated component default properties
         return getComponentDefaultProperties(componentType);
     }
 

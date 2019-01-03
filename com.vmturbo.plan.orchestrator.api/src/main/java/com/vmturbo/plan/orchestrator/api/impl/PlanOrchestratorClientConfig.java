@@ -35,7 +35,7 @@ public class PlanOrchestratorClientConfig {
     @Value("${planOrchestratorHost}")
     private String planOrchestratorHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

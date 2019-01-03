@@ -22,7 +22,7 @@ public class CostClientConfig {
     @Value("${costHost}")
     private String costHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${grpcPingIntervalSeconds}")

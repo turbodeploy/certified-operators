@@ -1,4 +1,4 @@
-package com.vmturbo.clustermgr.api.impl;
+package com.vmturbo.clustermgr.api;
 
 import java.io.OutputStream;
 import java.net.URI;
@@ -28,14 +28,13 @@ import com.google.common.io.ByteStreams;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
-import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
 
 /**
  * Wrapper for the REST API for the ClusterMgr Component.
  **/
-class ClusterMgrRestClient extends ComponentRestClient implements IClusterService {
+public class ClusterMgrRestClient extends ComponentRestClient {
 
     private static final String REST_API_PREFIX = "";
 
@@ -113,12 +112,15 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
      *
      * @return 'true' indicating that we are running under XL.
      */
-    @Override
     public boolean isXLEnabled() {
         return true;
     }
 
-    @Override
+    /**
+     * Indicates whether the telemetry is enabled.
+     *
+     * @return {@code true} iff telemetry is enabled.
+     */
     public boolean isTelemetryInitialized() {
         return new RestGetRequestor<Boolean>(TELEMETRY_INITIALIZED, Boolean.class).invoke();
     }
@@ -128,7 +130,6 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
      *
      * @return {@code true} iff telemetry is enabled.
      */
-    @Override
     public boolean isTelemetryEnabled() {
         return new RestGetRequestor<Boolean>(TELEMETRY_ENABLED, Boolean.class).invoke();
     }
@@ -138,19 +139,34 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
      *
      * @param enabled The telemetry enabled flag.
      */
-    @Override
     public void setTelemetryEnabled(boolean enabled) {
         new RestPutRequestor<Void, Boolean>(TELEMETRY_ENABLED, Boolean.class).invokeVoid(enabled, enabled);
     }
 
-    @Override
+    /**
+     * Populate a ClusterConfiguration object with the current definition: all known component types, with the component
+     * instances and configuration properties for each;
+     * plus a list of all known component types with their default configuration property values.
+     *
+     * @return an aggregate ClusterConfiguration populated with node/component/configuration and component/default-configuration
+     * values.
+     */
     @Nonnull
     public ClusterConfigurationDTO getClusterConfiguration() {
         return new RestGetRequestor<ClusterConfigurationDTO>(CLUSTER_CONFIG_URI, ClusterConfigurationDTO.class)
                 .invoke();
     }
 
-    @Override
+    /**
+     * Replace the entire Cluster Configuration.
+     * This includes the <strong>default properties</strong> {@link ComponentPropertiesDTO}
+     * (component-type -> default properties)
+     * and the <strong>instance properties</strong> {@link ComponentPropertiesDTO}
+     * (instance-id -> instance properties)
+     *
+     * @param newConfiguration an {@link ClusterConfigurationDTO} to completely replace the current configuration.
+     * @return the new configuration, read back from the Consul key/value store.
+     */
     @Nonnull
     public ClusterConfigurationDTO setClusterConfiguration(@Nonnull ClusterConfigurationDTO newConfiguration) {
         return new RestPutRequestor<ClusterConfigurationDTO, ClusterConfigurationDTO>(CLUSTER_CONFIG_URI,
@@ -158,13 +174,40 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
                 .invoke(newConfiguration);
     }
 
-    @Override
+    /**
+     * Fetch the set of Components known to VMTurbo from the Consul K/V store.
+     * Components are "known" if there is a configuration key "{@code /vmturbo/components/{component-name}/}".
+     * <p>
+     * If no matching configuration keys are found, then the global key/value store is initialized from the
+     * default Component list in application.yml.
+     *
+     * @return the set of all component names known to VMTurbo.
+     */
     @Nonnull
     public Set<String> getKnownComponents() {
         return new RestGetRequestor<Set<String>>(KNOWN_COMPONENTS_URI, Set.class).invoke();
     }
 
-    @Override
+    /**
+     * Set the value of a given component property for the given component instance.
+     *
+     * Set the value for the given property on the given component instance. Based on the semantics of Consul, any
+     * previous value for this property will be overwritten, and if the property did not exist before then it is created.
+     *
+     * The new value may be null, which effectively deletes this property. The "customer" will need to provide a suitable
+     * default. This will help us implement a "search path" of configuration properties.
+     *
+     * Returns the new value. Note that there is a write/read with no locking, and so the value returned may
+     * differ if there has been an intervening write.
+     *
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     *
+     * @param componentType the type of the given component instance
+     * @param instanceId the unique id of the given component instance
+     * @param propertyName the name of the configuration property to set
+     * @param propertyValue the new value for the given configuration property
+     * @return the new value of the configuration property
+     */
     public String setPropertyForComponentInstance(String componentType,
                                                   String instanceId,
                                                   String propertyName,
@@ -173,13 +216,24 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
                 .invoke(propertyValue, componentType, instanceId, propertyName);
     }
 
-    @Override
+    /**
+     * Look up a set of currently configured Component Instance IDs belonging to a given Component Type.
+     *
+     * Each Instance Id represents a VMT Component instance to be launched as part of the OpsMgr Cluster
+     *
+     * @param componentType the component type to which the answer Instance IDs belong
+     * @return a set of Component Instance ID strings as configured in the current OpsMgr
+     */
     public Set<String> getComponentInstanceIds(String componentType) {
         return new RestGetRequestor<Set<String>>(COMPONENT_TYPE_INSTANCE_IDS_URI, Set.class)
                 .invoke(componentType);
     }
 
-    @Override
+    /**
+     * Gather the current state from each running VMT Component Instance.
+     *
+     * @return a map of component_id -> status
+     */
     public Map<String, String> getComponentsState() {
         return new RestGetRequestor<Map<String, String>>(COMPONENT_INSTANCES_STATE_URI, Map.class)
                 .invoke();
@@ -192,7 +246,6 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
      * @param responseOutput the output stream onto which the diagnostics .zip,
      *                       as streamed from the request we generate here, should be written.
      */
-    @Override
     public void collectComponentDiagnostics(OutputStream responseOutput) {
         RequestCallback requestCallback = request -> request.getHeaders()
                 .setAccept(Arrays.asList(
@@ -211,34 +264,77 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
     }
 
 
-    @Override
+    /**
+     * Return the current Cluster Node name assigned to this VMT Component Instance.
+     *
+     * @param componentType type of the component to which component is assigned
+     * @param instanceId the id of the VMT Component Instance to look up.
+     * @return the node name on which this component should be run.
+     */
     public String getNodeForComponentInstance(String componentType,
                                               String instanceId) {
         return new RestGetRequestor<String>(COMPONENT_INSTANCE_NODE_URI, String.class)
                 .invoke(componentType, instanceId);
     }
 
-    @Override
+    /**
+     * Store the name of the current cluster node for the given component instance / type.
+     * The new cluster node name will be returned. Note that there is no locking for this write/read operation, so
+     * if another request overlaps this one the value returned may not reflect the given cluster node.
+     *
+     * @param componentType the type of the given component
+     * @param instanceId the unique id of the given component instance
+     * @param nodeName the name of the cluster node on which this component should run
+     * @return the cluster node name for this component instance
+     */
+    @Nonnull
     public String setNodeForComponentInstance(String componentType, String instanceId,
                                               String nodeName) {
         return new RestPutRequestor<String, String>(COMPONENT_INSTANCE_NODE_URI, String.class)
                 .invoke(nodeName, componentType, instanceId);
     }
 
-    @Override
+    /**
+     * Return the default {@link ComponentPropertiesDTO} for the given component type.
+     *
+     * @param componentType the component type for which to fetch the default ComponentProperties
+     * @return a {@link ComponentPropertiesDTO} object containing all default configuration properties for the given
+     * component type.
+     */
+    @Nonnull
     public ComponentPropertiesDTO getDefaultPropertiesForComponentType(String componentType) {
         return new RestGetRequestor<ComponentPropertiesDTO>(COMPONENT_TYPE_DEFAULTS_URI, ComponentPropertiesDTO.class)
                 .invoke(componentType);
     }
 
-    @Override
+    /**
+     * Return the {@link ComponentPropertiesDTO} for the given component instance / type. The result
+     * map of properties is a merge of default values (came from component type) and specific values
+     * (came from instance itself) with the priority of instance-level values.
+     *
+     * @param componentType type for the given component instance.
+     * @param componentInstanceId unique id for the given component instance
+     * @return a {@link ComponentPropertiesDTO} object containing all of the configuration properties for the given
+     * component instance.
+     */
     public ComponentPropertiesDTO getComponentInstanceProperties(String componentType,
                                                                  String componentInstanceId) {
         return new RestGetRequestor<ComponentPropertiesDTO>(COMPONENT_INSTANCE_PROPERTIES_URI, ComponentPropertiesDTO.class)
                 .invoke(componentType, componentInstanceId);
     }
 
-    @Override
+    /**
+     * Replace the {@link ComponentPropertiesDTO} for the given component instance / type.
+     * Return the updated {@link ComponentPropertiesDTO}. The properties will replace current
+     * set of properties for the instance. So, if empty map of properties is specified, this will
+     * remove all the properties of this instance.
+     *
+     * @param componentType type for the given component instance.
+     * @param componentInstanceId unique id for the given component instance
+     * @param updatedProperties the new configuration property values to be saved.
+     * @return a {@link ComponentPropertiesDTO} object containing all of the configuration properties for the given
+     * component instance.
+     */
     public ComponentPropertiesDTO putComponentInstanceProperties(String componentType,
                                                                  String componentInstanceId,
                                                                  ComponentPropertiesDTO updatedProperties) {
@@ -247,13 +343,31 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
                 .invoke(updatedProperties, componentType, componentInstanceId);
     }
 
-    @Override
+    /**
+     * Return the value for the given property for the given component type. If there is no property by that name,
+     * then return null.
+     *
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     *
+     * @param propertyName the value of the named configuration property, or null if there is none.
+     * @return value of the configureation property for the given component type
+     */
     public String getComponentTypeProperty(String componentType, String propertyName) {
         return new RestGetRequestor<String>(COMPONENT_TYPE_DEFAULT_PROPERTY_URI, String.class)
                 .invoke(componentType, propertyName);
     }
 
-    @Override
+    /**
+     * Return the value for the given property for the given component instance. If there is no property by that name,
+     * then return null.
+     *
+     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
+     *
+     * @param componentType the component type of the given component instance.
+     * @param componentInstanceId the unique id of the given component instance.
+     * @param propertyName the value of the named configuration property, or null if there is none.
+     * @return the updated value of the configureation property for the given component instance
+     */
     public String getComponentInstanceProperty(String componentType,
                                                String componentInstanceId,
                                                String propertyName) {
@@ -267,7 +381,7 @@ class ClusterMgrRestClient extends ComponentRestClient implements IClusterServic
      * If the component is not previously known, a new component configuration will be added.
      * <p/>
      * Note that this function is *not* required by the external REST API currently, and so
-     * is not declared in the ICLusterService interface.
+     * is not declared in the ClusterMgrRestClient interface.
      *
      * @param componentType the component type
      * @param updatedProperties the default configuration properties for this component type; the

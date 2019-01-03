@@ -30,7 +30,6 @@
              multi-level modules that define components at the time of this
              writing (November 2016) so this is ok. -->
         <aggregate.adoc.dir>../com.vmturbo.components.common/src/main/resources</aggregate.adoc.dir>
-        <adoc.name>component-swagger</adoc.name>
         <!-- END properties for static swagger documentation generation -->
     </properties>
 

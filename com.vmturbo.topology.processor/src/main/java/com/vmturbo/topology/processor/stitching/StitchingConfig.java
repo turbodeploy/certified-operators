@@ -36,7 +36,7 @@ public class StitchingConfig {
     @Value("${historyHost}")
     private String historyHost;
 
-    @Value("${server.grpcPort}")
+    @Value("${serverGrpcPort}")
     private int grpcPort;
 
     @Value("${maxValuesBackgroundLoadFrequencyMinutes}") // default to 3 hours
