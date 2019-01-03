@@ -170,11 +170,7 @@ public class ClusterMgrService {
     @Nonnull
     public Set<String> getKnownComponents() {
         String compositeKey = getComponentsBaseKey();
-        Set<String> answer = getComponentsWithPrefix(compositeKey);
-        if (answer.isEmpty()) {
-            throw new RuntimeException("Error initializing known components list - no components found.");
-        }
-        return answer;
+        return getComponentsWithPrefix(compositeKey);
     }
 
     /**
