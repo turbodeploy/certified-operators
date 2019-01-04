@@ -486,27 +486,24 @@ public class MarketsService implements IMarketsService {
                             .setScenarioId(scenarioId)
                             .build());
             ScenarioInfo.Builder updatedScenarioInfo = existingScenario.getScenarioInfo().toBuilder();
-            if (updatedScenarioInfo.getChangesCount() == 0) {
+            final List<IgnoreConstraint> ignoredConstraints =
+                            updatedScenarioInfo.getChangesList().stream()
+                                .flatMap(change -> change.getPlanChanges().getIgnoreConstraintsList().stream())
+                                .collect(Collectors.toList());
+            if (ignoredConstraints.isEmpty()) {
+                // NOTE: Currently we only remove constraints for VM entities.
                 updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
-                        .setPlanChanges(PlanChanges.newBuilder().build())
-                        .build());
+                                .setPlanChanges(PlanChanges.newBuilder()
+                                    .addIgnoreConstraints(IgnoreConstraint.newBuilder()
+                                        .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
+                                            .addEntityTypes(EntityType.VIRTUAL_MACHINE)
+                                        .build())
+                                .build())));
+            } else {
+                logger.warn("Ignoring \"ignore constraints\" option because the scenario already has ignored "
+                    + "constraints: {}", ignoredConstraints);
             }
-            for (ScenarioChange.Builder change : updatedScenarioInfo.getChangesBuilderList()) {
-                if (change.hasPlanChanges()) {
-                    PlanChanges.Builder planChange = change.getPlanChanges().toBuilder();
-                    // if a previous ignore constraint is set, we skip.
-                    if (planChange.getIgnoreConstraintsCount() != 0) {
-                        break;
-                    }
-                    // NOTE: Currently we only remove constraints for VM entities.
-                    planChange.addIgnoreConstraints(IgnoreConstraint.newBuilder()
-                            .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
-                                    .addEntityTypes(EntityType.VIRTUAL_MACHINE)
-                                    .build())
-                            .build());
-                    change.setPlanChanges(planChange);
-                }
-            }
+
             UpdateScenarioResponse updateScenarioResponse =
                     scenarioServiceClient.updateScenario(UpdateScenarioRequest.newBuilder()
                             .setScenarioId(scenarioId)
