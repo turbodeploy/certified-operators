@@ -50,8 +50,7 @@ public class ActionsConfig {
     @Bean
     public ActionDataManager actionDataManager() {
         return new ActionDataManager(
-                SearchServiceGrpc.newBlockingStub(repositoryConfig.repositoryChannel()),
-                topologyToSdkEntityConverter());
+                SearchServiceGrpc.newBlockingStub(repositoryConfig.repositoryChannel()));
     }
 
     @Bean

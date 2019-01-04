@@ -265,7 +265,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 request, messageHandler);
 
         logger.info("Beginning " + action);
-        logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
+        logger.info("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
         operationStart(action);
         return action;
     }
