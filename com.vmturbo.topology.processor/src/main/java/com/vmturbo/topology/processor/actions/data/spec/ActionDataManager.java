@@ -9,9 +9,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 
 /**
  * Tracks data requirements for handling action execution special cases (i.e. complex actions)
@@ -23,24 +23,24 @@ public class ActionDataManager {
      * Each spec determines both if an action meets its criteria (meaning the additional data is
      * required) and specifies how to inject the additional data into the action.
      */
-    private List<DataRequirementSpec> allDataRequirements = new ArrayList<>();
+    private final List<DataRequirementSpec> allDataRequirements = new ArrayList<>();
 
     /**
      * Initialize the action data manager, and create the default list of data requirement specs
      *
      * @param searchServiceRpc an interface for making remote calls to the Search service
+     * @param topologyToSdkEntityConverter
      */
-    public ActionDataManager(@Nonnull final SearchServiceBlockingStub searchServiceRpc) {
+    public ActionDataManager(@Nonnull final SearchServiceBlockingStub searchServiceRpc,
+                             @Nonnull final TopologyToSdkEntityConverter topologyToSdkEntityConverter)
+    {
         Objects.requireNonNull(searchServiceRpc);
+        Objects.requireNonNull(topologyToSdkEntityConverter);
 
         // Create a spec for container resize
-        allDataRequirements.add(new DataRequirementSpecBuilder()
-                .addMatchCriteria(actionInfo -> actionInfo.hasResize())
-                .addMatchCriteria(actionInfo -> EntityType.CONTAINER.getNumber() ==
-                        actionInfo.getResize().getTarget().getType())
-                .addDataRequirement(SDKConstants.VAPP_UUID, actionInfo ->
-                        getVappUuidForAction(actionInfo))
-                .build());
+        ContainerResizeSpecFactory containerResizeSpecFactory =
+                new ContainerResizeSpecFactory(searchServiceRpc, topologyToSdkEntityConverter);
+        allDataRequirements.add(containerResizeSpecFactory.getContainerResizeSpec());
 
         // Create a spec for host provision
         allDataRequirements.add(new DataRequirementSpecBuilder()
@@ -71,11 +71,6 @@ public class ActionDataManager {
                 .map(dataRequirementSpec -> dataRequirementSpec.retrieveRequiredData(actionInfo))
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
-    }
-
-    //TODO: Figure out how to get this data (see OM-40109)
-    private String getVappUuidForAction(ActionInfo actionInfo) {
-        return "";
     }
 
     // TODO: Look this up from the Group service. There is no current way to get this in XL.

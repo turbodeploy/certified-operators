@@ -266,7 +266,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public ActionDataManager actionDataManager() {
-        return new ActionDataManager(searchServiceBlockingStub());
+        return new ActionDataManager(searchServiceBlockingStub(), topologyToSdkEntityConverter());
     }
 
     @Bean
