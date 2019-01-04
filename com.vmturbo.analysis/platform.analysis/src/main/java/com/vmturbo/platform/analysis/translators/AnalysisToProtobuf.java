@@ -204,8 +204,23 @@ public final class AnalysisToProtobuf {
         ShoppingListTO.Builder builder = ShoppingListTO.newBuilder()
             .setOid(oid)
             .setMovable(shoppingList.isMovable());
-        if (shoppingList.getSupplier() != null)
-            builder.setSupplier(traderToOidMap.get(shoppingList.getSupplier()));
+
+        // This mirrors the behavior in AnalysisToProtobuf::actionTO, in which we're resolving
+        // a CBTP to a TP. The intent is to reconcile the sl's supplier with the move's destination.
+        // The check for a clique mirrors the behavior for resolving move destination, in that it is
+        // meant to prevent replacing storage providers
+        Trader origSupplier = shoppingList.getSupplier();
+        if (origSupplier != null) {
+
+            Trader newSupplier = origSupplier;
+            if (!newSupplier.getCliques().isEmpty()) {
+                Trader supplier = replaceNewSupplier(shoppingList, economy, newSupplier);
+                if (supplier != null && !supplier.getCliques().isEmpty()) {
+                    newSupplier = supplier;
+                }
+            }
+            builder.setSupplier(traderToOidMap.get(newSupplier));
+        }
         Basket basketBought = economy.getMarket(shoppingList).getBasket();
         for (int i = 0; i < basketBought.size() ; ++i) {
             builder.addCommoditiesBought(commodityBoughtTO(shoppingList.getQuantity(i),
@@ -265,6 +280,7 @@ public final class AnalysisToProtobuf {
             .setOid(traderToOidMap.get(trader))
             .setType(trader.getType())
             .setState(traderStateTO(trader.getState()))
+            .setDebugInfoNeverUseInCode(trader.getDebugInfoNeverUseInCode())
             .addAllCliques(trader.getCliques())
             .setSettings(traderSettingsTO(trader.getSettings()))
             .setNumOfProduces((int)trader.getUniqueCustomers().stream()
