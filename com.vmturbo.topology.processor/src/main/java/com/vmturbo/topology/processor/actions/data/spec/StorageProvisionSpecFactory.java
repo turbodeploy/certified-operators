@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.actions.data.spec;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,8 +38,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class StorageProvisionSpecFactory {
 
-    private static final Logger logger = LogManager.getLogger();
-
     private static final String NON_EMPTY_REGEX = ".+";
 
     /**
@@ -51,7 +50,7 @@ public class StorageProvisionSpecFactory {
      * @param searchServiceRpc an interface for making remote calls to the Search service
      */
     public StorageProvisionSpecFactory(@Nonnull final SearchServiceBlockingStub searchServiceRpc) {
-        this.searchServiceRpc = searchServiceRpc;
+        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
     }
 
     /**
@@ -97,7 +96,7 @@ public class StorageProvisionSpecFactory {
         SearchParameters searchParameter = SearchParameters.newBuilder()
                 // start from storage entity oid
                 .setStartingFilter(PropertyFilter.newBuilder()
-                        .setPropertyName("oid") // GroupMapper.OID, but not reachable from here
+                        .setPropertyName(SpecSearchUtil.OID)
                         .setStringFilter(StringFilter.newBuilder()
                                 .setStringPropertyRegex(Long.toString(storageId))
                                 .setMatch(true)
@@ -114,33 +113,24 @@ public class StorageProvisionSpecFactory {
                 // find all hosts consuming from this storage entity
                 .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
                         PropertyFilter.newBuilder()
-                                .setPropertyName("entityType") // SearchMapper.ENTITY_TYPE_PROPERTY
+                                .setPropertyName(SpecSearchUtil.ENTITY_TYPE)
                                 .setNumericFilter(NumericFilter.newBuilder()
                                         .setValue(EntityType.PHYSICAL_MACHINE_VALUE)
                                         .setComparisonOperator(ComparisonOperator.EQ))))
                 // ensure that all hosts returned have a display name
                 .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
                         PropertyFilter.newBuilder()
-                                .setPropertyName("displayName") // SearchMapper.DISPLAY_NAME_PROPERTY
+                                .setPropertyName(SpecSearchUtil.DISPLAY_NAME)
                                 .setStringFilter(StringFilter.newBuilder()
                                         .setStringPropertyRegex(NON_EMPTY_REGEX)
                                         .setMatch(true))))
                 .build();
 
-        return searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-                .addSearchParameters(searchParameter)
-                .build());
+        return SpecSearchUtil.searchTopologyEntityDTOs(
+                SearchTopologyEntityDTOsRequest.newBuilder()
+                        .addSearchParameters(searchParameter)
+                        .build(),
+                searchServiceRpc);
     }
 
-    /**
-     * Search for TopologyEntityDTOs for a given request.
-     */
-    private List<TopologyEntityDTO> searchTopologyEntityDTOs(@Nonnull SearchTopologyEntityDTOsRequest request) {
-        try {
-            return searchServiceRpc.searchTopologyEntityDTOs(request).getTopologyEntityDtosList();
-        } catch (Exception e) {
-            logger.error("Error when getting TopologyEntityDTOs for request: {}", request, e);
-            return Collections.emptyList();
-        }
-    }
 }
