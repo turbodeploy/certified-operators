@@ -16,6 +16,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -403,30 +404,41 @@ public class GroupStore implements Diagnosable {
      * A duplicate group has the same name as the groupInfo but a different id.
      *
      * @param context The {@link DSLContext} for the current transaction.
-     * @param id The id of the new group.
-     * @param name The name for the new group.
+     * @param group The group proto object.
      * @throws DuplicateNameException If there is a group with the same name but a different ID.
      */
     private void checkForDuplicates(@Nonnull final DSLContext context,
-                           final long id,
-                           @Nonnull final String name,
-                           final int type)
+                                    @Nonnull final Group group)
             throws DuplicateNameException {
+
+        final long id = group.getId();
+        final int groupEntityType = GroupProtoUtil.getEntityType(group);
+        final String groupName = GroupProtoUtil.getGroupName(group);
+        Condition condition;
+        // TargetId is set only for discovered groups.
+        if (group.hasTargetId()) {
+            condition = Tables.GROUPING.NAME.eq(groupName).and(Tables.GROUPING.ENTITY_TYPE.eq(groupEntityType)).and(
+                    Tables.GROUPING.DISCOVERED_BY_ID.eq(group.getTargetId()));
+        } else {
+            condition = Tables.GROUPING.NAME.eq(groupName).and(Tables.GROUPING.ENTITY_TYPE.eq(groupEntityType)).and(
+                    // For user groups, DISCOVERED_BY_ID will be null.
+                    Tables.GROUPING.DISCOVERED_BY_ID.isNull());
+        }
         final List<Long> sameNameDiffId = context.select(Tables.GROUPING.ID)
                 .from(Tables.GROUPING)
-                .where(Tables.GROUPING.NAME.eq(name).and(Tables.GROUPING.ENTITY_TYPE.eq(type)))
+                .where(condition)
                 .and(Tables.GROUPING.ID.ne(id))
                 .fetch()
                 .getValues(Tables.GROUPING.ID);
         if (!sameNameDiffId.isEmpty()) {
             if (sameNameDiffId.size() > 1) {
                 // This shouldn't happen, because there is a constraint on the name.
-                logger.error("Multiple groups ({}) exist with name {} and type {}. " +
-                                "This should never happen because the name column is unique.",
-                        sameNameDiffId, name, type);
+                logger.error("Multiple groups ({}) exist with same name: {}, type: {} and targetId: {}" +
+                                "This should not happen because the name+type+targetId combination should be unique.",
+                        sameNameDiffId, groupName, groupEntityType, group.getTargetId());
             }
             GROUP_STORE_DUPLICATE_NAME_COUNT.increment();
-            throw new DuplicateNameException(sameNameDiffId.get(0), name, type);
+            throw new DuplicateNameException(sameNameDiffId.get(0), groupName, groupEntityType, group.getTargetId());
         }
     }
 
@@ -465,7 +477,7 @@ public class GroupStore implements Diagnosable {
         // Explicitly search for an existing group with the same name, so that we
         // know when to throw a DuplicateNameException as opposed to a generic
         // DataIntegrityException.
-        checkForDuplicates(context, group.getId(), groupName, groupEntityType);
+        checkForDuplicates(context, group);
 
         final Grouping grouping = new Grouping(group.getId(),
                 groupName,
@@ -493,7 +505,7 @@ public class GroupStore implements Diagnosable {
             throw new GroupNotFoundException(group.getId());
         }
 
-        checkForDuplicates(context, group.getId(), groupName, groupEntityType);
+        checkForDuplicates(context, group);
 
         if (group.hasTargetId()) {
             groupingRecord.setDiscoveredById(group.getTargetId());
