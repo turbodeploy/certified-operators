@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 
+from itertools import izip_longest
 from logging import handlers
 
 
@@ -281,6 +282,34 @@ def get_version_number(info_file):
 
     return ""
 
+def compare_versions(version1, version2):
+    """
+    Given two version string of the form x.y.z.., return:
+    1  : if version1 > version2
+    0  : if version1 == version2
+    -1 : if version1 < version2
+
+    E.g.:
+        compare_versions("7.9.0", "7.9.0")==0
+        compare_versions("7.8.0", "7.9.0")==-1
+        compare_versions("7.9.0", "7.8.0")==1
+        compare_versions("7.9.0", "7.10.0")==-1
+        compare_versions("7.09.0", "7.10.0")==-1
+        compare_versions("7.12.12", "7.10.0")==1
+        compare_versions("7.12.12", "7.12.13")==-1
+        compare_versions("7.12", "7.12.13")==-1
+        compare_versions("7.10", "7.12.13")==-1
+        compare_versions("7.10", "7.10.0")==0
+    """
+    ver1_tokens = version1.split('.')
+    ver2_tokens = version2.split('.')
+    for v1, v2 in izip_longest(ver1_tokens, ver2_tokens, fillvalue=0):
+        diff = int(v1) - int(v2)
+        if diff != 0:
+            return 1 if (diff > 0) else -1
+
+    return 0
+
 def get_spec_file_version_number():
     spec_yaml = load_yaml(TURBO_UPGRADE_SPEC_FILE)
     return spec_yaml.get('version', "")
@@ -383,11 +412,12 @@ if __name__ == '__main__':
     else:
         ISO_MOUNTPOINT = args.loc
 
-    if (get_version_number(TURBO_INFO_FILE) >
-        get_version_number(os.path.join(ISO_MOUNTPOINT,
-            os.path.basename(TURBO_INFO_FILE)))):
-
-        LOGGER.error("The newer version should be higher than the current version.")
+    old_version = get_version_number(TURBO_INFO_FILE)
+    new_version = get_version_number(os.path.join(ISO_MOUNTPOINT,
+                    os.path.basename(TURBO_INFO_FILE)))
+    if (compare_versions(old_version, new_version) > 0):
+        LOGGER.error("The newer version: %s should be higher than the current"
+                + " version: %s", new_version, old_version)
         sys.exit(1)
 
     curr_checksums = parse_checksum_file(TURBO_CHECKSUM_FILE)
