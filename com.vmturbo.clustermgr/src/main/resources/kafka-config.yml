@@ -54,6 +54,9 @@ topics:
   - topic: report-generation-notifications
     properties:
       retention.ms: 600000 # 600k ms = 10 min
+  - topic: system-notifications
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
   - topic: license-summary
     properties:
       cleanup.policy: compact # use compacted log to preserve the latest license summary

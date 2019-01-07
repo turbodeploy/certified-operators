@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
+import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -53,7 +54,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ReportingClientConfig.class,
         PublicKeyStoreConfig.class,
         SAMLConfigurationStoreConfig.class,
-        LicenseCheckClientConfig.class})
+        LicenseCheckClientConfig.class,
+        NotificationClientConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -131,6 +133,9 @@ public class ServiceConfig {
 
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
+
+    @Autowired
+    private NotificationClientConfig notificationClientConfig;
 
     @Bean
     public ActionsService actionsService() {
@@ -253,7 +258,7 @@ public class ServiceConfig {
 
     @Bean
     public NotificationService notificationService() {
-        return new NotificationService();
+        return new NotificationService(communicationConfig.notificationStore());
     }
 
     @Bean

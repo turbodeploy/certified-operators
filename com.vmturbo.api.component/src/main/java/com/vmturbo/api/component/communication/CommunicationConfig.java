@@ -3,6 +3,7 @@ package com.vmturbo.api.component.communication;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.EnumSet;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -80,6 +81,9 @@ import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.notification.NotificationInMemoryStore;
+import com.vmturbo.notification.NotificationStore;
+import com.vmturbo.notification.api.impl.NotificationClientConfig;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.reporting.api.ReportListener;
@@ -97,8 +101,9 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
 @Configuration
 @Import({TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
-        GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class,
-        ReportingClientConfig.class, AuthClientConfig.class, CostClientConfig.class})
+        GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
+        RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
+        CostClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -111,6 +116,8 @@ public class CommunicationConfig {
     private GroupClientConfig groupClientConfig;
     @Autowired
     private HistoryClientConfig historyClientConfig;
+    @Autowired
+    private NotificationClientConfig notificationClientConfig;
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
     @Autowired
@@ -394,6 +401,14 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public NotificationStore notificationStore() {
+        // Setting the maximum notification size to 1000, since current notification center UI doesn't
+        // support pagination, size of 50 is considered huge for a page, so size of 1000 should be safe
+        // even when pagination is enabled.
+        return new NotificationInMemoryStore(1000L, 1, TimeUnit.DAYS);
+    }
+
+    @Bean
     public ApiComponentTargetListener apiComponentTargetListener() {
         final ApiComponentTargetListener apiComponentTargetListener =
                 new ApiComponentTargetListener(topologyService(), websocketConfig.websocketHandler());
@@ -402,5 +417,13 @@ public class CommunicationConfig {
         tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications))
                 .addTargetListener(apiComponentTargetListener);
         return apiComponentTargetListener;
+    }
+
+    @Bean
+    public ApiComponentNotificationListener apiComponentNotificationListener() {
+        final ApiComponentNotificationListener listener =
+                new ApiComponentNotificationListener(notificationStore());
+        notificationClientConfig.systemNotificationListener().addNotificationListener(listener);
+        return listener;
     }
 }

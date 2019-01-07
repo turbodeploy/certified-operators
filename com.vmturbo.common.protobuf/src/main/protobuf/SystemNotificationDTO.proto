@@ -1,0 +1,70 @@
+syntax = "proto2";
+package system_notification_api_dto;
+
+option java_package = "com.vmturbo.notification.api.dto";
+
+import "action/ActionDTO.proto";
+
+// A system notification is a message display on UI notification cernter to provide the user with service error
+// from system. It should have details information that user can react on.
+// Note: current design align with classic notification message requirements. It should be refined as needed.
+message SystemNotification {
+    // The ID of the notification broadcast this notification belongs to.
+    // Each notification's broadcast has a unique ID for logging/debugging purposes.
+    required int64 broadcast_id = 1;
+
+    // notification long description
+    optional string description = 3;
+
+    // notification short description
+    optional string short_description = 4;
+
+    // notification serverity
+    // TODO consider move the action.Severity to a common proto
+    optional .action.Severity severity = 5;
+
+    // notification state
+    optional State state = 6;
+
+    // notification category
+    optional Category category = 7;
+
+    // Timestamp when the notification is generated
+    optional int64 generation_time = 8;
+
+    // notification category, it's message to support different information
+    message Category {
+        oneof type {
+            // license
+            License license = 1;
+
+            // target
+            Target target = 2;
+
+            // add new type as needed
+        }
+    }
+
+    // license related notification
+    message License {
+        optional string display_name = 1 [default = "LICENSE"];
+    }
+
+    // target related notification
+    message Target {
+        // target oid if available
+        optional int64 oid = 1;
+
+        // Target display name if available.
+        optional string display_name = 2 [default = "UNKNOWN"] ;
+    }
+}
+
+// State of the notification, it's here to match UI notification requirmenets.
+enum State {
+    // notify a system error
+    NOTIFY = 0;
+
+    // notify the previous system error was clear
+    CLEAR = 1;
+};

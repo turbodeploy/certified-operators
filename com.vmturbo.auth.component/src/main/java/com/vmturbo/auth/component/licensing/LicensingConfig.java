@@ -15,12 +15,13 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.notification.api.NotificationApiConfig;
 
 /**
  * Spring configuration for Auth Licensing-related services.
  */
 @Configuration
-@Import({AuthKVConfig.class, RepositoryClientConfig.class, BaseKafkaProducerConfig.class})
+@Import({AuthKVConfig.class, RepositoryClientConfig.class, BaseKafkaProducerConfig.class, NotificationApiConfig.class})
 public class LicensingConfig {
 
     @Autowired
@@ -31,6 +32,9 @@ public class LicensingConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private NotificationApiConfig notificationApiConfig;
 
     @Bean
     public ILicenseStore licenseStore() {
@@ -66,7 +70,8 @@ public class LicensingConfig {
         return new LicenseCheckService(licenseManager(),
                 repositoryClientConfig.searchServiceClient(),
                 repositoryClientConfig.repositoryListener(),
-                licenseSummaryPublisher());
+                licenseSummaryPublisher(),
+                notificationApiConfig.notificationMessageSender());
     }
 
 }

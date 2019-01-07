@@ -1,6 +1,7 @@
 package com.vmturbo.auth.component.licensing;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -21,6 +22,7 @@ import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.component.licensing.LicenseManagerService.LicenseManagementEvent;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceImplBase;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
@@ -35,6 +37,9 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.licensing.License;
+import com.vmturbo.notification.api.NotificationSender;
+import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
+import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -87,16 +92,20 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     @Nonnull
     private final LicenseSummaryPublisher licenseSummaryPublisher;
 
+    @Nonnull
+    private final NotificationSender notificationSender;
+
     // cache the last license summary, defaulting to the "no license" result.
     private LicenseSummary lastSummary = NO_LICENSES_SUMMARY;
 
     // thread pool for scheduled license check updates
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public LicenseCheckService(LicenseManagerService licenseManagerService,
-                               SearchServiceBlockingStub searchServiceClient,
-                               Repository repositoryListener,
-                               IMessageSender<LicenseSummary> licenseSummarySender) {
+    public LicenseCheckService(@Nonnull final LicenseManagerService licenseManagerService,
+                               @Nonnull final SearchServiceBlockingStub searchServiceClient,
+                               @Nonnull final Repository repositoryListener,
+                               @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
+                               @Nonnull final IMessageSender<SystemNotification> notificationSender) {
         this.licenseManagerService = licenseManagerService;
         // subscribe to the license manager event stream. This will trigger license check updates
         // whenever licenses are added / removed
@@ -107,6 +116,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // create the license summary publisher
         licenseSummaryPublisher = new LicenseSummaryPublisher(licenseSummarySender);
 
+        this.notificationSender = new NotificationSender(Objects.requireNonNull(notificationSender), Clock.systemUTC());
         // subscribe to new topologies, so we can regenerate the license check when that happens
         repositoryListener.addListener(this);
         // schedule time-based updates. The first update will happen immediately (but on a separate
@@ -187,6 +197,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         if (licenseDTOs.isEmpty()) {
             lastSummary = NO_LICENSES_SUMMARY;
             publishNewLicenseSummary(lastSummary);
+            notifyLicenseExpiration("Turbonomic license is empty, please update it",
+                    "License is empty");
             return;
         }
 
@@ -206,9 +218,12 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // the license summary.
         LicenseSummary licenseSummary
                 = LicenseDTOUtils.licenseToLicenseSummary(aggregateLicense, isOverLimit);
-
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
+        if (licenseSummary.getIsExpired()) {
+            notifyLicenseExpiration("Turbonomic license was expired, please update it",
+                    "License was expired");
+        }
     }
 
     /**
@@ -284,7 +299,20 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private void updateLicenseSummaryPeriodically() {
         logger.info("Daily license check triggered.");
         updateLicenseSummary();
-        //TODO: additional notifications when we have the notifications feature available.
+    }
+
+    // notify license expiration
+    private void notifyLicenseExpiration(final String longDescription, final String shortDescription) {
+        try {
+            notificationSender.sendNotification(
+                    Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build(),
+                    longDescription,
+                    shortDescription,
+                    Severity.CRITICAL);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Error publishing license expire notification", e);
+
+        }
     }
 
     /**

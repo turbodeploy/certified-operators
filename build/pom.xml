@@ -180,6 +180,7 @@
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
+                <module>../com.vmturbo.system.notification.sender</module>
             </modules>
         </profile>
 
@@ -269,6 +270,7 @@
             <id>api</id>
             <modules>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.system.notification.receiver</module>
             </modules>
         </profile>
 
@@ -594,6 +596,8 @@
                 <module>../com.vmturbo.reports.templates</module>
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.system.notification.sender</module>
+                <module>../com.vmturbo.system.notification.receiver</module>
 
                 <!-- Probe components. This should only include the probes
                      that we currently support in XL. -->
@@ -703,6 +707,8 @@
                 <module>../com.vmturbo.reports.templates</module>
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.system.notification.sender</module>
+                <module>../com.vmturbo.system.notification.receiver</module>
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
@@ -1446,6 +1452,16 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>cost-calculation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>system-notification-sender</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>system-notification-receiver</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

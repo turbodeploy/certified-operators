@@ -274,6 +274,10 @@
             <artifactId>com.vmturbo.licensing</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>system-notification-receiver</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.turbonomic</groupId>
             <artifactId>com.turbonomic.cpucapacity</artifactId>
         </dependency>

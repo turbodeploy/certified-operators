@@ -196,6 +196,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.repository.api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>system-notification-sender</artifactId>
+        </dependency>
 
         <!-- for cisco licensing -->
         <dependency>
