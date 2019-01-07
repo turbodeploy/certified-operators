@@ -68,7 +68,7 @@ public class NotificationService implements INotificationService {
         return systemNotification.map(this::toLogEntryApiDTO).orElse(new LogEntryApiDTO());
     }
 
-    // TODO (Gary, DEC 21 2018) confirm with PM to remove this endpoint. It seems not used.
+    // TODO (Gary, Dec 21 2018) confirm with PM to remove this endpoint. It seems not used.
     @Override
     public List<ActionApiDTO> getRelatedActionsByUuid(String nUuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
@@ -92,13 +92,13 @@ public class NotificationService implements INotificationService {
         statDto.setName(StringConstants.NUM_NOTIFICATIONS);
 
         final StatValueApiDTO valueDto = new StatValueApiDTO();
-        valueDto.setAvg((float) totalNotificationSize);
+        valueDto.setAvg((float)totalNotificationSize);
         // need to include max, min and total value, even though they are always 0.0f
         valueDto.setMax(ZERO);
         valueDto.setMin(ZERO);
-        valueDto.setTotal((float) totalNotificationSize);
+        valueDto.setTotal((float)totalNotificationSize);
         statDto.setValues(valueDto);
-        statDto.setValue((float) totalNotificationSize);
+        statDto.setValue((float)totalNotificationSize);
 
         retDto.setStatistics(ImmutableList.of(statDto));
         return ImmutableList.of(retDto);
