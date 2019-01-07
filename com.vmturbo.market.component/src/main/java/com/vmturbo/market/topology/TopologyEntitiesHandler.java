@@ -146,92 +146,72 @@ public class TopologyEntitiesHandler {
         final List<Action> actions;
         AnalysisResults results;
 
-        // The current implementation of headroom plans in M2 requires a different method call
-        // to calculate headroom actions. When/if we switch to the FMO implementation (calculating
-        // headroom based on the projected topology output of a regular plan) we can get rid
-        // of this.
-        if (!economy.getTradersForHeadroom().isEmpty()) {
-            // Sanity check that the conditions we expect are correct.
-            if (isRealtime ||
-                    topologyInfo.getPlanInfo().getPlanProjectType() != PlanProjectType.CLUSTER_HEADROOM) {
-                throw new IllegalStateException("Attempting to generate headroom actions for a " +
-                        "non-headroom analysis request! Topology info: " + topologyInfo);
-            }
-            actions = ede.generateHeadroomActions(economy, false, false, false, true);
-            final long stop = System.nanoTime();
+        // Generate actions
+        final String marketId = topologyInfo.getTopologyType() + "-"
+                + Long.toString(topologyInfo.getTopologyContextId()) + "-"
+                + Long.toString(topologyInfo.getTopologyId());
+        // Set replay actions.
+        if (isRealtime) {
+            ede.setReplayActions(analysis.getReplayActions() == null ? new ReplayActions()
+                            : analysis.getReplayActions());
+        }
+        // trigger suspension throttling in XL
+        actions = ede.generateActions(economy, true, true, true, true,
+                true, marketId, isRealtime,
+                isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
+        final long stop = System.nanoTime();
 
-            results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
-                topology.getShoppingListOids(), stop - start,
-                topology, startPriceStatement);
+        results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
+            topology.getShoppingListOids(), stop - start,
+            topology, startPriceStatement);
 
-        } else {
-            // Generate actions
-            final String marketId = topologyInfo.getTopologyType() + "-"
-                    + Long.toString(topologyInfo.getTopologyContextId()) + "-"
-                    + Long.toString(topologyInfo.getTopologyId());
-            // Set replay actions.
-            if (isRealtime) {
-                ede.setReplayActions(analysis.getReplayActions() == null ? new ReplayActions()
-                                : analysis.getReplayActions());
-            }
-            // trigger suspension throttling in XL
-            actions = ede.generateActions(economy, true, true, true, true,
-                    true, marketId, isRealtime,
-                    isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
-            final long stop = System.nanoTime();
-
-            results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
-                topology.getShoppingListOids(), stop - start,
-                topology, startPriceStatement);
-
-            if (isRealtime) {
-                // run another round of analysis on the new state of the economy with provisions enabled
-                // and resize disabled. We add only the provision recommendations to the list of actions generated.
-                // We neglect suspensions since there might be associated moves that we dont want to include
-                //
-                // This is done because in a real-time scenario, we assume that provision actions cannot be
-                // automated and in order to be executed manually require a physical hardware purchase (this
-                // seems like a bad assumption to hardcode for an entire category of actions rather than
-                // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
-                // we want to do the best job of getting the customer's environment to a desired state WITHOUT
-                // provision actions (market subcycle 1) and then if there are still insufficient resources
-                // to meet demand, add any necessary provision actions on top of the recommendations without
-                // provisions (market subcycle 2).
-                @NonNull List<Action> secondRoundActions = new ArrayList<>();
-                AnalysisResults.Builder builder = results.toBuilder();
-                economy.getSettings().setResizeDependentCommodities(false);
-                // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
-                // caused OM-33185 in XL. Because we don't want the provision actions to affect the projected topology
-                // price statements given the assumption above that for real-time, provision actions take a long
-                // time, and the user probably is more interested in the desired state of their topology if they
-                // execute the actions that are possible to execute in the short term, we need to exclude the
-                // IMPACT of the provision actions from the AnalysisResults even though we include the provision
-                // actions themselves in the results. Note that if we are to ever include any of the move/start
-                // actions on the newly provisioned entities, excluding the provisioned entities will cause those
-                // actions to reference entities not actually in the projected topology.
-                secondRoundActions.addAll(ede.generateActions(economy, true, true,
-                    true, false, true, false, marketId).stream()
-                    .filter(action -> (action instanceof ProvisionByDemand ||
-                        action instanceof ProvisionBySupply ||
-                        action instanceof Activate))
-                    .collect(Collectors.toList()));
-                for (Action action : secondRoundActions) {
-                    final ActionTO actionTO = AnalysisToProtobuf.actionTO(
-                        action, topology.getTraderOids(), topology.getShoppingListOids(), topology);
-                    if (actionTO != null) {
-                        builder.addActions(actionTO);
-                    }
+        if (isRealtime) {
+            // run another round of analysis on the new state of the economy with provisions enabled
+            // and resize disabled. We add only the provision recommendations to the list of actions generated.
+            // We neglect suspensions since there might be associated moves that we dont want to include
+            //
+            // This is done because in a real-time scenario, we assume that provision actions cannot be
+            // automated and in order to be executed manually require a physical hardware purchase (this
+            // seems like a bad assumption to hardcode for an entire category of actions rather than
+            // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
+            // we want to do the best job of getting the customer's environment to a desired state WITHOUT
+            // provision actions (market subcycle 1) and then if there are still insufficient resources
+            // to meet demand, add any necessary provision actions on top of the recommendations without
+            // provisions (market subcycle 2).
+            @NonNull List<Action> secondRoundActions = new ArrayList<>();
+            AnalysisResults.Builder builder = results.toBuilder();
+            economy.getSettings().setResizeDependentCommodities(false);
+            // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
+            // caused OM-33185 in XL. Because we don't want the provision actions to affect the projected topology
+            // price statements given the assumption above that for real-time, provision actions take a long
+            // time, and the user probably is more interested in the desired state of their topology if they
+            // execute the actions that are possible to execute in the short term, we need to exclude the
+            // IMPACT of the provision actions from the AnalysisResults even though we include the provision
+            // actions themselves in the results. Note that if we are to ever include any of the move/start
+            // actions on the newly provisioned entities, excluding the provisioned entities will cause those
+            // actions to reference entities not actually in the projected topology.
+            secondRoundActions.addAll(ede.generateActions(economy, true, true,
+                true, false, true, false, marketId).stream()
+                .filter(action -> (action instanceof ProvisionByDemand ||
+                    action instanceof ProvisionBySupply ||
+                    action instanceof Activate))
+                .collect(Collectors.toList()));
+            for (Action action : secondRoundActions) {
+                final ActionTO actionTO = AnalysisToProtobuf.actionTO(
+                    action, topology.getTraderOids(), topology.getShoppingListOids(), topology);
+                if (actionTO != null) {
+                    builder.addActions(actionTO);
                 }
-                results = builder.build();
-
-                // Update replay actions
-                ReplayActions newReplayActions = ede.getReplayActions();
-                newReplayActions.setTraderOids(topology.getTraderOids());
-                newReplayActions.setActions(actions.stream()
-                                .filter(action -> action.getType().equals(ActionType.DEACTIVATE))
-                                .collect(Collectors.toList()));
-                analysis.setReplayActions(newReplayActions);
             }
+            results = builder.build();
+
+            // Update replay actions
+            ReplayActions newReplayActions = ede.getReplayActions();
+            newReplayActions.setTraderOids(topology.getTraderOids());
+            newReplayActions.setActions(actions.stream()
+                            .filter(action -> action.getType().equals(ActionType.DEACTIVATE))
+                            .collect(Collectors.toList()));
+            analysis.setReplayActions(newReplayActions);
         }
 
         runTimer.observe();

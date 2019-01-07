@@ -1135,22 +1135,12 @@ public class TopologyConverter {
             // shop together placement, so pmBasedBicliquer is called
             Set<Long> allCliques = pmBasedBicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
 
-            // In a headroom plan, the only modifications to the topology are additions of clones.
-            // Clones are always unplaced when they are first created.
-            // We assume that the "default" topology has no unplaced entities. Therefore, any
-            // unplaced entities are going to be the clones created for headroom calculation
-            // purposes.
-            final boolean isTemplateForHeadroom =
-                    TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo) &&
-                    !TopologyDTOUtil.isPlaced(topologyDTO);
-
             traderDTO = EconomyDTOs.TraderTO.newBuilder()
                     // Type and Oid are the same in the topology DTOs and economy DTOs
                     .setOid(topologyDTO.getOid())
                     .setType(entityType)
                     .setState(state)
                     .setSettings(settings)
-                    .setTemplateForHeadroom(isTemplateForHeadroom)
                     .setDebugInfoNeverUseInCode(entityDebugInfo(topologyDTO))
                     .addAllCommoditiesSold(createAllCommoditySoldTO(topologyDTO))
                     .addAllShoppingLists(createAllShoppingLists(topologyDTO))
