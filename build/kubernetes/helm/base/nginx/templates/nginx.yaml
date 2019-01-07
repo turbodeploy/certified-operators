@@ -80,11 +80,11 @@ spec:
           value: api.{{ .Release.Namespace }}.svc.cluster.local
         - name: TOPOLOGY
           value: topology-processor.{{ .Release.Namespace }}.svc.cluster.local
-        - name: DNS_RESOLVER
+#        - name: DNS_RESOLVER
 #          value: 10.233.0.3 # byo k8s DNS
 #          value: 10.100.0.10 # eks DNS
 #          value: 10.0.0.10 # aks DNS
-          value: 10.23.240.10 # gke DNS
+#          value: 10.23.240.10 # gke DNS
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
