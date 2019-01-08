@@ -69,6 +69,22 @@ dependencies:
     repository: file://../probes/mediation-awsbilling
     version: 0.1.0
     condition: awsbilling.enabled
+  - name: mediation-awscost
+    repository: file://../probes/mediation-awscost
+    version: 0.1.0
+    condition: awscost.enabled
+  - name: mediation-awslambda
+    repository: file://../probes/mediation-awslambda
+    version: 0.1.0
+    condition: awslambda.enabled
+  - name: mediation-azure
+    repository: file://../probes/mediation-azure
+    version: 0.1.0
+    condition: azure.enabled
+  - name: mediation-azurevolumes
+    repository: file://../probes/mediation-azurevolumes
+    version: 0.1.0
+    condition: azurevolumes.enabled
   - name: mediation-compellent
     repository: file://../probes/mediation-compellent
     version: 0.1.0
