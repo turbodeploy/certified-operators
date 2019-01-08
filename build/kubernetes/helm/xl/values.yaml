@@ -39,6 +39,14 @@ aws:
   enabled: false
 awsbilling:
   enabled: false
+awscost:
+  enabled: false
+awslambda:
+  enabled: false
+azure:
+  enabled: false
+azurevolumes:
+  enabled: false
 compellent:
   enabled: false
 hds:
