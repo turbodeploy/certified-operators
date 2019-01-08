@@ -64,7 +64,7 @@ fi
 /usr/bin/nohup /logrotate.sh >/tmp/logrotate.log 2>&1 &
 
 # rsyslog
-/usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 echo "Executing startup command: \"$STARTUP_COMMAND\"" 2>&1 | ${LOGGER_COMMAND}
 exec $STARTUP_COMMAND > >($LOGGER_COMMAND) 2>&1

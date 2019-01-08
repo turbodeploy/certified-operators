@@ -6,7 +6,7 @@ DEFAULT_ARANGO_CONF=/etc/arangodb3/arangod.conf
 ARANGO_CONF=/var/lib/arangodb3/arangod.conf
 
 # rsyslog
-/usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 # Arango dump and restore service
 /usr/bin/nohup /arango_dump_restore.py >/tmp/arango_dump_restore.log &

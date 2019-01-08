@@ -3,7 +3,7 @@
 set -eo pipefail
 
 # rsyslog
-/usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 if [ "$DNS_RESOLVER" == "" ]; then
     export DNS_RESOLVER=`cat /etc/resolv.conf | grep "nameserver" | awk '{print $2}' | tr '\n' ' '`

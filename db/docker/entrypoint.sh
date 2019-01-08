@@ -5,7 +5,7 @@ MYSQL_CONF=/var/lib/mysql/my.cnf
 
 # rsyslog and touch the log
 touch /var/log/mysql/mariadb-slow.log
-/usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 if [ ! -d "/var/run/mysqld" ]; then
     mkdir -p /var/run/mysqld 2>&1 | logger -u /tmp/log.sock

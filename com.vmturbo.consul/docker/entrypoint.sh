@@ -2,7 +2,7 @@
 set -e
 
 # rsyslog
-/usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 # Note above that we run dumb-init as PID 1 in order to reap zombie processes
 # as well as forward signals to all processes in its session. Normally, sh

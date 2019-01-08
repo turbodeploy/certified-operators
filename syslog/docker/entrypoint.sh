@@ -18,4 +18,4 @@ fi
 touch /home/vmtsyslog/rsyslog/log.txt
 tail -F /home/vmtsyslog/rsyslog/log.txt &
 
-exec /usr/sbin/rsyslogd -n -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+rm -f /tmp/rsyslog.pid; exec /usr/sbin/rsyslogd -n -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
