@@ -52,5 +52,15 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.components.common</artifactId>
         </dependency>
+        <!-- The Repository and Group clients are used for resolving user scope information, if
+         necessary. -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.repository.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
     </dependencies>
 </project>

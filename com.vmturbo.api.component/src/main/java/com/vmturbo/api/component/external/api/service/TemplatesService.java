@@ -5,25 +5,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.google.common.collect.Lists;
+
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
-
-import com.google.common.base.Suppliers;
-import com.google.common.collect.Lists;
-import com.turbonomic.cpucapacity.CPUCatalog;
-import com.turbonomic.cpucapacity.CPUInfo;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -32,7 +25,9 @@ import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;

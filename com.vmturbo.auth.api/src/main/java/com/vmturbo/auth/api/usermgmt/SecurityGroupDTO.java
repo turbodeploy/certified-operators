@@ -5,11 +5,16 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import jdk.nashorn.internal.ir.annotations.Immutable;
+
 /**
- * An SecurityGroupDTO represents a SSO group and associated roles.
+ * An SecurityGroupDTO represents a SSO group and associated roles, and potentially entity scope.
  * Any SSO user that is authenticated using an SSO group will inherit the roles specified in that
- * group.
+ * group and entity scope (if applicable).
+ *
+ * This class is immutable.
  */
+@Immutable
 public class SecurityGroupDTO {
     /**
      * The display name.
@@ -93,7 +98,7 @@ public class SecurityGroupDTO {
     public @Nonnull String getRoleName() {
         return roleName;
     }
-    
+
     /**
      * Returns the list of scope groups the user may have. (can be null)
      *

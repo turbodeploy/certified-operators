@@ -20,6 +20,8 @@ import javaslang.control.Either;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -47,17 +49,20 @@ public class SupplyChainService {
     private final TopologyRelationshipRecorder globalSupplyChainRecorder;
     private final GraphDBService graphDBService;
     private final TopologyLifecycleManager lifecycleManager;
+    private final UserSessionContext userSessionContext;
 
     public SupplyChainService(final ReactiveGraphDBExecutor executorArg,
                               final GraphDBService graphDBServiceArg,
                               final GraphDefinition graphDefinitionArg,
                               final TopologyRelationshipRecorder globalSupplyChainRecorderArg,
-                              final TopologyLifecycleManager lifecycleManager) {
+                              final TopologyLifecycleManager lifecycleManager,
+                              final UserSessionContext userSessionContext) {
         executor = Objects.requireNonNull(executorArg);
         graphDBService = Objects.requireNonNull(graphDBServiceArg);
         graphDefinition = Objects.requireNonNull(graphDefinitionArg);
         globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorderArg);
         this.lifecycleManager = Objects.requireNonNull(lifecycleManager);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -84,7 +89,8 @@ public class SupplyChainService {
         final GraphCmd.GetGlobalSupplyChain cmd = new GraphCmd.GetGlobalSupplyChain(
                 targetTopology.get().database(),
                 graphDefinition.getServiceEntityVertex(),
-                environmentType);
+                environmentType,
+                Optional.of(userSessionContext.getUserAccessScope()));
 
         final GlobalSupplyChainFluxResult results = executor.executeGlobalSupplyChainCmd(cmd);
 
@@ -114,7 +120,7 @@ public class SupplyChainService {
         } else {
             return Mono.fromCallable(() -> {
                 final Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                    Optional.of(contextID), envType, startId);
+                    Optional.of(contextID), envType, startId, Optional.of(userSessionContext.getUserAccessScope()));
 
                 final Either<String, Map<String, Set<Long>>> e = supplyChain
                     .map(nodeStream -> nodeStream.collect(Collectors.toMap(

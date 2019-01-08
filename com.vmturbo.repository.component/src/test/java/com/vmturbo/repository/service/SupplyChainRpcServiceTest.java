@@ -38,6 +38,8 @@ import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 import reactor.core.publisher.Mono;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
@@ -55,9 +57,10 @@ public class SupplyChainRpcServiceTest {
 
     private GraphDBService graphDBService = mock(GraphDBService.class);
     private SupplyChainService supplyChainService = mock(SupplyChainService.class);
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private SupplyChainRpcService supplyChainBackend =
-        Mockito.spy(new SupplyChainRpcService(graphDBService, supplyChainService));
+        Mockito.spy(new SupplyChainRpcService(graphDBService, supplyChainService, userSessionContext));
 
     private SupplyChainServiceBlockingStub supplyChainStub;
 
@@ -88,6 +91,9 @@ public class SupplyChainRpcServiceTest {
         MockitoAnnotations.initMocks(this);
 
         supplyChainStub = SupplyChainServiceGrpc.newBlockingStub(server.getChannel());
+
+        Mockito.when(userSessionContext.getUserAccessScope())
+                .thenReturn(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE);
     }
 
     @Test
@@ -190,7 +196,8 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainSuccess() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()), eq("5678"),
+                eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -206,7 +213,8 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFiltered() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -222,7 +230,8 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
         doReturn(Either.left("failed"))
-            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
             .hasCode(Code.INTERNAL)
@@ -271,9 +280,11 @@ public class SupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)), eq("5678"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),eq("91011"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -322,9 +333,11 @@ public class SupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)), eq("5678"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),eq("91011"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()

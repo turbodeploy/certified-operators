@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
@@ -67,17 +68,22 @@ public abstract class GraphCmd {
         private final String graphName;
         private final String vertexCollection;
         private final TopologyDatabase topologyDatabase;
+        // the entity access scope represents the set of entities a user has access to.
+        private final Optional<EntityAccessScope> entityAccessScope;
+
 
         public GetSupplyChain(@Nonnull final String startingVertex,
                               @Nonnull final Optional<UIEnvironmentType> environmentType,
                               final TopologyDatabase topologyDatabase,
                               final String graphName,
-                              final String vertexCollection) {
+                              final String vertexCollection,
+                              final Optional<EntityAccessScope> entityAccessScope) {
             this.startingVertex = startingVertex;
             this.environmentType = environmentType;
             this.topologyDatabase = topologyDatabase;
             this.graphName = graphName;
             this.vertexCollection = vertexCollection;
+            this.entityAccessScope = entityAccessScope;
         }
 
         public String getGraphName() {
@@ -99,6 +105,10 @@ public abstract class GraphCmd {
 
         public TopologyDatabase getTopologyDatabase() {
             return topologyDatabase;
+        }
+
+        public Optional<EntityAccessScope> getEntityAccessScope() {
+            return entityAccessScope;
         }
 
         @Override
@@ -123,12 +133,17 @@ public abstract class GraphCmd {
 
         private final Optional<UIEnvironmentType> environmentType;
 
+        // the entity access scope represents the set of entities a user has access to.
+        private final Optional<EntityAccessScope> entityAccessScope;
+
         public GetGlobalSupplyChain(final TopologyDatabase topologyDatabase,
                                     final String vertexCollection,
-                                    final Optional<UIEnvironmentType> environmentType) {
+                                    final Optional<UIEnvironmentType> environmentType,
+                                    final Optional<EntityAccessScope> entityAccessScope) {
             this.topologyDatabase = topologyDatabase;
             this.vertexCollection = vertexCollection;
             this.environmentType = environmentType;
+            this.entityAccessScope = entityAccessScope;
         }
 
         public String getVertexCollection() {
@@ -143,12 +158,20 @@ public abstract class GraphCmd {
             return environmentType;
         }
 
+        public Optional<EntityAccessScope> getEntityAccessScope() {
+            return entityAccessScope;
+        }
+
         @Override
         public String toString() {
             return MoreObjects.toStringHelper(this)
                     .add("topologyDatabase", topologyDatabase)
                     .add("vertexCollection", vertexCollection)
                     .add("environmentType", environmentType)
+                    .add("entityAccessScope",
+                            (entityAccessScope.isPresent() && !entityAccessScope.get().containsAll())
+                            ? "Groups: "+ entityAccessScope.get().getScopeGroupIds()
+                            : "All")
                     .toString();
         }
     }

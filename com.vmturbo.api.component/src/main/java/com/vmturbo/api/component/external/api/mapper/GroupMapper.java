@@ -15,15 +15,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -35,6 +36,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -53,12 +55,12 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.components.common.ClassicEnumMapper;
 
 /**
@@ -180,12 +182,16 @@ public class GroupMapper {
 
     private final GroupExpander groupExpander;
 
+    private final UserSessionContext userSessionContext;
+
     public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                       @Nonnull final GroupExpander groupExpander) {
+                       @Nonnull final GroupExpander groupExpander,
+                       @Nonnull final UserSessionContext userSessionContext) {
         this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**

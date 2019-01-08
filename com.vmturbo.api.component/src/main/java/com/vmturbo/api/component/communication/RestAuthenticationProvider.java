@@ -132,7 +132,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         ResponseEntity<String> result;
         try {
             final AuthUserDTO authUserDTO = new AuthUserDTO(null,
-                    userName, password, remoteIpAdress, null, null, null, Collections.EMPTY_LIST);
+                    userName, password, remoteIpAdress, null, null, Collections.EMPTY_LIST, null);
             final HttpHeaders headers = new HttpHeaders();
             headers.setAccept(HTTP_ACCEPT);
             headers.setContentType(MediaType.APPLICATION_JSON);

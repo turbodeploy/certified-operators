@@ -24,6 +24,7 @@ import javaslang.control.Option;
 import javaslang.control.Try;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -77,9 +78,10 @@ public class GraphDBService {
      * @return Either a String describing an error, or a stream of {@link SupplyChainNode}s.
      */
     public Either<String, java.util.stream.Stream<SupplyChainNode>> getSupplyChain(
-                final Optional<Long> contextID,
-                final Optional<UIEnvironmentType> envType,
-                final String startId) {
+            final Optional<Long> contextID,
+            final Optional<UIEnvironmentType> envType,
+            final String startId,
+            final Optional<EntityAccessScope> entityAccessScope) {
         final Optional<TopologyID> targetTopologyId = contextID
                 .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
                 .orElse(topologyManager.getRealtimeTopologyId());
@@ -93,7 +95,8 @@ public class GraphDBService {
                 envType,
                 topologyDB,
                 graphDefinition.getProviderRelationship(),
-                graphDefinition.getServiceEntityVertex());
+                graphDefinition.getServiceEntityVertex(),
+                entityAccessScope);
             logger.debug("Constructed command, {}", cmd);
 
             final Try<SupplyChainSubgraph> supplyChainResults = executor.executeSupplyChainCmd(cmd);

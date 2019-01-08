@@ -1,0 +1,103 @@
+syntax = "proto2";
+package userscope;
+
+option java_package = "com.vmturbo.common.protobuf.userscope";
+
+message EntityAccessScopeContents {
+    // the "seed" oids are the set of seed entities used in the supply chain calculation that defines
+    // the access scope. Although technically possible, this should not be "all oids".
+    optional OidSetDTO seed_oids = 1;
+    // the "accessible" oids represent the entities that are in the resulting supply chain that
+    // defines the entity access scope.
+    optional OidSetDTO accessible_oids = 2;
+
+    // An explicit hash for the accessible oids set. Used for cache sync.
+    optional int32 hash = 10;
+}
+
+/*
+ An OidSet represents a set of oids. It can contain different types of representations, depending
+ on the contents of the set.
+*/
+message OidSetDTO {
+    oneof oid_set {
+        AllOids all_oids = 1;
+        NoOids  no_oids = 2;
+        OidArray array = 3;
+        // We may switch to a new representation sizes that is more efficient at larger sizes.
+        // We can mix-and-match the set encoding based on set size too, though.
+    }
+
+    // AllOids is marker object representing the complete set of all possible oids
+    message AllOids {}
+
+    // NoOids is a marker object representing an empty set of oids
+    message NoOids {}
+
+    // a primitive array of oid values.
+    message OidArray {
+        // TODO: Disappointingly, this seems to get translated to an UnmodifiableRandomAccessList<Long>
+        // by the Java protobuf code, so if/when we optimize this, we should probably changed to a
+        // straight-up bytes array and manually do the serdes.
+        repeated uint64 oids = 1 [packed = true];
+    }
+}
+
+message CurrentUserEntityAccessScopeRequest {
+    // if the caller already has an entity access scope currently in memory, it can send the
+    // hash code for it in the "current scope hash" in the request. If this matches the has for the
+    // scope in the server, the server will send a "keep current data" response instead of returning
+    // the whole object.
+    optional int32 current_scope_hash = 1;
+}
+
+/*
+  The EntityAccessScopeRequest will contain a list of group id's that seed the supply chain
+  calculation that defines the access scope members.
+
+  Additionally, infrastructure entities can be excluded via this request.
+*/
+message EntityAccessScopeRequest {
+    // one-or-many group id's. The entity access scope is based on the supply chain for all members
+    // of all the groups in this list.
+    repeated int64 group_id = 1;
+
+    /*
+     "infrastructure entities" are hardware-based entities, and roughly correspond to anything
+     below the "workload" level in the supply chain. This determination is used to restrict
+     infrastructure access for "Shared Roles" (see wiki for more info).
+
+     if "include infrastructure entities" is set to false, infrastructure entities will be
+     excluded from the calculation.
+     TODO: This is not supported yet.
+    */
+    optional bool include_infrastructure_entities = 2 [default=true];
+
+    // if the caller already has an entity access scope currently in memory, it can send the
+    // hash code for it in the "current scope hash" in the request. If this matches the has for the
+    // scope in the server, the server will send a "keep current data" response instead of returning
+    // the whole object.
+    optional int32 current_scope_hash = 10;
+}
+
+message EntityAccessScopeResponse {
+
+    // if the access scope contents are not included in the response, and a "current hash" was sent
+    // in the request, it means the current hash is still valid and response data wasn't needed since
+    // it's presumed the caller already has the correct data in memory.
+    optional EntityAccessScopeContents entity_access_scope_contents = 1;
+}
+
+/*
+  The UserScopeService is responsible for calculating the entity access set based on a set of input
+  group id's. In reality, this service is a supply chain calculation service, with some caching
+  involved to speed it up, since we expect the same scopes to be repetitively retrieved.
+*/
+service UserScopeService {
+    // get the access scope data for a specific set of parameters
+    rpc GetEntityAccessScopeMembers(EntityAccessScopeRequest) returns (EntityAccessScopeResponse);
+
+    // get the access scope data for the currently-logged in user
+    rpc GetCurrentUserEntityAccessScopeMembers(CurrentUserEntityAccessScopeRequest) returns (EntityAccessScopeResponse);
+
+}

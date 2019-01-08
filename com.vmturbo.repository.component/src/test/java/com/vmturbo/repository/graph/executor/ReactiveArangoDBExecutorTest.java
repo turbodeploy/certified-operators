@@ -10,18 +10,17 @@ import static org.assertj.core.api.Assertions.fail;
 import java.util.Collections;
 import java.util.Optional;
 
+import com.arangodb.ArangoDB;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.guava.GuavaModule;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.arangodb.ArangoDB;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.guava.GuavaModule;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Lists;
 
 import javaslang.collection.List;
 import reactor.core.publisher.Flux;
@@ -106,7 +105,7 @@ public class ReactiveArangoDBExecutorTest {
                                                                    objectMapper);
 
         final GraphCmd.GetGlobalSupplyChain globalSupplyChainCmd = new GraphCmd.GetGlobalSupplyChain(
-                TEST_DATABASE, TEST_COLLECTION, Optional.empty());
+                TEST_DATABASE, TEST_COLLECTION, Optional.empty(), Optional.empty());
 
         final GlobalSupplyChainFluxResult globalResults = reactiveArangoDBExecutor
                 .executeGlobalSupplyChainCmd(globalSupplyChainCmd);

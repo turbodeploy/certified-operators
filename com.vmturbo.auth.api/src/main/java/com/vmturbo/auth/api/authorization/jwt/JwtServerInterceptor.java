@@ -4,10 +4,12 @@ import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 
 import java.security.PublicKey;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,8 +22,10 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.lang.Collections;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
+import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 
 /**
@@ -69,11 +73,11 @@ public class JwtServerInterceptor implements ServerInterceptor {
                                                                  @Nonnull Metadata metadata,
                                                                  @Nonnull ServerCallHandler<ReqT, RespT> next) {
         final String jwt = metadata.get(SecurityConstant.JWT_METADATA_KEY);
-        Context ctx;
+        final Context ctx;
         if (jwt == null) {
             // It should be uncommented when JWT token is always required. For system calls, we will use system JWT token.
             // serverCall.close(Status.UNAUTHENTICATED.withDescription("JWT Token is missing from Metadata"), metadata);
-            logger.debug("gRPC request doesn't have JWT token.");
+            logger.debug("gRPC request doesn't have JWT token on call {}.", call.getMethodDescriptor().getFullMethodName());
             return next.startCall(call, metadata); // will use NOOP_LISTENER when JWT token is required
         }
         PublicKey key = getPublicKey();
@@ -95,7 +99,11 @@ public class JwtServerInterceptor implements ServerInterceptor {
             ctx = Context.current()
                     .withValue(SecurityConstant.USER_ID_CTX_KEY, claims.getSubject())
                     .withValue(SecurityConstant.USER_UUID_KEY, claims.get(UUID_CLAIM, String.class))
-                    .withValue(SecurityConstant.USER_IP_ADDRESS_KEY, claims.get(IP_ADDRESS_CLAIM, String.class));
+                    .withValue(SecurityConstant.USER_IP_ADDRESS_KEY, claims.get(IP_ADDRESS_CLAIM, String.class))
+                    .withValue(SecurityConstant.USER_SCOPE_GROUPS_KEY,
+                            (List<Long>) claims.getOrDefault(IAuthorizationVerifier.SCOPE_CLAIM,
+                            java.util.Collections.EMPTY_LIST))
+                    .withValue(SecurityConstant.CONTEXT_JWT_KEY, jwt);
         } catch (RuntimeException e) {
             // TODO it should be sent to audit log.
             logger.error("Verification failed - Unauthenticated! With error message: " + e.getMessage());

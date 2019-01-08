@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -32,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import javaslang.collection.Seq;
 import javaslang.control.Try;
 
+import com.vmturbo.auth.api.authorization.scoping.OidSet;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
@@ -104,6 +106,16 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             .add("hasEnvType", supplyChainCmd.getEnvironmentType().isPresent());
         supplyChainCmd.getEnvironmentType().ifPresent(envType ->
                 template.add("envType", envType.getApiEnumStringValue()));
+
+        supplyChainCmd.getEntityAccessScope().ifPresent(entityAccessScope -> {
+            // add an accessible oids list if the access scope is restricted
+            if (entityAccessScope.hasRestrictions()) {
+                template.add("allowedOidList", entityAccessScope.accessibleOids().iterator());
+            }
+        });
+
+        // set the "hasAllowedOidList" attribute based on if we populated a list or not.
+        template.add("hasAllowedOidList", template.getAttribute("allowedOidList") != null);
 
         return template.render();
     }

@@ -27,9 +27,10 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspect
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 
 @Configuration
-@Import({CommunicationConfig.class})
+@Import({CommunicationConfig.class, UserSessionConfig.class})
 public class MapperConfig {
 
     @Value("${groupBuildUseCaseFile}")
@@ -52,6 +53,9 @@ public class MapperConfig {
     @Autowired
     private ServiceConfig serviceConfig;
 
+    @Autowired
+    private UserSessionConfig userSessionConfig;
+
     @Bean
     public ActionSpecMapper actionSpecMapper() {
         return new ActionSpecMapper(communicationConfig.repositoryApi(),
@@ -67,7 +71,8 @@ public class MapperConfig {
     public GroupMapper groupMapper() {
         return new GroupMapper(groupUseCaseParser(),
                     communicationConfig.supplyChainFetcher(),
-                    communicationConfig.groupExpander());
+                    communicationConfig.groupExpander(),
+                    userSessionConfig.userSessionContext());
     }
 
     @Bean

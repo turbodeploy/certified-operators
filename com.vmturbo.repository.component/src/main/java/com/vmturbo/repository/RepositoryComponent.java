@@ -39,6 +39,9 @@ import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.repository.SupplyChainREST.SupplyChainServiceController;
@@ -93,7 +96,9 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
     TopologyProcessorClientConfig.class,
     MarketClientConfig.class,
     RepositorySecurityConfig.class,
-    RepositoryProperties.class
+    RepositoryProperties.class,
+    SpringSecurityConfig.class,
+    UserSessionConfig.class
 })
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
@@ -110,7 +115,14 @@ public class RepositoryComponent extends BaseVmtComponent {
     private TopologyProcessorClientConfig tpClientConfig;
 
     @Autowired
-    private  MarketClientConfig marketClientConfig;
+    private MarketClientConfig marketClientConfig;
+
+    @Autowired
+    private UserSessionConfig userSessionConfig;
+
+    @Autowired
+    private SpringSecurityConfig securityConfig;
+
 
     RepositoryProperties repositoryProperties;
 
@@ -321,7 +333,8 @@ public class RepositoryComponent extends BaseVmtComponent {
                                       graphDBService(),
                                       graphDefinition(),
                                       topologyRelationshipRecorder(),
-                                      topologyManager());
+                                      topologyManager(),
+                                      userSessionConfig.userSessionContext());
     }
 
     @Bean
@@ -383,7 +396,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public SupplyChainRpcService supplyChainRpcService() throws InterruptedException, CommunicationException, URISyntaxException {
-        return new SupplyChainRpcService(graphDBService(), supplyChainService());
+        return new SupplyChainRpcService(graphDBService(), supplyChainService(), userSessionConfig.userSessionContext());
     }
 
     @Bean
@@ -499,10 +512,13 @@ public class RepositoryComponent extends BaseVmtComponent {
             final MonitoringServerInterceptor monitoringInterceptor =
                 MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
 
+            // gRPC JWT token interceptor
+            final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+
             return Optional.of(builder
                 .addService(ServerInterceptors.intercept(repositoryRpcService(), monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(searchRpcService(), monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(supplyChainRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(supplyChainRpcService(), jwtInterceptor, monitoringInterceptor))
                 .build());
         } catch (InterruptedException | CommunicationException
                 | URISyntaxException | GraphDatabaseException e) {

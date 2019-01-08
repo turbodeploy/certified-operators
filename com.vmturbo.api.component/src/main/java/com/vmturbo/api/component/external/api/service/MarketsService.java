@@ -19,15 +19,16 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
-
-import com.google.common.collect.ImmutableList;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -70,6 +71,8 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -166,6 +169,8 @@ public class MarketsService implements IMarketsService {
 
     private final MergeDataCenterPolicyHandler mergeDataCenterPolicyHandler;
 
+    private final UserSessionContext userSessionContext;
+
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -179,6 +184,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PaginationMapper paginationMapper,
                           @Nonnull final GroupServiceBlockingStub groupRpcService,
                           @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
+                          @Nonnull final UserSessionContext userSessionContext,
                           @Nonnull final UINotificationChannel uiNotificationChannel,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -195,6 +201,7 @@ public class MarketsService implements IMarketsService {
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
 
         this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
@@ -283,8 +290,14 @@ public class MarketsService implements IMarketsService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
+        // if the user is restricted by a scope, then add an oid filter to the request.
+        EntityAccessScope userScope = userSessionContext.getUserAccessScope();
+        Optional<Set<Long>> includedOids = userScope.containsAll()
+                ? Optional.empty()
+                : Optional.of(userScope.getScopeGroupMembers().toSet());
+
         final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, Optional.empty());
+                actionSpecMapper.createActionFilter(inputDto, includedOids);
         final FilteredActionResponse response = actionRpcService.getAllActions(
             FilteredActionRequest.newBuilder()
                 .setTopologyContextId(apiId.oid())
@@ -559,8 +572,14 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO actionApiInputDTO) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
+        // if the user is scoped, we should use their scope set as the filter. This might make for
+        // a very inefficient filter though at scale. :(
+        EntityAccessScope userScope = userSessionContext.getUserAccessScope();
+        Optional<Set<Long>> includedOids = userScope.containsAll()
+                ? Optional.empty()
+                : Optional.of(userScope.getScopeGroupMembers().toSet());
         final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.empty());
+                actionSpecMapper.createActionFilter(actionApiInputDTO, includedOids);
         try {
             // if UI provides start and end date, will call ActionRpcService#getActionCountsByDate
             if (filter.hasEndDate() && filter.hasStartDate()) {
@@ -607,6 +626,11 @@ public class MarketsService implements IMarketsService {
         // support both.
         if (UuidMapper.isRealtimeMarket(marketUuid)) {
             throw ApiUtils.notImplementedInXL();
+        }
+
+        // as of now, scoped users can't access plans in classic, so we'll throw an access denied here
+        if (userSessionContext.isUserScoped()) {
+            throw new AccessDeniedException("Cannot access market stats.");
         }
 
         // Short-circuit if there are no input scopes.

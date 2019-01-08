@@ -29,6 +29,7 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
@@ -50,6 +51,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
 
     private final GraphDBService graphDBService;
 
+    private final UserSessionContext userSessionContext;
+
     private static final DataMetricSummary GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY = DataMetricSummary
         .builder()
         .withName("repo_global_supply_chain_duration_seconds")
@@ -64,9 +67,11 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         .register();
 
     public SupplyChainRpcService(@Nonnull final GraphDBService graphDBService,
-                                 @Nonnull final SupplyChainService supplyChainService) {
+                                 @Nonnull final SupplyChainService supplyChainService,
+                                 @Nonnull final UserSessionContext userSessionContext) {
         this.graphDBService = Objects.requireNonNull(graphDBService);
         this.supplyChainService = Objects.requireNonNull(supplyChainService);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -257,7 +262,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
 
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                contextId, envType, startingVertexOid.toString());
+                contextId, envType, startingVertexOid.toString(),
+                    Optional.of(userSessionContext.getUserAccessScope()));
 
             Match(supplyChain).of(
                 Case(Right($()), v -> {

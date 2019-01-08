@@ -2,6 +2,8 @@ package com.vmturbo.auth.api.authorization.jwt;
 
 import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
 
+import java.util.List;
+
 import io.grpc.Context;
 import io.grpc.Metadata;
 
@@ -25,7 +27,18 @@ public class SecurityConstant {
     public static final Context.Key<String> USER_UUID_KEY = Context.key("userUuid");
 
     /**
-     * key for JWT token
+     * key for user's scope groups
+     */
+    public static final Context.Key<List<Long>> USER_SCOPE_GROUPS_KEY = Context.key("userScopeGroups");
+
+    /**
+     * key for the JWT in the grpc Context
+     */
+    public static final Context.Key<String> CONTEXT_JWT_KEY = Context.key("jwt");
+
+
+    /**
+     * key for JWT token in call metadata
      */
     public static final Metadata.Key<String> JWT_METADATA_KEY = Metadata.Key.of("jwt", ASCII_STRING_MARSHALLER);
 

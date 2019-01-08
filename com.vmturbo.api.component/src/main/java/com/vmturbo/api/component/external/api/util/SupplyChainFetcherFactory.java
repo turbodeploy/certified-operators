@@ -42,6 +42,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -88,7 +89,8 @@ public class SupplyChainFetcherFactory {
         Objects.requireNonNull(entitySeverityChannel);
 
         // create a non-blocking stub to query the supply chain from the Repository component
-        this.supplyChainRpcService = SupplyChainServiceGrpc.newStub(supplyChainChannel);
+        this.supplyChainRpcService = SupplyChainServiceGrpc.newStub(supplyChainChannel)
+                .withInterceptors(new JwtClientInterceptor());
 
         this.severityRpcService = EntitySeverityServiceGrpc.newBlockingStub(entitySeverityChannel);
         this.repositoryApi = repositoryApi;

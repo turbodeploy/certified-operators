@@ -33,6 +33,7 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
+import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -42,7 +43,7 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
  */
 @Configuration("theComponent")
 @Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
-        WidgetsetConfig.class, LicensingConfig.class})
+        WidgetsetConfig.class, LicensingConfig.class, UserScopeServiceConfig.class})
 public class AuthComponent extends BaseVmtComponent {
     public static final String PATH_SPEC = "/*";
     /**
@@ -64,6 +65,9 @@ public class AuthComponent extends BaseVmtComponent {
 
     @Autowired
     private LicensingConfig licensingConfig;
+
+    @Autowired
+    private UserScopeServiceConfig userScopeServiceConfig;
 
     /**
      * JWT token verification and decoding.
@@ -102,8 +106,12 @@ public class AuthComponent extends BaseVmtComponent {
         return Optional.of(builder
                 .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
                         authRESTSecurityConfig.targetStore()), jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseManager(), jwtInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseCheckService(), jwtInterceptor))
+                .addService(ServerInterceptors.intercept(licensingConfig.licenseManager(),
+                        jwtInterceptor, monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(licensingConfig.licenseCheckService(),
+                        jwtInterceptor, monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(userScopeServiceConfig.userScopeService(),
+                        jwtInterceptor, monitoringInterceptor))
                 .build());
     }
 

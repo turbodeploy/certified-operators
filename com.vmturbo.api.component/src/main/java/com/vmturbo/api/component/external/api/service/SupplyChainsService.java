@@ -23,6 +23,7 @@ import com.google.common.collect.Sets;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -42,6 +43,8 @@ import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -58,6 +61,7 @@ public class SupplyChainsService implements ISupplyChainsService {
     private final long liveTopologyContextId;
     private final GroupExpander groupExpander;
     private final PlanServiceBlockingStub planRpcService;
+    private final UserSessionContext userSessionContext;
 
     // criteria in this list require fetching the health summary along with the supplychain
     private static final Collection<EntitiesCountCriteria> SUPPLY_CHAIN_HEALTH_REQUIRED =
@@ -67,11 +71,13 @@ public class SupplyChainsService implements ISupplyChainsService {
 
     SupplyChainsService(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                         @Nonnull final PlanServiceBlockingStub planRpcService,
-                        final long liveTopologyContextId, GroupExpander groupExpander) {
+                        final long liveTopologyContextId, GroupExpander groupExpander,
+                        final UserSessionContext userSessionContext) {
         this.liveTopologyContextId = liveTopologyContextId;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.groupExpander = groupExpander;
         this.planRpcService = planRpcService;
+        this.userSessionContext = userSessionContext;
     }
 
     @Override
@@ -96,12 +102,18 @@ public class SupplyChainsService implements ISupplyChainsService {
         //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.
         Optional<PlanInstance> possiblePlan = getPlanIfRequestIsPlan(uuids);
         if (possiblePlan.isPresent()) {
+            // if the user is scoped, throw AXDenied, to be consistent with classic.
+            if (userSessionContext.isUserScoped()) {
+                throw new AccessDeniedException("Not authorized to vew plan data.");
+            }
             fetcherBuilder.topologyContextId(Long.valueOf(uuids.iterator().next()));
             PlanInstance plan = possiblePlan.get();
             if (isPlanScoped(plan)) {
-                Set<String> planSeedIds = getSeedIdsForPlan(possiblePlan.get());
-                fetcherBuilder.addSeedUuids(planSeedIds);
-                if (planSeedIds.size() == 0) {
+                Set<Long> planSeedOids = getSeedIdsForPlan(possiblePlan.get());
+                for (Long oid : planSeedOids) {
+                    fetcherBuilder.addSeedUuid(String.valueOf(oid));
+                }
+                if (planSeedOids.size() == 0) {
                     logger.warn("Scoped plan {} did not have any entities in scope.", plan.getPlanId());
                 }
             }
@@ -133,13 +145,13 @@ public class SupplyChainsService implements ISupplyChainsService {
      * @return The set of unique seed entities based on the plan scope. Will be empty for an
      * unscoped plan.
      */
-    private Set<String> getSeedIdsForPlan(PlanInstance planInstance) {
+    private Set<Long> getSeedIdsForPlan(PlanInstance planInstance) {
         // does this plan have a scope?
         if (!isPlanScoped(planInstance)) {
             // nope, no scope
             return Collections.emptySet();
         }
-        Set<String> seedEntities = new HashSet(); // seed entities to return
+        Set<Long> seedEntities = new HashSet(); // seed entities to return
         PlanScope scope = planInstance.getScenario().getScenarioInfo().getScope();
         for (PlanScopeEntry scopeEntry : scope.getScopeEntriesList()) {
             // if it's an entity, add it right to the seed set. Otherwise queue it for
@@ -147,10 +159,10 @@ public class SupplyChainsService implements ISupplyChainsService {
             if (GROUP_TYPES.contains(scopeEntry.getClassName())) {
                 // needs expansion
                 groupExpander.expandUuid(String.valueOf(scopeEntry.getScopeObjectOid()))
-                        .forEach(id -> seedEntities.add(id.toString()));
+                        .forEach(seedEntities::add);
             } else {
                 // this is an entity -- add it right to the seedEntities
-                seedEntities.add(String.valueOf(scopeEntry.getScopeObjectOid()));
+                seedEntities.add(scopeEntry.getScopeObjectOid());
             }
         }
 

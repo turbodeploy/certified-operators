@@ -37,6 +37,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -83,8 +84,10 @@ public class GroupMapperTest {
 
     private GroupExpander groupExpander = mock(GroupExpander.class);
 
+    private UserSessionContext userSessionContext = new UserSessionContext();
+
     private GroupMapper groupMapper =
-        new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander);
+        new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander, userSessionContext);
 
     private static String AND = "AND";
     private static String FOO = "foo";

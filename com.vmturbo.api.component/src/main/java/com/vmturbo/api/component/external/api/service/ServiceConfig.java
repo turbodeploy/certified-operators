@@ -27,6 +27,8 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
@@ -55,7 +57,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         PublicKeyStoreConfig.class,
         SAMLConfigurationStoreConfig.class,
         LicenseCheckClientConfig.class,
-        NotificationClientConfig.class})
+        NotificationClientConfig.class,
+        UserSessionConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -136,6 +139,9 @@ public class ServiceConfig {
 
     @Autowired
     private NotificationClientConfig notificationClientConfig;
+
+    @Autowired
+    private UserSessionConfig userSessionConfig;
 
     @Bean
     public ActionsService actionsService() {
@@ -252,6 +258,7 @@ public class ServiceConfig {
                 mapperConfig.paginationMapper(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.repositoryRpcService(),
+                userSessionContext(),
                 websocketConfig.websocketHandler(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
@@ -399,7 +406,8 @@ public class ServiceConfig {
         return new SupplyChainsService(communicationConfig.supplyChainFetcher(),
                 communicationConfig.planRpcService(),
                 communicationConfig.getRealtimeTopologyContextId(),
-                communicationConfig.groupExpander());
+                communicationConfig.groupExpander(),
+                userSessionConfig.userSessionContext());
     }
 
     @Bean
@@ -440,6 +448,11 @@ public class ServiceConfig {
                                 samlIdpMetadata,
                                 samlEnabled,
                                 groupsService());
+    }
+
+    @Bean
+    public UserSessionContext userSessionContext() {
+        return userSessionConfig.userSessionContext();
     }
 
     @Bean

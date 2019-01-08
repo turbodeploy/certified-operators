@@ -47,6 +47,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -83,6 +84,8 @@ public class SupplyChainsServiceTest {
 
     private SupplyChainsService service;
 
+    private UserSessionContext userSessionContext = new UserSessionContext();
+
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
@@ -105,7 +108,7 @@ public class SupplyChainsServiceTest {
             PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         service = new SupplyChainsService(supplyChainsFetcherMock, planServiceMock,
-                LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock);
+                LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock, userSessionContext);
 
 
     }
@@ -189,7 +192,7 @@ public class SupplyChainsServiceTest {
         service.getSupplyChainByUuids(uuids, null, null, null, null, false);
 
         verify(supplyChainFetcherOperationBuilderMock).topologyContextId(123456789);
-        verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(Collections.singleton("1"));
+        verify(supplyChainFetcherOperationBuilderMock).addSeedUuid("1");
     }
 
     @Test

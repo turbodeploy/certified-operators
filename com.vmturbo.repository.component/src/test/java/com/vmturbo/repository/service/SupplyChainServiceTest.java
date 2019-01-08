@@ -5,8 +5,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import com.google.common.collect.HashMultimap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -21,11 +24,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.HashMultimap;
-
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.ArrayOidSet;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.repository.graph.GraphDefinition;
@@ -70,6 +75,9 @@ public class SupplyChainServiceTest {
             .executeGlobalSupplyChainCmd(Mockito.any(GetGlobalSupplyChain.class)))
             .thenReturn(supplyChainFluxResult);
 
+        Mockito.when(testConfig.userSessionContext().getUserAccessScope())
+                .thenReturn(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE);
+
         final Mono<Map<String, SupplyChainNode>> globalSupplyChain =
             testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty(), Optional.empty());
         final Map<String, SupplyChainNode> result = globalSupplyChain.toFuture().get();
@@ -112,6 +120,11 @@ public class SupplyChainServiceTest {
         }
 
         @Bean
+        public UserSessionContext userSessionContext() {
+            return Mockito.mock(UserSessionContext.class);
+        }
+
+        @Bean
         public TopologyRelationshipRecorder topologyRelationshipRecorder() {
             final TopologyRelationshipRecorder recorder =
                     Mockito.mock(TopologyRelationshipRecorder.class);
@@ -123,7 +136,8 @@ public class SupplyChainServiceTest {
         @Bean
         public SupplyChainService supplyChainService() throws IOException {
             return new SupplyChainService(reactiveExecutor(), graphDbService(),
-                    graphDefinition(), topologyRelationshipRecorder(), topologyManager());
+                    graphDefinition(), topologyRelationshipRecorder(), topologyManager(),
+                    userSessionContext());
         }
     }
 }

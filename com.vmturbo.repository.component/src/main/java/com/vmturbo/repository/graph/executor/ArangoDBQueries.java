@@ -11,26 +11,31 @@ public class ArangoDBQueries {
      */
     static final String SUPPLY_CHAIN_CONSUMER_QUERY_TEMPLATE =
         // Collect edges up to a maximum of 10 degrees away from the starting vertex.
+        "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
         "LET edgeCollection = (" +
         "   FOR v, e IN 1 .. 10\n" +
         "       OUTBOUND '<startingId>'\n" +
         "       <edgeCollection>\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
         "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
+        "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
         // Filter on edge type (consumes or connected)
         "       FILTER e.type == '<edgeType>'\n" +
         // From are starting vertices on the directed edges (the consumers).
         "       LET from = FIRST(\n" +
         "           FOR fv IN <vertexCollection>\n" +
         "               FILTER fv._id == e._from\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(fv.oid) IN accessOids<endif>\n" +
         "               RETURN fv\n" +
         "       )\n" +
         // To are the ending vertices on the directed edges (the providers).
         "       LET to = FIRST(\n" +
         "           FOR tv IN <vertexCollection>\n" +
         "               FILTER tv._id == e._to\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(tv.oid) IN accessOids<endif>\n" +
         "               RETURN tv\n" +
         "       )\n" +
+        "       FILTER from.entityType != null && to.entityType != null\n" +
         // "ftype" is the type of the first "from" vertex and because we group by entity type,
         // it will be the type for all "from" vertices in the edgeCollection.
         "       COLLECT ftype = from.entityType\n" +
@@ -53,27 +58,32 @@ public class ArangoDBQueries {
      */
     static final String SUPPLY_CHAIN_PROVIDER_QUERY_TEMPLATE =
         // Collect edges up to a maximum of 10 degrees away from the starting vertex.
+        "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
         "LET edgeCollection = (" +
         "   FOR v, e IN 1 .. 10\n" +
         "       INBOUND '<startingId>'\n" +
         "       <edgeCollection>\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
         "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
+        "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
         // Filter on edge type (consumes or connected)
         "       FILTER e.type == '<edgeType>'\n" +
         // From are starting vertices on the directed edges (the consumers).
         "       LET from = FIRST(\n" +
         "           FOR fv IN <vertexCollection>\n" +
         "               FILTER fv._id == e._from\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(fv.oid) IN accessOids<endif>\n" +
         "               RETURN fv\n" +
         "       )\n" +
         // To are the ending vertices on the directed edges (the providers).
         "       LET to = FIRST(\n" +
         "           FOR tv IN <vertexCollection>\n" +
         "               FILTER tv._id == e._to\n" +
+        "              <if(hasAllowedOidList)>FILTER TO_NUMBER(tv.oid) IN accessOids<endif>\n" +
         "               RETURN tv\n" +
         "       )\n" +
-        // "ttype" is the type of the first "to" vertex and because we group by entity type,
+        "       FILTER from.entityType != null && to.entityType != null\n" +
+                // "ttype" is the type of the first "to" vertex and because we group by entity type,
         // it will be the type for all "to" vertices in the edgeCollection.
         "       COLLECT ttype = to.entityType\n" +
         "       INTO groups = {\n" +
@@ -92,9 +102,13 @@ public class ArangoDBQueries {
      * New query for computing the global supply chain.
      */
     static final String GLOBAL_SUPPLY_CHAIN_QUERY_TEMPLATE =
+            "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
             "FOR entity IN <seCollection>\n" +
             "<if(hasEnvType)>" +
                 "FILTER entity.environmentType == '<envType>'\n" +
+            "<endif>" +
+            "<if(hasAllowedOidList)>" +
+                "FILTER TO_NUMBER(entity.oid) IN accessOids\n" +
             "<endif>" +
             "COLLECT types = entity.entityType, states = entity.state \n" +
             "INTO oids = entity.oid\n" +

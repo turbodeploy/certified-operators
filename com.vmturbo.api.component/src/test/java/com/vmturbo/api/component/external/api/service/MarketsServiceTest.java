@@ -78,6 +78,7 @@ import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.validators.InputDTOValidator;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -289,7 +290,8 @@ public class MarketsServiceTest {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
                     policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
-                    groupRpcService(), repositoryRpcService(), uiNotificationChannel(), REALTIME_CONTEXT_ID);
+                    groupRpcService(), repositoryRpcService(), new UserSessionContext(),
+                    uiNotificationChannel(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
