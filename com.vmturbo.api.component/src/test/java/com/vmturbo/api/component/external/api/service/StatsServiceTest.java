@@ -351,7 +351,8 @@ public class StatsServiceTest {
 
         final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery("111", inputDto);
 
-        verify(costServiceSpy).getAccountExpenseStats(request);
+        verify(costServiceSpy).getAccountExpenseStats(
+                GetCloudExpenseStatsRequest.newBuilder().setGroupBy(GroupByType.TARGET).build());
         verify(statsMapper).toStatSnapshotApiDTO(any(), any(), any(), any(), any(), any());
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);

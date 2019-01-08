@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,6 +62,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -896,11 +898,10 @@ public class RIAndExpenseUploadRpcServiceTest {
         statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
         CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
 
-        statValueBuilder.setAvg(7.5f);
-
-        statValueBuilder.setTotal(15.0f);
-        statValueBuilder.setMax(10.0f);
-        statValueBuilder.setMin(5.0f);
+        statValueBuilder.setAvg(7.5f)
+                .setTotal(15.0f)
+                .setMax(10.0f)
+                .setMin(5.0f);
 
         statRecordBuilder.setValues(statValueBuilder.build());
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
@@ -908,6 +909,24 @@ public class RIAndExpenseUploadRpcServiceTest {
                 .addStatRecords(statRecordBuilder.build())
                 .build();
         builder.addCloudStatRecord(cloudStatRecord);
+
+        // add projected values.
+        if (request.hasStartDate() && request.hasEndDate()) {
+            statValueBuilder.setAvg(5.0f)
+                    .setTotal(5.0f)
+                    .setMax(5.0f)
+                    .setMin(5.0f);
+            statRecordBuilder.clearValues();
+            statRecordBuilder.setValues(statValueBuilder.build());
+            final CloudCostStatRecord projectedCloudStatRecord = CloudCostStatRecord.newBuilder()
+                    // the Projected stats will be 1 hour ahead
+                    .setSnapshotDate(DateTimeUtil.toString(1 + TimeUnit.HOURS.toMillis(1)))
+                    .addStatRecords(statRecordBuilder.build())
+                    .build();
+            builder.addCloudStatRecord(projectedCloudStatRecord);
+        }
+
+        when(timeFrameCalculator.millis2TimeFrame(request.getStartDate())).thenReturn(TimeFrame.HOUR);
         costRpcService.getAccountExpenseStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();

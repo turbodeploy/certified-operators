@@ -367,7 +367,7 @@ public class StatsService implements IStatsService {
         // Create a default Stat period, if one is not specified in the request
         if (inputDto == null) {
             inputDto = getDefaultStatPeriodApiInputDto();
-        }
+            }
 
         // If it is a request for reserved instance coverage, then get the stats from cost component.
         if (isRequestForReservedInstanceCoverageStats(inputDto)) {
@@ -507,7 +507,11 @@ public class StatsService implements IStatsService {
                                 getDiscoveredServiceDTO() : Collections.emptyList();
 
                         final List<CloudCostStatRecord> cloudStatRecords =
-                                getCloudExpensesRecordList(inputDto, uuid, requestGroupBySet, entityStatOids);
+                                getCloudExpensesRecordList(inputDto, uuid, requestGroupBySet,
+                                        cloudServiceDTOs.stream()
+                                                .map(BaseApiDTO::getUuid)
+                                                .map(Long::valueOf)
+                                                .collect(Collectors.toSet()));
                         stats.addAll(cloudStatRecords.stream()
                                 .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot,
                                         finalTargets,
@@ -516,6 +520,7 @@ public class StatsService implements IStatsService {
                                         cloudServiceDTOs,
                                         targetsService))
                                 .collect(Collectors.toList()));
+
                     } else if (uuid != null || isDefaultCloudGroupUuid || fullMarketRequest) {
                         List<CloudCostStatRecord> cloudCostStatRecords =
                                 getCloudStatRecordList(inputDto, uuid, entityStatOids, requestGroupBySet);
@@ -801,7 +806,7 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     * Return true if the request DTO has {@link StatsService#NUM_WORKLOADS} else return false.
+     * Return true if the request DTO has {@link StringConstants#NUM_WORKLOADS} else return false.
      */
     private boolean hasRequestedNumWorkloads(@Nonnull final StatPeriodApiInputDTO inputDto) {
         return CollectionUtils.emptyIfNull(inputDto.getStatistics())

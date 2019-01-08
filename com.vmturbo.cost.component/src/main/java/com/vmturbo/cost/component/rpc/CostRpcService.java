@@ -4,12 +4,17 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.TimeZone;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -21,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -37,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
@@ -47,6 +54,11 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
+import com.vmturbo.commons.forecasting.ForecastingContext;
+import com.vmturbo.commons.forecasting.ForecastingStrategyNotProvidedException;
+import com.vmturbo.commons.forecasting.InvalidForecastingDateRangeException;
+import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
@@ -61,6 +73,7 @@ import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -100,6 +113,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final TimeFrameCalculator timeFrameCalculator;
 
+    private ForecastingContext forecastingContext;
+
 
     /**
      * Create a new RIAndExpenseUploadRpcService.
@@ -120,6 +135,7 @@ public class CostRpcService extends CostServiceImplBase {
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
+        this.forecastingContext = new ForecastingContext(new RegressionForecastingStrategy());
     }
 
     /**
@@ -295,33 +311,105 @@ public class CostRpcService extends CostServiceImplBase {
                 final Set<Integer> entityTypeFilterIds = request.getEntityTypeFilter().getEntityTypeIdList().stream().collect(Collectors.toSet());
                 final CostFilter entityCostFilter =
                         new AccountExpensesFilter(filterIds, entityTypeFilterIds, request.getStartDate(), request.getEndDate(), timeFrame);
-                final Map<Long, Map<Long, AccountExpenses>> snapshoptToExpenseMap =
+                final Map<Long, Map<Long, AccountExpenses>> snapshotToExpenseMap =
                         (request.hasStartDate() && request.hasEndDate()) ?
                                 accountExpensesStore.getAccountExpenses(entityCostFilter) :
                                 accountExpensesStore.getLatestExpenses(filterIds, entityTypeFilterIds);
+
+                // Mapping from AccountId -> {Timestamp -> Stat Value}
+                Map<Long, Map<Long, Float>> historicData = new HashMap<>();
+                Map<Long, Set<Long>> accountIdToEntitiesMap = new HashMap<>();
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-                snapshoptToExpenseMap.forEach((snapshopTime, accountIdToExpensesMap) -> {
-                    final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
-                    snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(snapshopTime));
-                    final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
-                    accountIdToExpensesMap.values().forEach(accountExpenses -> {
-                        accountExpenses.getAccountExpensesInfo().getServiceExpensesList().forEach(serviceExpenses -> {
-                                    final long amount = (long) serviceExpenses.getExpenses().getAmount();
+                boolean isCloudServiceRequest = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
+                boolean isGroupByTargetRequest  = request.getGroupBy().equals(GroupByType.TARGET);
+                snapshotToExpenseMap.forEach((snapshotTime, accountIdToExpensesMap) -> {
+                            final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
+                            snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(snapshotTime));
+                            final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
+                            accountIdToExpensesMap.values().forEach(accountExpenses -> {
+                                accountExpenses.getAccountExpensesInfo().getServiceExpensesList().forEach(serviceExpenses -> {
+                                    final double amount =  serviceExpenses.getExpenses().getAmount();
                                     // build the record for this stat (commodity type)
                                     final AccountExpenseStat accountExpenseStat = new AccountExpenseStat(
-                                            request.getGroupBy().equals(GroupByType.CLOUD_SERVICE) ?
+                                            isCloudServiceRequest ?
                                                     serviceExpenses.getAssociatedServiceId() : businessAccountHelper
-                                                    .resolveTargetId(accountExpenses.getAssociatedAccountId())
-                                            , amount);
-                                    // return add this record to the snapshot for this timestamp
+                                                    .resolveTargetId(accountExpenses.getAssociatedAccountId()),
+                                            amount);
+                                    // add this record to the snapshot for this timestamp
                                     accountExpenseStats.add(accountExpenseStat);
+                                    historicData.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
+                                            k -> new TreeMap<>()).put(snapshotTime, (float) amount);
+                                    accountIdToEntitiesMap.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
+                                            k -> new HashSet<>()).add(serviceExpenses.getAssociatedServiceId());
+                                });
+
+                                if (isGroupByTargetRequest) {
+                                    accountExpenses.getAccountExpensesInfo().getTierExpensesList().forEach(tierExpenses -> {
+                                        long accountId = businessAccountHelper.resolveTargetId(accountExpenses.getAssociatedAccountId());
+                                        double existingStatAmount = 0.0f;
+                                        if (historicData.containsKey(accountId)) {
+                                            existingStatAmount = historicData.get(accountId).getOrDefault(snapshotTime, 0.0f);
+                                        }
+
+                                        final double amount = tierExpenses.getExpenses().getAmount() + existingStatAmount;
+                                        // build the record for this stat (commodity type)
+                                        final AccountExpenseStat accountExpenseStat =
+                                                new AccountExpenseStat(accountId, amount);
+                                        // add this record to the snapshot for this timestamp
+                                        accountExpenseStats.add(accountExpenseStat);
+                                        historicData.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
+                                                k -> new TreeMap<>()).put(snapshotTime, (float) amount);
+                                        accountIdToEntitiesMap.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
+                                                k -> new HashSet<>()).add(tierExpenses.getAssociatedTierId());
+                                    });
                                 }
-                        );
-                    });
+                            });
+
 
                     snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats));
                     cloudStatRecords.add(snapshotBuilder.build());
                 });
+
+                // For the projected stats, forecast data from the historic stats.
+                if (request.hasStartDate() && request.hasEndDate()) {
+                    final CloudCostStatRecord.Builder projectedSnapshotBuilder = CloudCostStatRecord.newBuilder();
+                    long projectedTime = request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
+                    projectedSnapshotBuilder.setSnapshotDate(DateTimeUtil.toString(projectedTime));
+                    final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
+                    Map<Long, EntityCost> projecteEntitiesCosts = projectedEntityCostStore.getAllProjectedEntitiesCosts();
+
+                    for (Entry<Long, Map<Long, Float>> stats : historicData.entrySet()) {
+                        try {
+                            SortedMap<Long, Float> forecast =
+                                    (SortedMap)forecastingContext.computeForecast(request.getStartDate(),
+                                            projectedTime,
+                                            com.vmturbo.commons.TimeFrame.valueOf(timeFrame.name()),
+                                            stats.getValue());
+                            accountExpenseStats.add(new AccountExpenseStat(stats.getKey(),
+                                    Math.round(forecast.get(forecast.lastKey()))));
+                        } catch (InvalidForecastingDateRangeException invalidDateRangeException) {
+                            logger.error("Error getting stats snapshots for {}." +
+                                    "Forecast requested for an invalid time range", request, invalidDateRangeException);
+                            responseObserver.onError(Status.INTERNAL
+                                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
+                                            + invalidDateRangeException.getMessage())
+                                    .asException());
+                            return;
+                        } catch (ForecastingStrategyNotProvidedException strategyNotProvidedException) {
+                            logger.error("Error getting stats snapshots for {}." +
+                                            "Forecast requested but forecasting strategy not specified",
+                                    request, strategyNotProvidedException);
+                            responseObserver.onError(Status.INTERNAL
+                                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
+                                            + strategyNotProvidedException.getMessage())
+                                    .asException());
+                            return;
+                        }
+                    }
+                    projectedSnapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats));
+                    cloudStatRecords.add(projectedSnapshotBuilder.build());
+                }
+
                 GetCloudCostStatsResponse response =
                         GetCloudCostStatsResponse.newBuilder()
                                 .addAllCloudStatRecord(cloudStatRecords)
@@ -359,10 +447,10 @@ public class CostRpcService extends CostServiceImplBase {
             statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
             statRecordBuilder.setUnits("$/h");
             statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                    .setAvg((float) stats.stream().map(AccountExpenseStat::getValue).mapToLong(v -> v).average().orElse(0))
-                    .setMax(stats.stream().map(AccountExpenseStat::getValue).mapToLong(v -> v).max().orElse(0))
-                    .setMin(stats.stream().map(AccountExpenseStat::getValue).mapToLong(v -> v).min().orElse(0))
-                    .setTotal(stats.stream().map(AccountExpenseStat::getValue).mapToLong(v -> v).sum())
+                    .setAvg((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).average().orElse(0f))
+                    .setMax((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).max().orElse(0f))
+                    .setMin((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).min().orElse(0f))
+                    .setTotal((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).sum())
                     .build());
             aggregatedStatRecords.add(statRecordBuilder.build());
         });
@@ -585,12 +673,14 @@ public class CostRpcService extends CostServiceImplBase {
         }
     }
 
-    // helper class to do account expense aggregation calculation per timestamp
+    /**
+     * Helper class to do account expense aggregation calculation per timestamp.
+     */
     private class AccountExpenseStat {
         private final long associatedEntityId;
-        private final long value;
+        private final double value;
 
-        AccountExpenseStat(long associatedEntityId, long value) {
+        AccountExpenseStat(long associatedEntityId, double value) {
             this.associatedEntityId = associatedEntityId;
             this.value = value;
         }
@@ -599,9 +689,41 @@ public class CostRpcService extends CostServiceImplBase {
             return associatedEntityId;
         }
 
-        public long getValue() {
+        public double getValue() {
             return value;
         }
     }
 
+    /**
+     *  Get the savings for the list of entities.
+     *
+     * @param entityCostMap Mapping from EntityId -> EntityCost
+     * @param entityIds
+     * @return The total savings for all the entities in the input list.
+     */
+    private double getSavingsForEntities(Map<Long, EntityCost> entityCostMap,
+                                         Set<Long> entityIds) {
+        return entityIds.stream()
+                .filter(entityId -> entityCostMap.containsKey(entityId))
+                .map(entityId -> entityCostMap.get(entityId))
+                .map(this::getSavingsFromEntityCost)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+    }
+
+    /**
+     * Return the total savings for the given entity.
+     *
+     * @param entityCost The cost details of the entity.
+     * @return Total savings for the entity.
+     */
+    private double getSavingsFromEntityCost(EntityCost entityCost) {
+        return entityCost.getComponentCostList().stream()
+                .filter(cost -> cost.hasAmount() && cost.getAmount().getAmount() <=0)
+                .map(ComponentCost::getAmount)
+                .map(CurrencyAmount::getAmount)
+                .map(Math::abs)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+    }
 }

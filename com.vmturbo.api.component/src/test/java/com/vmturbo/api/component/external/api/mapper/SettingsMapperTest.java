@@ -2,7 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -18,8 +18,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -647,7 +647,7 @@ public class SettingsMapperTest {
         assertTrue(schedule.hasPerpetual());
         assertTrue(schedule.hasWeekly());
         assertEquals(schedule.getWeekly().getDaysOfWeekList(),
-                Collections.singletonList(Schedule.DayOfWeek.TUESDAY));
+                Collections.singletonList(Schedule.DayOfWeek.valueOf(LocalDate.now().getDayOfWeek().name())));
 
     }
 
@@ -714,7 +714,8 @@ public class SettingsMapperTest {
         verifyBasicSchedule(schedule);
         assertTrue(schedule.hasPerpetual());
         assertTrue(schedule.hasMonthly());
-        assertEquals(schedule.getMonthly().getDaysOfMonthList(), Collections.singletonList(30));
+        assertThat(schedule.getMonthly().getDaysOfMonthCount(), is(1));
+        assertThat(schedule.getMonthly().getDaysOfMonthList().get(0), isOneOf(28, 29, 30, 31));
     }
 
     @Test
@@ -961,7 +962,7 @@ public class SettingsMapperTest {
         assertEquals(scheduleApiDTO.getEndDate(), null);
         assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.WEEKLY);
         assertEquals(scheduleApiDTO.getRecurrence().getDaysOfWeek(),
-                Collections.singletonList(DayOfWeek.Tue));
+                Collections.singletonList(DayOfWeek.get(LocalDate.now().getDayOfWeek().getValue() + 1)));
     }
 
     @Test
@@ -1015,7 +1016,8 @@ public class SettingsMapperTest {
         verifyBasicScheduleDTO(scheduleApiDTO);
         assertEquals(scheduleApiDTO.getEndDate(), null);
         assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.MONTHLY);
-        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfMonth(), Collections.singletonList(30));
+        assertThat(scheduleApiDTO.getRecurrence().getDaysOfMonth().size(), is(1));
+        assertThat(scheduleApiDTO.getRecurrence().getDaysOfMonth().get(0), isOneOf(28, 29, 30, 31));
     }
 
     @Test
