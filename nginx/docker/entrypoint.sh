@@ -5,7 +5,7 @@ set -eo pipefail
 # rsyslog
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
-if [ "DNS_RESOLVER" == "" ]; then
+if [ "$DNS_RESOLVER" == "" ]; then
     export DNS_RESOLVER=`cat /etc/resolv.conf | grep "nameserver" | awk '{print $2}' | tr '\n' ' '`
 fi
 envsubst '${API} ${TOPOLOGY} ${DNS_RESOLVER}' < /home/nginx/conf/nginx.conf.template > /home/nginx/conf/nginx.conf
