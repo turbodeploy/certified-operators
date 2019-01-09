@@ -191,98 +191,93 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 if (onDemandPriceTable != null) {
                     final StorageTierPriceList storageTierPrices =
                             onDemandPriceTable.getCloudStoragePricesByTierIdMap().get(storageTierId);
-                    if (storageTierPrices != null) {
-                        // Volumes are charged based on their IOPS and GB capacity.
-                        // Different storage tiers may price this differently - some tiers charge you
-                        // for what you use, and some tiers have price "levels" depending on the size
-                        // of the disk.
-                        //
-                        // Extract the different prices present in this tier's price list. This will
-                        // tell us how to price the capacity of the volume.
-                        //
-                        // TODO (roman, 17 Oct 2018): It may make sense to put price ranges into
-                        // individual messages, so that instead of "repeated Price" we have
-                        // "repeated TieredPrice". That way we don't need to do this grouping + sorting
-                        // during calculation.
-                        final Map<Price.Unit, List<Price>> pricesByUnit =
-                                storageTierPrices.getCloudStoragePriceList().stream()
-                                        .flatMap(storageTierPrice -> storageTierPrice.getPricesList().stream())
-                                        .collect(Collectors.groupingBy(Price::getUnit));
-                        // Sort each price list by end range.
-                        pricesByUnit.values().forEach(priceList -> priceList.sort((price1, price2) -> {
-                            final long endRange1 = price1.getEndRangeInUnits() > 0 ? price1.getEndRangeInUnits() : Long.MAX_VALUE;
-                            final long endRange2 = price2.getEndRangeInUnits() > 0 ? price2.getEndRangeInUnits() : Long.MAX_VALUE;
-                            return Long.compare(endRange1, endRange2);
-                        }));
 
-                        final List<Price> iopsPrices = pricesByUnit.get(Unit.MILLION_IOPS);
-                        if (!CollectionUtils.isEmpty(iopsPrices)) {
-                            logger.trace("Recording IOPS costs from prices: {}", iopsPrices);
-                            recordPriceRangeEntries(volumeConfig.getAccessCapacityMillionIops(),
-                                    pricesByUnit.getOrDefault(Unit.MILLION_IOPS, Collections.emptyList()),
-                                    (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
-                                            storageTier,
-                                            price,
-                                            amount));
-                        }
+                    // Volumes are charged based on their IOPS and GB capacity.
+                    // Different storage tiers may price this differently - some tiers charge you
+                    // for what you use, and some tiers have price "levels" depending on the size
+                    // of the disk.
+                    //
+                    // Extract the different prices present in this tier's price list. This will
+                    // tell us how to price the capacity of the volume.
+                    //
+                    // TODO (roman, 17 Oct 2018): It may make sense to put price ranges into
+                    // individual messages, so that instead of "repeated Price" we have
+                    // "repeated TieredPrice". That way we don't need to do this grouping + sorting
+                    // during calculation.
+                    final Map<Price.Unit, List<Price>> pricesByUnit =
+                            storageTierPrices.getCloudStoragePriceList().stream()
+                                    .flatMap(storageTierPrice -> storageTierPrice.getPricesList().stream())
+                                    .collect(Collectors.groupingBy(Price::getUnit));
+                    // Sort each price list by end range.
+                    pricesByUnit.values().forEach(priceList -> priceList.sort((price1, price2) -> {
+                        final long endRange1 = price1.getEndRangeInUnits() > 0 ? price1.getEndRangeInUnits() : Long.MAX_VALUE;
+                        final long endRange2 = price2.getEndRangeInUnits() > 0 ? price2.getEndRangeInUnits() : Long.MAX_VALUE;
+                        return Long.compare(endRange1, endRange2);
+                    }));
 
-                        final List<Price> gbPrices = pricesByUnit.get(Unit.GB_MONTH);
-                        if (!CollectionUtils.isEmpty(gbPrices)) {
-                            logger.trace("Recording GB-Month costs from prices: {}", gbPrices);
-                            recordPriceRangeEntries(volumeConfig.getAmountCapacityGb(),
-                                    pricesByUnit.getOrDefault(Unit.GB_MONTH, Collections.emptyList()),
-                                    (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
-                                            storageTier,
-                                            price,
-                                            amount));
-                        }
+                    final List<Price> iopsPrices = pricesByUnit.get(Unit.MILLION_IOPS);
+                    if (!CollectionUtils.isEmpty(iopsPrices)) {
+                        logger.trace("Recording IOPS costs from prices: {}", iopsPrices);
+                        recordPriceRangeEntries(volumeConfig.getAccessCapacityMillionIops(),
+                                pricesByUnit.getOrDefault(Unit.MILLION_IOPS, Collections.emptyList()),
+                                (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
+                                        storageTier,
+                                        price,
+                                        amount));
+                    }
 
-                        // For monthly prices, there are two cases:
-                        // 1) A flat monthly fee. In this case, there should just be one price
-                        //    in the list with no end range.
-                        // 2) A list of monthly ranges - e.g. $5 for a 10GB disk, $7 for a 20GB
-                        //    disk, and so on.
-                        //
-                        // In both cases, we just loop through the list until we find the price
-                        // whose end range is less than the amount required by the volume.
-                        // Unset or 0 = infinity.
-                        final List<Price> monthlyPrices = pricesByUnit.get(Unit.MONTH);
-                        if (!CollectionUtils.isEmpty(monthlyPrices) &&
-                                // 0 capacity shouldn't get charged anything.
-                                volumeConfig.getAmountCapacityGb() > 0) {
-                            logger.trace("Recording monthly price.");
-                            Price price = null;
-                            for (final Price rangePrice : monthlyPrices) {
-                                price = rangePrice;
-                                final long endRange = rangePrice.getEndRangeInUnits() > 0 ?
-                                        rangePrice.getEndRangeInUnits() : Long.MAX_VALUE;
-                                if (volumeConfig.getAmountCapacityGb() < endRange) {
-                                    break;
-                                }
+                    final List<Price> gbPrices = pricesByUnit.get(Unit.GB_MONTH);
+                    if (!CollectionUtils.isEmpty(gbPrices)) {
+                        logger.trace("Recording GB-Month costs from prices: {}", gbPrices);
+                        recordPriceRangeEntries(volumeConfig.getAmountCapacityGb(),
+                                pricesByUnit.getOrDefault(Unit.GB_MONTH, Collections.emptyList()),
+                                (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
+                                        storageTier,
+                                        price,
+                                        amount));
+                    }
+
+                    // For monthly prices, there are two cases:
+                    // 1) A flat monthly fee. In this case, there should just be one price
+                    //    in the list with no end range.
+                    // 2) A list of monthly ranges - e.g. $5 for a 10GB disk, $7 for a 20GB
+                    //    disk, and so on.
+                    //
+                    // In both cases, we just loop through the list until we find the price
+                    // whose end range is less than the amount required by the volume.
+                    // Unset or 0 = infinity.
+                    final List<Price> monthlyPrices = pricesByUnit.get(Unit.MONTH);
+                    if (!CollectionUtils.isEmpty(monthlyPrices) &&
+                            // 0 capacity shouldn't get charged anything.
+                            volumeConfig.getAmountCapacityGb() > 0) {
+                        logger.trace("Recording monthly price.");
+                        Price price = null;
+                        for (final Price rangePrice : monthlyPrices) {
+                            price = rangePrice;
+                            final long endRange = rangePrice.getEndRangeInUnits() > 0 ?
+                                    rangePrice.getEndRangeInUnits() : Long.MAX_VALUE;
+                            if (volumeConfig.getAmountCapacityGb() < endRange) {
+                                break;
                             }
-                            journal.recordOnDemandCost(CostCategory.STORAGE,
-                                    storageTier,
-                                    // This won't be null because we check if colection is
-                                    // null/empty.
-                                    Objects.requireNonNull(price),
-                                    // No RI, so we are buying "100%" of the storage for on-demand
-                                    // prices.
-                                    1.0);
                         }
-                    } else {
-                        logger.error("Could not calculate cost for Virtual volume {}. Price table " +
-                                "for region {} has no entry for tier {}. Skipping cost " +
-                                "calculation.", entityId, regionId, storageTierId);
+                        journal.recordOnDemandCost(CostCategory.STORAGE,
+                                storageTier,
+                                // This won't be null because we check if colection is
+                                // null/empty.
+                                Objects.requireNonNull(price),
+                                // No RI, so we are buying "100%" of the storage for on-demand
+                                // prices.
+                                1.0);
                     }
                 } else {
-                    logger.error("Global price table has no entry for region {}. This means there" +
+                    logger.warn("Global price table has no entry for region {}. This means there" +
                             " is some inconsistency between the topology and pricing data.", regionId);
                 }
             } else {
-                logger.error("Unable to find related storage tier for volume entity {}. Skipping cost calculation.", entityId);
+                logger.warn("Unable to find related storage tier for volume entity {}. Skipping cost calculation.", entityId);
             }
         } else {
-            logger.error("No volume config present for volume entity {}. Skipping cost calculation.", entityId);
+            logger.warn("No volume config present for volume entity {}. Skipping cost calculation.", entityId);
         }
     }
 
