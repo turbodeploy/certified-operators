@@ -87,11 +87,13 @@ metadata:
   name: mediation-hyperv
 spec:
   ports:
-  - name: "8080"
+  - name: mediation-hyperv
     port: 8080
-    targetPort: 8080
-  - name: "20115"
-    port: 20115
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-hyperv-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-hyperv

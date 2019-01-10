@@ -3,6 +3,7 @@ dependencies:
   - name: api
     repository: file://../base/api
     version: 0.1.0
+    condition: ui.enabled
   - name: arangodb
     repository: file://../base/arangodb
     version: 0.1.0
@@ -18,12 +19,17 @@ dependencies:
   - name: db
     repository: file://../base/db
     version: 0.1.0
+  - name: influxdb
+    repository: file://../base/influxdb
+    version: 0.1.0
+    condition: metron.enabled
   - name: kafka
     repository: file://../base/kafka
     version: 0.1.0
   - name: nginx
     repository: file://../base/nginx
     version: 0.1.0
+    condition: ui.enabled
   - name: rsyslog
     repository: file://../base/rsyslog
     version: 0.1.0
@@ -32,6 +38,9 @@ dependencies:
     version: 0.1.0
 
 # Services dependencies
+#  - name: actionscript
+#    repository: file://../services/actionscript
+#    version: 0.1.0
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
@@ -44,15 +53,21 @@ dependencies:
   - name: history
     repository: file://../services/history
     version: 0.1.0
+    condition: history.enabled
   - name: market
     repository: file://../services/market
     version: 0.1.0
+  - name: ml-datastore
+    repository: file://../services/ml-datastore
+    version: 0.1.0
+    condition: metron.enabled
   - name: plan-orchestrator
     repository: file://../services/plan-orchestrator
     version: 0.1.0
   - name: reporting
     repository: file://../services/reporting
     version: 0.1.0
+    condition: reporting.enabled
   - name: repository
     repository: file://../services/repository
     version: 0.1.0
@@ -61,6 +76,10 @@ dependencies:
     version: 0.1.0
 
 # Mediation dependencies
+  - name: mediation-aix
+    repository: file://../probes/mediation-aix
+    version: 0.1.0
+    condition: aix.enabled
   - name: mediation-aws
     repository: file://../probes/mediation-aws
     version: 0.1.0
@@ -105,6 +124,14 @@ dependencies:
     repository: file://../probes/mediation-netapp
     version: 0.1.0
     condition: netapp.enabled
+  - name: mediation-mssql
+    repository: file://../probes/mediation-mssql
+    version: 0.1.0
+    condition: mssql.enabled
+  - name: mediation-oneview
+    repository: file://../probes/mediation-oneview
+    version: 0.1.0
+    condition: oneview.enabled
   - name: mediation-openstack
     repository: file://../probes/mediation-openstack
     version: 0.1.0
@@ -133,6 +160,14 @@ dependencies:
     repository: file://../probes/mediation-vcenter
     version: 0.1.0
     condition: vcenter.enabled
+  - name: mediation-vcenterbrowsing
+    repository: file://../probes/mediation-vcenterbrowsing
+    version: 0.1.0
+    condition: vcenterbrowsing.enabled
+  - name: mediation-vcd
+    repository: file://../probes/mediation-vcd
+    version: 0.1.0
+    condition: vcd.enabled
   - name: mediation-vmax
     repository: file://../probes/mediation-vmax
     version: 0.1.0

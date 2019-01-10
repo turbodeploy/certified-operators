@@ -87,11 +87,13 @@ metadata:
   name: mediation-vmax
 spec:
   ports:
-  - name: "8080"
+  - name: mediation-vmax
     port: 8080
-    targetPort: 8080
-  - name: "20119"
-    port: 20119
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-vmax-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-vmax

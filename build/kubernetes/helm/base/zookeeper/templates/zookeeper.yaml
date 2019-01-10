@@ -86,8 +86,7 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "zookeeper"
+  - name: zookeeper
     port: 2181
-    targetPort: 2181
   selector:
     io.kompose.service: zookeeper

@@ -116,14 +116,11 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "8529"
+  - name: arangodb
     port: 8529
-    targetPort: 8529
-  - name: "8599"
+  - name: arangodb-dump
     port: 8599
-    targetPort: 8599
   - name: "9001"
     port: 9001
-    targetPort: 9001
   selector:
     io.kompose.service: arangodb

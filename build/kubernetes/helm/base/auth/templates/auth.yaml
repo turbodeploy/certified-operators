@@ -90,14 +90,15 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "8080"
+  - name: auth
     port: 8080
-    targetPort: 8080
-  - name: "20102"
-    port: 20102
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: auth-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   - name: "9001"
     port: 9001
-    targetPort: 9001
   selector:
     io.kompose.service: auth

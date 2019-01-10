@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vcd
+  name: mediation-vcd
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vcd
+  name: mediation-vcd
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        zone: secure
+        io.kompose.service: mediation-vcd
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ template "vcd_image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: JAVA_OPTS
+          value: {{ .Values.java.options }}
+        - name: LOG4J_CONTEXT_SELECTOR
+          value: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
+        - name: clustermgr_host
+          value: clustermgr
+        - name: clustermgr_port
+          value: "8080"
+        - name: clustermgr_retry_delay_sec
+          value: "10"
+        - name: component_type
+          value: mediation-vcd
+        - name: consul_host
+          value: consul
+        - name: instance_id
+          value: mediation-vcd-1
+        ports:
+        - containerPort: 8080
+          name: vcenter-port
+        readinessProbe:
+          httpGet:
+            port: 8080
+            path: /health
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /home/turbonomic/data
+          name: mediation-vcd
+        - mountPath: /tmp
+          name: mediation-vcd-tmpfs0
+      imagePullSecrets:
+      - name: turbocred
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
+      volumes:
+      - name: mediation-vcd
+        persistentVolumeClaim:
+          claimName: mediation-vcd
+      - emptyDir:
+          medium: Memory
+        name: mediation-vcd-tmpfs0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-vcd
+  name: mediation-vcd
+spec:
+  ports:
+  - name: mediation-vcd
+    port: 8080
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: "mediation-vcd-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
+  selector:
+    io.kompose.service: mediation-vcd

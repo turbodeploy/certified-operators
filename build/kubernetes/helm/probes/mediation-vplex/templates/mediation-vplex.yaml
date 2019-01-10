@@ -90,11 +90,13 @@ metadata:
   name: mediation-vplex
 spec:
   ports:
-  - name: "vplex-port"
+  - name: mediation-vplex
     port: 8080
-    targetPort: 8080
-  - name: "20127"
-    port: 20127
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-vplex-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-vplex

@@ -87,11 +87,13 @@ metadata:
   name: mediation-awsbilling
 spec:
   ports:
-  - name: "awsbilling-port"
+  - name: mediation-awsbilling
     port: 8080
-    targetPort: 8080
-  - name: "awsbilling-debug-port"
-    port: 20131
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-awsbilling-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-awsbilling

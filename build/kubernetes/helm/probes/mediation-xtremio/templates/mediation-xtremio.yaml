@@ -90,11 +90,13 @@ metadata:
   name: mediation-xtremio
 spec:
   ports:
-  - name: "xtremio-port"
+  - name: mediation-xtremio
     port: 8080
-    targetPort: 8080
-  - name: "20126"
-    port: 20126
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-xtremio-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-xtremio

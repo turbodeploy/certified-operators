@@ -87,14 +87,15 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "8080"
+  - name: reporting
     port: 8080
-    targetPort: 8080
-  - name: "20020"
-    port: 20020
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: reporting-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   - name: "9001"
     port: 9001
-    targetPort: 9001
   selector:
     io.kompose.service: reporting
