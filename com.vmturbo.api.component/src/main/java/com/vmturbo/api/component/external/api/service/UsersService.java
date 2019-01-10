@@ -607,8 +607,10 @@ public class UsersService implements IUsersService {
         Class<SecurityGroupDTO> clazz = SecurityGroupDTO.class;
         // create a group oid -> object map for the conversion on the way back
         Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
-        adGroupInputDto.getScope().forEach(groupApiDTO ->
-                groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+        if (adGroupInputDto.getScope() != null) {
+            adGroupInputDto.getScope().forEach(groupApiDTO ->
+                    groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+        }
         return convertGroupInfoFromAuth(
                 restTemplate_.exchange(request, HttpMethod.POST, entity, clazz).getBody(),
                 groupApiDTOMap);
