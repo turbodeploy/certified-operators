@@ -6,28 +6,14 @@ replicaCount: 1
 
 imageCredentials:
   registry: registry.turbonomic.com
-  username: turbouser
-  password: turbopassword
+  username: turbodeploy
+  password: Sysdreamworks123
 
 global:
   repository: registry.turbonomic.com/turbonomic
   tag: 7.10.0-SNAPSHOT
-#  externalIP: 10.233.0.3 # byo k8s DNS
-#              10.100.0.10 # eks DNS
-#              10.0.0.10 # aks DNS
-#              10.23.240.10 # gke DNS
-#  debug: true
 
 gluster:
-  enabled: false
-
-ui:
-  enabled: true
-history:
-  enabled: true
-reporting:
-  enabled: true
-metron:
   enabled: false
 
 # Enable medation
@@ -43,16 +29,12 @@ ucs:
   enabled: false
 scaleio:
   enabled: false
-vcenter:
-  enabled: false
 vmax:
   enabled: false
 vmm:
   enabled: false
 
 # Enable optional mediation
-aix:
-  enabled: false
 aws:
   enabled: false
 awsbilling:
@@ -69,19 +51,13 @@ compellent:
   enabled: false
 hds:
   enabled: false
-mssql:
-  enabled: false
-oneview:
-  enabled: false
 openstack:
   enabled: false
 rhv:
   enabled: false
 ucsdirector:
   enabled: false
-vcd:
-  enabled: false
-vcenterbrowsing:
+vcenter:
   enabled: false
 vplex:
   enabled: false

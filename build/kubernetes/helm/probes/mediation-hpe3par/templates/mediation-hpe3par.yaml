@@ -88,13 +88,11 @@ metadata:
   name: mediation-hpe3par
 spec:
   ports:
-  - name: mediation-hpe3par
+  - name: "8080"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-hpe3par-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "20121"
+    port: 20121
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-hpe3par

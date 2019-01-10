@@ -72,15 +72,17 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: topology-processor
+  - name: "8080"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: topology-processor-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "8085"
+    port: 8085
+    targetPort: 8080
+  - name: "20005"
+    port: 20005
+    targetPort: 8000
   - name: "9001"
     port: 9001
+    targetPort: 9001
   selector:
     io.kompose.service: topology-processor

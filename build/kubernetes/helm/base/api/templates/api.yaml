@@ -113,16 +113,12 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: api-http
+  - name: "8080"
     port: 8080
-  - name: api-https
-    port: 9443
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: api-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "20002"
+    port: 20002
+    targetPort: 8000
   - name: "9001"
     port: 9001
     targetPort: 9001

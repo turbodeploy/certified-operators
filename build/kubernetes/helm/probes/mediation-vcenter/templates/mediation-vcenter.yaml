@@ -90,13 +90,11 @@ metadata:
   name: mediation-vcenter
 spec:
   ports:
-  - name: mediation-vcenter
+  - name: "vcenter-port"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-vcenter-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "vcenter-debug-port"
+    port: 20013
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-vcenter

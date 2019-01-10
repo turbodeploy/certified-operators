@@ -87,13 +87,11 @@ metadata:
   name: mediation-ucsdirector
 spec:
   ports:
-  - name: mediation-ucsdirector
+  - name: "ucsdirector-port"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-ucsdirector-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "ucsdirector-port-debug"
+    port: 20129
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-ucsdirector

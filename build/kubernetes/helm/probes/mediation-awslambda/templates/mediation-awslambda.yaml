@@ -87,13 +87,11 @@ metadata:
   name: mediation-awslambda
 spec:
   ports:
-  - name: mediation-awslambda
+  - name: "awslambda-port"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-awslambda-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "awslambda-debug-port"
+    port: 20131
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-awslambda

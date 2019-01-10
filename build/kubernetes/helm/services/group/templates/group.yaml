@@ -68,15 +68,14 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: group
+  - name: "8080"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: group-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
   - name: "9001"
     port: 9001
+    targetPort: 9001
+  - name: "20017"
+    port: 20017
+    targetPort: 8000
   selector:
     io.kompose.service: group

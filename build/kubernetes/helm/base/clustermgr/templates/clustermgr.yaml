@@ -40,7 +40,7 @@ spec:
           value: clustermgr
         - name: clustermgr_port
           value: "8080"
-        - name: serverHttpPort
+        - name: server_port
           value: "8080"
         - name: clustermgr_retry_delay_sec
           value: "10"
@@ -93,15 +93,14 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: clustermgr
+  - name: "8080"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: clustermgr-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "20001"
+    port: 20001
+    targetPort: 8000
   - name: "9001"
     port: 9001
+    targetPort: 9001
   selector:
     io.kompose.service: clustermgr

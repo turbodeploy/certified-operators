@@ -90,13 +90,11 @@ metadata:
   name: mediation-compellent
 spec:
   ports:
-  - name: mediation-compellent
+  - name: "compellent-port"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-compellent-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "20125"
+    port: 20125
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-compellent

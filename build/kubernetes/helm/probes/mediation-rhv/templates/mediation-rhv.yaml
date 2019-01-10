@@ -87,13 +87,11 @@ metadata:
   name: mediation-rhv
 spec:
   ports:
-  - name: mediation-rhv
+  - name: "rhv-port"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-rhv-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "20127"
+    port: 20127
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-rhv

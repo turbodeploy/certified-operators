@@ -90,13 +90,11 @@ metadata:
   name: mediation-pure
 spec:
   ports:
-  - name: mediation-pure
+  - name: "pure-port"
     port: 8080
-{{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-pure-debug
-    port: 8000
-  {{- end -}}
-{{- end }}
+    targetPort: 8080
+  - name: "20122"
+    port: 20122
+    targetPort: 8000
   selector:
     io.kompose.service: mediation-pure
