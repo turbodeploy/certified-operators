@@ -88,8 +88,7 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "514"
+  - name: rsyslog
     port: 2514
-    targetPort: 2514
   selector:
     io.kompose.service: rsyslog

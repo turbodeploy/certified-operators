@@ -87,11 +87,13 @@ metadata:
   name: mediation-openstack
 spec:
   ports:
-  - name: "openstack-port"
+  - name: mediation-openstack
     port: 8080
-    targetPort: 8080
-  - name: "20127"
-    port: 20127
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-openstack-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-openstack

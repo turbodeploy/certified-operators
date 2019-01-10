@@ -87,11 +87,13 @@ metadata:
   name: mediation-awscost
 spec:
   ports:
-  - name: "awscost-port"
+  - name: mediation-awscost
     port: 8080
-    targetPort: 8080
-  - name: "awscost-debug-port"
-    port: 20131
-    targetPort: 8000
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+  - name: mediation-awscost-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     io.kompose.service: mediation-awscost

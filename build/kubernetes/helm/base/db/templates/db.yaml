@@ -111,8 +111,7 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: "3306"
+  - name: db
     port: 3306
-    targetPort: 3306
   selector:
     io.kompose.service: db
