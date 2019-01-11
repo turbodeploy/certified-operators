@@ -10,14 +10,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
@@ -26,7 +25,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -202,23 +200,10 @@ public class DiscoveredCloudCostUploader {
 
         // build a map allowing easy translation from cloud service local id's to TP oids
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(stitchingContext, probeTypesForTargetId);
-        try {
-            // call the upload methods of our helper objects.
-            accountExpensesUploader.uploadAccountExpenses(costDataByTargetIdSnapshot, topologyInfo,
-                    stitchingContext, cloudEntitiesMap);
-            riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo,
-                    stitchingContext, cloudEntitiesMap);
-            priceTableUploader.uploadPriceTables(cloudEntitiesMap);
-        } finally {
-            // there will be exceptions if cost component is not running, we should remove
-            // ReservedInstance from topology regardless of whether cost component is started or
-            // not, since they are only used for cost, and should not be broadcast to other
-            // components (e.g. repository)
-            List<TopologyStitchingEntity> riEntitiesToRemove = stitchingContext
-                    .getEntitiesOfType(EntityType.RESERVED_INSTANCE)
-                    .collect(Collectors.toList());
-            riEntitiesToRemove.forEach(stitchingContext::removeEntity);
-        }
+        // call the upload methods of our helper objects.
+        accountExpensesUploader.uploadAccountExpenses(costDataByTargetIdSnapshot, topologyInfo, stitchingContext, cloudEntitiesMap);
+        riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo, stitchingContext, cloudEntitiesMap);
+        priceTableUploader.uploadPriceTables(cloudEntitiesMap);
     }
 
     /**
