@@ -9,7 +9,7 @@ image:
   tag: BRANCH
   pullPolicy: IfNotPresent
 
-resources:
+esources:
   limits:
     memory: 1Gi
 
