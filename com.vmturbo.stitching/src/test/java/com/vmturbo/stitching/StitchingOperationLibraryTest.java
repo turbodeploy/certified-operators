@@ -24,7 +24,7 @@ public class StitchingOperationLibraryTest {
     @Test
     public void testStorageProbeCategory() throws StitchingUnknownProbeException {
         assertEquals(
-                Collections.singletonList(StorageStitchingOperation.class),
+                Collections.<Class>emptyList(),
                 library.stitchingOperationsFor("NetApp", ProbeCategory.STORAGE).stream()
                         .map(Object::getClass)
                         .collect(Collectors.toList())

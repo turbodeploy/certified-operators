@@ -38,7 +38,7 @@ public class StitchingOperationLibrary {
 
         switch (probeCategory) {
             case STORAGE:
-                return Collections.singletonList(new StorageStitchingOperation());
+                return Collections.emptyList();
             case FABRIC:
                 return Arrays.asList(new FabricChassisStitchingOperation(),
                         new FabricPMStitchingOperation());

@@ -52,6 +52,7 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  *                        |
  *                       SC
  */
+@Deprecated
 public class StorageStitchingOperation implements StitchingOperation<List<String>, List<String>> {
     private static final Logger logger = LogManager.getLogger();
 
