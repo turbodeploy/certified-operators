@@ -87,11 +87,11 @@ metadata:
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: ml_datastore
+  - name: ml-datastore
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: ml_datastore_debug
+  - name: ml-datastore-debug
     port: 8000
   {{- end -}}
 {{- end }}

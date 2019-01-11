@@ -4,13 +4,13 @@ metadata:
   labels:
     zone: secure
     io.kompose.service: influxdb
-  name: influxdb
+  name: {{ .Chart.Name }}
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 70Gi
+      storage: 128Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -18,13 +18,13 @@ metadata:
   labels:
     zone: secure
     io.kompose.service: influxdb-dump
-  name: influxdb-dump
+  name: {{ .Chart.Name }}-dump
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 10Gi
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
