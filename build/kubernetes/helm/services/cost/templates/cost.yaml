@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "image" . }}
+        image: {{ template "cost_image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: JAVA_OPTS

@@ -44,9 +44,9 @@ dependencies:
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
-#  - name: cost
-#    repository: file://../services/cost
-#    version: 0.1.0
+  - name: cost
+    repository: file://../services/cost
+    version: 0.1.0
   - name: group
     repository: file://../services/group
     version: 0.1.0

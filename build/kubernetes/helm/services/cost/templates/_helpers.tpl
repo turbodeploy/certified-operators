@@ -34,7 +34,7 @@ Create chart name and version as used by the chart label.
 {{/*
 Return the proper image name
 */}}
-{{- define "image" -}}
+{{- define "cost_image" -}}
 {{- $repositoryName := .Values.image.repository -}}
 {{- $tag := .Values.image.tag | toString -}}
 {{/*
@@ -44,9 +44,9 @@ Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
     {{- if .Values.global.repository }}
-        {{- printf "%s/%s:%s" .Values.global.repository .Chart.Name .Values.global.tag -}}
+        {{- printf "%s/com.vmturbo.cost.component:%s" .Values.global.repository .Values.global.tag -}}
     {{- end -}}
 {{- else -}}
-    {{- printf "%s/%s:%s" $repositoryName .Chart.Name $tag -}}
+    {{- printf "%s/com.vmturbo.cost.component:%s" $repositoryName $tag -}}
 {{- end -}}
 {{- end -}}

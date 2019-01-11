@@ -50,6 +50,8 @@ spec:
         env:
           - name: LOG_TO_STDOUT
             value: "true"
+          - name: METRON_ENABLED
+            value: "true"
           # Uncomment to specify the dump interval for influx. Default is once per day if unspecified.
           #- name: INFLUX_DUMP_INTERVAL_SECONDS
           #  value: 300
