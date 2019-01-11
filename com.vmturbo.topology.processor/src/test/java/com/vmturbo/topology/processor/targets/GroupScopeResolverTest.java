@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 
@@ -24,16 +25,18 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -47,31 +50,38 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScop
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Test the functionality of the the class GroupScopeResolver.
  */
 public class GroupScopeResolverTest {
 
-    private Long realtimeTopologyContextId = 777777L;
-
     private static long[] groupId = {1L, 11L};
 
     private static long[] memberId = {2L, 22L};
 
+    private static long[] guestLoadId = {12345L, 12346L};
+
+    private static long[] targetId = {233L, 234L};
+
     private static String[] displayName = {"VM1", "VM2"};
+
+    private static String[] guestLoadDisplayName = {"App1", "App2"};
 
     private static double[] VCPU_CAPACITY = {2000.0, 200.0};
 
     private static double[] VMEM_CAPACITY = {4000.0, 400.0};
-
-    private static double[] BALOONING_CAPACITY = {6000.0, 600.0};
 
     private static String[] VSTORAGE_KEY = {"FooBar_Foo_Bar", "NewKey_fubar"};
 
     private static String[] VSTORAGE_PREFIX = {"FooBar_Foo_", "NewKey_"};
 
     private static String[] IP_ADDRESS = {"10.10.150.140", "10.10.150.125"};
+
+    private static SDKProbeType validProbeType = SDKProbeType.AWS;
+
+    private static SDKProbeType invalidProbeType = SDKProbeType.SNMP;
 
     private static AccountDefEntry addressAccountDefEntry = AccountDefEntry.newBuilder()
             .setCustomDefinition(
@@ -102,6 +112,9 @@ public class GroupScopeResolverTest {
                                             .setPropertyName(EntityPropertyName.UUID.name())
                                             .setIsMandatory(true))
                                     .addProperty(GroupScopeProperty.newBuilder()
+                                            .setPropertyName(EntityPropertyName.GUEST_LOAD_UUID.name())
+                                            .setIsMandatory(true))
+                                    .addProperty(GroupScopeProperty.newBuilder()
                                             .setPropertyName(EntityPropertyName.IP_ADDRESS.name())
                                             .setIsMandatory(true))
                                     .addProperty(GroupScopeProperty.newBuilder()
@@ -109,9 +122,6 @@ public class GroupScopeResolverTest {
                                             .setIsMandatory(true))
                                     .addProperty(GroupScopeProperty.newBuilder()
                                             .setPropertyName(EntityPropertyName.VCPU_CAPACITY.name())
-                                            .setIsMandatory(true))
-                                    .addProperty(GroupScopeProperty.newBuilder()
-                                            .setPropertyName(EntityPropertyName.MEM_BALLOONING.name())
                                             .setIsMandatory(true))
                                     .addProperty(GroupScopeProperty.newBuilder()
                                             .setPropertyName(EntityPropertyName.VSTORAGE_KEY_PREFIX
@@ -123,12 +133,12 @@ public class GroupScopeResolverTest {
 
     private static AccountDefEntry groupScopeMissingMandatory =
             addGroupScopeProperty(groupScopeAccountDefEntry,
-                    EntityPropertyName.GUEST_LOAD_UUID.name(),
+                    EntityPropertyName.MEM_BALLOONING.name(),
                     true);
 
     private static AccountDefEntry groupScopeMissingNonMandatory =
             addGroupScopeProperty(groupScopeAccountDefEntry,
-                    EntityPropertyName.GUEST_LOAD_UUID.name(),
+                    EntityPropertyName.MEM_BALLOONING.name(),
                     false);
 
     private static AccountValue addressAccountVal = createAccountValue(
@@ -159,12 +169,15 @@ public class GroupScopeResolverTest {
                 .build();
     }
 
-    private final static RetrieveTopologyEntitiesResponse getRetrieveEntitiesResponse(int index) {
-        return RetrieveTopologyEntitiesResponse.newBuilder()
-                .addEntities(TopologyEntityDTO.newBuilder()
+    private final static SearchTopologyEntityDTOsResponse getRetrieveScopedVMEntitiesResponse(int index) {
+        return SearchTopologyEntityDTOsResponse.newBuilder()
+                .addTopologyEntityDtos(TopologyEntityDTO.newBuilder()
                         .setOid(memberId[index])
                         .setDisplayName(displayName[index])
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .addDiscoveringTargetIds(targetId[index])))
                         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                         .setType(CommodityType.VCPU_VALUE))
@@ -174,11 +187,6 @@ public class GroupScopeResolverTest {
                                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                         .setType(CommodityType.VMEM_VALUE))
                                 .setCapacity(VMEM_CAPACITY[index])
-                                .build())
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                        .setType(CommodityType.BALLOONING_VALUE))
-                                .setCapacity(BALOONING_CAPACITY[index])
                                 .build())
                         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
@@ -192,8 +200,21 @@ public class GroupScopeResolverTest {
                                                 .build())
                                         .build())
                                 .build())
-                        .setEntityState(EntityState.MAINTENANCE)
-                        .build())
+                        .setEntityState(EntityState.MAINTENANCE))
+                .build();
+    }
+
+    private final static SearchTopologyEntityDTOsResponse getRetrieveGuestLoadAppEntitiesResponse(int index) {
+        return SearchTopologyEntityDTOsResponse.newBuilder()
+                .addTopologyEntityDtos(TopologyEntityDTO.newBuilder()
+                        .setOid(guestLoadId[index])
+                        .setDisplayName(guestLoadDisplayName[index])
+                        .setEntityType(EntityType.APPLICATION_VALUE)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .addDiscoveringTargetIds(targetId[index])))
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
+                                .newBuilder().setProviderId(memberId[index])))
                 .build();
     }
 
@@ -203,13 +224,16 @@ public class GroupScopeResolverTest {
     public GrpcTestServer groupServer = GrpcTestServer.newServer(new TestGroupService());
 
     @Rule
-    public GrpcTestServer repositoryServer = GrpcTestServer.newServer(new TestRepositoryService());
+    public GrpcTestServer repositoryServer = GrpcTestServer.newServer(new TestSearchService());
+
+    private TargetStore targetStore = Mockito.mock(TargetStore.class);
 
     @Before
     public void setup() throws Exception {
         groupScopeResolver = new GroupScopeResolver(groupServer.getChannel(),
-                repositoryServer.getChannel(),
-                realtimeTopologyContextId);
+                repositoryServer.getChannel(), targetStore);
+        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(validProbeType));
     }
 
     @Test
@@ -221,7 +245,6 @@ public class GroupScopeResolverTest {
                 .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
                 .addAccountDefinition(addressAccountDefEntry)
                 .build();
-
         Collection<AccountValue> retVal = groupScopeResolver
                 .processGroupScope(Collections.singletonList(addressAccountVal),
                         pi.getAccountDefinitionList());
@@ -230,13 +253,13 @@ public class GroupScopeResolverTest {
 
     @Test
     public void testGroupScope() throws Exception {
-        acctDefEntryTester(groupScopeAccountDefEntry, true, 0);
+        acctDefEntryTester(groupScopeMissingNonMandatory, true, 0);
     }
 
     @Test
     public void testChangingGroupMembership() throws Exception {
-        acctDefEntryTester(groupScopeAccountDefEntry, true, 1, 0);
-        acctDefEntryTester(groupScopeAccountDefEntry, true, 1, 1);
+        acctDefEntryTester(groupScopeMissingNonMandatory, true, 1, 0);
+        acctDefEntryTester(groupScopeMissingNonMandatory, true, 1, 1);
     }
     @Test
     public void testGroupScopeMissingMandatoryValue() throws Exception {
@@ -246,6 +269,13 @@ public class GroupScopeResolverTest {
     @Test
     public void testGroupScopeMissingOptionalValue() throws Exception {
         acctDefEntryTester(groupScopeMissingNonMandatory, true, 0);
+    }
+
+    @Test
+    public void testGroupScopeInvalidProbeType() throws Exception {
+        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(invalidProbeType));
+        acctDefEntryTester(groupScopeMissingNonMandatory, false, 0);
     }
 
     private void acctDefEntryTester(AccountDefEntry groupScopeAcctDefToTest, boolean expectSuccess,
@@ -295,19 +325,19 @@ public class GroupScopeResolverTest {
             assertEquals(0, groupScope.get().getGroupScopePropertyValuesCount());
             return;
         }
-        assertEquals(8,
+        assertEquals(9,
                 groupScope.get().getGroupScopePropertyValues(0).getValueCount());
         assertEquals(displayName[indexForAccountValue], groupScope.get().getGroupScopePropertyValues(0).getValue(0));
         assertEquals(EntityState.MAINTENANCE.toString(), groupScope.get()
                 .getGroupScopePropertyValues(0).getValue(1));
         assertEquals(Long.toString(memberId[indexForAccountValue]), groupScope.get().getGroupScopePropertyValues(0)
                 .getValue(2));
-        assertEquals(IP_ADDRESS[indexForAccountValue], groupScope.get().getGroupScopePropertyValues(0).getValue(3));
+        assertEquals(Long.toString(guestLoadId[indexForAccountValue]), groupScope.get().getGroupScopePropertyValues(0)
+                .getValue(3));
+        assertEquals(IP_ADDRESS[indexForAccountValue], groupScope.get().getGroupScopePropertyValues(0).getValue(4));
         assertEquals(VMEM_CAPACITY[indexForAccountValue], Double.parseDouble(groupScope.get()
-                .getGroupScopePropertyValues(0).getValue(4)), 0.1);
-        assertEquals(VCPU_CAPACITY[indexForAccountValue], Double.parseDouble(groupScope.get()
                 .getGroupScopePropertyValues(0).getValue(5)), 0.1);
-        assertEquals(BALOONING_CAPACITY[indexForAccountValue], Double.parseDouble(groupScope.get()
+        assertEquals(VCPU_CAPACITY[indexForAccountValue], Double.parseDouble(groupScope.get()
                 .getGroupScopePropertyValues(0).getValue(6)), 0.1);
         assertEquals(VSTORAGE_PREFIX[indexForAccountValue], groupScope.get().getGroupScopePropertyValues(0)
                 .getValue(7));
@@ -342,10 +372,7 @@ public class GroupScopeResolverTest {
         @Override
         public void getGroup(final GroupID request, final StreamObserver<GetGroupResponse> responseObserver) {
             // figure out which response to use based on which groupId is in the request
-            int index = 0;
-            if (request.getId() == (groupId[1])) {
-                index = 1;
-            }
+            int index = request.getId() == (groupId[1]) ? 1 : 0;
             responseObserver.onNext(getGetGroupResponse(index));
             responseObserver.onCompleted();
         }
@@ -364,17 +391,34 @@ public class GroupScopeResolverTest {
         }
     }
 
-    public class TestRepositoryService extends RepositoryServiceImplBase {
+    public class TestSearchService extends SearchServiceImplBase {
+
+        /**
+         * We use this variable to indicate we should retrieve the group scoped entities or guest
+         * load entities.
+         */
+        private int entitiesRetrievingIndicator = 0;
+
         @Override
-        public void retrieveTopologyEntities(final RetrieveTopologyEntitiesRequest request,
-                                             final StreamObserver<RetrieveTopologyEntitiesResponse>
+        public void searchTopologyEntityDTOs(final SearchTopologyEntityDTOsRequest request,
+                                             final StreamObserver<SearchTopologyEntityDTOsResponse>
                                                      responseObserver) {
-            int index = 0;
-            if (request.getEntityOids(0) == memberId[1]) {
-                index = 1;
-            }
-            responseObserver.onNext(getRetrieveEntitiesResponse(index));
+            responseObserver.onNext(retrieveSearchEntities(request.getEntityOid(0)));
             responseObserver.onCompleted();
+        }
+
+        @Nonnull
+        private SearchTopologyEntityDTOsResponse retrieveSearchEntities(long oid) {
+            SearchTopologyEntityDTOsResponse response = SearchTopologyEntityDTOsResponse
+                    .getDefaultInstance();
+            for (int i = 0; i < memberId.length; i ++) {
+                if (memberId[i] == oid) {
+                    response = (entitiesRetrievingIndicator ++ % 2 == 0)
+                            ? getRetrieveScopedVMEntitiesResponse(i)
+                            : getRetrieveGuestLoadAppEntitiesResponse(i);
+                }
+            }
+            return response;
         }
     }
 }

@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
 import com.vmturbo.topology.processor.entity.Entity;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver.GroupScopedEntity;
 
 /**
  * A class to provide convenience methods for extracting the properties needed by scoped probes
@@ -36,54 +37,50 @@ public class GroupScopePropertyExtractor {
      * A map from each property that might appear in the group scope to a
      * {@link EntityPropertyExtractor} that can extract that property from an {@link Entity}
      */
-    // TODO write extractor to handle EntityPropertyName.GUEST_LOAD_UUID
     private final static Map<EntityPropertyName, EntityPropertyExtractor> extractorMap =
             ImmutableMap.<EntityPropertyName, EntityPropertyExtractor>builder()
-                    .put(EntityPropertyName.DISPLAY_NAME,
-                            new EntityPropertyExtractor() {
-                                @Override
-                                public Optional<String> getValue(final TopologyEntityDTO topologyEntityDTO) {
-                                    return topologyEntityDTO.hasDisplayName() ?
-                                            Optional.of(topologyEntityDTO.getDisplayName())
-                                            : Optional.empty();
+                    .put(EntityPropertyName.DISPLAY_NAME, groupScopedEntity -> {
+                            final TopologyEntityDTO topologyEntityDTO =
+                                    groupScopedEntity.getTopologyEntityDTO();
+                            return topologyEntityDTO.hasDisplayName() ?
+                                    Optional.of(topologyEntityDTO.getDisplayName())
+                                    : Optional.empty();
+
+                    })
+                    .put(EntityPropertyName.IP_ADDRESS, groupScopedEntity -> {
+                            final TopologyEntityDTO topologyEntityDTO =
+                                    groupScopedEntity.getTopologyEntityDTO();
+                            if (topologyEntityDTO.hasTypeSpecificInfo() &&
+                                    topologyEntityDTO.getTypeSpecificInfo()
+                                            .hasVirtualMachine()) {
+                                String combinedIps = topologyEntityDTO.getTypeSpecificInfo()
+                                        .getVirtualMachine()
+                                        .getIpAddressesList().stream()
+                                        .map(IpAddress::getIpAddress)
+                                        .filter(Strings::isNotBlank)
+                                        .collect(Collectors.joining(IP_ADDRESS_SEPARATOR));
+                                if (combinedIps.isEmpty()) {
+                                    return Optional.empty();
                                 }
-                            })
-                    .put(EntityPropertyName.IP_ADDRESS,
-                            new EntityPropertyExtractor()
-                        {
-                                @Override
-                                public Optional<String> getValue(
-                                        final TopologyEntityDTO topologyEntityDTO) {
-                                    if (topologyEntityDTO.hasTypeSpecificInfo() &&
-                                            topologyEntityDTO.getTypeSpecificInfo()
-                                                    .hasVirtualMachine()) {
-                                        String combinedIps = topologyEntityDTO.getTypeSpecificInfo().getVirtualMachine()
-                                                .getIpAddressesList().stream()
-                                                .map(IpAddress::getIpAddress)
-                                                .filter(Strings::isNotBlank)
-                                                .collect(Collectors.joining(IP_ADDRESS_SEPARATOR));
-                                        if (combinedIps.isEmpty()) {
-                                            return Optional.empty();
-                                        }
-                                        return Optional.of(combinedIps);
-                                    } else {
-                                        return Optional.empty();
-                                    }
-                                }
-                            })
-                    .put(EntityPropertyName.STATE, new EntityPropertyExtractor() {
-                        @Override
-                        public Optional<String> getValue(final TopologyEntityDTO topologyEntityDTO) {
+                                return Optional.of(combinedIps);
+                            } else {
+                                return Optional.empty();
+                            }
+                    })
+                    .put(EntityPropertyName.STATE, groupScopedEntity -> {
+                            final TopologyEntityDTO topologyEntityDTO =
+                                    groupScopedEntity.getTopologyEntityDTO();
                             return topologyEntityDTO.hasEntityState() ?
                                     Optional.of(topologyEntityDTO.getEntityState().name())
                                     : Optional.empty();
-                        }
                     })
-                    .put(EntityPropertyName.UUID, new EntityPropertyExtractor() {
-                        @Override
-                        public Optional<String> getValue(final TopologyEntityDTO topologyEntityDTO) {
-                            return Optional.of(Long.toString(topologyEntityDTO.getOid()));
-                        }
+                    .put(EntityPropertyName.UUID, groupScopedEntity -> {
+                            return Optional.of(
+                                    String.valueOf(groupScopedEntity.getTopologyEntityDTO()
+                                            .getOid()));
+                    })
+                    .put(EntityPropertyName.GUEST_LOAD_UUID, groupScopedEntity -> {
+                            return groupScopedEntity.getGuestLoadEntityOid();
                     })
                     .put(EntityPropertyName.MEM_BALLOONING,
                             new CommodityCapacityExtractor(CommodityType.BALLOONING))
@@ -91,44 +88,40 @@ public class GroupScopePropertyExtractor {
                             new CommodityCapacityExtractor(CommodityType.VCPU))
                     .put(EntityPropertyName.VMEM_CAPACITY,
                             new CommodityCapacityExtractor(CommodityType.VMEM))
-                    .put(EntityPropertyName.VSTORAGE_KEY_PREFIX,
-                            new EntityPropertyExtractor() {
-                                @Override
-                                public Optional<String> getValue(final TopologyEntityDTO entity) {
-                                    // If the VStorage key prefixes are all identical, return the
-                                    // prefix; otherwise, return Optional.empty
-                                    Set<String> prefixes = entity.getCommoditySoldListList()
-                                            .stream()
-                                            .filter(comm -> CommodityType.VSTORAGE.getNumber()
-                                                    == comm.getCommodityType().getType())
-                                            .map(CommoditySoldDTO::getCommodityType)
-                                            .map(TopologyDTO.CommodityType::getKey)
-                                            .map(key -> {
-                                                int index =
-                                                        key.lastIndexOf(VSTORAGE_PREFIX_SEPARATOR);
-                                                return key.substring(0, index + 1);
-                                            })
-                                            .collect(Collectors.toSet());
-                                    if (prefixes.size() == 1) {
-                                        return Optional.of(prefixes.iterator().next());
-                                    }
-                                    return Optional.empty();
-                                }
-                            }
-                    )
+                    .put(EntityPropertyName.VSTORAGE_KEY_PREFIX, groupScopedEntity -> {
+                        // If the VStorage key prefixes are all identical, return the
+                        // prefix; otherwise, return Optional.empty
+                        Set<String> prefixes = groupScopedEntity.getTopologyEntityDTO()
+                                .getCommoditySoldListList()
+                                .stream()
+                                .filter(comm -> CommodityType.VSTORAGE.getNumber()
+                                        == comm.getCommodityType().getType())
+                                .map(CommoditySoldDTO::getCommodityType)
+                                .map(TopologyDTO.CommodityType::getKey)
+                                .map(key -> {
+                                    int index =
+                                            key.lastIndexOf(VSTORAGE_PREFIX_SEPARATOR);
+                                    return key.substring(0, index + 1);
+                                })
+                                .collect(Collectors.toSet());
+                        if (prefixes.size() == 1) {
+                            return Optional.of(prefixes.iterator().next());
+                        }
+                        return Optional.empty();
+                    })
                     .build();
 
     /**
-     * Extract and return the named entity property from a TopologyEntityDTO.
+     * Extract and return the named entity property from a GroupScopedEntity.
      * @param entityProperty {@link EntityPropertyName} giving the property to extract.
-     * @param topoEntity {@link TopologyEntityDTO} representing the object we want to extract the
-     *                                            property from.
+     * @param groupScopedEntity {@link GroupScopedEntity} representing the object we want to extract
+     *                                                  the property from.
      * @return {@link Optional} string with the value of the property or Optional.empty if the
      * property does not exist for the entity.
      */
     public static Optional<String> extractEntityProperty(
             @Nonnull final EntityPropertyName entityProperty,
-            @Nonnull final TopologyEntityDTO topoEntity) {
+            @Nonnull final GroupScopedEntity groupScopedEntity) {
         EntityPropertyExtractor extractor =
                 extractorMap.get(Objects.requireNonNull(entityProperty));
         if (extractor == null) {
@@ -136,11 +129,12 @@ public class GroupScopePropertyExtractor {
                     entityProperty.name());
             return Optional.empty();
         }
-        return extractor.getValue(Objects.requireNonNull(topoEntity));
+        return extractor.getValue(Objects.requireNonNull(groupScopedEntity));
     }
 
+    @FunctionalInterface
     private interface EntityPropertyExtractor {
-        Optional<String> getValue(TopologyEntityDTO topologyEntityDTO);
+        Optional<String> getValue(GroupScopedEntity groupScopedEntity);
     }
 
     /**
@@ -155,8 +149,8 @@ public class GroupScopePropertyExtractor {
         }
 
         @Override
-        public Optional<String> getValue(final TopologyEntityDTO topologyEntityDTO) {
-            return topologyEntityDTO.getCommoditySoldListList().stream()
+        public Optional<String> getValue(final GroupScopedEntity groupScopedEntity) {
+            return groupScopedEntity.getTopologyEntityDTO().getCommoditySoldListList().stream()
                     .filter(comm -> commType.getNumber()
                             == comm.getCommodityType().getType())
                     .filter(CommoditySoldDTO::hasCapacity)

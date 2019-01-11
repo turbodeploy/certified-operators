@@ -1,13 +1,10 @@
 package com.vmturbo.topology.processor.targets;
 
-import javax.inject.Singleton;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Scope;
 
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -30,9 +27,6 @@ public class TargetConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
-
-    @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
 
     @Autowired
     private ProbeConfig probeConfig;
@@ -78,11 +72,12 @@ public class TargetConfig {
         return new DerivedTargetParser(probeConfig.probeStore(), targetStore());
     }
 
+
     @Bean
     public GroupScopeResolver groupScopeResolver() {
         return new GroupScopeResolver(
                 groupClientConfig.groupChannel(),
                 repositoryClientConfig.repositoryChannel(),
-                realtimeTopologyContextId);
+                targetStore());
     }
 }

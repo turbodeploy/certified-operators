@@ -137,6 +137,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier;
 
+    private final DerivedTargetParser derivedTargetParser;
+
     private final GroupScopeResolver groupScopeResolver;
 
     private final long discoveryTimeoutMs;
@@ -148,8 +150,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private final ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
     private final EntityActionDao entityActionDao;
-
-    private final DerivedTargetParser derivedTargetParser;
 
     private static final ImmutableSet<ActionItemDTO.ActionType> CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES
             = ImmutableSet.of(ActionItemDTO.ActionType.MOVE, ActionItemDTO.ActionType.CHANGE,
