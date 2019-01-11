@@ -114,10 +114,14 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
             if (matchingData.hasMatchingProperty()) {
                 retVal.add(new StringMatchingProperty(
                         matchingData.getMatchingProperty().getPropertyName()));
-            } else {
+            }
+            else if (matchingData.hasMatchingField()){
                 retVal.add(new MatchingField<>(
                         matchingData.getMatchingField().getMessagePathList(),
                         matchingData.getMatchingField().getFieldName()));
+            }
+            else if (matchingData.hasMatchingEntityOid()){
+                retVal.add(new MatchingEntityOid(){});
             }
         }
         return retVal;
