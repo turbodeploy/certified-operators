@@ -106,13 +106,6 @@ public class RICostDataUploader {
                 // we are within the minimum upload interval -- we need to skip this upload.
                 logger.info("Skipping upload of RI data, since we're within minimum upload " +
                         "interval since the last upload at {}", lastUploadTime.toString());
-                // Even though we aren't going to process them this cycle, we do need to remove the
-                // RI entities from the stitching context -- we are not going to treat them as
-                // first-class entities in XL
-                List<TopologyStitchingEntity> riEntitiesToRemove = stitchingContext
-                        .getEntitiesOfType(EntityType.RESERVED_INSTANCE)
-                        .collect(Collectors.toList());
-                riEntitiesToRemove.forEach(stitchingContext::removeEntity);
                 return;
             }
         }
@@ -218,9 +211,6 @@ public class RICostDataUploader {
         // RIBought info, which comes from multiple sources.
         Map<String, ReservedInstanceBought.Builder> riBoughtByLocalId = new HashMap<>();
 
-        // build a list of the RI's we have consumed so we can remove them from the stitching context
-        // later
-        List<TopologyStitchingEntity> riEntitiesToRemove = new ArrayList<>();
         stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE)
                 .forEach(riStitchingEntity -> {
                     if (riStitchingEntity.getEntityBuilder() == null) {
@@ -312,13 +302,7 @@ public class RICostDataUploader {
                                         riData.getAvailabilityZone()));
                     }
                     riBoughtByLocalId.put(riStitchingEntity.getLocalId(), riBought);
-
-                    // We are removing these RI entities from the topology.
-                    riEntitiesToRemove.add(riStitchingEntity);
                 });
-
-        // SIDE EFFECT: remove the RI entities from the stitching context.
-        riEntitiesToRemove.forEach(stitchingContext::removeEntity);
 
         // add the extracted data to the cost component data object.
         // create the RISpec objects, setting the spec ids to indices in the spec info list.
