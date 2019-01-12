@@ -18,9 +18,6 @@ global:
 #              10.23.240.10 # gke DNS
 #  debug: true
 
-gluster:
-  enabled: false
-
 ui:
   enabled: true
 history:
