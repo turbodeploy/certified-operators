@@ -56,10 +56,10 @@ spec:
           #- name: INFLUX_DUMP_INTERVAL_SECONDS
           #  value: 300
         ports:
-        - containerPort: 9055
+        - containerPort: 8086
         readinessProbe:
           tcpSocket:
-            port: 9055
+            port: 8086
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
@@ -97,8 +97,8 @@ metadata:
 spec:
   ports:
   - name: influxdb
-    port: 9055
+    port: 8086
     name: influxdb-dump
-    port: 9056
+    port: 8088
   selector:
     io.kompose.service: influxdb
