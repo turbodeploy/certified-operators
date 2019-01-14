@@ -63,6 +63,7 @@ volumes:
 #  mediation-vcd: *localdriver
 #  mediation-mssql: *localdriver
   mediation-actionscript: *localdriver
+#  mediation-snmp: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -497,6 +498,15 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-vcd-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
+#
+#  mediation-snmp:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-snmp-prod
 #    environment:
 #      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
