@@ -113,7 +113,7 @@ public class MarketPriceTable {
         discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
             // Add the base configuration price.
             priceBuilder.addPrice(accountId, baseOsType,
-                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
+                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)), true);
 
             // Add the other configuration prices.
             computeTierPrices.getPerConfigurationPriceAdjustmentsList().stream()
@@ -126,7 +126,7 @@ public class MarketPriceTable {
                         final double configHourlyPrice = baseHourlyPrice +
                                 configPrice.getPricesList().get(0).getPriceAmount().getAmount();
                         priceBuilder.addPrice(accountId, configPrice.getGuestOsType(),
-                                configHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
+                                configHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)), false);
                     });
         });
         return priceBuilder.build();
@@ -419,9 +419,10 @@ public class MarketPriceTable {
             private Builder() {}
 
             @Nonnull
-            public Builder addPrice(final long accountId, final OSType osType, final double hourlyPrice) {
+            public Builder addPrice(final long accountId, final OSType osType,
+                                    final double hourlyPrice, final boolean isBasePrice) {
                 // TODO (roman, September 25) - Replace with CostTuple
-                priceBuilder.add(new ComputePrice(accountId, osType, hourlyPrice));
+                priceBuilder.add(new ComputePrice(accountId, osType, hourlyPrice, isBasePrice));
                 return this;
             }
 
@@ -442,13 +443,16 @@ public class MarketPriceTable {
             private final long accountId;
             private final OSType osType;
             private final double hourlyPrice;
+            private final boolean isBasePrice;
 
             public ComputePrice(final long accountId,
                                 final OSType osType,
-                                final double hourlyPrice) {
+                                final double hourlyPrice,
+                                final boolean isBasePrice) {
                 this.accountId = accountId;
                 this.osType = osType;
                 this.hourlyPrice = hourlyPrice;
+                this.isBasePrice = isBasePrice;
             }
 
             public long getAccountId() {
@@ -463,6 +467,10 @@ public class MarketPriceTable {
                 return hourlyPrice;
             }
 
+            public boolean isBasePrice() {
+                return isBasePrice;
+            }
+
             @Override
             public boolean equals(Object other) {
                 if (other == this) return true;
@@ -470,7 +478,8 @@ public class MarketPriceTable {
                     ComputePrice otherPrice = (ComputePrice)other;
                     return accountId == otherPrice.accountId &&
                             osType == otherPrice.osType &&
-                            hourlyPrice == otherPrice.hourlyPrice;
+                            hourlyPrice == otherPrice.hourlyPrice &&
+                            isBasePrice == otherPrice.isBasePrice;
                 } else {
                     return false;
                 }
@@ -478,7 +487,7 @@ public class MarketPriceTable {
 
             @Override
             public int hashCode() {
-                return Objects.hash(accountId, osType, hourlyPrice);
+                return Objects.hash(accountId, osType, hourlyPrice, isBasePrice);
             }
         }
     }
