@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -34,6 +36,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
@@ -45,17 +48,21 @@ public class CostDTOCreator {
         this.marketPriceTable = marketPriceTable;
     }
 
-    // A mapping between the CloudCostDTO.OSType to the os type(string) indicated by the license access commodity
-    public static ImmutableMap<CloudCostDTO.OSType, String> OSTypeMapping = ImmutableMap.<CloudCostDTO.OSType, String>builder()
-                                        .put(CloudCostDTO.OSType.LINUX, "Linux")
-                                        .put(CloudCostDTO.OSType.RHEL, "RHEL")
-                                        .put(CloudCostDTO.OSType.SUSE, "SUSE")
-                                        .put(CloudCostDTO.OSType.UNKNOWN_OS, "UNKNOWN")
-                                        .put(CloudCostDTO.OSType.WINDOWS, "Windows")
-                                        .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_STANDARD, "Windows_SQL_Standard")
-                                        .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_WEB, "Windows_SQL_Web")
-                                        .put(CloudCostDTO.OSType.WINDOWS_WITH_SQL_ENTERPRISE, "Windows_SQL_Server_Enterprise")
-                                        .put(CloudCostDTO.OSType.WINDOWS_BYOL, "Windows_Bring_your_own_license").build();
+    // A mapping between the os type(string) indicated by the license access commodity and the CloudCostDTO.OSType
+    public static ImmutableMap<String, CloudCostDTO.OSType> OSTypeMapping = ImmutableMap.<String, CloudCostDTO.OSType>builder()
+            .put("Linux", CloudCostDTO.OSType.LINUX)
+            .put("RHEL", CloudCostDTO.OSType.RHEL)
+            .put("SUSE", CloudCostDTO.OSType.SUSE)
+            .put("UNKNOWN", CloudCostDTO.OSType.UNKNOWN_OS)
+            .put("Windows", CloudCostDTO.OSType.WINDOWS)
+            .put("Windows_SQL_Standard", CloudCostDTO.OSType.WINDOWS_WITH_SQL_STANDARD)
+            .put("Windows_SQL_Web", CloudCostDTO.OSType.WINDOWS_WITH_SQL_WEB)
+            .put("Windows_SQL_Server_Enterprise", CloudCostDTO.OSType.WINDOWS_WITH_SQL_ENTERPRISE)
+            .put("Windows_Bring_your_own_license", CloudCostDTO.OSType.WINDOWS_BYOL)
+            .put("Linux_SQL_Server_Enterprise", OSType.LINUX_WITH_SQL_ENTERPRISE)
+            .put("Linux_SQL_Standard", CloudCostDTO.OSType.LINUX_WITH_SQL_STANDARD)
+            .put("Linux_SQL_Web", CloudCostDTO.OSType.LINUX_WITH_SQL_WEB)
+            .build();
 
     public static ImmutableMap<DatabaseEngine, String> dbEngineMap = ImmutableMap.<DatabaseEngine, String>builder()
                                         .put(DatabaseEngine.AURORA, "Aurora")
@@ -120,41 +127,63 @@ public class CostDTOCreator {
                     tier.getDisplayName(), region.getDisplayName());
             return CostDTO.newBuilder().setComputeTierCost(computeTierDTOBuilder.build()).build();
         }
+        Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
+        priceBundle.getPrices().forEach(price ->
+                computePrices.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
+                        .computeIfAbsent(price.getOsType(), os -> price));
         Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                 .map(CommoditySoldDTO::getCommodityType)
                 .collect(Collectors.toSet());
         Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-        for (ComputePrice price : priceBundle.getPrices()) {
-            List<CommodityType> licenseCommType = licenseCommoditySet.stream()
-                    .filter(c -> c.getKey().equals(OSTypeMapping.get(price.getOsType()))).collect(Collectors.toList());
-            if (licenseCommType.size() != 1) {
-                logger.warn("Entity in tier {} region {} have duplicate number of license",
-                        tier.getDisplayName(), region.getDisplayName());
-                continue;
+        for (long baOid : baOidSet) {
+            Map<OSType, ComputePrice> pricesForBa = computePrices.get(baOid);
+            if (pricesForBa == null) {
+                logger.warn("Cost not found for tier {} - region {} - BA {}",
+                        tier.getDisplayName(), region.getDisplayName(), baOid);
             }
-            if (!baOidSet.contains(price.getAccountId())) {
-                logger.warn("Entity in tier {} region {} does not have business account oid {},"
-                        + " yet the account is found in cost component",
-                        tier.getDisplayName(), region.getDisplayName(), price.getAccountId());
-                continue;
-            }
-            for (long oid : baOidSet) {
+            for (CommodityType licenseCommodity : licenseCommoditySet) {
+                double price = Double.POSITIVE_INFINITY;
+                if (pricesForBa != null) {
+                    OSType osType = OSTypeMapping.get(licenseCommodity.getKey());
+                    if (osType != null) {
+                        ComputePrice computePrice = pricesForBa.get(osType);
+                        if (computePrice != null) {
+                            price = computePrice.getHourlyPrice();
+                            // If the price is a base price, then add this as a cost tuple with
+                            // license commodity id -1. Base price is usually the cost of the tier
+                            // with LINUX OS. Inside the analysis library, we use this price if the
+                            // license the VM is looking for is not found in the costMap. (Although
+                            // this should not happen, it is more of a safety mechanism)
+                            if (computePrice.isBasePrice()) {
+                                computeTierDTOBuilder
+                                        .addCostTupleList(createCostTuple(baOid, -1, price));
+                            }
+                        } else {
+                            logger.warn("Cost not found for tier {} - region {} - BA {} - OS {}",
+                                    tier.getDisplayName(), region.getDisplayName(), baOid, osType);
+                        }
+                    } else {
+                        logger.warn("Tier {} - region {} sells license {}, but market has no mapping for this license."
+                                , tier.getDisplayName(), region.getDisplayName(), licenseCommodity.getKey());
+                    }
+                }
                 computeTierDTOBuilder
-                        .addCostTupleList(CostTuple.newBuilder()
-                                .setBusinessAccountId(oid)
-                                .setLicenseCommodityType(commodityConverter
-                                        .toMarketCommodityId(licenseCommType.get(0)))
-                                .setPrice(price.getHourlyPrice())
-                                .build());
+                        .addCostTupleList(createCostTuple(baOid, commodityConverter
+                                .toMarketCommodityId(licenseCommodity), price));
             }
         }
-
         return CostDTO.newBuilder()
                 .setComputeTierCost(computeTierDTOBuilder
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                         .build())
                 .build();
+    }
+
+    private CostTuple.Builder createCostTuple(Long baOid, int licenseCommodityId, double hourlyPrice) {
+        return CostTuple.newBuilder().setBusinessAccountId(baOid)
+                .setLicenseCommodityType(licenseCommodityId)
+                .setPrice(hourlyPrice);
     }
 
     /**
