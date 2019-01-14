@@ -667,7 +667,7 @@ public class TopologyEntitiesHandlerTest {
             Long businessAccountId, Map<OSType, Double> osPriceMapping) {
         Builder builder = ComputePriceBundle.newBuilder();
         for (Map.Entry<OSType, Double> e : osPriceMapping.entrySet()) {
-            builder.addPrice(businessAccountId, e.getKey(), e.getValue(), false);
+            builder.addPrice(businessAccountId, e.getKey(), e.getValue());
         }
         return builder.build();
     }

@@ -36,8 +36,6 @@ spec:
         env:
         - name: JAVA_OPTS
           value: {{ .Values.java.options }}
-        - name: METRON_ENABLED
-          value: "true"
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port

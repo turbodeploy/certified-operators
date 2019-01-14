@@ -31,8 +31,8 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     zone: public
-    io.kompose.service: nginx-certs
-  name: {{ .Chart.Name }}-certs
+    io.kompose.service: nginx-claim0
+  name: {{ .Chart.Name }}-claim0
 spec:
   accessModes:
   - ReadWriteOnce
@@ -45,8 +45,8 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     zone: public
-    io.kompose.service: nginx-load-status
-  name: {{ .Chart.Name }}-load-status
+    io.kompose.service: nginx-claim1
+  name: {{ .Chart.Name }}-claim1
 spec:
   accessModes:
   - ReadWriteOnce
@@ -104,9 +104,9 @@ spec:
             - ALL
         volumeMounts:
         - mountPath: /etc/nginx/certs
-          name: nginx-certs
+          name: nginx-claim0
         - mountPath: /var/www/load-status
-          name: nginx-load-status
+          name: nginx-claim1
         - mountPath: /var/lib/nginx
           name: nginx-data
         - mountPath: /var/run
@@ -119,12 +119,12 @@ spec:
       securityContext:
         fsGroup: 2000
       volumes:
-      - name: nginx-certs
+      - name: nginx-claim0
         persistentVolumeClaim:
-          claimName: nginx-certs
-      - name: nginx-load-status
+          claimName: nginx-claim0
+      - name: nginx-claim1
         persistentVolumeClaim:
-          claimName: nginx-load-status
+          claimName: nginx-claim1
       - name: nginx-data
         persistentVolumeClaim:
           claimName: nginx-data

@@ -3,8 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     zone: dmz
-    io.kompose.service: api-certs
-  name: {{ .Chart.Name }}-certs
+    io.kompose.service: api-claim1
+  name: {{ .Chart.Name }}-claim1
 spec:
   accessModes:
   - ReadWriteOnce
@@ -85,7 +85,7 @@ spec:
         - mountPath: /home/turbonomic/data
           name: api
         - mountPath: /tmp/certs
-          name: api-certs
+          name: api-claim1
         - mountPath: /tmp
           name: api-tmpfs0
       imagePullSecrets:
@@ -97,9 +97,9 @@ spec:
       - name: api
         persistentVolumeClaim:
           claimName: api
-      - name: api-certs
+      - name: api-claim1
         persistentVolumeClaim:
-          claimName: api-certs
+          claimName: api-claim1
       - emptyDir:
           medium: Memory
         name: api-tmpfs0

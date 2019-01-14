@@ -143,8 +143,8 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(COMPUTE_TIER_ID, REGION_ID);
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
-                new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(baId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT, false)));
+                new ComputePrice(baId, OSType.LINUX, LINUX_PRICE),
+                new ComputePrice(baId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT)));
     }
 
     @Test
@@ -165,10 +165,10 @@ public class MarketPriceTableTest {
                 infoExtractor, discountApplicatorFactory);
         final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(COMPUTE_TIER_ID, REGION_ID);
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
-                new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(noDiscountBaId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT, false),
-                new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
-                new ComputePrice(discountBaId, OSType.SUSE, (LINUX_PRICE + SUSE_PRICE_ADJUSTMENT) * 0.8, false)
+                new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE),
+                new ComputePrice(noDiscountBaId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT),
+                new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8),
+                new ComputePrice(discountBaId, OSType.SUSE, (LINUX_PRICE + SUSE_PRICE_ADJUSTMENT) * 0.8)
         ));
     }
 
