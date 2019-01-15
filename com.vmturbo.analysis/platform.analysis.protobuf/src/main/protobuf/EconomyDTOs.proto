@@ -57,6 +57,10 @@ message ShoppingListTO {
 
     // Multiplier indicating membership in consistent resizing groups
     optional int64 groupFactor = 6 [default = 1];
+
+    // The coupon ID. If a projected shopping list is supplied by a CBTP, then in AnalysisToProtobuf
+    // we switch the supplier to the TP and this field will hold the id of the CBTP.
+    optional int64 coupon_id = 7;
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.
