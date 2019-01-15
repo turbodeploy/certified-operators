@@ -71,7 +71,6 @@ volumes:
   mediation-vcd: *localdriver
   mediation-mssql: *localdriver
   mediation-actionscript: *localdriver
-  mediation-snmp: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -1057,20 +1056,3 @@ services:
     volumes:
       - mediation-actionscript:/home/turbonomic/data
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
-
-  mediation-snmp:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.apm.snmp.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_SNMP_PORT}"
-      - "${MEDIATION_SNMP_DEBUG_PORT}"
-    environment:
-      component_type: mediation-snmp
-      instance_id: mediation-snmp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_SNMP_XMX_MB}M ${MEDIATION_SNMP_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-snmp:/home/turbonomic/data
-    mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_MB}M

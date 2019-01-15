@@ -653,16 +653,3 @@ services:
     volumes:
     - mediation-actionscript:/home/turbonomic/data
     restart: always
-
-  mediation-snmp-prod:
-    extends:
-      file: common-services.yml
-      service: prod-mediation-component
-    image: turbonomic/com.vmturbo.mediation.apm.snmp.component
-    environment:
-      consul_host: consul
-      component_type: mediation-snmp
-      instance_id: mediation-snmp-1
-    volumes:
-      - mediation-snmp:/home/turbonomic/data
-    restart: always
