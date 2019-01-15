@@ -9,6 +9,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -97,6 +98,7 @@ final class CliqueMinimizer {
 
     private @NonNull Map<ShoppingList, QuoteTracker> infiniteQuoteTrackers = Collections.emptyMap();
 
+    private @NonNull QuoteCache cache_;
     // Constructors
 
     /**
@@ -106,9 +108,10 @@ final class CliqueMinimizer {
      * @param entries See {@link #getEntries()}.
      */
     public CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly Collection
-        <@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries) {
+        <@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries, QuoteCache cache) {
         economy_ = economy;
         entries_ = entries;
+        cache_ = cache;
     }
 
     // Getters
@@ -207,7 +210,7 @@ final class CliqueMinimizer {
      */
     public void accept(long clique) {
         final @NonNull QuoteSummer quoteSummer = entries_.stream()
-            .collect(()->new QuoteSummer(economy_,clique), QuoteSummer::accept, QuoteSummer::combine);
+            .collect(()->new QuoteSummer(economy_, clique, cache_), QuoteSummer::accept, QuoteSummer::combine);
 
         // keep the minimum between total quotes
         if (quoteSummer.getTotalQuote() < bestTotalQuote_) {

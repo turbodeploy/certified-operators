@@ -10,6 +10,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -60,6 +61,7 @@ final class QuoteSummer {
 
     private final Map<ShoppingList, QuoteTracker> unplacedShoppingListQuoteTrackers = new HashMap<>();
 
+    private final QuoteCache cache_;
     // Constructors
 
     /**
@@ -68,9 +70,10 @@ final class QuoteSummer {
      * @param economy See {@link #getEconomy()}.
      * @param quality See {@link #getClique()}.
      */
-    public QuoteSummer(@NonNull Economy economy, long quality) {
+    public QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache) {
         economy_ = economy;
         clique_ = quality;
+        cache_ = cache;
     }
 
     // Getters
@@ -151,8 +154,9 @@ final class QuoteSummer {
         // consider only active sellers while performing SNM
         @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
                 .filter(seller -> seller.getState().isActive()).collect(Collectors.toList());
-        QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers, entry.getKey());
-        totalQuote_ += minimizer.getBestQuote();
+        QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers, entry.getKey(), cache_);
+
+        totalQuote_ += minimizer.getTotalBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();
         Trader bestSeller = minimizer.getBestSeller();

@@ -272,7 +272,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * returns a modifiable list of Idle VMs
      *
-     * @param this the economy that the preferential ShoppingLists participate in
      * @return a modifiable list of preferential {@link ShoppingList}s
      */
     public List<ShoppingList> getModifiablePreferentialSls() {
@@ -282,7 +281,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * returns a modifiable list of shop together traders
      *
-     * @param this the economy that the shop together traders participate in
      * @return a modifiable list of shop together traders
      */
     public List<Trader> getModifiableShopTogetherTraders() {

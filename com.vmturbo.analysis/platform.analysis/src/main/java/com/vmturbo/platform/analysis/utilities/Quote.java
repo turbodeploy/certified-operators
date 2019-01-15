@@ -68,6 +68,7 @@ public abstract class Quote {
      */
     protected double[] quoteValues = new double[3];
 
+    protected boolean isQuoteComplete = true;
     /**
      * The seller associated with this {@link Quote}. A {@link Quote} is generated when
      * attempting to place a particular {@link ShoppingList} on a particular seller,
@@ -79,6 +80,7 @@ public abstract class Quote {
      */
     protected final Trader seller;
 
+    protected Double moveCost = 0.0;
     /**
      * Create a new {@link Quote}.
      *
@@ -123,6 +125,15 @@ public abstract class Quote {
     }
 
     /**
+     * Get the total value for this {@link Quote} that includes the quote and moveCost.
+     *
+     * @return the value for this {@link Quote}.
+     */
+    public double getTotalQuote() {
+        return getQuoteValue() + getMoveCost();
+    }
+
+    /**
      * Get the min for this {@link Quote}.
      *
      * @return the min for this {@link Quote}.
@@ -138,6 +149,24 @@ public abstract class Quote {
      */
     public double getQuoteMax() {
         return quoteValues[2];
+    }
+
+    /**
+     * Get the moveCost for this {@link Quote}.
+     *
+     * @return the moveCost for this {@link Quote}.
+     */
+    public double getMoveCost() {
+        return moveCost;
+    }
+
+    /**
+     * Set the value for this moveCost.
+     *
+     * @param moveCost The new value for this moveCost.
+     */
+    public void setMoveCost(double moveCost) {
+        this.moveCost = moveCost;
     }
 
     /**
@@ -270,17 +299,6 @@ public abstract class Quote {
             this.quoteValues[0] = quoteValues[0];
             this.quoteValues[1] = quoteValues[1];
             this.quoteValues[2] = quoteValues[2];
-        }
-
-        /**
-         * Add a cost to the value of the quote.
-         *
-         * @param additiveCost The cost to add.
-         * @return The new value of the quote after adding the additiveCost.
-         */
-        public double addCostToQuote(final double additiveCost) {
-            quoteValues[0] += additiveCost;
-            return quoteValues[0];
         }
 
         /**

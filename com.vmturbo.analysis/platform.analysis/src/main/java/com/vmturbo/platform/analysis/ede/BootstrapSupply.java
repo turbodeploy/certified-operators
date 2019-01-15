@@ -296,7 +296,7 @@ public class BootstrapSupply {
                                         shoppingList),
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-        return Double.isInfinite(quoteMinimizer.getBestQuote());
+        return Double.isInfinite(quoteMinimizer.getTotalBestQuote());
     }
 
     /**
@@ -388,7 +388,7 @@ public class BootstrapSupply {
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
                 // not all sl in movableSlByMarket needs additional supply, we should check by quote.
                 // If quote is infinity, we need to cache it and add supply for it later.
-                if (Double.isInfinite(minimizer.getBestQuote())) {
+                if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                     Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.of(currentClique));
                     if (sellerThatFits == null) { // Provision By Demand
                         needsProvisionByDemand = true;
@@ -490,7 +490,7 @@ public class BootstrapSupply {
                     QuoteMinimizer::accept, QuoteMinimizer::combine);
             // not all sl in movableSlByMarket needs additional supply, we should check by quote.
             // If quote is infinity, we need to cache it and add supply for it later.
-            if (Double.isInfinite(minimizer.getBestQuote())) {
+            if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                 boolean isDebugBuyer = sl.getBuyer().isDebugEnabled();
                 String buyerDebugInfo = sl.getBuyer().getDebugInfoNeverUseInCode();
                 // Since we are moving the buyer to the sellerthatfits we have to make sure
@@ -726,7 +726,7 @@ public class BootstrapSupply {
 
         // unplaced buyer
         if (shoppingList.getSupplier() == null) {
-            if (Double.isFinite(minimizer.getBestQuote())) {
+            if (Double.isFinite(minimizer.getTotalBestQuote())) {
                 // on getting finiteQuote, move unplaced Trader to the best provider
                 allActions.add(new Move(economy, shoppingList, minimizer.getBestSeller())
                         .take().setImportance(Double.POSITIVE_INFINITY));
@@ -790,7 +790,7 @@ public class BootstrapSupply {
                             .collect(() -> new QuoteMinimizer(economy, sl),
                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-            if (Double.isInfinite(minimizer.getBestQuote())) {
+            if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                 // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
                 // clone one of the sellers or reactivate an inactive seller that the VM can fit in
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
@@ -988,7 +988,7 @@ public class BootstrapSupply {
                                          .collect(() -> new QuoteMinimizer(economy, sl),
                                             QuoteMinimizer::accept, QuoteMinimizer::combine);
                         // If quote is infinite, we create a new provider
-                        if (Double.isInfinite(minimizer.getBestQuote())) {
+                        if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                             provisionRelatedActionList.addAll(checkAndApplyProvision(economy,
                                             sl, entry.getValue(), slsThatNeedProvBySupply));
                         } else {
