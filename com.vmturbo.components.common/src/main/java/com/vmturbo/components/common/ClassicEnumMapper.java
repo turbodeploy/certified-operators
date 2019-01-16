@@ -142,6 +142,8 @@ public class ClassicEnumMapper {
             .put("VDCCommodity",                CommodityType.VDC)
             .put("HOST_LUN_ACCESS",             CommodityType.HOST_LUN_ACCESS)
             .put("DISK_ARRAY_ACCESS",           CommodityType.DISK_ARRAY_ACCESS)
+            .put("LICENSE_ACCESS",              CommodityType.LICENSE_ACCESS)
+            .put("PORT_CHANEL",                 CommodityType.PORT_CHANEL)
             .put("Unknown",                     CommodityType.UNKNOWN)
             .build();
 
