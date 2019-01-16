@@ -114,7 +114,7 @@ public class AccountValueVerifier {
     private static String verifyCustom(CustomAccountDefEntry entry, AccountValue inputField) {
         final String accountField = inputField.getStringValue();
         if (entry.hasVerificationRegex()) {
-            final Pattern p = Pattern.compile(entry.getVerificationRegex());
+            final Pattern p = Pattern.compile(entry.getVerificationRegex(), Pattern.DOTALL);
             if (!p.matcher(accountField).matches()) {
                 return String.format("Value %s doesn't match verification regex.", accountField);
             }

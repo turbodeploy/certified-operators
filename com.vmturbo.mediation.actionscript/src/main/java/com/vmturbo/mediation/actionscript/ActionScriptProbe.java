@@ -46,8 +46,6 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccount>,
     IActionExecutor<ActionScriptProbeAccount>, ISupplyChainAwareProbe<ActionScriptProbeAccount> {
 
-    private static final Path ACTION_SCRIPTS_PATH_ROOT = Paths.get("/home/turbonomic/data/actionscript");
-
     private IProbeContext probeContext;
 
     private final Logger logger = LogManager.getLogger(getClass());
@@ -67,25 +65,18 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         // TODO: Clean up
     }
 
-    /**
-     * Discovery is not required for this target. All scripts to be executed will be
-     * passed in the ActionExecutionDTO.
-     * TODO: remove this method when the new IProbe support is in place
-     *
-     * @param accountValues Account definition map.
-     * @return A set of entity DTOs for retrieved service entities.
-     */
     @Nonnull
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull ActionScriptProbeAccount accountValues) {
-
-        logger.warn("Discovery is not supported by ActionScript mediation");
-        DiscoveryResponse.Builder discoveryResponseBuilder = DiscoveryResponse.newBuilder()
-            .addErrorDTO(ErrorDTO.newBuilder()
-                .setSeverity(ErrorSeverity.WARNING)
-                .setDescription("Discovery is not supported"));
-
-        return discoveryResponseBuilder.build();
+        final String targetName = accountValues.getName();
+        logger.info("Beginning discovery of ActionScript target {}", targetName);
+        final DiscoveryResponse response =
+                actionScriptPathValidator.discoverActionScripts(accountValues);
+        logger.info("Discovery completed for target {} with {} workflows discovered and {} errors.",
+                targetName,
+                response.getNonMarketEntityDTOCount(),
+                response.getErrorDTOCount());
+        return response;
     }
 
     @Nonnull
@@ -110,10 +101,14 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
     @Override
     public ValidationResponse validateTarget(@Nonnull ActionScriptProbeAccount accountValues) {
         // Check to see that the filesystem folder for the ActionScripts exists and is usable.
-        logger.info("Validate ActionScript Directory");
-        return ValidationResponse.newBuilder()
-            .addAllErrorDTO(actionScriptPathValidator
-                .validateActionScriptPath(ACTION_SCRIPTS_PATH_ROOT)).build();
+        final String targetName = accountValues.getName();
+        logger.info("Beginning validation of ActionScript target {} ", targetName);
+        final ValidationResponse response =
+                actionScriptPathValidator.validateActionScriptPath(accountValues);
+        logger.info("Validation completed for target {} with {} errors.",
+                targetName,
+                response.getErrorDTOCount());
+        return response;
     }
 
     @Nonnull
