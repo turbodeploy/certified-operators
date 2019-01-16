@@ -51,6 +51,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -613,6 +614,11 @@ public class MarketsService implements IMarketsService {
     public List<StatSnapshotApiDTO> getNotificationCountStatsByUuid(final String s,
                                                         final ActionApiInputDTO actionApiInputDTO)
                 throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<GroupApiDTO> getGroupsInMarket(final String s) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
