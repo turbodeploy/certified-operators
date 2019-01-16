@@ -24,11 +24,6 @@
          to work, so we should move them up to the common pom.xml -->
     <build>
         <plugins>
-            <!-- This is for test report generation. -->
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
             <!-- This is the plugin that will build the docker image for the component as
                  part of "mvn install". The configuration for the plugin is in
                  com.vmturbo.components/pom.xml -->

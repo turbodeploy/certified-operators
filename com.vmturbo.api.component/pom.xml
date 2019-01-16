@@ -34,10 +34,6 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
             <!-- generate swagger.json for the External API - requires https -->
             <plugin>
                 <groupId>com.github.kongchen</groupId>

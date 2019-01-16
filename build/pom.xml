@@ -46,8 +46,8 @@
         <commons-io.version>2.5</commons-io.version>
         <influxdb-java-api.version>2.14</influxdb-java-api.version>
         <junit.version>4.12</junit.version>
-        <jacocoVersion>0.7.7.201606060606</jacocoVersion>
-        <jacocoAntVersion>0.7.7.201606060606</jacocoAntVersion>
+        <jacocoVersion>0.8.2</jacocoVersion>
+        <jacocoAntVersion>0.8.2</jacocoAntVersion>
         <javax.servlet-api.version>3.1.0</javax.servlet-api.version>
         <hamcrest-all.version>1.3</hamcrest-all.version>
         <javassist.version>3.21.0-GA</javassist.version>
@@ -1228,6 +1228,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

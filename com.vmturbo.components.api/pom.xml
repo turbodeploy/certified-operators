@@ -13,15 +13,6 @@
     <artifactId>components-api</artifactId>
     <description>Common classes and abstract classes for implementation of component APIs.</description>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
-         </plugins>
-     </build>
-
     <dependencies>
         <dependency>
             <groupId>org.springframework</groupId>

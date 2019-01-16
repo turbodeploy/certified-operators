@@ -13,15 +13,6 @@
     <artifactId>components-test-utilities</artifactId>
     <description>Utilities for testing components.</description>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
-
     <dependencies>
         <!-- Resolve dependency conflict with other inject versions -->
         <dependency>

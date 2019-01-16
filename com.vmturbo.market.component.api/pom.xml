@@ -12,15 +12,6 @@
 
     <artifactId>market-component-api</artifactId>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
-         </plugins>
-     </build>
-
     <dependencies>
         <!-- Common components library -->
         <dependency>

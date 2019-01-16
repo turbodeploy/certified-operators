@@ -12,15 +12,6 @@
     <artifactId>com.vmturbo.components.common</artifactId>
     <description>Common classes for all components.</description>
 
-    <build>
-        <plugins>
-        <plugin>
-            <groupId>org.jacoco</groupId>
-            <artifactId>jacoco-maven-plugin</artifactId>
-        </plugin>
-        </plugins>
-    </build>
-
     <dependencies>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
