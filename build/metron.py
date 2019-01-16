@@ -1,17 +1,20 @@
 #!/usr/bin/env python
 
 import argparse
+import contextlib
 import datetime
+import fileinput
+import getpass
+import logging
+import logging.handlers
 import os
+import platform
 import random
+import re
 import socket
 import subprocess
 import tarfile
-import logging
-import logging.handlers
-import platform
-import fileinput
-import re
+import urllib2
 
 SERVICES = [
     'influxdb',  # The influxdb service. Metrics are stored to influx.
@@ -27,6 +30,9 @@ VERSION_LINE_PREFIX = 'Version: XL '
 DUMP_DIR = '/var/lib/docker/volumes/docker_influxdb-dump/_data'
 DIAGS_URL = 'https://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi'
 LOG_FORMAT = '%(asctime)s %(levelname)s: %(message)s'
+CURLRC_FILE_PATH = os.path.expanduser("~") + '/.curlrc'
+EXAMPLE_URL = "http://www.example.com"  # To test proxy server connectivity
+PROXY_CONNECT_TIMEOUT_SECS = 10
 
 # Command to upload Metron data; for use in crontab in auto-upload mode
 # Note: The absolute path of this command comes from the main function and will be added when the
@@ -206,14 +212,14 @@ def metron_export(args):
     logging.info("...to a tar file '{}'\n".format(export_file_fullpath))
 
     if os.path.isdir(DUMP_DIR) is False:
-        logging.error("Expected Metron data directory '{}' does not exist; exiting without export".format(
-            DUMP_DIR))
+        logging.error("Expected Metron data directory '{}' does not exist; exiting without "
+                      "export".format(DUMP_DIR))
         logging.error("...This script is expected to run on the XL VM (the docker host)")
-        logging.error("...If you are running elsewhere for testing purpose, you can create the data "
-                      "directory in your environment")
+        logging.error("...If you are running elsewhere for testing purpose, you can create the "
+                      "data directory in your environment")
         logging.error("......but keep in mind that influxdb will not actually back up data there.")
-        logging.error("...If you are on the XL VM, please check if the data directory is mounted properly "
-                      "from the influxdb container:")
+        logging.error("...If you are on the XL VM, please check if the data directory is mounted "
+                      "properly from the influxdb container:")
         logging.error("......data directory on the docker host: {}".format(DUMP_DIR))
         logging.error("......data directory on the influxdb container: /home/influxdb/influxdb-dump")
         exit(1)
@@ -265,10 +271,100 @@ def get_version():
                 if line.startswith(VERSION_LINE_PREFIX):
                     return line[len(VERSION_LINE_PREFIX):-1]
 
-    logging.info("Version file '{}' not found or version line prefix '{}' not found in the file".format(
-        VERSION_FILE, VERSION_LINE_PREFIX))
+    logging.info("Version file '{}' not found or version line prefix '{}' not found in the "
+                 "file".format(VERSION_FILE, VERSION_LINE_PREFIX))
     logging.info("...using 'unknown.version' as version number\n")
     return "unknown.version"
+
+
+def metron_proxy(args):
+    """
+    Add or remove proxy configuration in the .curlrc file.
+
+    :param args: The command-line specified arguments.
+    """
+    host_port = None
+    user_pass = None
+    if args.add:
+        if (args.host is None) or (args.port is None):
+            logging.error("Both host and port are required when configuring proxy")
+            exit(1)
+
+        if (args.protocol is not 'http') and (args.protocol is not 'https'):
+            logging.error("Unsupported protocol {} to access proxy server".format(args.protocol))
+            exit(1)
+
+        host_port = "{}:{}".format(args.host, args.port)
+        if args.user:
+            # Let user enter the password if username is specified
+            password = getpass.getpass('Password:')
+            user_pass = "{}:{}".format(args.user, password)
+
+        if not is_good_proxy(args.protocol, host_port, user_pass):
+            logging.error("Proxy configuration aborted; no changes have been made to {}".format(
+                CURLRC_FILE_PATH))
+            exit(1)
+
+    # Delete any previous proxy configuration in .curlrc
+    #
+    # The implementation below is adopted from the 2nd solution here:
+    # https://stackoverflow.com/questions/4710067/using-python-for-deleting-a-specific-line-in-a-file
+    #
+    with open(CURLRC_FILE_PATH, 'r+') as f:
+        lines = f.readlines()
+        f.seek(0)
+        for line in lines:
+            if not line.startswith('proxy'):
+                f.write(line)
+        f.truncate()
+
+        if args.add:
+            proxy_line = "proxy = {}\n".format(host_port)
+            f.write(proxy_line)
+            if user_pass:
+                proxy_user_line = "proxy-user = {}\n".format(user_pass)
+                f.write(proxy_user_line)
+            logging.info("Proxy has been configured in {}".format(CURLRC_FILE_PATH))
+        else:
+            logging.info("Proxy configuration in {} has been removed.".format(CURLRC_FILE_PATH))
+
+
+def is_good_proxy(protocol, host_port, user_pass=None):
+    """
+    Check if the specified proxy is good by trying to reach out to www.example.com.
+
+    Adopted from: https://stackoverflow.com/questions/765305/proxy-check-in-python
+    and https://github.com/ApsOps/proxy-checker/blob/master/proxy_check.py
+
+    :param protocol: The protocol to access the proxy server, i.e. http or https
+    :param host_port: The host/port of the proxy server in the form of <host>:<port>
+    :param user_pass: Username and password of the proxy server in the form of <username>:<password>
+                      None if not specified
+    :return True if successfully accessing www.example.com via the specified proxy; False otherwise
+    """
+    try:
+        # Construct the full proxy URL
+        #
+        proxy_url = "{}://{}".format(protocol, host_port) if user_pass is None\
+            else "{}://{}@{}".format(protocol, user_pass, host_port)
+
+        proxy_handler = urllib2.ProxyHandler({protocol: proxy_url})
+        opener = urllib2.build_opener(proxy_handler)
+        urllib2.install_opener(opener)
+        req = urllib2.Request(EXAMPLE_URL)
+        #
+        # The with statement and the contextlib.closing() library ensure closing of the established
+        # connection; see
+        # https://stackoverflow.com/questions/1522636/should-i-call-close-after-urllib-urlopen
+        #
+        with contextlib.closing(urllib2.urlopen(req, timeout=PROXY_CONNECT_TIMEOUT_SECS)):
+            pass
+    except urllib2.URLError, e:
+        logging.error("Bad proxy {}; cannot access {}: {}".format(proxy_url, EXAMPLE_URL, e))
+        return False
+
+    logging.info("Proxy access has been verified")
+    return True
 
 
 if __name__ == "__main__":
@@ -312,6 +408,19 @@ if __name__ == "__main__":
     export_parser.add_argument('-c', '--clean', action='store_true',
                                help='Boolean flag to indicate we would delete the data dump files')
     export_parser.set_defaults(func=metron_export)
+
+    proxy_parser = subparser.add_parser('proxy',
+                                        help='Add or remove proxy configuration in .curlrc file.')
+    proxy_group = proxy_parser.add_mutually_exclusive_group(required=True)
+    proxy_group.add_argument('-r', '--remove', action='store_true',
+                             help="Remove any proxy configuration.")
+    proxy_group.add_argument('-a', '--add', action='store_true',
+                             help="Add a new or replace the existing proxy configuration.")
+    proxy_parser.add_argument('--protocol', default="http", help="Proxy protocol; default=http")
+    proxy_parser.add_argument('--host', help="Proxy host")
+    proxy_parser.add_argument('--port', default="8080", help="Proxy port; default=8080")
+    proxy_parser.add_argument('--user', help="Proxy user; enter password at prompt")
+    proxy_parser.set_defaults(func=metron_proxy)
 
     args = p.parse_args()
     args.func(args)
