@@ -16,14 +16,11 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.StringUtils;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Empty;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.auth.component.licensing.LicenseManagerService.LicenseManagementEvent;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceImplBase;
@@ -39,9 +36,6 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.mail.MailConfigException;
-import com.vmturbo.components.common.mail.MailException;
-import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.licensing.License;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
@@ -85,28 +79,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
      * A special constant LicenseSummary that is returned when there are no licenses.
      */
     static private final LicenseSummary NO_LICENSES_SUMMARY = LicenseSummary.getDefaultInstance();
-    @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT
-            = "Turbonomic license has expired, please update it";
-
-    @VisibleForTesting
-    public static final String LICENSE_HAS_EXPIRED = "License has expired";
-
-    @VisibleForTesting
-    public static final String LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT
-            = "Turbonomic license workload count is over limit, please update it";
-
-    @VisibleForTesting
-    public static final String WORKLOAD_COUNT_IS_OVER_LIMIT = "Workload count is over limit";
-
-    @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "Turbonomic license will expire on %s, please update it";
-
-    @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Turbonomic license is missing, please update it";
-
-    @VisibleForTesting
-    public static final String LICENSE_IS_MISSING = "License is missing";
 
     @Nonnull
     private final LicenseManagerService licenseManagerService;
@@ -123,14 +95,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     @Nonnull
     private final NotificationSender notificationSender;
 
-    @Nonnull
-    private final MailManager mailManager;
-
-    private final int numBeforeLicenseExpirationDays;
-
-    @Nonnull
-    private final Clock clock;
-
     // cache the last license summary, defaulting to the "no license" result.
     private LicenseSummary lastSummary = NO_LICENSES_SUMMARY;
 
@@ -141,10 +105,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                                @Nonnull final SearchServiceBlockingStub searchServiceClient,
                                @Nonnull final Repository repositoryListener,
                                @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
-                               @Nonnull final IMessageSender<SystemNotification> notificationSender,
-                               @Nonnull final MailManager mailManager,
-                               @Nonnull final Clock clock,
-                               final int numBeforeLicenseExpirationDays) {
+                               @Nonnull final IMessageSender<SystemNotification> notificationSender) {
         this.licenseManagerService = licenseManagerService;
         // subscribe to the license manager event stream. This will trigger license check updates
         // whenever licenses are added / removed
@@ -155,14 +116,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // create the license summary publisher
         licenseSummaryPublisher = new LicenseSummaryPublisher(licenseSummarySender);
 
-        this.notificationSender = new NotificationSender(Objects.requireNonNull(notificationSender), clock);
-
-        this.clock = Objects.requireNonNull(clock);
-
-        this.mailManager = mailManager;
-
-        this.numBeforeLicenseExpirationDays = numBeforeLicenseExpirationDays;
-
+        this.notificationSender = new NotificationSender(Objects.requireNonNull(notificationSender), Clock.systemUTC());
         // subscribe to new topologies, so we can regenerate the license check when that happens
         repositoryListener.addListener(this);
         // schedule time-based updates. The first update will happen immediately (but on a separate
@@ -243,8 +197,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         if (licenseDTOs.isEmpty()) {
             lastSummary = NO_LICENSES_SUMMARY;
             publishNewLicenseSummary(lastSummary);
-            notifyUI(TURBONOMIC_LICENSE_IS_MISSING,
-                    LICENSE_IS_MISSING);
+            notifyLicenseExpiration("Turbonomic license is empty, please update it",
+                    "License is empty");
             return;
         }
 
@@ -266,55 +220,10 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                 = LicenseDTOUtils.licenseToLicenseSummary(aggregateLicense, isOverLimit);
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
-        publishNotification(isOverLimit, licenseDTOs);
-    }
-
-    /**
-     * Is the license going to expire?
-     * @param expirationDate the license expiration date
-     * @param numBeforeLicenseExpirationDays the days before license expiration
-     * @return true if the license is going to expire
-     */
-    @VisibleForTesting
-    boolean isGoingToExpired(@Nonnull final String expirationDate,
-                             final int numBeforeLicenseExpirationDays) {
-        if (ILicense.PERM_LIC.equals(expirationDate)) {
-            return false;
+        if (licenseSummary.getIsExpired()) {
+            notifyLicenseExpiration("Turbonomic license was expired, please update it",
+                    "License was expired");
         }
-        final LocalDate localExpirationDate = LocalDate.parse(expirationDate);
-        final LocalDate now = LocalDate.now(clock);
-        final LocalDate adjustedExpirationDate = localExpirationDate.minusDays(numBeforeLicenseExpirationDays);
-        return (adjustedExpirationDate.isBefore(now) || adjustedExpirationDate.isEqual(now))
-                && localExpirationDate.isAfter(now);
-    }
-
-
-    /**
-     * Publish notification to UI and license owner
-     * @param isOverLimit is over workload license limit?
-     * @param licenseDTOs collection of license DTOs
-     */
-    @VisibleForTesting
-    void publishNotification(final boolean isOverLimit,
-                             @Nonnull final Collection<LicenseDTO> licenseDTOs) {
-        licenseDTOs.forEach(licenseDTO -> {
-                    final License license = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
-                    if (license.isExpired()) {
-                        notifyLicenseExpiration(TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT,
-                                LICENSE_HAS_EXPIRED, license);
-                        return;
-                    }
-                    if (isGoingToExpired(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
-                        final String description = String.format(TURBONOMIC_LICENSE_WILL_EXPIRE,
-                                license.getExpirationDate());
-                        notifyLicenseExpiration(description, description, license);
-                    }
-                    if (isOverLimit) {
-                        notifyLicenseExpiration(LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
-                                WORKLOAD_COUNT_IS_OVER_LIMIT, license);
-                    }
-                }
-        );
     }
 
     /**
@@ -328,10 +237,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // get the workload count from the repository and check if we are over the limit
         // we will fetch either all PM's or active VM's depending on counted entity type.
         CountEntitiesRequest.Builder entityCountRequestBuilder = CountEntitiesRequest.newBuilder();
-        if (license.getCountedEntity() == null) {
-            logger.debug("Counted Entity type is null.");
-            return false;
-        }
         switch (license.getCountedEntity()) {
             case VM:
                 logger.debug("Counting active VMs");
@@ -397,37 +302,16 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     }
 
     // notify license expiration
-    private void notifyLicenseExpiration(@Nonnull final String longDescription,
-                                         @Nonnull final String shortDescription,
-                                         @Nonnull final License license) {
-        try {
-            notifyUI(longDescription, shortDescription);
-            if (!StringUtils.isEmpty(license.getEmail())) {
-                mailManager.sendMail(Collections.singletonList(license.getEmail()),
-                        shortDescription, longDescription);
-                logger.info("Sent out license expiration email to {}: {}", license.getEmail(), longDescription);
-            } else {
-                logger.warn("License doesn't have email address, skip sending email.");
-            }
-        } catch (MailException e) {
-            logger.error("Failed to send notification by email: ", e);
-        } catch (MailConfigException e) {
-            logger.error("SMTP server is not configured: " + e);
-        }
-    }
-
-    // distribute notification to UI
-    private void notifyUI(@Nonnull final String longDescription,
-                          @Nonnull final String shortDescription) {
+    private void notifyLicenseExpiration(final String longDescription, final String shortDescription) {
         try {
             notificationSender.sendNotification(
-                    Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build())
-                            .build(),
+                    Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build(),
                     longDescription,
                     shortDescription,
                     Severity.CRITICAL);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Error publishing license expire notification", e);
+
         }
     }
 
