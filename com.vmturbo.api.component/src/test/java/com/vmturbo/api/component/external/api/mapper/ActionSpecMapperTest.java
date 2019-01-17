@@ -90,6 +90,7 @@ public class ActionSpecMapperTest {
     public static final int POLICY_ID = 10;
     public static final String POLICY_NAME = "policy";
     private static final String ENTITY_TO_RESIZE_NAME = "EntityToResize";
+    private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
     private ActionSpecMapper mapper;
 
     private RepositoryApi repositoryApi;
@@ -126,7 +127,8 @@ public class ActionSpecMapperTest {
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryApi = Mockito.mock(RepositoryApi.class);
         mapper = new ActionSpecMapper(repositoryApi, policyService, Executors
-                        .newCachedThreadPool(new ThreadFactoryBuilder().build()));
+                        .newCachedThreadPool(new ThreadFactoryBuilder().build()),
+                REAL_TIME_TOPOLOGY_CONTEXT_ID);
         commodityCpu = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.CPU_VALUE)
             .setKey("blah")
@@ -724,6 +726,32 @@ public class ActionSpecMapperTest {
                         contextId);
         Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
                         dtos.get(0).getRisk().getDescription());
+    }
+
+    /**
+     * To align with classic, plan action should have succeeded state, so it's not selectable from UI.
+     */
+    @Test
+    public void testToPlanAction() throws Exception {
+        final ActionInfo moveInfo = getHostMoveActionInfo();
+        final Explanation compliance = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder()
+                                        .addMissingCommodities(commodityMem)
+                                        .addMissingCommodities(commodityCpu)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        final ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+        assertEquals(com.vmturbo.api.enums.ActionState.SUCCEEDED, actionApiDTO.getActionState());
+
+        final ActionApiDTO realTimeActionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        assertEquals(com.vmturbo.api.enums.ActionState.PENDING_ACCEPT, realTimeActionApiDTO.getActionState());
+
     }
 
     @Test

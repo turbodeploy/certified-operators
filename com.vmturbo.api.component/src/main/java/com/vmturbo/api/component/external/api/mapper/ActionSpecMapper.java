@@ -36,8 +36,6 @@ import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -51,7 +49,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -74,6 +71,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.commons.Units;
@@ -125,6 +123,8 @@ public class ActionSpecMapper {
 
     private final ExecutorService executorService;
 
+    private final long realtimeTopologyContextId;
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -138,11 +138,13 @@ public class ActionSpecMapper {
     };
 
     public ActionSpecMapper(@Nonnull final RepositoryApi repositoryApi,
-                    @Nonnull PolicyServiceGrpc.PolicyServiceBlockingStub policyService,
-                    @Nonnull ExecutorService executorService) {
+                            @Nonnull PolicyServiceBlockingStub policyService,
+                            @Nonnull ExecutorService executorService,
+                            final long realtimeTopologyContextId) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -182,7 +184,7 @@ public class ActionSpecMapper {
 
         for (ActionSpec spec : actionSpecs) {
             try {
-                final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context);
+                final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId);
                 if (Objects.nonNull(actionApiDTO)) {
                     actionApiDTOS.add(actionApiDTO);
                 }
@@ -251,7 +253,7 @@ public class ActionSpecMapper {
         final Future<Map<Long, Optional<ServiceEntityApiDTO>>> entities = executorService
                         .submit(() -> getEntities(topologyContextId, involvedEntities));
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entities.get(), policies.get());
-        return mapActionSpecToActionApiDTOInternal(actionSpec, context);
+        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId);
     }
 
     /**
@@ -302,7 +304,8 @@ public class ActionSpecMapper {
     @Nonnull
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
-            @Nonnull final ActionSpecMappingContext context)
+            @Nonnull final ActionSpecMappingContext context,
+            final long topologyContextId)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
@@ -314,14 +317,23 @@ public class ActionSpecMapper {
         actionApiDTO.setActionMode(ActionMode.valueOf(actionMode.name()));
         // special case translation for the actionState: READY from A-O -> PENDING_ACCEPT for the UX
         final ActionDTO.ActionState actionState = actionSpec.getActionState();
-        if (actionState == ActionDTO.ActionState.READY) {
-            if (actionMode == ActionDTO.ActionMode.RECOMMEND) {
-                actionApiDTO.setActionState(ActionState.RECOMMENDED);
+        // For plan action, set the state to successes, so it will not be selectable
+        // TODO (Gary, Jan 17 2019): handle case when realtimeTopologyContextId is changed (if needed)
+        if (topologyContextId == realtimeTopologyContextId) {
+            if (actionState == ActionDTO.ActionState.READY) {
+                if (actionMode == ActionDTO.ActionMode.RECOMMEND) {
+                    actionApiDTO.setActionState(ActionState.RECOMMENDED);
+                } else {
+                    actionApiDTO.setActionState(ActionState.PENDING_ACCEPT);
+                }
             } else {
-                actionApiDTO.setActionState(ActionState.PENDING_ACCEPT);
+                actionApiDTO.setActionState(ActionState.valueOf(actionState.name()));
             }
         } else {
-            actionApiDTO.setActionState(ActionState.valueOf(actionState.name()));
+            // In classic all the plan actions have "Succeeded" state; in XL all the plan actions
+            // have default state (ready). Set the state to "Succeeded" here to make it Not selectable
+            // on plan UI.
+            actionApiDTO.setActionState(ActionState.SUCCEEDED);
         }
 
         actionApiDTO.setDisplayName(actionMode.name());

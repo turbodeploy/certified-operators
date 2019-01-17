@@ -19,10 +19,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -42,7 +39,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -94,7 +90,7 @@ public class CompoundMoveTest {
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryApi = Mockito.mock(RepositoryApi.class);
         mapper = new ActionSpecMapper(repositoryApi, policyService, Executors
-                        .newCachedThreadPool(new ThreadFactoryBuilder().build()));
+                        .newCachedThreadPool(new ThreadFactoryBuilder().build()), 777777L);
         IdentityGenerator.initPrefix(0);
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(oidToEntityMap(

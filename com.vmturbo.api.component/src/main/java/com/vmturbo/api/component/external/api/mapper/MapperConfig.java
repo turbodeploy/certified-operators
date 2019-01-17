@@ -59,7 +59,8 @@ public class MapperConfig {
     @Bean
     public ActionSpecMapper actionSpecMapper() {
         return new ActionSpecMapper(communicationConfig.repositoryApi(),
-                        communicationConfig.policyRpcService(), executorService());
+                        communicationConfig.policyRpcService(), executorService(),
+                        communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean
