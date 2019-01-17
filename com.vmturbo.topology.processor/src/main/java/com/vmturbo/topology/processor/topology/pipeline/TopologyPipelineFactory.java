@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
+import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
@@ -47,6 +48,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationS
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EnvironmentTypeStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
@@ -122,6 +124,8 @@ public class TopologyPipelineFactory {
 
     private final CommoditiesEditor commoditiesEditor;
 
+    private final HistoricalEditor historicalEditor;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -144,7 +148,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
                                    @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                    @Nonnull final ControllableManager controllableManager,
-                                   @Nonnull final CommoditiesEditor commoditiesEditor) {
+                                   @Nonnull final CommoditiesEditor commoditiesEditor,
+                                   @Nonnull final HistoricalEditor historicalEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -168,6 +173,7 @@ public class TopologyPipelineFactory {
         this.supplyChainValidator = Objects.requireNonNull(supplyChainValidator);
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
+        this.historicalEditor = Objects.requireNonNull(historicalEditor);
     }
 
     /**
@@ -221,6 +227,7 @@ public class TopologyPipelineFactory {
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
                 .addStage(new ExtractTopologyGraphStage())
+                .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new BroadcastStage(managers))
                 .build();
     }
@@ -276,6 +283,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
+                .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
     }

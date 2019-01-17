@@ -584,6 +584,14 @@ message CommodityBoughtDTO {
 
     // A scale factor to multiply this commodity by before analysis, if present
     optional double scaling_factor = 5;
+
+    // A historical value which is used in conjunction to the used value to calculate a
+    // weighted used value
+    optional double historical_used = 6 [default = 0.0];
+
+    // A historical value which is used in conjunction to the peak value to calculate a
+    // weighted peak value
+    optional double historical_peak = 7 [default = 0.0];
 }
 
 message CommoditySoldDTO {
@@ -629,6 +637,14 @@ message CommoditySoldDTO {
 
     // The max ratio between this commodity and a base commodity
     optional RatioDependency ratio_dependency = 16;
+
+    // A historical value which is used in conjunction to the used value to calculate a
+    // weighted used value
+    optional double historical_used = 17 [default = 0.0];
+
+    // A historical value which is used in conjunction to the peak value to calculate a
+    // weighted peak value
+    optional double historical_peak = 18 [default = 0.0];
 
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {

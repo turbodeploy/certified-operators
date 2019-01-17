@@ -81,6 +81,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
+import com.vmturbo.topology.processor.topology.HistoricalEditor;
 
 /**
  * A wrapper class for the various {@link Stage} and {@link PassthroughStage} implementations.
@@ -1037,4 +1038,23 @@ public class Stages {
                 topologyInfo.getTopologyContextId());
         }
     }
+
+    /**
+     * Stage to apply changes to commodities values like used,peak etc.
+     */
+    public static class HistoricalUtilizationStage extends PassthroughStage<TopologyGraph> {
+
+        private final HistoricalEditor historicalEditor;
+
+        public HistoricalUtilizationStage(@Nonnull HistoricalEditor historicalEditor) {
+            this.historicalEditor = Objects.requireNonNull(historicalEditor);
+        }
+
+        @Override
+        public Status passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
+            historicalEditor.applyCommodityEdits(graph);
+            return Status.success();
+        }
+    }
+
 }

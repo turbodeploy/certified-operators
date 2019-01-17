@@ -1,0 +1,56 @@
+syntax = "proto2";
+
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+// This message will contain information about the used and peak values for all commodities
+// sold and bought by the service entities from the previous market cycle (historical values).
+// These values will be used in each market cycle to smooth the respective values we get from
+// mediation. The fields of this message will be updated with the new calculated used and
+// peak values.
+message HistoricalInfoDTO {
+
+    // The historical info for a specific service entity
+    repeated HistoricalSEInfoDTO service_entity = 1;
+
+    message HistoricalSEInfoDTO {
+        // The identifier of the service entity
+        optional int64 se_oid = 1;
+
+        // The historical info for the commodities sold by the service entity
+        repeated HistoricalCommInfoDTO hist_comm_sold = 2;
+
+        // The historical info for the commodities bought by the service entity
+        repeated HistoricalCommInfoDTO hist_comm_bought = 3;
+
+        // The weight used to calculate the current used value
+        optional float used_history_weight = 4;
+
+        // The weight used to calculate the current peak value
+        optional float peak_history_weight = 5;
+
+        message HistoricalCommInfoDTO {
+            // The type of the commodity
+            optional int32 comm_type_id = 1;
+
+            // The historical used value
+            optional float hist_used = 2;
+
+            // The historical peak value
+            optional float hist_peak = 3;
+
+            // The source of the commodity, might be the provider id or the volume id
+            optional int64 source_id = 4;
+
+            // A flag indicating if this commodity is matched to a commodity of the previous cycle
+            // If it is matched it is the same commodity and we can combine the 2 values to calculate
+            // the weighted used or peak values
+            optional bool matched = 5;
+
+            // A flag indicating if this commodity is existing in the present cycle
+            // If it is not existing it is a remaining of the previous cycle and it has to be deleted
+            optional bool existing = 6;
+        }
+    }
+}

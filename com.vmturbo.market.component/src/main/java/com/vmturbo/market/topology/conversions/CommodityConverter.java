@@ -92,7 +92,7 @@ public class CommodityConverter {
             @Nonnull TopologyDTO.TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
-        float used = (float)topologyCommSold.getUsed();
+        float used = (float)topologyCommSold.getHistoricalUsed();
         // if this commodity has a scaling factor set, then scale up the
         // USED and CAPACITY by scalingFactor for use in the new CommoditySoldTO
         if (topologyCommSold.hasScalingFactor()) {
@@ -164,7 +164,7 @@ public class CommodityConverter {
         int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
                 topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
         return CommodityDTOs.CommoditySoldTO.newBuilder()
-                .setPeakQuantity((float)topologyCommSold.getPeak())
+                .setPeakQuantity((float)topologyCommSold.getHistoricalPeak())
                 .setCapacity(capacity)
                 .setQuantity(used)
                 // Warning: we are down casting from double to float.

@@ -47,7 +47,10 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -724,7 +727,10 @@ public class TopologyEntitiesHandlerTest {
                 SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map).stream()
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TraderTO> economyDTOs =
+
+        editTopologyDTOshistoryUtil(topoDTOs);
+
+            Set<TraderTO> economyDTOs =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -742,6 +748,52 @@ public class TopologyEntitiesHandlerTest {
         AnalysisResults results =
             TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo, analysisConfig, analysis);
         return results.getActionsList();
+    }
+    /**
+     * This method takes as parameter the map of the topology entities and sets all the historical
+     * used and peaked values of the commodities to the respective used and peak values.
+     * @param map The map of the topology entities.
+     */
+    private void editTopologyDTOshistoryUtil(Map<Long, TopologyEntityDTO> map) {
+        for (int i = 0; i < map.size(); i++) {
+            TopologyEntityDTO entity = map.get((long) i);
+            TopologyEntityDTO.Builder entityBuilder = entity.toBuilder();
+
+            // sold commodities
+            List<CommoditySoldDTO.Builder> commSoldBuilder = entityBuilder.getCommoditySoldListBuilderList();
+            for (int j = 0; j < commSoldBuilder.size(); j++) {
+                CommoditySoldDTO.Builder commSold = commSoldBuilder.get(j);
+                commSold.setHistoricalUsed(commSold.getUsed())
+                        .setHistoricalPeak(commSold.getPeak());
+            }
+            List<CommoditySoldDTO> soldList = new ArrayList<>();
+            for (CommoditySoldDTO.Builder commSold : commSoldBuilder) {
+                soldList.add(commSold.build());
+            }
+
+            // bought commodities
+            List<CommoditiesBoughtFromProvider.Builder> commBoughtFromProviderBuilder = entityBuilder.getCommoditiesBoughtFromProvidersBuilderList();
+            for (int j = 0; j < commBoughtFromProviderBuilder.size(); j++) {
+                List<CommodityBoughtDTO.Builder> commBoughtBuilder = commBoughtFromProviderBuilder.get(j).getCommodityBoughtBuilderList();
+                for (int k = 0; k < commBoughtBuilder.size(); k++) {
+                    CommodityBoughtDTO.Builder commBought = commBoughtBuilder.get(k);
+                    commBought.setHistoricalUsed(commBought.getUsed())
+                            .setHistoricalPeak(commBought.getPeak());
+                }
+            }
+            List<CommoditiesBoughtFromProvider> boughtList = new ArrayList<>();
+            for (CommoditiesBoughtFromProvider.Builder commBought : commBoughtFromProviderBuilder) {
+                boughtList.add(commBought.build());
+            }
+
+             entity = entityBuilder.clearCommoditySoldList()
+                        .clearCommoditiesBoughtFromProviders()
+                        .addAllCommoditySoldList(soldList)
+                        .addAllCommoditiesBoughtFromProviders(boughtList)
+                        .build();
+
+            map.put((long) i, entity);
+        }
     }
 
     private long countSoldCommodities(Set<TraderTO> traderDTOs, String pattern) {

@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -16,6 +20,7 @@ import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -105,6 +110,9 @@ public class TopologyConfig {
     @Autowired
     private CloudCostConfig cloudCostConfig;
 
+    @Autowired
+    private SQLDatabaseConfig sqlDatabaseConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -165,7 +173,8 @@ public class TopologyConfig {
                 groupConfig.discoveredClusterConstraintCache(),
                 applicationCommodityKeyChanger(),
                 controllableConfig.controllableManager(),
-                commoditiesEditor()
+                commoditiesEditor(),
+                historicalEditor()
         );
     }
 
@@ -191,5 +200,15 @@ public class TopologyConfig {
     @Bean
     public ApplicationCommodityKeyChanger applicationCommodityKeyChanger() {
         return new ApplicationCommodityKeyChanger();
+    }
+
+    @Bean
+    public HistoricalUtilizationDatabase historicalUtilizationDatabase() {
+        return new HistoricalUtilizationDatabase(sqlDatabaseConfig.dsl());
+    }
+
+    @Bean
+    public HistoricalEditor historicalEditor() {
+        return new HistoricalEditor(historicalUtilizationDatabase(), Executors.newSingleThreadExecutor());
     }
 }

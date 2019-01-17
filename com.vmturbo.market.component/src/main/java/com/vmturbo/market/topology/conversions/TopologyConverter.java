@@ -977,7 +977,7 @@ public class TopologyConverter {
      */
     protected float[] getResizedCapacityForCloud(@Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO,
                                                @Nonnull final TopologyDTO.CommodityBoughtDTO commBought) {
-        float[] newQuantity = {(float)commBought.getUsed(), (float)commBought.getPeak()};
+        float[] newQuantity = {(float)commBought.getHistoricalUsed(), (float)commBought.getHistoricalPeak()};
         Integer drivingCommSoldType = TopologyConversionConstants.commDependancyMapForCloudResize
                 .get(commBought.getCommodityType().getType());
         if (drivingCommSoldType == null) {

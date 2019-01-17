@@ -52,7 +52,7 @@ public class CommodityConverterTest {
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setCapacity(RAW_CAPACITY)
-                        .setUsed(RAW_USED)
+                        .setHistoricalUsed(RAW_USED)
                         .setCommodityType(CommodityType.newBuilder()
                                 .setType(CommodityDTO.CommodityType.CPU_VALUE)
                                 .build())
