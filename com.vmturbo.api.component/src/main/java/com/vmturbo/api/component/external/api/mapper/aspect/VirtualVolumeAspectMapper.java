@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -36,26 +37,32 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.Stat
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 public class VirtualVolumeAspectMapper implements IAspectMapper {
 
     private static final Logger logger = LogManager.getLogger();
+    // use for storage tier value for non cloud entities
+    private static final String UNKNOWN = "unknown";
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
@@ -96,6 +103,8 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             return mapStorageTiers(entities);
         } else if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
             return mapVirtualMachines(entities);
+        } else if (entityType == EntityType.STORAGE_VALUE) {
+            return mapStorages(entities);
         }
         return null;
     }
@@ -276,6 +285,41 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     }
 
     /**
+     * Create the VirtualVolumeAspect for the wasted files associated with a list of storages.
+     *
+     * @param storages list of storages to base the VirtualVolumeAspect on.
+     * @return VirtualVolumeAspect based on wasted files volumes associated with the list of
+     * storages.
+     */
+    private EntityAspect mapStorages(@Nonnull List<TopologyEntityDTO> storages) {
+        List<VirtualDiskApiDTO> virtualDisks = new ArrayList<>();
+        // for each storage, find the wasted file virtual volume by getting all volumes in the
+        // storage's ConnectedFrom and keeping only the virtual volume that has 0 VirtualMachines
+        // in its ConnectedFrom relationship.  Get the files on each wasted volume and convert them
+        // into VirtualDiskApiDTOs.  Take the list of VirtualDiskApiDTOs and stick them into the
+        // EntityAspect we're returning.
+        storages.forEach(storage ->
+            virtualDisks.addAll(
+                traverseAndGetEntities(String.valueOf(storage.getOid()),
+                    TraversalDirection.CONNECTED_FROM,
+                    UIEntityType.VIRTUAL_VOLUME.getValue()).stream()
+                    .filter(topoEntity ->
+                        traverseAndGetEntityCount(String.valueOf(topoEntity.getOid()),
+                            TraversalDirection.CONNECTED_FROM,
+                            UIEntityType.VIRTUAL_MACHINE.getValue()) == 0)
+                    .filter(TopologyEntityDTO::hasTypeSpecificInfo)
+                    .map(TopologyEntityDTO::getTypeSpecificInfo)
+                    .filter(TypeSpecificInfo::hasVirtualVolume)
+                    .map(TypeSpecificInfo::getVirtualVolume)
+                    .flatMap(virtualVolInfo -> virtualVolInfo.getFilesList().stream())
+                    .map(fileDescriptor -> fileToDiskApiDto(storage, fileDescriptor))
+                    .collect(Collectors.toList())));
+        final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
+        aspect.setVirtualDisks(virtualDisks);
+        return aspect;
+    }
+
+    /**
      * Retrieve cost for volumes and create cost StatApiDTO for each volume.
      *
      * @param volumeIds list of volume ids to get cost for
@@ -316,30 +360,79 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     }
 
     /**
-     * Helper method to get TopologyEntityDTOs for given search criteria.
+     * Return the {@link SearchParameters} for a search starting at the given oid in the
+     * {@link TraversalDirection} given for one hop ending in an entity of the given entityType.
+     *
+     * @param startOid the oid of the object to start the search from.
+     * @param traversalDirection the traversal direction to search in.
+     * @param endEntityType a String giving the name of the EntityType to search for.
+     * @return {@link SearchParameters} for the given search.
+     */
+    private SearchParameters createSearchParameters(
+        @Nonnull String startOid,
+        @Nonnull TraversalDirection traversalDirection,
+        @Nonnull String endEntityType) {
+        return SearchParameters.newBuilder()
+            // start from storage tier oid
+            .setStartingFilter(SearchMapper.stringFilter(GroupMapper.OID, startOid))
+            // traverse CONNECTED_FROM
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setTraversalFilter(TraversalFilter.newBuilder()
+                    .setTraversalDirection(traversalDirection)
+                    .setStoppingCondition(StoppingCondition.newBuilder()
+                        .setNumberHops(1).build()))
+                .build())
+            // find all volumes
+            .addSearchFilter(SearchMapper.searchFilterProperty(
+                SearchMapper.entityTypeFilter(endEntityType)))
+            .build();
+    }
+
+
+    /**
+     * Get the number of instances of a given EntityType by traversing one hop from the starting oid.
+     *
+     * @param startOid           Oid of entity to start the traversal from.
+     * @param traversalDirection the traversal direction.
+     * @param endEntityType      the type of entity to count.
+     * @return int giving the number of entities found.
+     */
+    public int traverseAndGetEntityCount(
+        @Nonnull String startOid,
+        @Nonnull TraversalDirection traversalDirection,
+        @Nonnull String endEntityType) {
+        try {
+            EntityCountResponse response = searchServiceRpc.countEntities(
+                CountEntitiesRequest.newBuilder()
+                    .addSearchParameters(createSearchParameters(startOid, traversalDirection,
+                        endEntityType)).build());
+            return response.getEntityCount();
+        } catch (Exception e) {
+            logger.error("Error when getting entity count for search parameters: {}",
+                createSearchParameters(startOid, traversalDirection, endEntityType), e);
+            return 0;
+        }
+
+    }
+
+    /**
+     * Traverse the topology from a starting oid using a specified {@link TraversalDirection} for
+     * one hop and return entities of the specified type.
+     *
+     * @param startOid           the oid to start from.
+     * @param traversalDirection the traversal direction.
+     * @param endEntityType      the type of entity to search for
+     * @return list of {@link TopologyEntityDTO} of the specified entity type within one hop of the
+     * starting oid in the given traversalDirection.
      */
     public List<TopologyEntityDTO> traverseAndGetEntities(
-            @Nonnull String startOid,
-            @Nonnull TraversalDirection traversalDirection,
-            @Nonnull String endEntityType) {
-        SearchParameters searchParameter = SearchParameters.newBuilder()
-                // start from storage tier oid
-                .setStartingFilter(SearchMapper.stringFilter(GroupMapper.OID, startOid))
-                // traverse CONNECTED_FROM
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                                .setTraversalDirection(traversalDirection)
-                                .setStoppingCondition(StoppingCondition.newBuilder()
-                                        .setNumberHops(1).build()))
-                        .build())
-                // find all volumes
-                .addSearchFilter(SearchMapper.searchFilterProperty(
-                        SearchMapper.entityTypeFilter(endEntityType)))
-                .build();
-
+        @Nonnull String startOid,
+        @Nonnull TraversalDirection traversalDirection,
+        @Nonnull String endEntityType) {
         return searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-                .addSearchParameters(searchParameter)
-                .build());
+            .addSearchParameters(createSearchParameters(startOid, traversalDirection,
+                endEntityType))
+            .build());
     }
 
     /**
@@ -361,6 +454,45 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         return searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
                         .addAllEntityOid(oids)
                         .build());
+    }
+
+    /**
+     * Convert a {@link VirtualVolumeFileDescriptor} for a file into a {@link VirtualDiskApiDTO}.
+     *
+     * @param storage The storage on which the file resides.
+     * @param file The file information.
+     * @return VirtualDiskApiDTO with the basic information for the file and stats giving the size
+     * of the file, the path, and the last modified time.
+     */
+    private VirtualDiskApiDTO fileToDiskApiDto(TopologyEntityDTO storage,
+                                               VirtualVolumeFileDescriptor file) {
+        VirtualDiskApiDTO retVal = new VirtualDiskApiDTO();
+        retVal.setDisplayName(file.getPath());
+        retVal.setEnvironmentType(EnvironmentType.ONPREM);
+        retVal.setProvider(createBaseApiDTO(storage));
+        retVal.setLastModified(file.getModificationTimeMs());
+        retVal.setTier(UNKNOWN);
+        // storage amount stats
+
+        retVal.setStats(Collections.singletonList(createStatApiDTO(
+            CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+            CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), file.getSizeKb() / 1024F,
+            file.getSizeKb() / 1024F, storage, file.getPath())));
+        return retVal;
+    }
+
+    /**
+     * Create the BaseApiDTO based on a TopologyEntityDTO.
+     *
+     * @param entity The storage enclosing the virtual disk.
+     * @return BaseApiDTO representing the storage.
+     */
+    private BaseApiDTO createBaseApiDTO(TopologyEntityDTO entity) {
+        BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid(String.valueOf(entity.getOid()));
+        baseApiDTO.setDisplayName(entity.getDisplayName());
+
+        return baseApiDTO;
     }
 
     /**

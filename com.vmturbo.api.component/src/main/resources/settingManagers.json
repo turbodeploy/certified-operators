@@ -100,7 +100,9 @@
         "diskCapacity7200",
         "diskCapacity10k",
         "diskCapacity15k",
-        "diskCapacityVSeries"
+        "diskCapacityVSeries",
+        "ignoreDirectories",
+        "ignoreFiles"
       ]
     },
     "persistencemanager" : {

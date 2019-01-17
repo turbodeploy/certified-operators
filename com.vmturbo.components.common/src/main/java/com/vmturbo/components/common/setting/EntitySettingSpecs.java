@@ -301,6 +301,20 @@ public enum EntitySettingSpecs {
             new BooleanSettingDataType(false),
             true),
 
+    IgnoreDirectories("ignoreDirectories", "Directories to ignore",
+        Collections.emptyList(),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE),
+        string("\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*"),
+        true),
+
+    IgnoreFiles("ignoreFiles", "Files to ignore",
+        Collections.emptyList(),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE),
+        string(),
+        true),
+
     /**
      * This Action Script action is added as a temporary work-around for a bug in the UI.
      * The UI processes workflows as part of the 'actionScript' case - so at least one
@@ -466,6 +480,11 @@ public enum EntitySettingSpecs {
     @Nonnull
     private static SettingDataStructure<?> string() {
         return new StringSettingDataType(DEFAULT_STRING_VALUE, MATCH_ANYTHING_REGEX);
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> string(String defaultValue) {
+        return new StringSettingDataType(defaultValue, MATCH_ANYTHING_REGEX);
     }
 
 }

@@ -59,6 +59,7 @@ public class EntityAspectMapper {
             .put(EntityType.STORAGE_VALUE, ImmutableList.of(
                 storageAspectMapper,
                 virtualDisksAspectMapper,
+                virtualVolumeAspectMapper,
                 cloudAspectMapper))
             .put(EntityType.STORAGE_TIER_VALUE, ImmutableList.of(
                 storageTierAspectMapper,

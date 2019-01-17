@@ -6,7 +6,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -278,6 +277,8 @@ public class VimStorageBrowsingDiscoveryConverter {
                                 .setPath(storageFileDescriptor.getPath())
                                 .setSizeKb(storageFileDescriptor.getSizeKb())
                                 .setType(storageFileDescriptor.getType())
+                                .setModificationTimeMs(storageFileDescriptor
+                                        .getModificationTimeMs())
                                 .build())
                 .collect(Collectors.toList());
     }

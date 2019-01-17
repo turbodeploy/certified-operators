@@ -34,6 +34,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
  * Unit tests for the {@link VirtualVolumeAspectMapper}.
@@ -60,6 +61,20 @@ public class VirtualVolumeAspectMapperTest {
     private String vmName2 = "testVM2";
     private String volumeName3 = "vol-345";
     private String storageTierName2 = "UNMANAGED_STANDARD";
+
+    // VCenter
+    private Long volumeId4 = 24L;
+    private String volumeName4 = "volume4";
+    private Long wastedVolumeId1 = 25L;
+    private String wastedVolumeDisplayName = "wastedVolumeForStorage1";
+    private Long storageId = 33L;
+    private String storageDisplayName = "storage1";
+    private String pathFile1 = "file3";
+    private String pathFile2 = "file4";
+    private Long sizeFile1 = 3000L;
+    private Long sizeFile2 = 4000L;
+    private Long timeFile1 = 300L;
+    private Long timeFile2 = 400L;
 
     // aws entities:
     // vm1 --> volume1, vm1 --> storageTier1
@@ -227,6 +242,58 @@ public class VirtualVolumeAspectMapperTest {
             .setEntityType(EntityType.REGION_VALUE)
             .build();
 
+    private TopologyEntityDTO storage1 = TopologyEntityDTO.newBuilder()
+        .setOid(storageId)
+        .setDisplayName(storageDisplayName)
+        .setEntityType(EntityType.STORAGE_VALUE)
+        .build();
+
+    private TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
+        .setOid(volumeId4)
+        .setDisplayName(volumeName4)
+        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+            .setConnectedEntityType(EntityType.STORAGE_VALUE)
+            .setConnectedEntityId(storageId)
+            .build())
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                .addFiles(VirtualVolumeFileDescriptor.newBuilder()
+                    .setPath("file1")
+                    .setSizeKb(1000)
+                    .build())
+                .addFiles(VirtualVolumeFileDescriptor.newBuilder()
+                    .setPath("file2")
+                    .setSizeKb(2000)
+                    .build())
+                .build()))
+        .build();
+
+    private TopologyEntityDTO wastedFilesVolume = TopologyEntityDTO.newBuilder()
+        .setOid(wastedVolumeId1)
+        .setDisplayName(wastedVolumeDisplayName)
+        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+            .setConnectedEntityType(EntityType.STORAGE_VALUE)
+            .setConnectedEntityId(storageId)
+            .build())
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                .addFiles(VirtualVolumeFileDescriptor.newBuilder()
+                    .setPath(pathFile1)
+                    .setSizeKb(sizeFile1)
+                    .setModificationTimeMs(timeFile1)
+                    .build())
+                .addFiles(VirtualVolumeFileDescriptor.newBuilder()
+                    .setPath(pathFile2)
+                    .setSizeKb(sizeFile2)
+                    .setModificationTimeMs(timeFile2)
+                    .build())
+                .build()))
+        .build();
+
     private VirtualVolumeAspectMapper volumeAspectMapper;
 
     @Before
@@ -243,26 +310,26 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testMapStorageTiers() {
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId1),
-               TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
-               .thenReturn(Lists.newArrayList(volume1, volume2));
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
+            .thenReturn(Lists.newArrayList(volume1, volume2));
 
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId2),
-                TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
-                .thenReturn(Lists.newArrayList(volume3));
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
+            .thenReturn(Lists.newArrayList(volume3));
 
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId1),
-                TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
-                .thenReturn(Lists.newArrayList(vm1));
+            TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
+            .thenReturn(Lists.newArrayList(vm1));
 
         when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageTierId2),
-                TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
-                .thenReturn(Lists.newArrayList(vm2));
+            TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE.getValue()))
+            .thenReturn(Lists.newArrayList(vm2));
 
         when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(regionId1, regionId2)))
-                .thenReturn(Lists.newArrayList(region1, region2));
+            .thenReturn(Lists.newArrayList(region1, region2));
 
-        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
-               Lists.newArrayList(storageTier1, storageTier2));
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
+            Lists.newArrayList(storageTier1, storageTier2));
 
         assertEquals(3, aspect.getVirtualDisks().size());
 
@@ -336,5 +403,55 @@ public class VirtualVolumeAspectMapperTest {
                 assertEquals(String.valueOf(storageTierId2), statApiDTO.getRelatedEntity().getUuid());
             }
         });
+    }
+
+    @Test
+    public void testMapStorage() {
+        when(volumeAspectMapper.traverseAndGetEntities(String.valueOf(storageId),
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME.getValue()))
+            .thenReturn(Lists.newArrayList(volume4, wastedFilesVolume));
+
+        when(volumeAspectMapper.searchTopologyEntityDTOs(Sets.newHashSet(volumeId4, wastedVolumeId1)))
+            .thenReturn(Lists.newArrayList(volume4, wastedFilesVolume));
+
+        when(volumeAspectMapper.traverseAndGetEntityCount(volumeId4.toString(),
+            TraversalDirection.CONNECTED_FROM,
+            UIEntityType.VIRTUAL_MACHINE.getValue())).thenReturn(1);
+
+        when(volumeAspectMapper.traverseAndGetEntityCount(wastedVolumeId1.toString(),
+            TraversalDirection.CONNECTED_FROM,
+            UIEntityType.VIRTUAL_MACHINE.getValue())).thenReturn(0);
+
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
+            Lists.newArrayList(storage1));
+
+        assertEquals(2, aspect.getVirtualDisks().size());
+
+        // check the virtual disks for each file on the wasted storage
+        VirtualDiskApiDTO volumeAspect1 = null;
+        VirtualDiskApiDTO volumeAspect2 = null;
+        for (VirtualDiskApiDTO virtualDiskApiDTO : aspect.getVirtualDisks()) {
+            if (virtualDiskApiDTO.getDisplayName().equals(pathFile1)) {
+                volumeAspect1 = virtualDiskApiDTO;
+            } else if (virtualDiskApiDTO.getDisplayName().equals(pathFile2)) {
+                volumeAspect2 = virtualDiskApiDTO;
+            }
+        }
+        assertNotNull(volumeAspect1);
+        assertNotNull(volumeAspect2);
+        assertEquals(String.valueOf(storageId), volumeAspect1.getProvider().getUuid());
+        assertNull(volumeAspect2.getAttachedVirtualMachine());
+        assertEquals(String.valueOf(storageId), volumeAspect2.getProvider().getUuid());
+
+        // check stats for different volumes
+        assertEquals(1, volumeAspect1.getStats().size());
+        assertEquals(pathFile1, volumeAspect1.getDisplayName());
+        assertEquals(sizeFile1 / 1024.0D, volumeAspect1.getStats().get(0).getValue(), 0.1D);
+        assertEquals((long) timeFile1, volumeAspect1.getLastModified());
+
+        assertEquals(1, volumeAspect2.getStats().size());
+        assertEquals(pathFile2, volumeAspect2.getDisplayName());
+        assertEquals(sizeFile2 / 1024.0D, volumeAspect2.getStats().get(0).getValue(), 0.1D);
+        assertEquals((long) timeFile2, volumeAspect2.getLastModified());
     }
 }
