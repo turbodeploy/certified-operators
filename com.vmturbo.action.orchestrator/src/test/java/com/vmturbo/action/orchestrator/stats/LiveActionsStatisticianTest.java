@@ -21,7 +21,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +58,7 @@ import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -78,7 +78,6 @@ public class LiveActionsStatisticianTest {
 
     private DSLContext dsl;
 
-
     private LiveActionsStatistician statistician;
 
     private SingleActionSnapshotFactory snapshotFactory = mock(SingleActionSnapshotFactory.class);
@@ -91,6 +90,8 @@ public class LiveActionsStatisticianTest {
     private ActionGroupStore actionGroupStore = mock(ActionGroupStore.class);
 
     private MgmtUnitSubgroupStore mgmtUnitSubgroupStore = mock(MgmtUnitSubgroupStore.class);
+
+    private ActionStatRollupScheduler rollupScheduler = mock(ActionStatRollupScheduler.class);
 
     /**
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
@@ -110,7 +111,7 @@ public class LiveActionsStatisticianTest {
 
         statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
             mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
-            clock, actionTranslator);
+            clock, actionTranslator, rollupScheduler);
     }
 
     @After
@@ -165,6 +166,9 @@ public class LiveActionsStatisticianTest {
         inOrder.verify(aggregator).processAction(snapshot3);
         inOrder.verify(aggregator).createRecords(upsertedSubgroup, upsertedActionGroup);
 
+        // Verify that the statistician schedules rollups.
+        verify(rollupScheduler).scheduleRollups();
+
         final Map<Integer, ActionStatsLatestRecord> recordsByMgmtUnit = dsl.selectFrom(ACTION_STATS_LATEST)
                 .fetch()
                 .into(ActionStatsLatestRecord.class)
@@ -183,7 +187,7 @@ public class LiveActionsStatisticianTest {
         assertThat(snapshotRecords.size(), is(1));
         ActionSnapshotLatestRecord snapshotRecord = snapshotRecords.get(0);
         assertThat(snapshotRecord.getSnapshotRecordingTime(), is(LocalDateTime.now(clock)));
-        assertThat(snapshotRecord.getTopologyCreationTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getActionSnapshotTime(), is(LocalDateTime.now(clock)));
         assertThat(snapshotRecord.getTopologyId(), is(1L));
         assertThat(snapshotRecord.getActionsCount(), is(3));
     }
@@ -218,7 +222,7 @@ public class LiveActionsStatisticianTest {
         assertThat(snapshotRecords.size(), is(1));
         ActionSnapshotLatestRecord snapshotRecord = snapshotRecords.get(0);
         assertThat(snapshotRecord.getSnapshotRecordingTime(), is(LocalDateTime.now(clock)));
-        assertThat(snapshotRecord.getTopologyCreationTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getActionSnapshotTime(), is(LocalDateTime.now(clock)));
         assertThat(snapshotRecord.getTopologyId(), is(1L));
         assertThat(snapshotRecord.getActionsCount(), is(1));
     }
@@ -254,7 +258,7 @@ public class LiveActionsStatisticianTest {
         assertThat(snapshotRecords.size(), is(1));
         ActionSnapshotLatestRecord snapshotRecord = snapshotRecords.get(0);
         assertThat(snapshotRecord.getSnapshotRecordingTime(), is(LocalDateTime.now(clock)));
-        assertThat(snapshotRecord.getTopologyCreationTime(), is(LocalDateTime.now(clock)));
+        assertThat(snapshotRecord.getActionSnapshotTime(), is(LocalDateTime.now(clock)));
         assertThat(snapshotRecord.getTopologyId(), is(1L));
         assertThat(snapshotRecord.getActionsCount(), is(1));
     }
@@ -265,7 +269,7 @@ public class LiveActionsStatisticianTest {
         insertFakeActionGroup(actionGroupId);
 
         final ActionStatsLatestRecord record1 = new ActionStatsLatestRecord();
-        record1.setSnapshotTime(LocalDateTime.now(clock));
+        record1.setActionSnapshotTime(LocalDateTime.now(clock));
         record1.setMgmtUnitSubgroupId(mgmtSubgroupId);
         record1.setActionGroupId(actionGroupId);
         record1.setTotalEntityCount(1);
@@ -302,7 +306,7 @@ public class LiveActionsStatisticianTest {
     }
 
     private void compareRecords(final ActionStatsLatestRecord got, final ActionStatsLatestRecord expected) {
-        assertThat(got.getSnapshotTime(), is(expected.getSnapshotTime()));
+        assertThat(got.getActionSnapshotTime(), is(expected.getActionSnapshotTime()));
         assertThat(got.getMgmtUnitSubgroupId(), is(expected.getMgmtUnitSubgroupId()));
         assertThat(got.getActionGroupId(), is(expected.getActionGroupId()));
         assertThat(got.getTotalEntityCount(), is(expected.getTotalEntityCount()));

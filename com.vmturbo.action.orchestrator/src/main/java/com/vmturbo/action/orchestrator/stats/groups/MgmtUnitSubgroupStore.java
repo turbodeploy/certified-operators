@@ -2,12 +2,14 @@ package com.vmturbo.action.orchestrator.stats.groups;
 
 import static com.vmturbo.action.orchestrator.db.Tables.MGMT_UNIT_SUBGROUP;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
@@ -48,15 +50,24 @@ public class MgmtUnitSubgroupStore {
      */
     @Nonnull
     public Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> ensureExist(@Nonnull final Set<MgmtUnitSubgroupKey> keys) {
+        if (keys.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         return dsl.transactionResult(transactionContext -> {
             final DSLContext transactionDsl = DSL.using(transactionContext);
 
-            transactionDsl.batch(keys.stream()
+            final int[] inserted = transactionDsl.batch(keys.stream()
                     .map(key -> transactionDsl.insertInto(MGMT_UNIT_SUBGROUP)
                         .set(keyToRecord(key))
                         .onDuplicateKeyIgnore())
                     .collect(Collectors.toList()))
                 .execute();
+
+            final int insertedSum = IntStream.of(inserted).sum();
+            if (insertedSum > 0) {
+                logger.info("Inserted {} action groups.", insertedSum);
+            }
 
             final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> allExistingMgmtUnits =
                 transactionDsl.selectFrom(MGMT_UNIT_SUBGROUP)
@@ -66,6 +77,8 @@ public class MgmtUnitSubgroupStore {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toMap(MgmtUnitSubgroup::key, Function.identity()));
+
+            logger.debug("A total of {} mgmt unit subgroups now exist.", allExistingMgmtUnits.size());
 
             return Maps.filterKeys(allExistingMgmtUnits, keys::contains);
         });

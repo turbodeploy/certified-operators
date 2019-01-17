@@ -55,7 +55,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
      * 2. {@link ActionAggregator#start()} to initialize
      * 3. for each action recorded by the {@link LiveActionsStatistician}:
      *     - {@link ActionAggregator#processAction(SingleActionSnapshot)}
-     * 4. {@link ActionAggregator#createRecords()} to retrieve the aggregated records.
+     * 4. {@link ActionAggregator#createRecords(Map, Map)} ()} to retrieve the aggregated records.
      */
     abstract class ActionAggregator {
 
@@ -134,7 +134,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
             return actionStats.cellSet().stream()
                 .map(cell -> {
                     final ActionStatsLatestRecord record = new ActionStatsLatestRecord();
-                    record.setSnapshotTime(snapshotTime);
+                    record.setActionSnapshotTime(snapshotTime);
                     final MgmtUnitSubgroup mgmtUnitSubgroupId = mgmtUnitSubgroups.get(cell.getRowKey());
                     if (mgmtUnitSubgroupId == null) {
                         // This shouldn't happen if the user of the aggregator collects the subgroup

@@ -1,0 +1,209 @@
+package com.vmturbo.action.orchestrator.stats.rollup;
+
+import java.time.LocalDateTime;
+import java.time.temporal.TemporalUnit;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+
+import javax.annotation.Nonnull;
+
+import org.immutables.value.Value;
+import org.jooq.Field;
+import org.jooq.Record;
+import org.jooq.Table;
+
+import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
+import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
+
+/**
+ * Common abstraction for a table containing action stats.
+ * <p>
+ * There are several very similar tables - latest, hour, day, and month - that we want to operate
+ * on in very similar ways. This interface helps do that.
+ */
+public interface ActionStatTable {
+
+    /**
+     * A {@link Reader} should be used to query the stats in an action stat table and roll them up
+     * into a {@link RolledUpActionStats} object.
+     */
+    interface Reader {
+        /**
+         * Roll-up the action stats in this table for a particular {@link MgmtUnitSubgroup} and
+         * time range. Note that we always roll-up one time unit at a time (i.e. one hour in
+         * the latest table, one day in the hourly table, one month in the daily table), so
+         * we only need the start time to identify a time range.
+         *
+         * @param mgmtUnitSubgroupId The id of the {@link MgmtUnitSubgroup} to roll up.
+         * @param startTime The start time for the time range. This should be appropriately
+         *                  truncated, depending on the table we're rolling up to (e.g. truncated
+         *                  to hour when reading from latest to roll up to hourly).
+         * @return An {@link Optional} containing the {@link RolledUpActionStats}
+         */
+        @Nonnull
+        Optional<RolledUpActionStats> rollup(final int mgmtUnitSubgroupId,
+                                             @Nonnull final LocalDateTime startTime);
+
+        /**
+         * Get a list of times from this table which are "rollup-ready".
+         * A time range is rollup-ready if there will be no more snapshots in the time frame.
+         * For example, in the "latest" table time 17:00 becomes "rollup-ready" once there is
+         * a snapshot with time greater-than-or-equal-to 18:00.
+         *
+         * These time-ranges can be passed into {@link Reader#rollup(int, LocalDateTime)}.
+         *
+         * @return A list of {@link RollupReadyInfo}.
+         */
+        @Nonnull
+        List<RollupReadyInfo> rollupReadyTimes();
+    }
+
+    /**
+     * A {@link Writer} should be used to write rolled-up action stats from a "lower-level" table
+     * (e.g. latest) to the "higher-level" table (e.g. hour).
+     */
+    interface Writer {
+
+        /**
+         * Insert a rolled-up stats record into the stat table this writer is for.
+         *
+         * @param mgmtUnitSubgroupId The id of the {@link MgmtUnitSubgroup} the record applies to.
+         * @param summary The {@link RolledUpActionStats} to insert.
+         */
+        void insert(final int mgmtUnitSubgroupId,
+                    @Nonnull final RolledUpActionStats summary);
+    }
+
+    /**
+     * Get the {@link Reader} to use for this table.
+     *
+     * @return An {@link Optional} containing a {@link Reader}, or an empty {@link Optional} if
+     *         this table does not get rolled up to any other table.
+     */
+    Optional<Reader> reader();
+
+    /**
+     * Get the {@link Writer} to use for this table.
+     *
+     * @return An {@link Optional} containing a {@link Writer}, or an empty {@link Optional} if
+     *         no table gets rolled up to this table.
+     */
+    Optional<Writer> writer();
+
+    /**
+     * Information about the underlying database table. The various time frames have very similar
+     * table structures, and this {@link TableInfo} allows code to generically interact with all
+     * of them.
+     *
+     * @param <STAT_RECORD> The type of {@link Record} in the action stat table.
+     */
+    @Value.Immutable
+    interface TableInfo<STAT_RECORD extends Record, SNAPSHOT_RECORD extends Record> {
+        /**
+         * The stat table {@link Table}. This is the table that actually keeps the stats.
+         */
+        Table<STAT_RECORD> statTable();
+
+        /**
+         * The stat snapshot {@link Table}. This is the table that keeps information about the
+         * available snapshots.
+         */
+        Table<SNAPSHOT_RECORD> snapshotTable();
+
+        /**
+         * The snapshot_time field in the stat table.
+         */
+        Field<LocalDateTime> statTableSnapshotTime();
+
+        /**
+         * The snapshot_time field in the snapshot table.
+         */
+        Field<LocalDateTime> snapshotTableSnapshotTime();
+
+        /**
+         * The mgmt_unit_subgroup_id field in the stat table.
+         */
+        Field<Integer> mgmtUnitSubgroupIdField();
+
+        /**
+         * The function to truncate a {@link LocalDateTime} to this table's {@link TemporalUnit}.
+         * Separate from the {@link TableInfo#temporalUnit()} property because "Month" needs
+         * special truncate logic.
+         */
+        Function<LocalDateTime, LocalDateTime> timeTruncateFn();
+
+        /**
+         * The {@link TemporalUnit} for this table's time frame.
+         */
+        TemporalUnit temporalUnit();
+
+        /**
+         * The getter for the action_group_id field in the stat table record.
+         */
+        Function<STAT_RECORD, Integer> actionGroupId();
+    }
+
+    /**
+     * Information about a time range that's ready to be rolled up into the next table.
+     */
+    @Value.Immutable
+    interface RollupReadyInfo {
+        /**
+         * The time range to roll up data over.
+         */
+        LocalDateTime startTime();
+
+        /**
+         * The management units that have data for the time range.
+         */
+        Set<Integer> managementUnits();
+    }
+
+    /**
+     * Action stats for a particular {@link ActionGroup}, rolled up for a particular
+     * {@link MgmtUnitSubgroup} over a time range.
+     */
+    @Value.Immutable
+    interface RolledUpActionGroupStat {
+
+        double    avgActionCount();
+        int       minActionCount();
+        int       maxActionCount();
+
+        double    avgEntityCount();
+        int       minEntityCount();
+        int       maxEntityCount();
+
+        double    avgSavings();
+        double    minSavings();
+        double    maxSavings();
+
+        double    avgInvestment();
+        double    minInvestment();
+        double    maxInvestment();
+    }
+
+    /**
+     * Action stats for all {@link ActionGroup}s, rolled up for a particular time range and
+     * {@link MgmtUnitSubgroup}.
+     */
+    @Value.Immutable
+    interface RolledUpActionStats {
+
+        LocalDateTime startTime();
+
+        /**
+         * The total number of action plan snapshots rolled up into the time unit starting at
+         * start time. For example, suppose there are 3 snapshots per hour for a day.
+         * When rolling up an hour worth of snapshots into the HOURLY table, this property
+         * should be "3". When rolling up the whole day's worth of hourly snapshots into the
+         * DAILY table, this property should be "3 * 24 = 72".
+         */
+        int numActionSnapshots();
+
+        Map<Integer, RolledUpActionGroupStat> statsByActionGroupId();
+    }
+}

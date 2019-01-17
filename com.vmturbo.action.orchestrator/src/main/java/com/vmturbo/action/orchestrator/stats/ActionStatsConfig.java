@@ -14,6 +14,7 @@ import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -23,7 +24,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({GroupClientConfig.class,
         RepositoryClientConfig.class,
         SQLDatabaseConfig.class,
-        ActionTranslationConfig.class})
+        ActionTranslationConfig.class,
+        ActionStatsRollupConfig.class})
 public class ActionStatsConfig {
 
     @Autowired
@@ -37,6 +39,9 @@ public class ActionStatsConfig {
 
     @Autowired
     private ActionTranslationConfig actionTranslationConfig;
+
+    @Autowired
+    private ActionStatsRollupConfig rollupConfig;
 
     @Value("${actionStatsWriteBatchSize}")
     private int actionStatsWriteBatchSize;
@@ -75,6 +80,7 @@ public class ActionStatsConfig {
                 snapshotFactory(),
                 Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory()),
                 Clock.systemUTC(),
-                actionTranslationConfig.actionTranslator());
+                actionTranslationConfig.actionTranslator(),
+                rollupConfig.rollupScheduler());
     }
 }

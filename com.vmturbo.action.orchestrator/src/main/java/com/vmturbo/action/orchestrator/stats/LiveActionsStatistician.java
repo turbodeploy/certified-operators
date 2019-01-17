@@ -37,6 +37,7 @@ import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -70,6 +71,8 @@ public class LiveActionsStatistician {
 
     private final ActionTranslator actionTranslator;
 
+    private final ActionStatRollupScheduler actionStatRollupScheduler;
+
     public LiveActionsStatistician(@Nonnull final DSLContext dsl,
                final int batchSize,
                @Nonnull final ActionGroupStore actionGroupStore,
@@ -77,7 +80,8 @@ public class LiveActionsStatistician {
                @Nonnull final SingleActionSnapshotFactory snapshotFactory,
                @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
                @Nonnull final Clock clock,
-               @Nonnull final ActionTranslator actionTranslator) {
+               @Nonnull final ActionTranslator actionTranslator,
+               @Nonnull final ActionStatRollupScheduler rollupScheduler) {
         this.dslContext = Objects.requireNonNull(dsl);
         this.batchSize = batchSize;
         this.actionGroupStore = Objects.requireNonNull(actionGroupStore);
@@ -86,6 +90,7 @@ public class LiveActionsStatistician {
         this.clock = Objects.requireNonNull(clock);
         this.aggregatorFactories = Objects.requireNonNull(aggregatorFactories);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.actionStatRollupScheduler = Objects.requireNonNull(rollupScheduler);
     }
 
     /**
@@ -249,6 +254,8 @@ public class LiveActionsStatistician {
                 Metrics.ACTION_STAT_RECORDS.increment((double) recordCount.get());
             }
         }
+
+        actionStatRollupScheduler.scheduleRollups();
     }
 
     /**
@@ -307,8 +314,8 @@ public class LiveActionsStatistician {
         @Nonnull
         default ActionSnapshotLatestRecord toDbRecord() {
             final ActionSnapshotLatestRecord snapshotRecord = new ActionSnapshotLatestRecord();
+            snapshotRecord.setActionSnapshotTime(topologyCreationTime());
             snapshotRecord.setSnapshotRecordingTime(actionSnapshotTime());
-            snapshotRecord.setTopologyCreationTime(topologyCreationTime());
             snapshotRecord.setTopologyId(topologyId());
             snapshotRecord.setActionsCount(actions().size());
             return snapshotRecord;

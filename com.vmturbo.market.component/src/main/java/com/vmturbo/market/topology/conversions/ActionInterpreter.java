@@ -115,8 +115,8 @@ public class ActionInterpreter {
                     .setId(IdentityGenerator.next())
                     .setImportance(actionTO.getImportance())
                     .setExplanation(interpretExplanation(actionTO, savings))
-                    .setExecutable(!actionTO.getIsNotExecutable())
-                    .setSavingsPerHour(savings.orElse(CurrencyAmount.getDefaultInstance()));
+                    .setExecutable(!actionTO.getIsNotExecutable());
+            savings.ifPresent(action::setSavingsPerHour);
 
             final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
 

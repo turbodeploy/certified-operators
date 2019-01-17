@@ -6,6 +6,8 @@
 -- of a management unit. For example - VMs in a cluster.
 CREATE TABLE mgmt_unit_subgroup (
 
+    -- The ID of the management unit subgroup.
+    -- This is completely local to the action orchestrator's action stats tables.
     id INTEGER NOT NULL AUTO_INCREMENT,
 
     -- -------------------
@@ -43,6 +45,8 @@ CREATE TABLE mgmt_unit_subgroup (
 -- be able to count by.
 CREATE TABLE action_group (
 
+    -- The ID of the action group.
+    -- This is completely local to the action orchestrator's action stats tables.
     id INTEGER NOT NULL AUTO_INCREMENT,
 
     -- The action type. See: ActionType in common.protobuf
@@ -74,7 +78,7 @@ CREATE TABLE action_stats_latest (
     -- -------------------
 
     -- The time of the snapshot.
-    snapshot_time TIMESTAMP NOT NULL,
+    action_snapshot_time TIMESTAMP NOT NULL,
 
     -- The management unit group specifying the entities involved.
     mgmt_unit_subgroup_id INTEGER NOT NULL,
@@ -104,7 +108,7 @@ CREATE TABLE action_stats_latest (
     -- render them separately.
     total_investment DECIMAL(20, 7) NOT NULL,
 
-    PRIMARY KEY (snapshot_time, mgmt_unit_subgroup_id, action_group_id),
+    PRIMARY KEY (action_snapshot_time, mgmt_unit_subgroup_id, action_group_id),
 
     FOREIGN KEY (mgmt_unit_subgroup_id) REFERENCES mgmt_unit_subgroup(id),
     FOREIGN KEY (action_group_id) REFERENCES action_group(id)
@@ -118,7 +122,7 @@ CREATE TABLE action_snapshot_latest (
     --
     -- If a particular action group or management unit has no rows with this snapshot_time in
     -- action_stats_latest, this means there were no actions in that scope in this action snapshot.
-    topology_creation_time TIMESTAMP NOT NULL,
+    action_snapshot_time TIMESTAMP NOT NULL,
 
     -- The ID of the topology, primarily for debugging purposes.
     topology_id BIGINT NOT NULL,
@@ -129,6 +133,164 @@ CREATE TABLE action_snapshot_latest (
     -- The number of actions. Primarily for debugging purposes.
     actions_count INTEGER NOT NULL,
 
-    PRIMARY KEY (topology_creation_time, topology_id)
+    PRIMARY KEY (action_snapshot_time)
 );
 
+-- -------------
+-- HOURLY ROLLUP
+-- -------------
+
+CREATE TABLE action_stats_by_hour (
+    -- The "hour" timestamp.
+    hour_time TIMESTAMP NOT NULL,
+
+    mgmt_unit_subgroup_id INTEGER NOT NULL,
+
+    action_group_id INTEGER NOT NULL,
+
+    -- To get the total for any of the stats, multiply the avg by the number of snapshots
+    -- in the associated action_snapshot_hour record.
+
+    avg_action_count DECIMAL(20, 7) NOT NULL,
+    min_action_count INTEGER NOT NULL,
+    max_action_count INTEGER NOT NULL,
+
+    avg_entity_count DECIMAL(20, 7) NOT NULL,
+    min_entity_count INTEGER NOT NULL,
+    max_entity_count INTEGER NOT NULL,
+
+    avg_savings DECIMAL(20, 7) NOT NULL,
+    min_savings DECIMAL(20, 7) NOT NULL,
+    max_savings DECIMAL(20, 7) NOT NULL,
+
+    avg_investment DECIMAL(20, 7) NOT NULL,
+    min_investment DECIMAL(20, 7) NOT NULL,
+    max_investment DECIMAL(20, 7) NOT NULL,
+
+    PRIMARY KEY (hour_time, mgmt_unit_subgroup_id, action_group_id),
+
+    FOREIGN KEY (mgmt_unit_subgroup_id) REFERENCES mgmt_unit_subgroup(id),
+    FOREIGN KEY (action_group_id) REFERENCES action_group(id)
+);
+
+CREATE TABLE action_snapshot_hour (
+    -- The "hour" timestamp.
+    -- There should be an action_snapshot_hour row for each unique "hour" timestamp in
+    -- action_stats_by_hour.
+    hour_time TIMESTAMP NOT NULL,
+
+    -- The number of action snapshots rolled up into this hour.
+    -- This is essentially the number of action_snapshot_latest entries that started with
+    -- the hour represented by hour_time.
+    num_action_snapshots INTEGER NOT NULL,
+
+    hour_rollup_time TIMESTAMP NOT NULL,
+
+    PRIMARY KEY (hour_time)
+);
+
+-- -------------
+-- DAILY ROLLUP
+-- -------------
+
+CREATE TABLE action_stats_by_day (
+    -- The "day" timestamp.
+    day_time TIMESTAMP NOT NULL,
+
+    mgmt_unit_subgroup_id INTEGER NOT NULL,
+
+    action_group_id INTEGER NOT NULL,
+
+    -- To get the total for any of the stats, multiply the avg by the number of snapshots
+    -- in the associated action_snapshot_day record.
+
+    avg_action_count DECIMAL(20, 7) NOT NULL,
+    min_action_count INTEGER NOT NULL,
+    max_action_count INTEGER NOT NULL,
+
+    avg_entity_count DECIMAL(20, 7) NOT NULL,
+    min_entity_count INTEGER NOT NULL,
+    max_entity_count INTEGER NOT NULL,
+
+    avg_savings DECIMAL(20, 7) NOT NULL,
+    min_savings DECIMAL(20, 7) NOT NULL,
+    max_savings DECIMAL(20, 7) NOT NULL,
+
+    avg_investment DECIMAL(20, 7) NOT NULL,
+    min_investment DECIMAL(20, 7) NOT NULL,
+    max_investment DECIMAL(20, 7) NOT NULL,
+
+    PRIMARY KEY (day_time, mgmt_unit_subgroup_id, action_group_id),
+
+    FOREIGN KEY (mgmt_unit_subgroup_id) REFERENCES mgmt_unit_subgroup(id),
+    FOREIGN KEY (action_group_id) REFERENCES action_group(id)
+);
+
+CREATE TABLE action_snapshot_day (
+    -- The "day" timestamp.
+    -- There should be an action_snapshot_day row for each unique "day" timestamp in
+    -- action_stats_by_day.
+    day_time TIMESTAMP NOT NULL,
+
+    -- The total number of action snapshots rolled up into this day.
+    -- This is essentially the number of action_snapshot_latest entries that started with
+    -- the day represented by day_time.
+    num_action_snapshots INTEGER NOT NULL,
+
+    day_rollup_time TIMESTAMP NOT NULL,
+
+    PRIMARY KEY (day_time)
+);
+
+-- -------------
+-- MONTHLY ROLLUP
+-- -------------
+
+CREATE TABLE action_stats_by_month (
+    -- The "month" timestamp.
+    month_time TIMESTAMP NOT NULL,
+
+    mgmt_unit_subgroup_id INTEGER NOT NULL,
+
+    action_group_id INTEGER NOT NULL,
+
+    -- To get the total for any of the stats, multiply the avg by the number of snapshots
+    -- in the associated action_snapshot_month record.
+
+    avg_action_count DECIMAL(20, 7) NOT NULL,
+    min_action_count INTEGER NOT NULL,
+    max_action_count INTEGER NOT NULL,
+
+    avg_entity_count DECIMAL(20, 7) NOT NULL,
+    min_entity_count INTEGER NOT NULL,
+    max_entity_count INTEGER NOT NULL,
+
+    avg_savings DECIMAL(20, 7) NOT NULL,
+    min_savings DECIMAL(20, 7) NOT NULL,
+    max_savings DECIMAL(20, 7) NOT NULL,
+
+    avg_investment DECIMAL(20, 7) NOT NULL,
+    min_investment DECIMAL(20, 7) NOT NULL,
+    max_investment DECIMAL(20, 7) NOT NULL,
+
+    PRIMARY KEY (month_time, mgmt_unit_subgroup_id, action_group_id),
+
+    FOREIGN KEY (mgmt_unit_subgroup_id) REFERENCES mgmt_unit_subgroup(id),
+    FOREIGN KEY (action_group_id) REFERENCES action_group(id)
+);
+
+CREATE TABLE action_snapshot_month (
+    -- The "month" timestamp.
+    -- There should be an action_snapshot_month row for each unique "month" timestamp in
+    -- action_stats_by_month.
+    month_time TIMESTAMP NOT NULL,
+
+    -- The total number of action snapshots rolled up into this month.
+    -- This is essentially the number of action_snapshot_latest entries that started with
+    -- the day represented by month_time.
+    num_action_snapshots INTEGER NOT NULL,
+
+    month_rollup_time TIMESTAMP NOT NULL,
+
+    PRIMARY KEY (month_time)
+);

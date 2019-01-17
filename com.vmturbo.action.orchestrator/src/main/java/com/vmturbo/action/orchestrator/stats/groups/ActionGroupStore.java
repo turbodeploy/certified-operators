@@ -2,12 +2,15 @@ package com.vmturbo.action.orchestrator.stats.groups;
 
 import static com.vmturbo.action.orchestrator.db.tables.ActionGroup.ACTION_GROUP;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -49,17 +52,31 @@ public class ActionGroupStore {
      */
     @Nonnull
     public Map<ActionGroupKey, ActionGroup> ensureExist(@Nonnull final Set<ActionGroupKey> keys) {
+        if (keys.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        if (logger.isTraceEnabled()) {
+            logger.debug("Ensuring that these action group keys exist: {}", keys);
+        } else {
+            logger.debug("Ensuring that {} action group keys exist.", keys.size());
+        }
+
         return dsl.transactionResult(transactionContext -> {
             final DSLContext transactionDsl = DSL.using(transactionContext);
 
-            transactionDsl.batch(keys.stream()
-                .map(key -> transactionDsl.insertInto(ACTION_GROUP)
-                    .set(keyToRecord(key))
-                    .onDuplicateKeyIgnore())
-                .collect(Collectors.toList()))
+            final int[] inserted = transactionDsl.batch(keys.stream()
+                    .map(key -> transactionDsl.insertInto(ACTION_GROUP)
+                        .set(keyToRecord(key))
+                        .onDuplicateKeyIgnore())
+                    .collect(Collectors.toList()))
                 .execute();
+            final int insertedSum = IntStream.of(inserted).sum();
+            if (insertedSum > 0) {
+                logger.info("Inserted {} action groups.", insertedSum);
+            }
 
-            final Map<ActionGroupKey, ActionGroup> allExistingMgmtUnits =
+            final Map<ActionGroupKey, ActionGroup> allExistingActionGroups =
                 transactionDsl.selectFrom(ACTION_GROUP)
                     .fetch()
                     .stream()
@@ -67,7 +84,9 @@ public class ActionGroupStore {
                     .filter(Optional::isPresent).map(Optional::get)
                     .collect(Collectors.toMap(ActionGroup::key, Function.identity()));
 
-            return Maps.filterKeys(allExistingMgmtUnits, keys::contains);
+            logger.debug("A total of {} action groups now exist.", allExistingActionGroups);
+
+            return Maps.filterKeys(allExistingActionGroups, keys::contains);
         });
     }
 

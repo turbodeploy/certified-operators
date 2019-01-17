@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator;
 
+import java.time.Clock;
 import java.util.EnumSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,6 +62,11 @@ public class ActionOrchestratorGlobalConfig {
     @Bean
     public Channel topologyProcessorChannel() {
         return tpClientConfig.topologyProcessorChannel();
+    }
+
+    @Bean
+    public Clock actionOrchestratorClock() {
+        return Clock.systemUTC();
     }
 }
 
