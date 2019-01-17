@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -122,7 +123,13 @@ public class ActionInterpreter {
 
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
-                    infoBuilder.setMove(interpretMoveAction(actionTO.getMove(), entityIdToType));
+                    Move move = interpretMoveAction(actionTO.getMove(), entityIdToType);
+                    if (move.getChangesList().isEmpty()) {
+                        // There needs to be at least one change provider. It will currently hit
+                        // this block for Accounting actions on the cloud.
+                        return Optional.empty();
+                    }
+                    infoBuilder.setMove(move);
                     break;
                 case COMPOUND_MOVE:
                     infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
@@ -540,6 +547,7 @@ public class ActionInterpreter {
         TopologyEntityDTO destAz = null;
         TopologyEntityDTO sourceTier = null;
         TopologyEntityDTO destTier = null;
+        TopologyEntityDTO target = originalTopology.get(targetOid);
         Long moveSource = move.hasSource() ? move.getSource() : null;
         if (destMt != null ) {
             // TODO: We are considering the destination AZ as the first AZ of the destination
@@ -551,9 +559,8 @@ public class ActionInterpreter {
         }
         if (sourceMt != null) {
             // Soruce AZ is the AZ which the target is connected to.
-            sourceAz = TopologyDTOUtil.getConnectedEntitiesOfType(
-                    originalTopology.get(targetOid), EntityType.AVAILABILITY_ZONE_VALUE,
-                    originalTopology).get(0);
+            sourceAz = TopologyDTOUtil.getConnectedEntitiesOfType(target,
+                    EntityType.AVAILABILITY_ZONE_VALUE, originalTopology).get(0);
             sourceTier = sourceMt.getTier();
         }
         Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
@@ -564,6 +571,11 @@ public class ActionInterpreter {
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
         if (sourceMt != null && destMt != null) {
+            if ((destMt.getRegion() == sourceMt.getRegion()) && (destTier == sourceTier)
+                    && (move.hasCouponDiscount()&& move.hasCouponId())) {
+                logger.warn("ACCOUNTING action generated for {}. We do not handle accounting " +
+                        "actions YET. Dropping action.", target.getDisplayName());
+            }
             // Cloud to cloud move
             if (destMt.getRegion() != sourceMt.getRegion()) {
                 // AZ change provider. We create an AZ change provider because the target is

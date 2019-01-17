@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -62,7 +61,6 @@ import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
-import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -483,55 +481,62 @@ public class TopologyConverter {
      * The existing RI Coverage is used if the trader stayed on the same RI and the coverage
      * remained the same.
      * A new projected coverage is created in these cases:
-     * 1. If the trader moved from on demand tier to RI tier.
-     * 2. If the trader moved from RI tier 1 to RI tier 2. In this case, use coupons of RI2. Coupons
+     * 1. If the trader is a new trader (like in add workload plan), and is placed on an RITier.
+     * 2. If the trader moved from on demand tier to RI tier.
+     * 3. If the trader moved from RI tier 1 to RI tier 2. In this case, use coupons of RI2. Coupons
      * used by trader of RI1 were already relinquished in the relinquishCoupons method.
-     * 3. If the trader stayed on same RI, but coverage changed.
+     * 4. If the trader stayed on same RI, but coverage changed.
      *
-     * @param originalTraderTO the original trader (before going into market)
+     * @param originalTraderTO the original trader (before going into market). Can be null in case
+     *                         of initial placement.
      * @param projectedTraderTO the projected trader for which RI Coverage is to be created
      * @param originalRiCoverage the original trader's original RI Coverage (before going into market)
      */
-    private void calculateProjectedRiCoverage(TraderTO originalTraderTO, TraderTO projectedTraderTO,
-                                              Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
+    private void calculateProjectedRiCoverage(TraderTO originalTraderTO, @Nonnull TraderTO projectedTraderTO,
+                                              @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
         // Are any of the shopping lists of the projected trader placed on discounted tier?
         Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTraderTO);
         if (projectedRiTierSl.isPresent()) {
-            // Destination is RI
+            // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
             RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
-                    cloudTc.getMarketTier(projectedRiTierSl.get().getSupplier());
-            Optional<MarketTier> originalRiTierDestination =
-                    originalTraderTO.getShoppingListsList().stream()
-                    .map(sl -> sl.getSupplier()).map(traderId -> cloudTc.getMarketTier(traderId))
-                    .filter(Objects::nonNull).filter(mt -> mt.hasRIDiscount()).findFirst();
-            Optional<CommodityBoughtTO> projectedCouponCommBought =
-                    getCouponCommBought(projectedRiTierSl.get());
+                    cloudTc.getMarketTier(projectedRiTierSl.get().getCouponId());
+            Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(
+                    projectedRiTierSl.get());
+            if (!projectedCouponCommBought.isPresent()) {
+                logger.error("Projected trader {} is placed on RI {}, but it's RI shopping list does not have " +
+                                "projectedCouponCommBought",
+                        projectedTraderTO.getDebugInfoNeverUseInCode(), projectedRiTierDestination.getDisplayName());
+                return;
+            }
+            // TODO: When we start relinquishing coupons in XL if a VM is resizing, we need to
+            // relook at this line below. If we relinquish coupons, the VM's original trader will
+            // no longer be supplied by an RIDiscountedMarketTier.
+            Optional<MarketTier> originalRiTierDestination = Optional.empty();
+            if (originalTraderTO != null) {
+                originalRiTierDestination = originalTraderTO.getShoppingListsList().stream()
+                        .map(sl -> sl.getSupplier()).map(traderId -> cloudTc.getMarketTier(traderId))
+                        .filter(Objects::nonNull).filter(mt -> mt.hasRIDiscount()).findFirst();
+            }
 
             if (!originalRiTierDestination.isPresent() ||
                     !originalRiTierDestination.get().equals(projectedRiTierDestination)) {
-                // Entity has moved from a regular tier to an riTier OR from one riTer to another.
-                // Create a new RICoverage object.
-                if (projectedCouponCommBought.isPresent()) {
-                    // The information of the number of coupons to use is present in the coupon
-                    // commodity bought of the trader
-                    Optional<EntityReservedInstanceCoverage> riCoverage =
-                            projectedRiTierDestination.useCoupons(projectedTraderTO.getOid(),
-                                    projectedCouponCommBought.get().getQuantity());
-                    riCoverage.ifPresent(coverage -> projectedReservedInstanceCoverage.put(
-                            projectedTraderTO.getOid(), coverage));
-                } else {
-                    logger.error("{} does not have projected coupon comm bought, but market placed " +
-                                    "it on {}", originalTraderTO.getDebugInfoNeverUseInCode(),
-                            projectedRiTierDestination.getDisplayName());
-                }
+                // Entity is initially placed on an riTier
+                // OR has moved from a regular tier to an riTier
+                // OR from one riTer to another.
+                // So, in all these cases, create a new RICoverage object.
+                // The information of the number of coupons to use is present in the coupon
+                // commodity bought of the trader
+                Optional<EntityReservedInstanceCoverage> riCoverage =
+                        projectedRiTierDestination.useCoupons(projectedTraderTO.getOid(),
+                                projectedCouponCommBought.get().getQuantity());
+                riCoverage.ifPresent(coverage -> projectedReservedInstanceCoverage.put(
+                        projectedTraderTO.getOid(), coverage));
+
             } else {
                 // Entity stayed on the same RI Tier. Check if the coverage changed.
+                // If we are in this block, originalTraderTO cannot be null.
                 if (!originalRiCoverage.isPresent()) {
                     logger.error("{} does not have original RI coverage", originalTraderTO.getDebugInfoNeverUseInCode());
-                    return;
-                }
-                if (!projectedCouponCommBought.isPresent()) {
-                    logger.error("{} does not have projectedCouponCommBought", originalTraderTO.getDebugInfoNeverUseInCode());
                     return;
                 }
                 float projectedNumberOfCouponsBought = projectedCouponCommBought.get().getQuantity();
@@ -619,8 +624,7 @@ public class TopologyConverter {
      * @return Optional of the ShoppingListTO
      */
     private Optional<ShoppingListTO> getShoppingListSuppliedByRiTier(@Nonnull TraderTO trader) {
-        return trader.getShoppingListsList().stream().filter(sl -> cloudTc.isMarketTier(sl.getSupplier())
-                && cloudTc.getMarketTier(sl.getSupplier()).hasRIDiscount()).findFirst();
+        return trader.getShoppingListsList().stream().filter(sl -> sl.hasCouponId()).findFirst();
     }
 
     /**
