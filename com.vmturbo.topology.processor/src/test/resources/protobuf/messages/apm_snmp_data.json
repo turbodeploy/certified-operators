@@ -1,0 +1,109 @@
+[
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "1",
+    "displayName": "proxy-vm-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "VCPU",
+        "key": "P1",
+        "used": 150.0,
+        "capacity": 3000.0,
+        "peak": 90.0
+      },
+      {
+        "commodityType": "VMEM",
+        "used": 99.0,
+        "capacity": 2333.0,
+        "peak": 70.0
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtual_machine_data": {
+      "ipAddress": [
+        "10.0.1.15"
+      ],
+      "vmState": {
+        "connected": false
+      },
+      "guestName": "LINUX"
+    }
+  },
+  {
+    "entityType": "APPLICATION",
+    "id": "2",
+    "displayName": "proxy-guestload-app-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "TRANSACTION",
+        "capacity": 10.0
+      },
+      {
+        "commodityType": "SLA_COMMODITY",
+        "capacity": 6000.0
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "1",
+        "bought": [
+          {
+            "commodityType": "VMEM",
+            "used": 100.0,
+            "peak": 120.0
+          },
+          {
+            "commodityType": "VCPU",
+            "used": 90.0,
+            "peak": 100.0
+          }
+        ],
+        "providerType": "VIRTUAL_MACHINE"
+      }
+    ],
+    "application_data": {
+      "ipAddress": [
+        "10.10.174.53"
+      ],
+      "type": [
+        "GuestLoad"
+      ]
+    }
+  }
+,
+  {
+    "entityType": "APPLICATION",
+    "id": "6cfdfa9a3ffa32feb5d39a7bd10c43ae2697a7b7",
+    "displayName": "app-2",
+
+    "commoditiesSold": [
+      {
+        "commodityType": "TRANSACTION",
+        "capacity": 20.0
+      },
+      {
+        "commodityType": "SLA_COMMODITY",
+        "capacity": 1234.0
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "1",
+        "bought": [
+          {
+            "commodityType": "VMEM"
+          },
+          {
+            "commodityType": "VCPU"
+          }
+        ],
+        "providerType": "VIRTUAL_MACHINE"
+      }
+    ],
+    "application_data": {
+      "ipAddress": [
+        "1.2.3.4"
+      ]
+    }
+  }
+]

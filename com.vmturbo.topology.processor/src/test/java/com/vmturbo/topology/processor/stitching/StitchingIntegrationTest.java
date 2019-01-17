@@ -47,12 +47,14 @@ import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityOid;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
@@ -68,6 +70,8 @@ import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
@@ -107,14 +111,14 @@ public class StitchingIntegrationTest {
             new PreStitchingOperationLibrary();
     private PostStitchingOperationLibrary postStitchingOperationLibrary;
 
-    private final long netAppProbeId = 1234L;
-    private final long netAppTargetId = 1111L;
+    private final long vcProbeId = 1111L;
     private final long vcTargetId = 2222L;
+    private final long netAppProbeId = 1234L;
+    private final long netAppTargetId = 1235L;
     private final long ucsProbeId = 2468L;
-    private final long ciscoVcenterProbeId = 2345L;
     private final long ucsTargetId = 2121L;
-    private final long ciscoVcenterTargetId = 3131L;
-    private final long vcProbeId = 5678L;
+    private final long apmProbeId = 2333L;
+    private final long apmTargetId = 6666L;
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
     private final ProbeStore probeStore = mock(ProbeStore.class);
@@ -141,10 +145,10 @@ public class StitchingIntegrationTest {
                         diskCapacityCalculator, cpuCapacityStore, clock, 0);
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
-        when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
-        when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
+        when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(SDKProbeType.HYPERV));
     }
 
     @Test
@@ -152,7 +156,7 @@ public class StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", 1L);
 
-        addEntities(hypervisorEntities, 2222L);
+        addEntities(hypervisorEntities, vcTargetId);
 
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
@@ -350,28 +354,6 @@ public class StitchingIntegrationTest {
                 .collect(Collectors.toList());
     }
 
-    private static Collection<CommodityType> boughtDataFromChassisToPM =
-            ImmutableList.of(CommodityType.SPACE,
-                    CommodityType.POWER,
-                    CommodityType.COOLING,
-                    CommodityType.DATACENTER);
-
-    private static Collection<CommodityBoughtMetadata> pmBoughtCommodityData =
-            ImmutableList.of(CommodityBoughtMetadata.newBuilder()
-                            .addAllCommodityMetadata(boughtDataFromChassisToPM)
-                            .setProviderType(EntityType.CHASSIS)
-                            .setReplacesProvider(EntityType.DATACENTER).build(),
-                    CommodityBoughtMetadata.newBuilder()
-                            .addAllCommodityMetadata(boughtDataFromChassisToPM)
-                            .setProviderType(EntityType.DATACENTER)
-                            .setReplacesProvider(EntityType.DATACENTER).build(),
-                    CommodityBoughtMetadata.newBuilder()
-                            .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
-                            .setProviderType(EntityType.SWITCH).build(),
-                    CommodityBoughtMetadata.newBuilder()
-                            .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
-                            .setProviderType(EntityType.IO_MODULE).build());
-
     @Test
     public void testUCSStitchingWithStandardOperations() throws Exception {
         testUCSStitching(ImmutableList.of(new FabricChassisStitchingOperation(),
@@ -404,7 +386,6 @@ public class StitchingIntegrationTest {
                         fabricMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 
-
     private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
             throws Exception {
         final Map<Long, EntityDTO> ucsEntities =
@@ -415,10 +396,9 @@ public class StitchingIntegrationTest {
                         ucsEntities.size() + 1L);
 
         addEntities(ucsEntities, ucsTargetId);
-        addEntities(hypervisorEntities, ciscoVcenterTargetId);
+        addEntities(hypervisorEntities, vcTargetId);
 
-        stitchingOperationStore.setOperationsForProbe(ucsProbeId,
-                fabricStitchingOperationsToTest);
+        stitchingOperationStore.setOperationsForProbe(ucsProbeId, fabricStitchingOperationsToTest);
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
@@ -427,18 +407,16 @@ public class StitchingIntegrationTest {
         final Target ucsTarget = mock(Target.class);
         when(ucsTarget.getId()).thenReturn(ucsTargetId);
         final Target ucsVcenterTarget = mock(Target.class);
-        when(ucsVcenterTarget.getId()).thenReturn(ciscoVcenterTargetId);
-
+        when(ucsVcenterTarget.getId()).thenReturn(vcTargetId);
         when(targetStore.getProbeTargets(ucsProbeId))
                 .thenReturn(Collections.singletonList(ucsTarget));
-
-        when(targetStore.getProbeTargets(ciscoVcenterProbeId))
+        when(targetStore.getProbeTargets(vcProbeId))
                 .thenReturn(Collections.singletonList(ucsVcenterTarget));
-
+        when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
         when(probeStore.getProbeIdsForCategory(ProbeCategory.FABRIC))
                 .thenReturn(Collections.singletonList(ucsProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
-                .thenReturn(Collections.singletonList(ciscoVcenterProbeId));
+                .thenReturn(Collections.singletonList(vcProbeId));
 
         final StringBuilder journalStringBuilder = new StringBuilder(2048);
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
@@ -532,6 +510,219 @@ public class StitchingIntegrationTest {
         stitchingManager.postStitch(new GraphWithSettings(TopologyGraph.newGraph(topology),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal);
     }
+
+    private static Collection<CommodityType> boughtDataFromChassisToPM =
+            ImmutableList.of(CommodityType.SPACE,
+                    CommodityType.POWER,
+                    CommodityType.COOLING,
+                    CommodityType.DATACENTER);
+
+    private static Collection<CommodityBoughtMetadata> pmBoughtCommodityData =
+            ImmutableList.of(CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(boughtDataFromChassisToPM)
+                            .setProviderType(EntityType.CHASSIS)
+                            .setReplacesProvider(EntityType.DATACENTER).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(boughtDataFromChassisToPM)
+                            .setProviderType(EntityType.DATACENTER)
+                            .setReplacesProvider(EntityType.DATACENTER).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
+                            .setProviderType(EntityType.SWITCH).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
+                            .setProviderType(EntityType.IO_MODULE).build());
+
+    @Test
+    public void testGuestLoadStitchingWithGenericOperations() throws Exception {
+        testGuestLoadStitching(getDataDrivenGuestLoadStitchingOperations());
+    }
+
+    private List<StitchingOperation<?, ?>> getDataDrivenGuestLoadStitchingOperations() {
+        EntityField idField = EntityField.newBuilder().setFieldName("id").build();
+        EntityOid oid = EntityOid.newBuilder().build();
+        MatchingData internalMatchingData = MatchingData.newBuilder()
+                .setMatchingField(idField).build();
+        MatchingData externalMatchingData = MatchingData.newBuilder()
+                .setMatchingEntityOid(oid).build();
+        MatchingMetadata guestLoadMatchingMetadata = MatchingMetadata.newBuilder()
+                .addMatchingData(internalMatchingData).setReturnType(ReturnType.STRING)
+                .addExternalEntityMatchingProperty(externalMatchingData)
+                .setExternalEntityReturnType(ReturnType.STRING)
+                .build();
+
+        final MergedEntityMetadata guestLoadVMMergeEntityMetadata =
+                MergedEntityMetadata.newBuilder().mergeMatchingMetadata(guestLoadMatchingMetadata)
+                        .addAllCommoditiesSold(soldCommoditiesFromVMToApp)
+                        .build();
+        final MergedEntityMetadata guestLoadAppMergeEntityMetadata =
+                MergedEntityMetadata.newBuilder().mergeMatchingMetadata(guestLoadMatchingMetadata)
+                        .addAllCommoditiesSold(soldCommoditiesFromApp)
+                        .addAllCommoditiesBought(boughtCommoditiesFromAppToVM)
+                        .build();
+
+        return ImmutableList.of(
+                new StringToStringDataDrivenStitchingOperation(
+                        new StringToStringStitchingMatchingMetaDataImpl(EntityType.VIRTUAL_MACHINE,
+                                guestLoadVMMergeEntityMetadata), Sets.newHashSet(
+                                        ProbeCategory.HYPERVISOR)),
+                new StringToStringDataDrivenStitchingOperation(
+                        new StringToStringStitchingMatchingMetaDataImpl(EntityType.APPLICATION,
+                                guestLoadAppMergeEntityMetadata), Sets.newHashSet(
+                                        ProbeCategory.HYPERVISOR))
+                );
+    }
+
+    private void testGuestLoadStitching(List<StitchingOperation<?, ?>>
+                                                guestLoadStitchingOperationsToTest)
+            throws Exception {
+        final Map<Long, EntityDTO> hypervisorEntities =
+                sdkDtosFromFile(getClass(), "protobuf/messages/apm_vc_data.json", 1L);
+        final Map<Long, EntityDTO> guestLoadEntities =
+                sdkDtosFromFile(getClass(), "protobuf/messages/apm_snmp_data.json",
+                        hypervisorEntities.size() + 1L);
+
+        addEntities(guestLoadEntities, apmTargetId);
+        addEntities(hypervisorEntities, vcTargetId);
+
+        stitchingOperationStore.setOperationsForProbe(apmProbeId,
+                guestLoadStitchingOperationsToTest);
+        stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
+
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore,
+                targetStore, cpuCapacityStore);
+        final Target apmTarget = mock(Target.class);
+        when(apmTarget.getId()).thenReturn(apmTargetId);
+        final Target vcTarget = mock(Target.class);
+        when(vcTarget.getId()).thenReturn(vcTargetId);
+        when(targetStore.getProbeTargets(apmProbeId))
+                .thenReturn(Collections.singletonList(apmTarget));
+        when(targetStore.getProbeTargets(vcProbeId))
+                .thenReturn(Collections.singletonList(vcTarget));
+        when(probeStore.getProbe(apmProbeId)).thenReturn(Optional.empty());
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.GUEST_OS_PROCESSES))
+                .thenReturn(Collections.singletonList(apmProbeId));
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
+                .thenReturn(Collections.singletonList(vcProbeId));
+
+        final StringBuilder journalStringBuilder = new StringBuilder(2048);
+        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+        final ConfigurableStitchingJournalFactory journalFactory = StitchingJournalFactory
+                .configurableStitchingJournalFactory(Clock.systemUTC())
+                .addRecorder(new StringBuilderRecorder(journalStringBuilder));
+        journalFactory.setJournalOptions(JournalOptions.newBuilder()
+                .setVerbosity(Verbosity.LOCAL_CONTEXT_VERBOSITY)
+                .build());
+
+        final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
+        stitchingManager.stitch(stitchingContext, journal);
+        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+
+        // these proxy VMs and Apps from APM should have been removed.
+        final List<Long> apmExpectedRemoved = oidsFor(Stream.of(
+                "proxy-vm-1",
+                "proxy-guestload-app-1"),
+                guestLoadEntities);
+        // these real App from APM should have been retained.
+        final List<Long> apmExpectedRetained = oidsFor(Stream.of(
+                "app-2"),
+                guestLoadEntities);
+        // all entities from VC should be retained.
+        final List<Long> vcExpectedRetained = oidsFor(Stream.of(
+                "vm-1",
+                "guestload-app-1"),
+                hypervisorEntities);
+
+        apmExpectedRemoved.forEach(oid -> assertNull(topology.get(oid)));
+        apmExpectedRetained.forEach(oid -> assertNotNull(topology.get(oid)));
+        vcExpectedRetained.forEach(oid -> assertNotNull(topology.get(oid)));
+
+        final long vm1Oid = vcExpectedRetained.get(0);
+        final long app1Oid = vcExpectedRetained.get(1);
+        final long app2Oid = apmExpectedRetained.get(0);
+        final long proxyVm1Oid = apmExpectedRemoved.get(0);
+        final long proxyApp1Oid = apmExpectedRemoved.get(1);
+        final double delta = 1e-7;
+        // get proxy entity from entity store, and real entity from repository
+        final EntityDTO proxyVm1 = entityStore.getEntity(proxyVm1Oid).get()
+                .getEntityInfo(apmTargetId).get().getEntityInfo();
+        final EntityDTO proxyApp1 = entityStore.getEntity(proxyApp1Oid).get()
+                .getEntityInfo(apmTargetId).get().getEntityInfo();
+        final TopologyEntity vm1Topo = topology.get(vm1Oid).build();
+        final TopologyEntity app1Topo = topology.get(app1Oid).build();
+        final TopologyEntity app2Topo = topology.get(app2Oid).build();
+
+        // app-2 should has 1 VC provider
+        assertEquals(1, app2Topo.getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProvidersCount());
+        assertEquals(vm1Topo.getOid(), app2Topo.getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProviders(0).getProviderId());
+
+        // verify commodities sold in VM-1 has been replaced by proxy in VM-1
+        vm1Topo.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(
+            commoditySoldDTO -> {
+                final int commTypeVal = commoditySoldDTO.getCommodityType().getType();
+                // get commodity sold DTO in proxy VM
+                final CommodityDTO proxyComm = proxyVm1.getCommoditiesSoldList().stream()
+                        .filter(commSold ->
+                                commSold.getCommodityType().getNumber() == commTypeVal)
+                        .findFirst().get();
+                assertEquals(proxyComm.getUsed(), commoditySoldDTO.getUsed(), delta);
+                assertEquals(proxyComm.getPeak(), commoditySoldDTO.getPeak(), delta);
+                assertEquals(proxyComm.getCapacity(), commoditySoldDTO.getCapacity(), delta);
+            }
+        );
+
+        // verify commodities sold in app-1 has been replaced by proxy in app-1
+        app1Topo.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(
+            commoditySoldDTO -> {
+                final int commTypeVal = commoditySoldDTO.getCommodityType().getType();
+                // get commodity sold DTO in proxy app
+                final CommodityDTO proxyComm = proxyApp1.getCommoditiesSoldList().stream()
+                        .filter(commSold ->
+                                commSold.getCommodityType().getNumber() == commTypeVal)
+                        .findFirst().get();
+                assertEquals(proxyComm.getUsed(), commoditySoldDTO.getUsed(), delta);
+                assertEquals(proxyComm.getPeak(), commoditySoldDTO.getPeak(), delta);
+                assertEquals(proxyComm.getCapacity(), commoditySoldDTO.getCapacity(), delta);
+            }
+        );
+
+        // verify commodities bought in app-1 has been replaced by proxy in app-1
+        app1Topo.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().forEach(
+            commoditiesBoughtFromProvider -> {
+                // should buy from VM-1
+                assertEquals(vm1Oid, commoditiesBoughtFromProvider.getProviderId());
+                commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(
+                    commodityBoughtDTO -> {
+                        final int commTypeVal = commodityBoughtDTO.getCommodityType().getType();
+                        // get commodity bought DTO in proxy app
+                        final CommodityDTO proxyComm = proxyApp1.getCommoditiesBoughtList().stream()
+                                .flatMap(commBoughts -> commBoughts.getBoughtList().stream())
+                                .filter(commBought ->
+                                        commBought.getCommodityType().getNumber() == commTypeVal)
+                                .findFirst().get();
+                        assertEquals(proxyComm.getUsed(), commodityBoughtDTO.getUsed(), delta);
+                        assertEquals(proxyComm.getPeak(), commodityBoughtDTO.getPeak(), delta);
+                    }
+                );
+            }
+        );
+    }
+
+    private static Collection<CommodityType> soldCommoditiesFromApp =
+            ImmutableList.of(CommodityType.TRANSACTION, CommodityType.SLA_COMMODITY);
+
+    private static Collection<CommodityType> soldCommoditiesFromVMToApp =
+            ImmutableList.of(CommodityType.VMEM, CommodityType.VCPU);
+
+    private static Collection<CommodityBoughtMetadata> boughtCommoditiesFromAppToVM =
+            ImmutableList.of(CommodityBoughtMetadata.newBuilder()
+                    .addAllCommodityMetadata(ImmutableList.of(CommodityType.VMEM,
+                            CommodityType.VCPU))
+                    .setProviderType(EntityType.VIRTUAL_MACHINE)
+                    .build());
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId)
             throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {

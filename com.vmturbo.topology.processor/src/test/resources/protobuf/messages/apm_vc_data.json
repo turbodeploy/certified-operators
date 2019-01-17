@@ -1,0 +1,70 @@
+[
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "52cc3b60-005e-40e6-a365-65ae34b29bbf",
+    "displayName": "vm-1",
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "key1",
+        "value": "value1"
+      }
+    ],
+    "commoditiesSold": [
+      {
+        "commodityType": "VCPU",
+        "key": "P1",
+        "used": 50.0,
+        "capacity": 2000.0,
+        "peak": 80.0
+      },
+      {
+        "commodityType": "VMEM",
+        "used": 50.0,
+        "capacity": 2000.0,
+        "peak": 80.0
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtual_machine_data": {
+      "ipAddress": [
+        "10.0.1.15"
+      ],
+      "vmState": {
+        "connected": false
+      },
+      "guestName": "LINUX"
+    }
+  },
+  {
+    "entityType": "APPLICATION",
+    "id": "1d9527c8fe25850b9beb1b2a2851190bbb4180b7",
+    "displayName": "guestload-app-1",
+    "commoditiesBought": [
+      {
+        "providerId": "52cc3b60-005e-40e6-a365-65ae34b29bbf",
+        "bought": [
+          {
+            "commodityType": "VMEM",
+            "used": 50.0,
+            "peak": 80.0
+          },
+          {
+            "commodityType": "VCPU",
+            "used": 60.0,
+            "peak": 80.0
+          }
+        ],
+        "providerType": "VIRTUAL_MACHINE"
+      }
+    ],
+    "application_data": {
+      "ipAddress": [
+        "10.10.174.53"
+      ],
+      "type": [
+        "GuestLoad"
+      ]
+    }
+  }
+]
