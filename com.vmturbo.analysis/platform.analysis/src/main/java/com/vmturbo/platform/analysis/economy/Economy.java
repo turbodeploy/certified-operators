@@ -735,6 +735,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         }
         getTraders().stream()
             .forEach(clone::simulationCloneTrader);
+        clone.populateMarketsWithSellers();
         return clone;
     }
 
