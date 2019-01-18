@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -226,16 +225,17 @@ public class ActionOrchestratorPerformanceTest {
     public void populateActions(@Nonnull final ActionOrchestrator actionOrchestrator,
                                 @Nonnull final ActionPlan actionPlan,
                                 @Nonnull final String type) throws Exception {
-        final CompletableFuture<ActionsUpdated> actionsUpdatedFuture = new CompletableFuture<>();
-        actionOrchestrator.addActionsListener(new TestActionsListener(actionsUpdatedFuture));
+        final CompletableFuture<ActionPlan> actionPlanFuture = new CompletableFuture<>();
+        actionOrchestrator.addActionsListener(new TestActionsListener(actionPlanFuture));
 
         final long start = System.currentTimeMillis();
         marketNotificationSender.notifyActionsRecommended(actionPlan);
-        final ActionsUpdated receivedActionsUpdated = actionsUpdatedFuture.get(10, TimeUnit.MINUTES);
+        final ActionPlan receivedActionPlan = actionPlanFuture.get(10, TimeUnit.MINUTES);
 
         logger.info("Took {} seconds to receive and process {} action plan of size {}.",
             (System.currentTimeMillis() - start) / 1000.0f,
-            type, actionPlan.getActionList().size());
+            type,
+            receivedActionPlan.getActionList().size());
     }
 
     public void fetchActions(@Nonnull final ActionsServiceBlockingStub actionsService,
@@ -283,15 +283,15 @@ public class ActionOrchestratorPerformanceTest {
     }
 
     private static class TestActionsListener implements ActionsListener {
-        private final CompletableFuture<ActionsUpdated> actionsUpdatedFuture;
+        private final CompletableFuture<ActionPlan> actionPlanFuture;
 
-        public TestActionsListener(@Nonnull final CompletableFuture<ActionsUpdated> actionsUpdatedFuture) {
-            this.actionsUpdatedFuture = actionsUpdatedFuture;
+        public TestActionsListener(@Nonnull final CompletableFuture<ActionPlan> actionPlanFuture) {
+            this.actionPlanFuture = actionPlanFuture;
         }
 
         @Override
-        public void onActionsUpdated(@Nonnull final ActionsUpdated actionsUpdated) {
-            actionsUpdatedFuture.complete(actionsUpdated);
+        public void onActionsReceived(@Nonnull final ActionPlan actionPlan) {
+            actionPlanFuture.complete(actionPlan);
         }
     }
 

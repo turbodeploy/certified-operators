@@ -21,7 +21,6 @@ import org.mockito.Mockito;
 import org.mockito.internal.matchers.CapturesArguments;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -129,8 +128,8 @@ public class PlanNotificationsTest {
         Assert.assertEquals(TOPOLOGY_ID, inprogressMatcher.getValue().getProjectedTopologyId());
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, inprogressMatcher.getValue().getStatus());
 
-        actionsListener.onActionsUpdated(
-                ActionsUpdated.newBuilder().setActionPlanId(ACT_PLAN_ID).setTopologyContextId(planId).build());
+        actionsListener.onActionsReceived(
+                ActionPlan.newBuilder().setId(ACT_PLAN_ID).setTopologyContextId(planId).build());
         final StatusMatcher matcher = new StatusMatcher(PlanStatus.SUCCEEDED);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(matcher.capture());
         final PlanInstance plan = matcher.getValue();
@@ -149,8 +148,8 @@ public class PlanNotificationsTest {
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
 
-        actionsListener.onActionsUpdated(
-                ActionsUpdated.newBuilder().setActionPlanId(ACT_PLAN_ID).setTopologyContextId(planId).build());
+        actionsListener.onActionsReceived(
+                ActionPlan.newBuilder().setId(ACT_PLAN_ID).setTopologyContextId(planId).build());
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
 
         Mockito.verify(listener, Mockito.never()).onPlanStatusChanged(planSucceeded());
@@ -183,8 +182,8 @@ public class PlanNotificationsTest {
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
 
-        actionsListener.onActionsUpdated(
-                ActionsUpdated.newBuilder().setActionPlanId(ACT_PLAN_ID).setTopologyContextId(planId).build());
+        actionsListener.onActionsReceived(
+                ActionPlan.newBuilder().setId(ACT_PLAN_ID).setTopologyContextId(planId).build());
 
         actionsListener.onStatsAvailable(StatsAvailable.newBuilder()
             .setTopologyContextId(planId)
@@ -234,10 +233,10 @@ public class PlanNotificationsTest {
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
         final CountDownLatch latch = new CountDownLatch(1);
         final Future<?> actionReport = threadPool.submit(() -> {
-            final ActionsUpdated actionsUpdated =
-                    ActionsUpdated.newBuilder().setActionPlanId(ACT_PLAN_ID).setTopologyContextId(planId).build();
+            final ActionPlan actionPlan =
+                    ActionPlan.newBuilder().setId(ACT_PLAN_ID).setTopologyContextId(planId).build();
             latch.await();
-            actionsListener.onActionsUpdated(actionsUpdated);
+            actionsListener.onActionsReceived(actionPlan);
             return null;
         });
         final Future<?> topologyReport = threadPool.submit(() -> {
@@ -272,8 +271,8 @@ public class PlanNotificationsTest {
      */
     @Test
     public void testIgnoreRealtimeTopology() throws Exception {
-        actionsListener.onActionsUpdated(ActionsUpdated.newBuilder()
-            .setActionPlanId(1L)
+        actionsListener.onActionsReceived(ActionPlan.newBuilder()
+            .setId(1L)
             .setTopologyContextId(PlanTestConfig.REALTIME_TOPOLOGY_ID)
             .build());
 

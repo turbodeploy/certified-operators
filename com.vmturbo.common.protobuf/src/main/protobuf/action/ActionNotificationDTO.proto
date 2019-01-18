@@ -32,16 +32,3 @@ message ActionFailure {
     // A description of the error that caused the failure.
     optional string errorDescription = 2;
 }
-
-// Sent when the set of actions have been updated in the action orchestrator
-message ActionsUpdated {
-    // The ID of the action plan that was consumed.
-    optional int64 action_plan_id = 1;
-
-    // The ID of the topology the action plan was generated for.
-    optional int64 topology_id = 2;
-
-    // The ID of the topology context. Used to differentiate, for example, between real and plan contexts.
-    // If not set, it is an error.
-    optional int64 topology_context_id = 3;
-}

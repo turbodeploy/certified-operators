@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
@@ -40,29 +39,20 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     @Override
     public void onActionsReceived(@Nonnull final ActionPlan actionPlan) {
-        onActionsUpdated(ActionsUpdated.newBuilder()
-                .setActionPlanId(actionPlan.getId())
-                .setTopologyContextId(actionPlan.getTopologyContextId())
-                .setTopologyId(actionPlan.getTopologyId())
-                .build());
-    }
-
-    @Override
-    public void onActionsUpdated(@Nonnull final ActionsUpdated actionsUpdated) {
         // The context of the action plan is the plan that the actions apply to.
-        final long planId = actionsUpdated.getTopologyContextId();
-        logger.debug("Received action plan with {} for plan {}", actionsUpdated.getActionPlanId(), planId);
+        final long planId = actionPlan.getTopologyContextId();
+        logger.debug("Received action plan with {} for plan {}", actionPlan.getId(), planId);
         if (planId != realtimeTopologyContextId) {
             try {
-                planDao.updatePlanInstance(planId, plan -> processActionsUpdated(plan, actionsUpdated));
-                logger.info("Plan {} is assigned action plan id {}", planId, actionsUpdated.getActionPlanId());
+                planDao.updatePlanInstance(planId, plan -> processActionPlan(plan, actionPlan));
+                logger.info("Plan {} is assigned action plan id {}", planId, actionPlan.getId());
             } catch (IntegrityException e) {
                 logger.error(
                         "Could not change plan's " + planId + " state according to action " +
-                                "plan " + actionsUpdated.getActionPlanId(), e);
+                                "plan " + actionPlan.getId(), e);
             } catch (NoSuchObjectException e) {
                 logger.warn("Could not find plan by topology context id {}",
-                        actionsUpdated.getTopologyContextId(), e);
+                        actionPlan.getTopologyContextId(), e);
             }
         } else {
             logger.debug("Dropping real-time action plan notification.");
@@ -158,9 +148,9 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         }
     }
 
-    private static void processActionsUpdated(@Nonnull final PlanInstance.Builder plan,
-            @Nonnull final ActionsUpdated actionsUpdated) {
-        plan.setActionPlanId(actionsUpdated.getActionPlanId());
+    private static void processActionPlan(@Nonnull final PlanInstance.Builder plan,
+            @Nonnull final ActionPlan actionPlan) {
+        plan.setActionPlanId(actionPlan.getId());
         if (plan.hasProjectedTopologyId() && plan.hasStatsAvailable()) {
             plan.setStatus(PlanStatus.SUCCEEDED);
         } else {

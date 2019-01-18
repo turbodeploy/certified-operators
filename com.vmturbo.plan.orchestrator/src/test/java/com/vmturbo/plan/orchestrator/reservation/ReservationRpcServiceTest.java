@@ -233,6 +233,41 @@ public class ReservationRpcServiceTest {
     public void testPlacementSettingOverride() {
         final List<ScenarioChange> scenarioChangeList =
                 reservationRpcService.createPlacementActionSettingOverride();
-        assertEquals(7, scenarioChangeList.size());
+        assertEquals(4, scenarioChangeList.size());
+        final Optional<Setting> moveSettingForVm = scenarioChangeList.stream()
+                .map(ScenarioChange::getSettingOverride)
+                .filter(settingOverride -> settingOverride.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .map(SettingOverride::getSetting)
+                .filter(setting ->
+                        setting.getSettingSpecName().equals(EntitySettingSpecs.Move.getSettingName()))
+                .findFirst();
+        final Optional<Setting> movesSettingForSt = scenarioChangeList.stream()
+                .map(ScenarioChange::getSettingOverride)
+                .filter(settingOverride -> settingOverride.getEntityType() == EntityType.STORAGE_VALUE)
+                .map(SettingOverride::getSetting)
+                .filter(setting ->
+                        setting.getSettingSpecName().equals(EntitySettingSpecs.Move.getSettingName()))
+                .findFirst();
+        final Optional<Setting> provisionSetting = scenarioChangeList.stream()
+                .map(ScenarioChange::getSettingOverride)
+                .map(SettingOverride::getSetting)
+                .filter(setting ->
+                        setting.getSettingSpecName().equals(EntitySettingSpecs.Provision.getSettingName()))
+                .findFirst();
+        final Optional<Setting> storageSetting = scenarioChangeList.stream()
+                .map(ScenarioChange::getSettingOverride)
+                .filter(settingOverride -> settingOverride.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .map(SettingOverride::getSetting)
+                .filter(setting ->
+                        setting.getSettingSpecName().equals(EntitySettingSpecs.StorageMove.getSettingName()))
+                .findFirst();
+        assertTrue(moveSettingForVm.isPresent());
+        assertTrue(moveSettingForVm.get().getEnumSettingValue().getValue().equals(DISABLE));
+        assertTrue(movesSettingForSt.isPresent());
+        assertTrue(movesSettingForSt.get().getEnumSettingValue().getValue().equals(DISABLE));
+        assertTrue(provisionSetting.isPresent());
+        assertTrue(provisionSetting.get().getEnumSettingValue().getValue().equals(DISABLE));
+        assertTrue(storageSetting.isPresent());
+        assertTrue(storageSetting.get().getEnumSettingValue().getValue().equals(DISABLE));
     }
 }
