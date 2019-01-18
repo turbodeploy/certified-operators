@@ -62,7 +62,6 @@ public class HistoricalEditor {
             DataMetricSummary.builder()
                     .withName("historical_used_and_peak_values_load_time_seconds")
                     .withHelp("Time taken to load the historical used and peak values from history.")
-                    .withLabelNames("loading_phase")
                     .build();
 
     static final ImmutableSet<Integer> accessCommodities =
@@ -278,7 +277,7 @@ public class HistoricalEditor {
         final CommodityType commodityType = topoCommSold.getCommodityType();
         float used = (float) topoCommSold.getUsed();
         float peak = (float) topoCommSold.getPeak();
-        logger.info("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Used from mediation=" + used
+        logger.trace("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Used from mediation=" + used
                 + ", Peak from mediation=" + peak);
 
         // Using historical values in calculation of used and peak
@@ -298,9 +297,9 @@ public class HistoricalEditor {
                             float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                             used = usedHistWeight * histSoldInfo.getHistoricalUsed() + (1 - usedHistWeight) * used;
                             peak = peakHistWeight * histSoldInfo.getHistoricalPeak() + (1 - peakHistWeight) * peak;
-                            logger.info("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Historical used=" + histSoldInfo.getHistoricalUsed()
+                            logger.trace("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Historical used=" + histSoldInfo.getHistoricalUsed()
                                     + ", Historical peak=" + histSoldInfo.getHistoricalPeak());
-                            logger.info("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Calculated used=" + used
+                            logger.trace("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Calculated used=" + used
                                     + ", Calculated peak=" + peak);
                         }
                         histSoldInfo.setHistoricalUsed(used);
@@ -420,7 +419,7 @@ public class HistoricalEditor {
     private void calculateSmoothValuesForCommodityBought(TopologyEntity topoEntity, CommodityBoughtDTO.Builder topoCommBought, long sourceId) {
         float usedQuantity = (float) topoCommBought.getUsed();
         float peakQuantity = (float) topoCommBought.getPeak();
-        logger.info("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Used from mediation=" + usedQuantity
+        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Used from mediation=" + usedQuantity
                 + ", Peak from mediation=" + peakQuantity);
 
         if ((!(topoEntity.getEnvironmentType() == EnvironmentType.CLOUD)) &&
@@ -443,9 +442,9 @@ public class HistoricalEditor {
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                         usedQuantity = usedHistWeight * histBoughtInfo.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
                         peakQuantity = peakHistWeight * histBoughtInfo.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
-                        logger.info("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Historical used=" + histBoughtInfo.getHistoricalUsed()
+                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Historical used=" + histBoughtInfo.getHistoricalUsed()
                                 + ", Historical peak=" + histBoughtInfo.getHistoricalPeak());
-                        logger.info("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Calculated used=" + usedQuantity
+                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Calculated used=" + usedQuantity
                                 + ", Calculated peak=" + peakQuantity);
                         histBoughtInfo.setHistoricalUsed(usedQuantity);
                         histBoughtInfo.setHistoricalPeak(peakQuantity);
@@ -491,9 +490,9 @@ public class HistoricalEditor {
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                         usedQuantity = usedHistWeight * previousComm.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
                         peakQuantity = peakHistWeight * previousComm.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
-                        logger.info("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Historical used=" + previousComm.getHistoricalUsed()
+                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Historical used=" + previousComm.getHistoricalUsed()
                                 + ", Historical peak=" + previousComm.getHistoricalPeak());
-                        logger.info("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Calculated used=" + usedQuantity
+                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Calculated used=" + usedQuantity
                                 + ", Calculated peak=" + peakQuantity);
                         newComm.setHistoricalUsed(usedQuantity);
                         newComm.setHistoricalPeak(peakQuantity);
