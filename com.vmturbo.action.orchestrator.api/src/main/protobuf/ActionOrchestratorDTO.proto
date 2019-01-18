@@ -13,11 +13,11 @@ message ActionOrchestratorNotification {
     required int64 broadcast_id = 1;
 
     oneof type {
-        // Action plan recommended by the action orchestrator.
-        .action.ActionPlan action_plan = 2;
+        .action.ActionPlan action_plan = 2 [deprecated=true]; // obsolete
         .action.ActionProgress action_progress = 3;
         .action.ActionSuccess action_success = 4;
         .action.ActionFailure action_failure = 5;
+        .action.ActionsUpdated actions_updated = 6;
     }
 }
 

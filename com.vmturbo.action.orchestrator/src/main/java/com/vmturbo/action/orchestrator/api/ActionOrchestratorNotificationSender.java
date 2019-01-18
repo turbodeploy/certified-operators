@@ -9,6 +9,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -28,17 +29,24 @@ public class ActionOrchestratorNotificationSender extends
     }
 
     /**
-     * Notify currently connected clients about actions the orchestrator is recommending.
+     * Notify currently connected clients that some actions have been updated in the action orchestrator.
+     * These can be live topology-related recommendations, or plan actions.
      *
      * <p>Sends the notifications asynchronously to all clients connected at the time of the method call.
      * If the sending of a notification fails for any reason the notification does not get re-sent.
      *
      * @param actionPlan The {@link ActionPlan} protobuf objects describing the actions to execute.
      */
-    public void notifyActionsRecommended(@Nonnull final ActionPlan actionPlan)
+    public void notifyActionsUpdated(@Nonnull final ActionPlan actionPlan)
             throws CommunicationException, InterruptedException {
+
         final ActionOrchestratorNotification serverMessage =
-                createNewMessage().setActionPlan(actionPlan).build();
+                createNewMessage()
+                        .setActionsUpdated(ActionsUpdated.newBuilder()
+                            .setActionPlanId(actionPlan.getId())
+                            .setTopologyId(actionPlan.getTopologyId())
+                            .setTopologyContextId(actionPlan.getTopologyContextId()))
+                        .build();
         sendMessage(sender, serverMessage);
     }
 

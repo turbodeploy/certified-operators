@@ -1,5 +1,7 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -8,12 +10,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -46,7 +47,6 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Implementation of gRpc service for Reservation.
@@ -105,7 +105,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                             .clearChanges()
                             .addAllChanges(scenarioChangeList)
                             .addAllChanges(settingOverrides))
-                    .build();
+                        .build();
             planInstance = planDao.createPlanInstance(scenario, PlanProjectType.INITAL_PLACEMENT);
         } catch (IntegrityException e) {
             logger.error("Failed to create a plan instance for initial placement: ", e);
@@ -335,35 +335,22 @@ public class ReservationRpcService extends ReservationServiceImplBase {
      */
     @VisibleForTesting
     List<ScenarioChange> createPlacementActionSettingOverride() {
-        ScenarioChange settingOverrideDisableVMMoveBetweenHosts = ScenarioChange.newBuilder()
-                .setSettingOverride(SettingOverride.newBuilder()
-                        .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
-                .build();
-        ScenarioChange settingOverrideDisableClone = ScenarioChange.newBuilder()
-                .setSettingOverride(SettingOverride.newBuilder()
-                        .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
-                .build();
-        ScenarioChange settingOverrideDisableVMMoveBetweenST = ScenarioChange.newBuilder()
-                .setSettingOverride(SettingOverride.newBuilder()
-                        .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
-                .build();
-        ScenarioChange settingOverrideDisableSTMove = ScenarioChange.newBuilder()
-                .setSettingOverride(SettingOverride.newBuilder()
-                        .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
-                        .setEntityType(EntityType.STORAGE_VALUE))
-                .build();
-        return Lists.newArrayList(settingOverrideDisableVMMoveBetweenHosts, settingOverrideDisableVMMoveBetweenST,
-                settingOverrideDisableClone, settingOverrideDisableSTMove);
+        // disable all actions
+        List<EntitySettingSpecs> placementPlanSettingsToDisable = Arrays.asList(EntitySettingSpecs.Move,
+                EntitySettingSpecs.Provision, EntitySettingSpecs.StorageMove,
+                EntitySettingSpecs.Resize, EntitySettingSpecs.Suspend, EntitySettingSpecs.Reconfigure,
+                EntitySettingSpecs.Activate);
+        ArrayList<ScenarioChange> placementSettingOverrides = new ArrayList<>(placementPlanSettingsToDisable.size());
+        placementPlanSettingsToDisable.forEach(settingSpec -> {
+            // disable setting
+            placementSettingOverrides.add(ScenarioChange.newBuilder()
+                    .setSettingOverride(SettingOverride.newBuilder()
+                            .setSetting(Setting.newBuilder()
+                                    .setSettingSpecName(settingSpec.getSettingName())
+                                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
+                    .build());
+        });
+        return placementSettingOverrides;
     }
 
     /**

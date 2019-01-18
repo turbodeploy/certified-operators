@@ -71,7 +71,7 @@ public class MarketActionListener implements ActionsListener {
 
         // Notify listeners that actions are ready for retrieval.
         try {
-            notificationSender.notifyActionsRecommended(orderedActions);
+            notificationSender.notifyActionsUpdated(orderedActions);
         } catch (CommunicationException | InterruptedException e) {
             logger.error(
                     "Could not send actions recommended notification for " + orderedActions.getId(),

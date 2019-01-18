@@ -42,9 +42,14 @@ public class ActionOrchestratorNotificationReceiver extends
     protected void processMessage(@Nonnull final ActionOrchestratorNotification message)
             throws ApiException {
         switch (message.getTypeCase()) {
-            case ACTION_PLAN:
+            case ACTION_PLAN: // DEPRECATED
                 doWithListeners(
-                    listener -> listener.onActionsReceived(message.getActionPlan()),
+                        listener -> listener.onActionsReceived(message.getActionPlan()),
+                        message.getTypeCase());
+                break;
+            case ACTIONS_UPDATED:
+                doWithListeners(
+                    listener -> listener.onActionsUpdated(message.getActionsUpdated()),
                     message.getTypeCase());
                 break;
             case ACTION_PROGRESS:
