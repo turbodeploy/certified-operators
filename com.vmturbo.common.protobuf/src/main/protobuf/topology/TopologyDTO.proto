@@ -646,6 +646,10 @@ message CommoditySoldDTO {
     // weighted peak value
     optional double historical_peak = 18 [default = 0.0];
 
+    // The resize target utilization. This will be used to resize entities already on cloud or
+    // moving to the cloud in cloud migration plans.
+    optional double resize_target_utilization = 19;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // the type of commodity whose usage will be used as a factor

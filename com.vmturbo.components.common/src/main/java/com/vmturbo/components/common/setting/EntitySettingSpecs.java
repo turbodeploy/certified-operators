@@ -169,6 +169,25 @@ public enum EntitySettingSpecs {
             Arrays.asList("advanced", "utilTarget"),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. biggger diameter is more conservative*/
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
+
+    /**
+     * Resize target Utilization for VCPU.
+     */
+    ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
+            //path is needed for the UI to display this setting in a separate category
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER, EntityType.CONTAINER),
+            numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
+
+    /**
+     * Resize target Utilization for VMEM.
+     */
+    ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
+            //path is needed for the UI to display this setting in a separate category
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER, EntityType.CONTAINER),
+            numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
+
     /**
      * IOPS capacity to set on the entity.
      */

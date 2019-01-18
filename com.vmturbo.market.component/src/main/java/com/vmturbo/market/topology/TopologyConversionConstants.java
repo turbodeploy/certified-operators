@@ -64,10 +64,8 @@ public class TopologyConversionConstants {
                     .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE).build();
     // TODO: the following constants will be from user settings once UI supports it
-    public static final float RESIZE_AVG_WEIGHT =  0.1f;
-    public static final float RESIZE_MAX_WEIGHT =  0.9f;
-    public static final float RESIZE_PEAK_WEIGHT =  0.0f;
-    public static final float RESIZE_TARGET_UTILIZATION_VM_VCPU = 0.7f;
-    public static final float RESIZE_TARGET_UTILIZATION_VM_VMEM = 0.9f;
+    public static final double RESIZE_AVG_WEIGHT =  0.1f;
+    public static final double RESIZE_MAX_WEIGHT =  0.9f;
+    public static final double RESIZE_PEAK_WEIGHT =  0.0f;
     public static final float FLOAT_COMPARISON_DELTA = 0.0000001f;
 }

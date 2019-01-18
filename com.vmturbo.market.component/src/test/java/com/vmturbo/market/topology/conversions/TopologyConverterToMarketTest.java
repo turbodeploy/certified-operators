@@ -39,6 +39,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -697,32 +698,72 @@ public class TopologyConverterToMarketTest {
     }
 
     @Test
-    public void testGetResizedCapacityForCloud() {
-        CommodityBoughtDTO memBought = CommodityBoughtDTO.newBuilder()
-        .setCommodityType(CommodityType.newBuilder()
-                .setType(CommodityDTO.CommodityType.MEM_VALUE))
-        .setUsed(20).setPeak(20).build();
+    public void testGetResizedCapacityForCloud_ResizeDown() {
+        double used = 70;
+        double peak = 80;
+        double max = 90;
+        float[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.MEM_VALUE,
+                CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max, 200, 0.9);
+        // new used = [(max * 0.9) + (used * 0.1)] / rtu
+        // new peak = max(peak, used) / rtu
+        assertEquals(97.777, quantities[0] , 0.01f);
+        assertEquals(88.888, quantities[1], 0.01f);
+    }
+
+    @Test
+    public void testGetResizedCapacityForCloud_ResizeUp() {
+        double used = 70;
+        double peak = 80;
+        double max = 90;
+        float[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.MEM_VALUE,
+                CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max, 100, 0.5);
+        // new used = used / rtu
+        // new peak = max(peak, used) / rtu
+        assertEquals(140, quantities[0] , 0.01f);
+        assertEquals(160, quantities[1], 0.01f);
+    }
+
+    @Test
+    public void testGetResizedCapacityForCloud_NoResize() {
+        double used = 70;
+        double peak = 75;
+        double max = 85;
+        float[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.MEM_VALUE,
+                CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max, 100, 0.8);
+        // new used = capacity
+        // new peak = max(peak, used) / rtu
+        assertEquals(100, quantities[0], 0.01f);
+        assertEquals(93.75, quantities[1], 0.01f);
+    }
+
+    private float[] getResizedCapacityForCloud(int entityType, int commBoughtType, int commSoldType,
+                                               double commSoldUsed, double commSoldPeak,
+                                               double commSoldMax, double commSoldCap, double commSoldRtu) {
+        CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(commBoughtType)).build();
         TopologyEntityDTO vmEntityDTO = TopologyEntityDTO.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setOid(100)
-                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                                .setCommodityType(CommodityType.newBuilder()
-                                .setType(CommodityDTO.CommodityType.VMEM_VALUE).build())
-                                .setUsed(90)
-                                .setPeak(90)
-                                .setMaxQuantity(90)
-                                .setCapacity(200)
-                                .build())
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setMovable(true)
-                                .setProviderId(1)
-                                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
-                                .addCommodityBought(memBought))
-                        .build();
+                .setEntityType(entityType)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setOid(100)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(commSoldType).build())
+                        .setUsed(commSoldUsed)
+                        .setPeak(commSoldPeak)
+                        .setMaxQuantity(commSoldMax)
+                        .setCapacity(commSoldCap)
+                        .setResizeTargetUtilization(commSoldRtu)
+                        .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(1)
+                        .addCommodityBought(commBought))
+                .build();
         final TopologyConverter converter =
-                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
-        float[] quantities = converter.getResizedCapacityForCloud(vmEntityDTO, memBought);
-        assertEquals(100, quantities[0] , 0.0f);
-        assertEquals(100, quantities[1], 0.0f);
+                new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f, marketPriceTable, ccd);
+        return converter.getResizedCapacityForCloud(vmEntityDTO, commBought);
     }
 }

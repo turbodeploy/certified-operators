@@ -18,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -121,7 +123,11 @@ public class EntitySettingsApplicator {
                 new ResizeIncrementApplicator(EntitySettingSpecs.VmemIncrement,
                         CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VstorageIncrement,
-                        CommodityType.VSTORAGE));
+                        CommodityType.VSTORAGE),
+                new ResizeTargetUtilizationApplicator(EntitySettingSpecs.ResizeTargetUtilizationVcpu,
+                        CommodityType.VCPU),
+                new ResizeTargetUtilizationApplicator(EntitySettingSpecs.ResizeTargetUtilizationVmem,
+                        CommodityType.VMEM));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -578,6 +584,42 @@ public class EntitySettingsApplicator {
                         logger.debug("Apply Resize Increment for commodity: {} , value={}",
                             commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
                     });
+            }
+        }
+    }
+
+    /**
+     * Applicator for the resize target utilization settings.
+     * This sets the resize_target_utilization in the {@link CommoditySoldDTO}
+     * for Virtual Machine entities.
+     */
+    @ThreadSafe
+    private static class ResizeTargetUtilizationApplicator extends SingleSettingApplicator {
+
+        private final CommodityType commodityType;
+
+        private ResizeTargetUtilizationApplicator(@Nonnull EntitySettingSpecs setting,
+                                          @Nonnull final CommodityType commodityType) {
+            super(setting);
+            this.commodityType = Objects.requireNonNull(commodityType);
+        }
+
+        @Override
+        public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+            if (ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.DATABASE_VALUE,
+                    EntityType.DATABASE_SERVER_VALUE, EntityType.CONTAINER_VALUE).contains(entity.getEntityType())) {
+                final float settingValue = setting.getNumericSettingValue().getValue();
+                entity.getCommoditySoldListBuilderList().stream()
+                        .filter(commodity -> commodity.getCommodityType().getType() ==
+                                commodityType.getNumber())
+                        .forEach(commodityBuilder -> {
+                            // Divide by 100 since the RTU value set by the user in the UI is a
+                            // percentage value
+                            commodityBuilder.setResizeTargetUtilization(settingValue / 100);
+                            logger.debug("Apply Resize Target utilization for entity = {}, " +
+                                            "commodity = {} , value = {}", entity.getDisplayName(),
+                                    commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
+                        });
             }
         }
     }

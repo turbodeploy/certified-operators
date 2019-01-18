@@ -86,7 +86,9 @@
         "slaCapacity",
         "transactionsCapacity",
         "autoSetTransactionsCapacity",
-        "RATE_OF_RESIZE"
+        "RATE_OF_RESIZE",
+        "resizeTargetUtilizationVcpu",
+        "resizeTargetUtilizationVmem"
       ]
     },
     "storagesettingsmanager": {
