@@ -139,6 +139,21 @@ public class FunctionalOperatorUtil {
                                                                 .collect(Collectors.toList()));
                                 return new double[] {commSold.getQuantity(), 0};
                             }
+                            long groupFactor = buyer.getGroupFactor();
+                            if (groupFactor == 0) {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("UPDATE_COUPON_COMM attempting to update coupon" +
+                                        " commodity for non-leader scaling group member: "
+                                        + buyer.getBuyer().getDebugInfoNeverUseInCode()
+                                        + " which moved to: "
+                                        + seller.getDebugInfoNeverUseInCode()
+                                        + " mutable sellers: "
+                                        + mutableSellers.stream()
+                                        .map(Trader::getDebugInfoNeverUseInCode)
+                                        .collect(Collectors.toList()));
+                                }
+                                return new double[] {commSold.getQuantity(), 0};
+                            }
 
                             if (overhead < 0) {
                                 logger.error("The overhead for CouponComm on CBTP " + seller.getDebugInfoNeverUseInCode()
@@ -172,7 +187,6 @@ public class FunctionalOperatorUtil {
                                             .indexOfBaseType(couponCommBaseType);
                             CommoditySold couponCommSoldByTp =
                                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                            long groupFactor = buyer.getGroupFactor();
                             double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
                             // QuoteFunctionFactory.computeCost() already returns a cost that is
                             // scaled by the group factor, so adjust for a single buyer.
