@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -106,11 +107,11 @@ public class MarketListener implements ProjectedTopologyListener {
 
         try {
             int numEntities = planStatsWriter.processProjectedChunks(sourceTopologyInfo, skippedEntities, dtosIterator);
+            SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
+                    .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
+                    .observe(numEntities);
             availabilityTracker.projectedTopologyAvailable(topologyContextId, TopologyContextType.PLAN);
 
-            SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
-                .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                .observe(numEntities);
         } catch (CommunicationException | TimeoutException | InterruptedException
             | VmtDbException e) {
             logger.warn("Error occurred while processing data for projected topology "

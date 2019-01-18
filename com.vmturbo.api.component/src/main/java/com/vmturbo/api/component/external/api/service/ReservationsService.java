@@ -76,12 +76,21 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * XL implementation of IReservationAndDeployService.
  **/
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
+
+    // TODO: It'd be nice if we had metrics on ALL of the REST endpoints, then this wouldn't be needed.
+    public static final DataMetricHistogram PLACEMENT_REQUEST_LATENCY = DataMetricHistogram.builder()
+            .withName("reservation_placement_request_seconds")
+            .withHelp("How long it takes to receive answers for initial placement requests.")
+            .withBuckets(0.6, 0.8, 1.0, 2.0, 3.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0)
+            .build();
 
     private final ReservationServiceBlockingStub reservationService;
 
@@ -235,9 +244,8 @@ public class ReservationsService implements IReservationsService {
     private DemandReservationApiDTO processInitialPlacement(@Nonnull final List<ScenarioChange> scenarioChanges)
             throws OperationFailedException, UnknownObjectException {
         // send request to run initial placement
+        DataMetricTimer timer = PLACEMENT_REQUEST_LATENCY.startTimer();
         final long planId = sendRequestForInitialPlacement(scenarioChanges);
-        // TODO: (OM-33682) right now, in placement results, also include storage move actions, but we should
-        // create some setting override to disable storage moves between disk array.
         final Set<Integer> entityTypes = getTemplateEntityTypes(scenarioChanges);
         try {
             //TODO: After UI change initial placement call to asynchronous, we should use UI notification
@@ -276,6 +284,7 @@ public class ReservationsService implements IReservationsService {
             planServiceFutureStub.deletePlan(PlanId.newBuilder()
                     .setPlanId(planId)
                     .build());
+            timer.observe();
         }
     }
 

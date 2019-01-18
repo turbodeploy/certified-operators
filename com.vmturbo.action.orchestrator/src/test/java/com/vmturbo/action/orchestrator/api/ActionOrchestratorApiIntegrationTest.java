@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 
@@ -52,7 +53,7 @@ public class ActionOrchestratorApiIntegrationTest {
     public TestName testName = new TestName();
 
     @Captor
-    private ArgumentCaptor<ActionDTO.ActionPlan> planCaptor;
+    private ArgumentCaptor<ActionsUpdated> actionsUpdatedCaptor;
 
     @Captor
     private ArgumentCaptor<ActionProgress> progressCaptor;
@@ -109,13 +110,13 @@ public class ActionOrchestratorApiIntegrationTest {
             .setTopologyId(0L)
             .addAction(ActionOrchestratorTestUtils.createMoveRecommendation(1L))
             .build();
-        notificationSender.notifyActionsRecommended(actionPlan);
+        notificationSender.notifyActionsUpdated(actionPlan);
 
-        Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS).times(1)).onActionsReceived(planCaptor.capture());
+        Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS).times(1)).onActionsUpdated(actionsUpdatedCaptor.capture());
 
-        final ActionDTO.ActionPlan receivedActions = planCaptor.getValue();
-        Assert.assertEquals(actionPlan.getActionCount(), receivedActions.getActionCount());
-        Assert.assertEquals(actionPlan.getAction(0), receivedActions.getAction(0));
+        final ActionsUpdated actionsUpdated = actionsUpdatedCaptor.getValue();
+        Assert.assertEquals(actionPlan.getId(), actionsUpdated.getActionPlanId());
+        Assert.assertEquals(actionPlan.getTopologyContextId(), actionsUpdated.getTopologyContextId());
     }
 
     @Test
