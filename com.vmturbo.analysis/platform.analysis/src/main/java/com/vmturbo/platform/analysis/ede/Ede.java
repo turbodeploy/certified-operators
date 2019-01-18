@@ -15,6 +15,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionCollapse;
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
@@ -177,9 +178,36 @@ public final class Ede {
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
         }
 
+        if (logger.isTraceEnabled()) {
+            logger.trace("PSL relinquished VMs:");
+            for(ShoppingList shoppingList : economy.getPreferentialShoppingLists()){
+                logger.trace("PSL: " + shoppingList.toString());
+            }
+        }
+
+        //sort the PreferentialShoppingList
+        long start = System.currentTimeMillis();
+        economy.sortPreferentialShoppingLists();
+        long end = System.currentTimeMillis();
+        if (logger.isTraceEnabled()) {
+            logger.trace("PSL Execution time of sortShoppingLists of size: "
+                    + economy.getPreferentialShoppingLists().size() + " is: " + (end - start) + " milliseconds");
+        }
+
+
         // generate moves for preferential shoppingLists
-        actions.addAll(Placement.prefPlacementDecisions(economy,
-            economy.getPreferentialShoppingLists()).getActions());
+        List<Action> preferentialActions = new ArrayList<>(Placement.prefPlacementDecisions(economy,
+                economy.getPreferentialShoppingLists()).getActions());
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("PSL Actions: ");
+            for(Action action : preferentialActions){
+                logger.trace("PSL Action: " +
+                        ((Move) action).getDestination().toString() + " for the VM: " + ((Move) action).getTarget().toString());
+            }
+        }
+
+        actions.addAll(preferentialActions);
         logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "inactive/idle Trader placement");
 
         // Start by provisioning enough traders to satisfy all the demand

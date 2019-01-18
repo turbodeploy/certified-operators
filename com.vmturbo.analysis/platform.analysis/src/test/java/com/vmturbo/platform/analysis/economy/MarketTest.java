@@ -433,6 +433,7 @@ public class MarketTest {
         traderSst2.setCostFunction(gp2CostFunc);
         topology.populateMarketsWithSellers();
         Economy economy = (Economy)topology.getEconomy();
+        economy.getSettings().setSortShoppingLists(true);
         economy.sortBuyersofMarket();
         for (com.vmturbo.platform.analysis.economy.Market market : economy.getMarkets()) {
             assertTrue(market.getBuyers().get(0).getBuyer() == shopAloneVM1);
@@ -538,6 +539,7 @@ public class MarketTest {
         traderSst1.setCanAcceptNewCustomers(true);
         topology.populateMarketsWithSellers();
         Economy economy = (Economy)topology.getEconomy();
+        economy.getSettings().setSortShoppingLists(true);
         economy.sortBuyersofMarket();
         for (com.vmturbo.platform.analysis.economy.Market market : economy.getMarkets()) {
             assertTrue(market.getBuyers().get(0).getBuyer() == shopAloneVM1);
