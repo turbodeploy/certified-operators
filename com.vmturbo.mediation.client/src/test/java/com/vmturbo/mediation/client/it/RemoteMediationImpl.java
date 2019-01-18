@@ -125,7 +125,6 @@ public class RemoteMediationImpl implements IRemoteMediation {
         try {
             remoteMediation.sendActionRequest(probeId, ActionRequest.newBuilder()
                     .setActionExecutionDTO(action)
-                    .setProbeType(target.getProbe().getType())
                     .addAllAccountValue(target.getAccountValues())
                     .build(), handler);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
