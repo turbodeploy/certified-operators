@@ -47,6 +47,7 @@ public final class EconomySettings implements Serializable {
     private boolean isEstimatesEnabled_ = true;
     private boolean isResizeDependentCommodities_ = true;
     private int maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
+    private boolean sortShoppingLists_ = false;
 
     // Constructors
 
@@ -165,6 +166,17 @@ public final class EconomySettings implements Serializable {
     @Deterministic
     public EconomySettings setEstimatesEnabled(boolean isEstimatesEnabled) {
         isEstimatesEnabled_ = isEstimatesEnabled;
+        return this;
+    }
+
+    @Pure
+    public boolean getSortShoppingLists(@ReadOnly EconomySettings this) {
+        return sortShoppingLists_;
+    }
+
+    @Deterministic
+    public EconomySettings setSortShoppingLists(boolean sortShoppingLists) {
+        sortShoppingLists_ = sortShoppingLists;
         return this;
     }
 

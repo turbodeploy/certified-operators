@@ -34,6 +34,8 @@ message EconomySettingsTO {
 
     required int32 max_placement_iterations = 8;
 
+    required bool sort_shopping_lists = 9;
+
 }
 
 // A list of commodities that must be bought from the same provider, with some additional information.
