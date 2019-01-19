@@ -226,12 +226,51 @@ public final class Market implements Serializable {
      */
 
     public void sortBuyers(@NonNull Economy economy) {
-        List<ShoppingList> sortedBuyers = new ArrayList<>(economy.sortShoppingLists(getBuyers()));
+        List<Entry<ShoppingList, Double>> currentQuote = new ArrayList<>();
+        for (@NonNull ShoppingList shoppingList : getBuyers()) {
+            Trader newSupplier = shoppingList.getSupplier();
+            // the shoppinglist with no supplier should be given the
+            // first preference.
+            if(newSupplier == null) {
+                currentQuote.add(new SimpleEntry<>(shoppingList, Double.POSITIVE_INFINITY));
+            } else {
+                // replaceNewSupplier will skip the normal traders/suppliers and only work for CBTP.
+                Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, newSupplier);
+                // if  newSupplier is a cbtp convert it to tp
+                if(tp != null) {
+                    newSupplier = tp;
+                }
+                // get quote from on-prem suppliers and cost from cloud suppliers.
+                if(newSupplier.getSettings().getCostFunction() == null){
+                    List<Entry<ShoppingList, Market>> movableSlByMarket = new ArrayList<>();
+                    movableSlByMarket.add(new SimpleEntry<>(shoppingList, this));
+                    currentQuote.add(new SimpleEntry<>(shoppingList,
+                            Placement.computeCurrentQuote(economy, movableSlByMarket)));
+                } else{
+                    currentQuote.add(new SimpleEntry<>(shoppingList,
+                        QuoteFunctionFactory.computeCost(shoppingList, newSupplier, false, economy)
+                            .getQuoteValue()));
+                }
+
+            }
+        }
+        Comparator<Entry<ShoppingList, Double>> compareShoppingList =
+                new Comparator<Entry<ShoppingList, Double>>() {
+                    @Override
+                    public int compare(Entry<ShoppingList, Double> entryA,
+                                       Entry<ShoppingList, Double> entryB) {
+                        return entryB.getValue().compareTo(entryA.getValue());
+                    }
+
+                };
+        Collections.sort(currentQuote, compareShoppingList);
         // update buyers_ with the sorted list.
         buyers_.clear();
-        buyers_.addAll(sortedBuyers);
-    }
+        for(Entry<ShoppingList, Double> slToQuote : currentQuote) {
+            buyers_.add(slToQuote.getKey());
+        }
 
+    }
 
 
 

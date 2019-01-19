@@ -144,9 +144,9 @@ public final class QuoteMinimizer {
         if (seller == shoppingList_.getSupplier()) {
             currentQuote_ = quote;
             if (logger.isTraceEnabled()) {
-                logger.trace("topology id = {}, shoppingList = {}, currentQuote = {}, currentSeller = {}"
+                logger.trace("topology id = {}, shoppingList = {}, currentQuote = {}"
                             , M2Utils.getTopologyId(economy_), shoppingList_,
-                            currentQuote_.getQuoteValue(), seller.getDebugInfoNeverUseInCode());
+                            currentQuote_.getQuoteValue());
             }
         } else {
             quote.addCostToQuote(shoppingList_.getMoveCost());
@@ -197,9 +197,9 @@ public final class QuoteMinimizer {
         if (logger.isTraceEnabled() || seller.isDebugEnabled()
                         || shoppingList_.getBuyer().isDebugEnabled()) {
             logger.debug("topology id = {}, shoppingList = {}, oldBestQuote = {}, oldBestSeller = {}, "
-                    + "newBestQuote = {}, newBestSeller = {}, currentQuote = {},"
+                    + "newBestQuote = {}, newBestSeller = {}"
                 , M2Utils.getTopologyId(economy_), shoppingList_,
-                bestQuote_.getQuoteValue(), bestSeller_, quote[0], seller, currentQuote_.getQuoteValue());
+                bestQuote_, bestSeller_, quote[0], seller);
         }
     }
 } // end QuoteMinimizer class

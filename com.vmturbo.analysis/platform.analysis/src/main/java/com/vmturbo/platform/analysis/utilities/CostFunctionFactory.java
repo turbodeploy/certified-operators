@@ -593,12 +593,7 @@ public class CostFunctionFactory {
                 double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
                 // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
                 double numCouponsToPayFor = Math.max(0, (requestedCoupons - availableCoupons));
-                if (cbtpResourceBundle.getPrice() != 0) {
-                    discountedCost = Math.max(cbtpResourceBundle.getPrice(),
-                            numCouponsToPayFor * templateCostPerCoupon);
-                } else {
-                    discountedCost = numCouponsToPayFor * templateCostPerCoupon;
-                }
+                discountedCost = numCouponsToPayFor * templateCostPerCoupon;
             }
         } else {
             // In case that there isn't discount available, avoid preferring a cbtp that provides

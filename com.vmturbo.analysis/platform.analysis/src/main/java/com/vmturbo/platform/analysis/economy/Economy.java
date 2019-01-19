@@ -3,13 +3,9 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,11 +32,8 @@ import com.google.common.primitives.Longs;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
-import com.vmturbo.platform.analysis.ede.Placement;
-import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
 
 /**
@@ -52,9 +45,6 @@ import com.vmturbo.platform.analysis.utilities.PlacementStats;
  * </p>
  */
 public final class Economy implements UnmodifiableEconomy, Serializable {
-
-    private static final double EPSILON = 1e-18d;
-
     // Fields
 
     // The map that associates Baskets with Markets.
@@ -108,20 +98,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final PlacementStats placementStats = new PlacementStats();
 
     private boolean marketsPopulated = false;
-
-    private static Comparator<Entry<ShoppingList, Double>> compareShoppingList =
-            new Comparator<Entry<ShoppingList, Double>>() {
-                @Override
-                public int compare(Entry<ShoppingList, Double> entryA,
-                                   Entry<ShoppingList, Double> entryB) {
-                    if(Math.abs(entryB.getValue() - entryA.getValue()) < EPSILON){
-                        return entryB.getKey().getShoppingListId()
-                                .compareTo(entryA.getKey().getShoppingListId());
-                    }
-                    return entryB.getValue().compareTo(entryA.getValue());
-                }
-
-            };
 
     // Constructors
 
@@ -733,65 +709,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             market.sortBuyers(this);
         }
     }
-    /**
-     * sort the PreferentialShoppingLists based on the template cost
-     * sorted high to low. The list preferentialSls_ is updated.
-     */
-    public void sortPreferentialShoppingLists() {
-        List<ShoppingList> sortedPreferentialSls = new ArrayList<>(sortShoppingLists(preferentialSls_));
-        // update preferentialSls_ with the sorted list.
-        preferentialSls_.clear();
-        preferentialSls_.addAll(sortedPreferentialSls);
-    }
-
-    /**
-     * Sort the ShoppingLists that belong to this market by current quote, high to low.
-     *
-     * @param shoppingLists - the shoppingList to be sorted.
-     * @return The sorted shopping list.
-     */
-
-    public List<ShoppingList> sortShoppingLists(List<ShoppingList> shoppingLists) {
-        if(!getSettings().getSortShoppingLists()) {
-            return shoppingLists;
-        }
-        List<Entry<ShoppingList, Double>> currentQuote = new ArrayList<>();
-        List<ShoppingList> sortedSLs = new ArrayList<>();
-        for (@NonNull ShoppingList shoppingList : shoppingLists) {
-            Trader currentSupplier = shoppingList.getSupplier();
-            // the shoppinglist with no supplier should be given the
-            // first preference.
-            if(currentSupplier == null) {
-                currentQuote.add(new SimpleEntry<>(shoppingList, Double.POSITIVE_INFINITY));
-            } else {
-                // replaceNewSupplier will skip the normal traders/suppliers and only work for CBTP.
-                Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, this, currentSupplier);
-                // if  currentSupplier is a cbtp convert it to tp
-                if(tp != null) {
-                    currentSupplier = tp;
-                }
-                // get quote from on-prem suppliers and cost from cloud suppliers.
-                if(currentSupplier.getSettings().getCostFunction() == null){
-                    List<Entry<ShoppingList, Market>> movableSlByMarket = new ArrayList<>();
-                    Market market = getMarket(shoppingList);
-                    movableSlByMarket.add(new SimpleEntry<>(shoppingList, market));
-                    currentQuote.add(new SimpleEntry<>(shoppingList,
-                            Placement.computeCurrentQuote(this, movableSlByMarket)));
-                } else{
-                    currentQuote.add(new SimpleEntry<>(shoppingList,
-                            QuoteFunctionFactory.computeCost(shoppingList, currentSupplier, false, this)
-                                    .getQuoteValue()));
-                }
-
-            }
-        }
-        Collections.sort(currentQuote, compareShoppingList);
-        for(Entry<ShoppingList, Double> slToQuote : currentQuote) {
-            sortedSLs.add(slToQuote.getKey());
-        }
-        return sortedSLs;
-    }
-
 
     /**
      * create a list containing a  subset of Markets that have atleast one trader that is movable

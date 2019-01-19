@@ -16,8 +16,6 @@ message CostDTO {
     message CbtpCostDTO {
         required int32 couponBaseType = 1;
         required double discountPercentage = 2;
-        // Pricing to be used in case the Percentage RI Pricing flag is enabled
-        optional double price = 3;
     }
 
     // The DTOs used in XL to carry the pricing information and commodity dependency constraint for

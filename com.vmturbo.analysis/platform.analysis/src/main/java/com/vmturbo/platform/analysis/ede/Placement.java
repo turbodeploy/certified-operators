@@ -25,7 +25,6 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 
 /**
@@ -151,16 +150,6 @@ public class Placement {
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers =
                         economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
-            for(Trader trader : sellers){
-                if(AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
-                    logger.trace("PSL Seller: " +
-                            trader.toString());
-                }
-            }
-        }
         // sl can be immovable when the underlying provider is not availableForPlacement
         if (!shoppingList.isMovable())
             return PlacementResults.empty();
