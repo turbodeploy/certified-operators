@@ -1,4 +1,4 @@
-FROM ubuntu:17.10
+FROM ubuntu:18.04
 MAINTAINER Michael Borodiansky<michael.borodiansky@turbonomic.com>
 
 RUN apt-get update -q -y && apt-get upgrade -q -y && \
