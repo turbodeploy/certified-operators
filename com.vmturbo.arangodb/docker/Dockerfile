@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:17.10
 MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
 
 ENV ARCHITECTURE amd64
@@ -12,7 +12,6 @@ RUN apt-get -q -y update && apt-get -q -y --no-install-recommends upgrade && \
         libjemalloc1 \
         rsyslog \
         libsnappy1v5 \
-        libssl1.0.0 \
         ca-certificates \
         pwgen \
         curl \
