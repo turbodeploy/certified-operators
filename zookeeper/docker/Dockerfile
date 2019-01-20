@@ -1,4 +1,4 @@
-FROM ubuntu:17.10
+FROM ubuntu:18.04
 MAINTAINER Pavel Baranchikov <pavel.baranchikov@turbonomic.com>
 
 # This is the release of Zookeeper to pull in.

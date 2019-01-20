@@ -102,8 +102,11 @@ cp ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml ${kubesprayP
 dns_strict="docker_dns_servers_strict: true"
 dns_not_strick="docker_dns_servers_strict: false"
 dns_not_strick_group="#docker_dns_servers_strict: false"
+helm_enabled="helm_enabled: false"
+helm_enabled_group="helm_enabled: true"
 sed -i "s/${dns_strict}/${dns_not_strick}/g" ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml
 sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all/all.yml
+sed -i "s/${helm_enabled}/${helm_enabled_group}/g" ${inventoryPath}/group_vars/k8s-cluster/addons.yml
 
 # Run ansible kubespray install
 ansible-playbook -i inventory/turbocluster/hosts.ini -b --become-user=root cluster.yml
@@ -265,7 +268,6 @@ then
   # Install pre-turbonomic environmental requirementes
   echo
   echo
-  echo
   echo "######################################################################"
   echo "                 Prepare Turbonomic Appliance                         "
   echo "######################################################################"
@@ -286,58 +288,10 @@ then
     echo ""
     exit 0
   fi
-  echo
-  echo
-  echo
-
-  # Install turbo components
   echo "######################################################################"
-  echo "                 Start Turbonomic Deployment                          "
+  echo "                 Helm Chart Installation                              "
   echo "######################################################################"
-  /opt/local/bin/turboServices.sh
-  depStatus=$?
-  if [ "X${depStatus}" == "X0" ]
-  then
-    echo ""
-    echo "=========================================="
-    echo "Turbonomic Deployment Applied Successfully"
-    echo "=========================================="
-    echo ""
-  else
-    echo ""
-    echo "============================="
-    echo "Turbonomic Deployment Failed"
-    echo "============================="
-    echo ""
-    exit 0
-  fi
+   /usr/local/bin/helm init
+   /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
+   /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace}    --set-string global.repository=${registry}/turbonomic  --set-string global.tag=${turboVersion} --set-string global.externalIP=${node} --set imageCredentials.password=${dockerPassword} --set imageCredentials.username=${dockerUserName}
 fi
-
-sleep 30
-
-# Installation Complete
-echo
-echo
-echo "######################################################################"
-echo "           Turbonomic Kubernetes Installation Complete                "
-echo "######################################################################"
-echo
-# Nodes
-echo
-echo STATUS
-echo
-echo "****************************** Nodes ******************************"
-kubectl get nodes
-echo "*******************************************************************"
-echo
-echo
-echo
-echo "*************************** Service *******************************"
-kubectl get svc
-echo "*******************************************************************"
-echo
-echo
-echo "************************* Deployments *****************************"
-kubectl get deployments
-echo "*******************************************************************"
-

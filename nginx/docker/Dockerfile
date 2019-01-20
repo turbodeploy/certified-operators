@@ -1,4 +1,4 @@
-FROM ubuntu:17.10
+FROM ubuntu:18.04
 MAINTAINER Patrick Soo Hoo <patrick.soohoo@turbonomic.com>
 
 SHELL ["/bin/bash", "-c"]

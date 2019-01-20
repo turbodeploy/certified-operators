@@ -1,4 +1,4 @@
-FROM ubuntu:17.10
+FROM ubuntu:18.04
 MAINTAINER XL Components <XLComponents@turbonomic.com>
 
 ENV ARCHITECTURE amd64

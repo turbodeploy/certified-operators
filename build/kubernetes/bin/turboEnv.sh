@@ -55,34 +55,6 @@ then
   echo "Create Namespace"
   echo "----------------"
   kubectl create -f ${yamlBasePath}/namespace/turbo.yaml
-  #kubectl config set-context turbo --namespace=${namespace}
-  #kubectl config use-context turbo
   kubectl config set-context $(kubectl config current-context) --namespace=turbonomic
   echo
-fi
-
-# Set network poilcy
-echo ""
-echo "Check if network policies are in place"
-echo "======================================"
-zonePolicy=$(kubectl get networkpolicy secure-zone-access)
-if [ -z "${zonePolicy}" ]
-then
-  echo "Create Network Policys"
-  echo "----------------------"
-  kubectl create -f ${yamlBasePath}/network-policy
-  echo
-fi
-# Get current image (this will have to be adjusted if we move to individual versioning
-mkdir -p ${imageBasePath}/${turboVersion}
-if [ x$registry == xlocalhost ]
-then
-  currentVersion=$(grep "image:" ${yamlBasePath}/base/api.yaml | awk -F: '{print $4}')
-else
-  currentVersion=$(grep "image:" ${yamlBasePath}/base/api.yaml | awk -F: '{print $3}')
-fi
-
-if [ x${currentVersion} != x${turboImage} ]
-then
-  find ${yamlBasePath}/ -name *.yaml | xargs sed -i "s/${currentVersion}/${turboVersion}/"
 fi
