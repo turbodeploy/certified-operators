@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -57,6 +58,35 @@ public class MarketPriceTable {
     private final CloudCostData cloudCostData;
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
+
+    public static ImmutableMap<DatabaseEngine, String> DB_ENGINE_MAP = ImmutableMap.<DatabaseEngine, String>builder()
+            .put(DatabaseEngine.AURORA, "Aurora")
+            .put(DatabaseEngine.MARIADB, "MariaDb")
+            .put(DatabaseEngine.MYSQL, "MySql")
+            .put(DatabaseEngine.ORACLE, "Oracle")
+            .put(DatabaseEngine.POSTGRESQL, "PostgreSql")
+            .put(DatabaseEngine.SQL_SERVER, "SqlServer")
+            .put(DatabaseEngine.UNKNOWN, "Unknown").build();
+
+    public static ImmutableMap<DatabaseEdition, String> DB_EDITION_MAP = ImmutableMap.<DatabaseEdition, String>builder()
+            .put(DatabaseEdition.ORACLE_ENTERPRISE, "Enterprise")
+            .put(DatabaseEdition.ORACLE_STANDARD, "Standard")
+            .put(DatabaseEdition.ORACLE_STANDARD_1, "Standard One")
+            .put(DatabaseEdition.ORACLE_STANDARD_2, "Standard Two")
+            .put(DatabaseEdition.SQL_SERVER_ENTERPRISE, "Enterprise")
+            .put(DatabaseEdition.SQL_SERVER_STANDARD, "Standard")
+            .put(DatabaseEdition.SQL_SERVER_WEB, "Web")
+            .put(DatabaseEdition.SQL_SERVER_EXPRESS, "Express").build();
+
+    public static ImmutableMap<DeploymentType, String> DEPLOYMENT_TYPE_MAP = ImmutableMap.<DeploymentType, String>builder()
+            .put(DeploymentType.MULTI_AZ, "MultiAz")
+            .put(DeploymentType.SINGLE_AZ, "SingleAz").build();
+
+    public static ImmutableMap<LicenseModel, String> LICENSE_MODEL_MAP = ImmutableMap.<LicenseModel, String>builder()
+            .put(LicenseModel.BRING_YOUR_OWN_LICENSE, "BringYourOwnLicense")
+            .put(LicenseModel.LICENSE_INCLUDED, "LicenseIncluded")
+            .put(LicenseModel.NO_LICENSE_REQUIRED, "NoLicenseRequired").build();
+
 
     /**
      * The {@link DiscountApplicator}s associated with each business account in the cloud topology.
@@ -607,6 +637,14 @@ public class MarketPriceTable {
             public int hashCode() {
                 return Objects.hash(accountId, dbEngine, dbEdition,
                         depType, licenseModel, hourlyPrice);
+            }
+
+            public String toString() {
+                // skip licenseModel while converting databasePrice to string
+                return (DB_ENGINE_MAP.get(this.getDbEngine()) != null ? DB_ENGINE_MAP.get(this.getDbEngine()) : "null") + ":" +
+                        (DB_EDITION_MAP.get(this.getDbEdition()) != null ? DB_EDITION_MAP.get(this.getDbEdition()) : "null") + ":" +
+                        // we filter out all the multi-az deploymentTypes in the cost-probe. We will not find any cost for a license containing multi-az.
+                        (DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) != null ? DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) : "null") + ":";
             }
         }
     }
