@@ -75,6 +75,16 @@ dependencies:
     repository: file://../services/topology-processor
     version: 0.1.0
 
+# Monitoring dependencies
+  - name: prometheus
+    repository: file://../base/prometheus
+    version: 8.4.3
+    condition: prometheus.enabled
+  - name: grafana
+    repository: file://../base/grafana
+    version: 1.25.1
+    condition: grafana.enabled
+
 # Mediation dependencies
   - name: mediation-aix
     repository: file://../probes/mediation-aix
