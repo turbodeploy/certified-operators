@@ -72,6 +72,8 @@ volumes:
   mediation-mssql: *localdriver
   mediation-actionscript: *localdriver
   mediation-snmp: *localdriver
+  mediation-appdynamics: *localdriver
+  mediation-dynatrace: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -1074,3 +1076,35 @@ services:
     volumes:
       - mediation-snmp:/home/turbonomic/data
     mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_MB}M
+
+  mediation-appdynamics:
+    extends:
+      file: common-services.yml
+      service: mediation-appdynamics-prod
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_APPDYNAMICS_PORT}"
+      - "${MEDIATION_APPDYNAMICS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-appdynamics
+      instance_id: mediation-appdynamics-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_APPDYNAMICS_XMX_MB}M ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-appdynamics:/home/turbonomic/data
+    mem_limit: ${MEDIATION_APPDYNAMICS_MEM_LIMIT_MB}M
+
+  mediation-dynatrace:
+    extends:
+      file: common-services.yml
+      service: mediation-dynatrace-prod
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_DYNATRACE_PORT}"
+      - "${MEDIATION_DYNATRACE_DEBUG_PORT}"
+    environment:
+      component_type: mediation-dynatrace
+      instance_id: mediation-dynatrace-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DYNATRACE_XMX_MB}M ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-dynatrace:/home/turbonomic/data
+    mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_MB}M

@@ -666,3 +666,29 @@ services:
     volumes:
       - mediation-snmp:/home/turbonomic/data
     restart: always
+
+  mediation-appdynamics-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.appdynamics.component
+    environment:
+      consul_host: consul
+      component_type: mediation-appdynamics
+      instance_id: mediation-appdynamics-1
+    volumes:
+      - mediation-appdynamics:/home/turbonomic/data
+    restart: always
+
+  mediation-dynatrace-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.dynatrace.component
+    environment:
+      consul_host: consul
+      component_type: mediation-dynatrace
+      instance_id: mediation-dynatrace-1
+    volumes:
+      - mediation-dynatrace:/home/turbonomic/data
+    restart: always

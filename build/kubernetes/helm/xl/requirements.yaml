@@ -80,6 +80,10 @@ dependencies:
     repository: file://../probes/mediation-aix
     version: 0.1.0
     condition: aix.enabled
+  - name: mediation-appdynamics
+    repository: file://../probes/mediation-appdynamics
+    version: 0.1.0
+    condition: appdynamics.enabled
   - name: mediation-aws
     repository: file://../probes/mediation-aws
     version: 0.1.0
@@ -108,6 +112,10 @@ dependencies:
     repository: file://../probes/mediation-compellent
     version: 0.1.0
     condition: compellent.enabled
+  - name: mediation-dynatrace
+    repository: file://../probes/mediation-dynatrace
+    version: 0.1.0
+    condition: dynatrace.enabled
   - name: mediation-hds
     repository: file://../probes/mediation-hds
     version: 0.1.0
@@ -148,6 +156,10 @@ dependencies:
     repository: file://../probes/mediation-scaleio
     version: 0.1.0
     condition: scaleio.enabled
+  - name: mediation-snmp
+    repository: file://../probes/mediation-snmp
+    version: 0.1.0
+    condition: snmp.enabled
   - name: mediation-ucs
     repository: file://../probes/mediation-ucs
     version: 0.1.0

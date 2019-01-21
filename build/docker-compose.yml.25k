@@ -35,9 +35,9 @@ volumes:
   group: *localdriver
   history: *localdriver
   plan-orchestrator: *localdriver
+  reporting: *localdriver
 #  cost: *localdriver
   ml-datastore: *localdriver
-  reporting: *localdriver
   mediation-actionscript: *localdriver
   mediation-vcenter: *localdriver
 #  mediation-vcenter-browsing: *localdriver
@@ -64,6 +64,8 @@ volumes:
 #  mediation-vcd: *localdriver
 #  mediation-mssql: *localdriver
 #  mediation-snmp: *localdriver
+  mediation-appdynamics: *localdriver
+  mediation-dynatrace: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -508,8 +510,26 @@ services:
 #      file: prod-services.yml
 #      service: mediation-mssql-prod
 #    environment:
-#      JAVA_OPTS: "-Xmx1536M"
-#    mem_limit: 2048M
+#      JAVA_OPTS: "-Xmx768M"
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-appdynamics:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-appdynamics-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-dynatrace:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-dynatrace-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
+#    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 
   mediation-actionscript:

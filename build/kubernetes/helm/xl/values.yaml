@@ -28,27 +28,9 @@ metron:
   enabled: false
 
 # Enable medation
-hpe3par:
-  enabled: false
-hyperv:
-  enabled: false
-netapp:
-  enabled: false
-pure:
-  enabled: false
-ucs:
-  enabled: false
-scaleio:
-  enabled: false
-vcenter:
-  enabled: false
-vmax:
-  enabled: false
-vmm:
-  enabled: false
-
-# Enable optional mediation
 aix:
+  enabled: false
+appdynamics:
   enabled: false
 aws:
   enabled: false
@@ -64,21 +46,43 @@ azurevolumes:
   enabled: false
 compellent:
   enabled: false
+dynatrace:
+  enabled: false
+hpe3par:
+  enabled: false
 hds:
   enabled: false
+hyperv:
+  enabled: false
 mssql:
+  enabled: false
+netapp:
   enabled: false
 oneview:
   enabled: false
 openstack:
   enabled: false
+pure:
+  enabled: false
 rhv:
+  enabled: false
+scaleio:
+  enabled: false
+snmp:
+  enabled: false
+ucs:
   enabled: false
 ucsdirector:
   enabled: false
 vcd:
   enabled: false
+vcenter:
+  enabled: false
 vcenterbrowsing:
+  enabled: false
+vmax:
+  enabled: false
+vmm:
   enabled: false
 vplex:
   enabled: false
