@@ -1080,7 +1080,8 @@ services:
   mediation-appdynamics:
     extends:
       file: common-services.yml
-      service: mediation-appdynamics-prod
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.appdynamics.component
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_APPDYNAMICS_PORT}"
@@ -1096,7 +1097,8 @@ services:
   mediation-dynatrace:
     extends:
       file: common-services.yml
-      service: mediation-dynatrace-prod
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.dynatrace.component
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_DYNATRACE_PORT}"
