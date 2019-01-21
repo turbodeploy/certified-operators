@@ -262,15 +262,6 @@ public class ActionSupportResolverTest {
         Assert.assertEquals(SupportLevel.SHOW_ONLY, result.getSupportLevel());
     }
 
-    @Test
-    public void testUnsupportedActionTypeCase() {
-        final Action unsupportedAction = createAction(ActionInfo.getDefaultInstance());
-        expectedException.expect(NullPointerException.class);
-        expectedException.expectMessage("is not supported by capability matchers");
-        final Collection<Action> resultCollection =
-                filter.resolveActionsSupporting(Collections.singletonList(unsupportedAction));
-    }
-
     /**
      * This is a tricky test to ensure, that we really cover all the action types, available in the
      * market. As a result, no action processing should throw an exception.

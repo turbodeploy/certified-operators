@@ -34,7 +34,7 @@ public enum EntitySettingSpecs {
     /**
      * Move action automation mode.
      */
-    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE), actionExecutionMode(),
             true),
     /**
@@ -69,7 +69,7 @@ public enum EntitySettingSpecs {
     /**
      * Storage Move action automation mode.
      */
-    StorageMove("storageMove", "Storage Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
     /**
      * CPU utilization threshold.

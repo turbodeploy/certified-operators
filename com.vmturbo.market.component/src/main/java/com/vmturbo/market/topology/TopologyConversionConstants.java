@@ -17,13 +17,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
  */
 public class TopologyConversionConstants {
     /**
-     * The tiers entity types.
-     */
-    public static final Set<Integer> TIER_ENTITY_TYPES = Collections.unmodifiableSet(
-            Sets.newHashSet(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
-                    EntityType.DATABASE_TIER_VALUE,
-                    EntityType.DATABASE_SERVER_TIER_VALUE));
-    /**
      * These entity types are not sent for Analysis i.e. no traders are created for these entity
      * types
      */

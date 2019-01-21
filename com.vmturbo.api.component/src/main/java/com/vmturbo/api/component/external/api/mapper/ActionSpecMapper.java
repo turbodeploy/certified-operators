@@ -113,6 +113,9 @@ public class ActionSpecMapper {
     private static final Set<String> PRIMARY_TIER_VALUES = ImmutableSet.of(
             UIEntityType.COMPUTE_TIER.getValue(), UIEntityType.DATABASE_SERVER_TIER.getValue(),
             UIEntityType.DATABASE_TIER.getValue());
+    private static final Set<String> TIER_VALUES = ImmutableSet.of(
+            UIEntityType.COMPUTE_TIER.getValue(), UIEntityType.DATABASE_SERVER_TIER.getValue(),
+            UIEntityType.DATABASE_TIER.getValue(), UIEntityType.STORAGE_TIER.getValue());
     private static final Set<String> STORAGE_VALUES = ImmutableSet.of(
             UIEntityType.STORAGE_TIER.getValue(), UIEntityType.STORAGE.getValue());
 
@@ -729,10 +732,16 @@ public class ActionSpecMapper {
             long sourceId = change.getSource().getId();
             Optional<ServiceEntityApiDTO> destination = context.getOptionalEntity(destinationId);
             Optional<ServiceEntityApiDTO> source = context.getOptionalEntity(sourceId);
-            String verb = PRIMARY_TIER_VALUES.contains(destination.get().getClassName())
-                    && PRIMARY_TIER_VALUES.contains(source.get().getClassName()) ? "Scale" : "Move";
-            String resource = change.hasResource() ? (readableEntityTypeAndName(
-                    context.getOptionalEntity(change.getResource().getId()).get()) + " of ") : "";
+            String verb = TIER_VALUES.contains(destination.get().getClassName())
+                    && TIER_VALUES.contains(source.get().getClassName()) ? "Scale" : "Move";
+            String resource = "";
+            if (change.hasResource()) {
+                Optional<ServiceEntityApiDTO> resourceEntity = context.getOptionalEntity(
+                        change.getResource().getId());
+                if (resourceEntity.isPresent()) {
+                    resource = readableEntityTypeAndName(resourceEntity.get()) + " of ";
+                }
+            }
             return MessageFormat.format("{0} {1}{2} from {3} to {4}", verb, resource,
                     readableEntityTypeAndName(actionApiDTO.getTarget()),
                                     actionApiDTO.getCurrentEntity().getDisplayName(),

@@ -1476,8 +1476,8 @@ public class TopologyConverter {
         // cloud VM / DB. In this case, get the marketTier from
         // [tier x region] combination.
         TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerId);
-        if (providerTopologyEntity != null && TopologyConversionConstants.TIER_ENTITY_TYPES
-                .contains(providerTopologyEntity.getEntityType())) {
+        if (providerTopologyEntity != null && TopologyDTOUtil.isTierEntityType(
+                providerTopologyEntity.getEntityType())) {
             // Provider is a compute tier / storage tier / database tier
             // Get the region connected to the topologyEntity
             Optional<EntityReservedInstanceCoverage> coverage = cloudTc

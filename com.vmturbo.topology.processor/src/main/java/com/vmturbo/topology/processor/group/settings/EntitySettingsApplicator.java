@@ -19,8 +19,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
@@ -308,8 +308,8 @@ public class EntitySettingsApplicator {
             entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
                     .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
                     .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                    .filter(commBought -> commBought.getProviderEntityType() ==
-                            EntityType.STORAGE_VALUE)
+                    .filter(commBought -> TopologyDTOUtil.isStorageEntityType(
+                            commBought.getProviderEntityType()))
                     .forEach(commBought -> commBought.setMovable(movable));
         }
     }

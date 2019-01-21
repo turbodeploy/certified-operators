@@ -293,8 +293,7 @@ public class ActionInterpreter {
                                             MarketTier marketTier,
                                             CostJournal<TopologyEntityDTO> journal) {
         double totalOnDemandCost = 0;
-        if (ActionDTOUtil.PRIMARY_TIER_VALUES.contains(
-                marketTier.getTier().getEntityType())) {
+        if (TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType())) {
             double onDemandComputeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
             double licenseCost = journal.getHourlyCostForCategory(CostCategory.LICENSE);
             double ipCost = journal.getHourlyCostForCategory(CostCategory.IP);

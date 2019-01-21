@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -234,9 +235,8 @@ public class ActionModeCalculator {
                 // accompanied by a storage move.
                 return action.getInfo().getMove().getChangesList().stream()
                         .map(provider -> provider.getDestination().getType())
-                        .map(EntityType::forNumber)
                         .map(destinationEntityType -> {
-                            if (destinationEntityType == EntityType.STORAGE) {
+                            if (TopologyDTOUtil.isStorageEntityType(destinationEntityType)) {
                                 return EntitySettingSpecs.StorageMove;
                             } else {
                                 // TODO (roman, Aug 6 2018): Should we check explicitly for

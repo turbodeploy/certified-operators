@@ -26,7 +26,7 @@ public class OnDemandMarketTier implements MarketTier {
     public OnDemandMarketTier(@Nonnull TopologyEntityDTO tier,
                              @Nonnull TopologyEntityDTO region) {
         int tierType = tier.getEntityType();
-        if (!TopologyConversionConstants.TIER_ENTITY_TYPES.contains(tierType)
+        if (!TopologyDTOUtil.isTierEntityType(tierType)
                 || region.getEntityType() != EntityType.REGION_VALUE) {
             throw new IllegalArgumentException("Invalid arguments to construct " +
                     "OnDemandMarketTier " + tier.getDisplayName() + ", " + region.getDisplayName());

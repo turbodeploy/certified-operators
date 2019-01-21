@@ -317,6 +317,12 @@ public class Analysis {
             logger.info(logPrefix + "Done performing analysis");
 
             List<TraderTO> projectedTraderDTO = new ArrayList<>();
+            // retrieve regions, business accounts and virtual volumes from the original
+            // entities topology
+            List<TopologyEntityDTO> entitiesFromOriginalTopo = getOriginalEntitiesOfTypes(
+                    Lists.newArrayList(EntityType.REGION_VALUE,
+                            EntityType.BUSINESS_ACCOUNT_VALUE,
+                            EntityType.VIRTUAL_VOLUME_VALUE));
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
                 if (enableThrottling) {
                     // remove the fake entities used in suspension throttling
@@ -342,12 +348,6 @@ public class Analysis {
                     topologyDTOs,
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
 
-                // retrieve regions, business accounts and virtual volumes from the original
-                // entities topology
-                Stream<TopologyEntityDTO> entitiesFromOriginalTopo = getOriginalEntitiesOfTypes(
-                        Lists.newArrayList(EntityType.REGION_VALUE,
-                                EntityType.BUSINESS_ACCOUNT_VALUE,
-                                EntityType.VIRTUAL_VOLUME_VALUE)).stream();
                 // Calculate the projected entity costs.
                 final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
                         cloudTopologyFactory.newCloudTopology(
@@ -356,7 +356,7 @@ public class Analysis {
                                             .filter(ProjectedTopologyEntity::hasEntity)
                                             .map(ProjectedTopologyEntity::getEntity),
                                     // pass region and businessAccount from the original topo
-                                    entitiesFromOriginalTopo));
+                                    entitiesFromOriginalTopo.stream()));
                 // Projected RI coverage has been calculated by convertFromMarket
                 // Get it from TopologyCoverter and pass it along to use for calculation of savings
                 projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
@@ -370,15 +370,13 @@ public class Analysis {
                     .setTopologyId(topologyInfo.getTopologyId())
                     .setTopologyContextId(topologyInfo.getTopologyContextId())
                     .setAnalysisStartTimestamp(startTime.toEpochMilli());
-            // We shouldn't need to put the original topology entities into the map, because
-            // the entities the market operates on (i.e. has actions for) should appear in
-            // the projected topology.
-            //
-            // We look through the projected traders directly instead of the projected entities
-            // because iterating through the projected entities will actually convert all the
-            // traders (it's a lazy-transforming list at the time of this writing - Mar 20 2018).
+            // We need to put all the entities from the projected topology into this map.
+            // We also need to put some entities like Volumes from the original topology because
+            // traders are not created for these entity types, but will be used to interpret actions.
             final Map<Long, Integer> entityIdToType = projectedTraderDTO.stream()
                     .collect(Collectors.toMap(TraderTO::getOid, TraderTO::getType));
+            entitiesFromOriginalTopo.forEach(e -> entityIdToType.put(e.getOid(), e.getEntityType()));
+
             results.getActionsList().stream()
                     .map(action -> converter.interpretAction(action, entityIdToType,
                             this.originalCloudTopology, projectedEntityCosts,

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -67,7 +68,7 @@ public class TopologyConversionUtils {
      */
     public static boolean isEntityConsumingCloud(TopologyEntityDTO entity) {
         return entity.getCommoditiesBoughtFromProvidersList().stream()
-                .anyMatch(g -> TopologyConversionConstants.TIER_ENTITY_TYPES.contains(g.getProviderEntityType()));
+                .anyMatch(g -> TopologyDTOUtil.isTierEntityType(g.getProviderEntityType()));
     }
     /**
      * An entity is a guaranteed buyer if it is a VDC that consumes (directly) from

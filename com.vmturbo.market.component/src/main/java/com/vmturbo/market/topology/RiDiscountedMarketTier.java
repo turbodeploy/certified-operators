@@ -42,7 +42,7 @@ public class RiDiscountedMarketTier implements MarketTier {
             @Nonnull TopologyEntityDTO region,
             @Nonnull ReservedInstanceAggregate riAggregate) {
         int tierType = tier.getEntityType();
-        if (!TopologyConversionConstants.TIER_ENTITY_TYPES.contains(tierType)
+        if (!TopologyDTOUtil.isTierEntityType(tierType)
                 || region.getEntityType() != EntityType.REGION_VALUE) {
             throw new IllegalArgumentException("Invalid arguments to construct RiDiscountedMarketTier" +
                     tier.getDisplayName() + ", " + region.getDisplayName());

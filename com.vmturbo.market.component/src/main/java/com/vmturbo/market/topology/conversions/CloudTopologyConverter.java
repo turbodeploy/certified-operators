@@ -216,7 +216,7 @@ public class CloudTopologyConverter {
             logger.error("azToRegionMap not yet initialized.");
             return providerOids;
         }
-        if (!TopologyConversionConstants.TIER_ENTITY_TYPES.contains(providerType)) {
+        if (!TopologyDTOUtil.isTierEntityType(providerType)) {
             logger.error("{} is not a tier. Cannot fetch market tier providers for {}"
                     , providerType, entity.getDisplayName());
             return providerOids;
@@ -284,8 +284,8 @@ public class CloudTopologyConverter {
         List<MarketTier> primaryMarketTiers =  trader.getShoppingListsList().stream()
                 .map(sl -> traderTOOidToMarketTier.get(sl.getSupplier()))
                 .filter(Objects::nonNull)
-                .filter(mTier -> ActionDTOUtil.PRIMARY_TIER_VALUES
-                        .contains(mTier.getTier().getEntityType()))
+                .filter(mTier -> TopologyDTOUtil.isPrimaryTierEntityType(
+                        mTier.getTier().getEntityType()))
                 .collect(Collectors.toList());
         if (primaryMarketTiers.size() != 1) {
             logger.error("Trader {} is connected to {} primary tiers - {}",
