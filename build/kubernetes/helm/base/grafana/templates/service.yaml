@@ -32,9 +32,11 @@ spec:
 {{- else }}
   type: {{ .Values.service.type }}
 {{- end }}
-{{- if .Values.service.externalIPs }}
+{{- if .Values.global }}
+  {{- if .Values.global.externalIP }}
   externalIPs:
-{{ toYaml .Values.service.externalIPs | indent 4 }}
+    - {{ .Values.global.externalIP }}
+  {{- end }}
 {{- end }}
   ports:
     - name: service
