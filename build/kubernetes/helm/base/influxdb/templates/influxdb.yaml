@@ -48,8 +48,6 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
-          - name: LOG_TO_STDOUT
-            value: "true"
           - name: METRON_ENABLED
             value: "true"
           # Uncomment to specify the dump interval for influx. Default is once per day if unspecified.
