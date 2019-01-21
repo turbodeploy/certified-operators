@@ -27,11 +27,6 @@ reporting:
 metron:
   enabled: false
 
-prometheus:
-  enabled: false
-grafana:
-  enabled: false
-
 # Enable medation
 hpe3par:
   enabled: false
