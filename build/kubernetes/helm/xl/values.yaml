@@ -27,6 +27,11 @@ reporting:
 metron:
   enabled: false
 
+prometheus:
+  enabled: false
+grafana:
+  enabled: false
+
 # Enable medation
 aix:
   enabled: false
