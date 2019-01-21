@@ -35,6 +35,9 @@ image:
   # pullSecrets:
   #   - myRegistrKeySecretName
 
+#nameOverride: ""
+fullnameOverride: grafana
+
 securityContext:
   runAsUser: 472
   fsGroup: 472
@@ -72,7 +75,7 @@ chownDataImage:
 ##
 service:
   type: ClusterIP
-  port: 80
+  port: 3000
   annotations: {}
   labels: {}
 
@@ -173,15 +176,15 @@ plugins: []
 ## Configure grafana datasources
 ## ref: http://docs.grafana.org/administration/provisioning/#datasources
 ##
-datasources: {}
-#  datasources.yaml:
-#    apiVersion: 1
-#    datasources:
-#    - name: Prometheus
-#      type: prometheus
-#      url: http://prometheus-prometheus-server
-#      access: proxy
-#      isDefault: true
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-server:9090
+      access: proxy
+      isDefault: true
 
 ## Configure grafana dashboard providers
 ## ref: http://docs.grafana.org/administration/provisioning/#dashboards

@@ -39,6 +39,9 @@ alertmanager:
     tag: v0.15.3
     pullPolicy: IfNotPresent
 
+  #nameOverride: ""
+  fullnameOverride: prometheus-alertmanager
+
   ## alertmanager priorityClassName
   ##
   priorityClassName: ""
@@ -318,6 +321,9 @@ kubeStateMetrics:
     tag: v1.4.0
     pullPolicy: IfNotPresent
 
+  #nameOverride: ""
+  fullnameOverride: prometheus-kube-state-metrics
+
   ## kube-state-metrics priorityClassName
   ##
   priorityClassName: ""
@@ -406,6 +412,9 @@ nodeExporter:
     repository: prom/node-exporter
     tag: v0.17.0
     pullPolicy: IfNotPresent
+
+  #nameOverride: ""
+  fullnameOverride: prometheus-node-exporter
 
   ## Specify if a Pod Security Policy for node-exporter must be created
   ## Ref: https://kubernetes.io/docs/concepts/policy/pod-security-policy/
@@ -519,6 +528,9 @@ server:
     repository: prom/prometheus
     tag: v2.6.0
     pullPolicy: IfNotPresent
+
+  #nameOverride: ""
+  fullnameOverride: prometheus-server
 
   ## prometheus server priorityClassName
   ##
@@ -736,7 +748,7 @@ server:
 
     loadBalancerIP: ""
     loadBalancerSourceRanges: []
-    servicePort: 80
+    servicePort: 9090
     type: ClusterIP
 
   ## Prometheus server pod termination grace period
@@ -762,6 +774,9 @@ pushgateway:
     repository: prom/pushgateway
     tag: v0.6.0
     pullPolicy: IfNotPresent
+
+  #nameOverride: ""
+  fullnameOverride: prometheus-pushgateway
 
   ## pushgateway priorityClassName
   ##
@@ -1147,6 +1162,67 @@ serverFiles:
           - source_labels: [__meta_kubernetes_pod_name]
             action: replace
             target_label: kubernetes_pod_name
+
+      # Static config for xl core components
+      #
+      - job_name: 'xl'
+        static_configs:
+        - targets: ['action-orchestrator:8080']
+          labels:
+            service: action-orchestrator
+        - targets: ['api:8080']
+          labels:
+            service: api
+        - targets: ['auth:8080']
+          labels:
+            service: auth
+        - targets: ['clustermgr:8080']
+          labels:
+            service: clustermgr
+        - targets: ['cost:8080']
+          labels:
+            service: cost
+        - targets: ['group:8080']
+          labels:
+            service: group
+        - targets: ['history:8080']
+          labels:
+            service: history
+        - targets: ['market:8080']
+          labels:
+            service: market
+        - targets: ['plan-orchestrator:8080']
+          labels:
+            service: plan-orchestrator
+        - targets: ['reporting:8080']
+          labels:
+            service: reporting
+        - targets: ['repository:8080']
+          labels:
+            service: repository
+        - targets: ['topology-processor:8080']
+          labels:
+            service: topology-processor
+
+      # Scrape config for xl mediation components
+      #
+      - job_name: 'xl-mediation'
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(mediation-.*)$
+          action: keep
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(mediation-.*)$
+          action: replace
+          replacement: "xl"
+          target_label: job
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(mediation-.*)$
+          action: replace
+          replacement: $1
+          target_label: service
 
 # adds additional scrape configs to prometheus.yml
 # must be a string so you have to add a | after extraScrapeConfigs:
