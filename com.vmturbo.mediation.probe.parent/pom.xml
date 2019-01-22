@@ -84,7 +84,7 @@
 
     <pluginRepositories>
         <pluginRepository>
-            <id>vmturbo-snapshots</id>
+            <id>snapshots</id>
             <name>VMTurbo plugin repository</name>
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots/</url>
         </pluginRepository>
