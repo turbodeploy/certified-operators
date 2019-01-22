@@ -281,6 +281,19 @@ public class ActionSpecMapper {
         }
     }
 
+    @Nonnull
+    public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
+        if (actionState == ActionDTO.ActionState.READY) {
+            // (roman, Jan 7, 2019): We had a special case translation for the
+            // actionState: READY from A-O -> PENDING_ACCEPT for the UX when action mode is
+            // automated. However, it's not clear that we need this anymore because
+            // automatic-mode actions should get "QUEUED" immediately.
+            return ActionState.PENDING_ACCEPT;
+        } else {
+            return ActionState.valueOf(actionState.name());
+        }
+    }
+
     /**
      * Map an API category string to an equivalent XL category.
      *
@@ -289,7 +302,7 @@ public class ActionSpecMapper {
      *         no equivalent category exists in XL.
      */
     @Nonnull
-    private Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(@Nonnull final String category) {
+    public Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(@Nonnull final String category) {
         switch (category) {
             case API_CATEGORY_PERFORMANCE_ASSURANCE:
                 return Optional.of(ActionCategory.PERFORMANCE_ASSURANCE);
@@ -318,20 +331,11 @@ public class ActionSpecMapper {
         // actionMode is direct translation
         final ActionDTO.ActionMode actionMode = actionSpec.getActionMode();
         actionApiDTO.setActionMode(ActionMode.valueOf(actionMode.name()));
-        // special case translation for the actionState: READY from A-O -> PENDING_ACCEPT for the UX
-        final ActionDTO.ActionState actionState = actionSpec.getActionState();
+        
         // For plan action, set the state to successes, so it will not be selectable
         // TODO (Gary, Jan 17 2019): handle case when realtimeTopologyContextId is changed (if needed)
         if (topologyContextId == realtimeTopologyContextId) {
-            if (actionState == ActionDTO.ActionState.READY) {
-                if (actionMode == ActionDTO.ActionMode.RECOMMEND) {
-                    actionApiDTO.setActionState(ActionState.RECOMMENDED);
-                } else {
-                    actionApiDTO.setActionState(ActionState.PENDING_ACCEPT);
-                }
-            } else {
-                actionApiDTO.setActionState(ActionState.valueOf(actionState.name()));
-            }
+            actionApiDTO.setActionState(mapXlActionStateToApi(actionSpec.getActionState()));
         } else {
             // In classic all the plan actions have "Succeeded" state; in XL all the plan actions
             // have default state (ready). Set the state to "Succeeded" here to make it Not selectable
@@ -1052,7 +1056,7 @@ public class ActionSpecMapper {
             // dealing with decisions/ActionModes, etc.
             if (inputDto.getActionStateList() != null) {
                 inputDto.getActionStateList().stream()
-                        .map(this::stateToEnum)
+                        .map(this::mapApiStateToXl)
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .forEach(queryBuilder::addStates);
@@ -1066,7 +1070,7 @@ public class ActionSpecMapper {
             // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
             if (inputDto.getActionModeList() != null) {
                 inputDto.getActionModeList().stream()
-                        .map(this::modeToEnum)
+                        .map(this::mapApiModeToXl)
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .forEach(queryBuilder::addModes);
@@ -1109,7 +1113,8 @@ public class ActionSpecMapper {
         return queryBuilder.build();
     }
 
-    private Optional<ActionDTO.ActionState> stateToEnum(final ActionState stateStr) {
+    @Nonnull
+    public Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
         switch (stateStr) {
             case PENDING_ACCEPT:
                 return Optional.of(ActionDTO.ActionState.READY);
@@ -1138,7 +1143,8 @@ public class ActionSpecMapper {
      * @param actionMode UI's ActionMode
      * @return ActionDTO.ActionMode
      */
-    private Optional<ActionDTO.ActionMode> modeToEnum(final ActionMode actionMode) {
+    @Nonnull
+    public Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
         switch (actionMode) {
             case DISABLED:
                 return Optional.of(ActionDTO.ActionMode.DISABLED);

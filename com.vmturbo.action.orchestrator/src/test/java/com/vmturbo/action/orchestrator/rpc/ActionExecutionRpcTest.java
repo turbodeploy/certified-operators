@@ -30,6 +30,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
@@ -89,6 +90,8 @@ public class ActionExecutionRpcTest {
 
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
 
+    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
+
     private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
@@ -105,7 +108,8 @@ public class ActionExecutionRpcTest {
                     actionTargetSelector,
                     actionTranslator,
                     paginatorFactory,
-                    workflowStore);
+                    workflowStore,
+                    statReader);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);

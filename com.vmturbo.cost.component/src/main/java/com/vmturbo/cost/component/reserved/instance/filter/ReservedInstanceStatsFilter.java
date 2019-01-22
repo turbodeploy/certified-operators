@@ -17,7 +17,8 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+
 
 /**
  * A abstract class represent a filter object which will be used to query reserved instance stats

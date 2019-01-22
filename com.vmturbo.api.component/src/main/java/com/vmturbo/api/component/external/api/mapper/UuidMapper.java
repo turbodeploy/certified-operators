@@ -1,6 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Collection;
 import java.util.Set;
+
+import javax.annotation.Nonnull;
 
 import org.springframework.util.CollectionUtils;
 
@@ -67,7 +70,7 @@ public class UuidMapper {
      * @return true iff there are either more than one seed uuids, or a single seed UUID
      * that is not equal to the distinguished live market UUID "Market"
      */
-    public static boolean hasLimitedScope(Set<String> seedUuids) {
+    public static boolean hasLimitedScope(@Nonnull final Collection<String> seedUuids) {
         return !CollectionUtils.isEmpty(seedUuids) && !seedUuids.contains(UI_REAL_TIME_MARKET_STR);
     }
 }

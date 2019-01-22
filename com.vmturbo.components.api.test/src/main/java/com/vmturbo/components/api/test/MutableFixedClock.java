@@ -3,6 +3,7 @@ package com.vmturbo.components.api.test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -25,7 +26,7 @@ public class MutableFixedClock extends Clock {
     }
 
     public MutableFixedClock(final long millis) {
-        curFixedClock = Clock.fixed(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
+        curFixedClock = Clock.fixed(Instant.ofEpochMilli(millis), ZoneId.from(ZoneOffset.UTC));
     }
 
     @Override

@@ -3,9 +3,12 @@ package com.vmturbo.action.orchestrator.stats.groups;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -18,7 +21,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.Sets;
+
+import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
+import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryResult;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -112,5 +120,163 @@ public class MgmtUnitSubgroupStoreTest {
         assertThat(subgroups.get(key).key(), is(key));
         // ID should be the original ID.
         assertThat(subgroups.get(key).id(), is(1));
+    }
+
+    @Test
+    public void testQueryMgmtUnit() {
+        final long mu1Id = 123;
+        final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final MgmtUnitSubgroupKey mu2 = ImmutableMgmtUnitSubgroupKey.builder()
+            // Different entity type.
+            .entityType(2)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id + 1)
+            .build();
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
+            mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(mu1Key1, mu2));
+
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(mu1Id)
+                .build());
+        assertTrue(result.isPresent());
+        assertThat(result.get().mgmtUnit().get(), is(123L));
+        assertThat(result.get().mgmtUnitSubgroups(),
+            containsInAnyOrder(subgroups.get(mu1Key1).id()));
+    }
+
+    @Test
+    public void testQueryFilterByEntityType() {
+        final long mu1Id = 123;
+        final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(1)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
+            // Different entity type.
+            .entityType(2)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
+            mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(mu1Key1, mu1Key2));
+
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(mu1Id)
+                .addEntityType(1)
+                .build());
+        assertTrue(result.isPresent());
+        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+    }
+
+    @Test
+    public void testQueryFilterUnsetEntityType() {
+        final long mu1Id = 123;
+        final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
+            // Different entity type.
+            .entityType(2)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
+            mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(mu1Key1, mu1Key2));
+
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(mu1Id)
+                // Unset entity type in the request.
+                .build());
+        assertTrue(result.isPresent());
+        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        // Should only return the ID of the mgmt unit subgroup with no entity type set.
+        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+    }
+
+    @Test
+    public void testQueryFilterByEnvironmentType() {
+        final long mu1Id = 123;
+        final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(1)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(1)
+            // Different environment type type.
+            .environmentType(EnvironmentType.ON_PREM)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
+            mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(mu1Key1, mu1Key2));
+
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(mu1Id)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addEntityType(1)
+                .build());
+        assertTrue(result.isPresent());
+        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+    }
+
+    @Test
+    public void testQueryMarket() {
+        final long mu1Id = GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
+        final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
+            // Different env type.
+            .environmentType(EnvironmentType.ON_PREM)
+            .mgmtUnitId(mu1Id)
+            .build();
+        final MgmtUnitSubgroupKey mu2 = ImmutableMgmtUnitSubgroupKey.builder()
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(123)
+            .build();
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
+            mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(mu1Key1, mu1Key2, mu2));
+
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMarket(true)
+                .build());
+        assertTrue(result.isPresent());
+
+        // Mgmt unit should be unset.
+        assertFalse(result.get().mgmtUnit().isPresent());
+
+        assertThat(result.get().mgmtUnitSubgroups(),
+            containsInAnyOrder(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key2).id()));
+    }
+
+    @Test
+    public void testQueryNoResult() {
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(7)
+                .build());
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    public void testQueryBadFilter() {
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                // No market, and no specific mgmt unit.
+                .build());
+        assertFalse(result.isPresent());
     }
 }

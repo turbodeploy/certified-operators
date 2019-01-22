@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.reserved.instance;
+package com.vmturbo.components.api;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -7,6 +7,10 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+/**
+ * A utility class to calculate the {@link TimeFrame} to use for a particular epoch millis
+ * timestamp, depending on the stats retainment configuration.
+ */
 public class TimeFrameCalculator {
     private final static long MINUTE_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private final static long HOUR_MILLIS = TimeUnit.HOURS.toMillis(1);

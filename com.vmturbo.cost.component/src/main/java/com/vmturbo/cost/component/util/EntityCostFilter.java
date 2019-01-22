@@ -13,8 +13,8 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 
 /**
  * A filter to restrict the entity cost records from the

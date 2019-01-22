@@ -23,7 +23,7 @@ import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.live.SystemLoadWriter;
-import com.vmturbo.history.stats.live.TimeFrameCalculator;
+import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
@@ -95,8 +95,8 @@ public class StatsConfig {
     }
 
     @Bean
-    public TimeFrameCalculator timeFrameCalculator() {
-        return new TimeFrameCalculator(Clock.systemUTC(), numRetainedMinutes, numRetainedHours, numRetainedDays);
+    public HistoryTimeFrameCalculator timeFrameCalculator() {
+        return new HistoryTimeFrameCalculator(Clock.systemUTC(), numRetainedMinutes, numRetainedHours, numRetainedDays);
     }
 
     @Bean

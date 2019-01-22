@@ -53,6 +53,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
+import com.vmturbo.components.api.TimeFrameCalculator;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
@@ -61,8 +63,6 @@ import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
-import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator;
-import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
