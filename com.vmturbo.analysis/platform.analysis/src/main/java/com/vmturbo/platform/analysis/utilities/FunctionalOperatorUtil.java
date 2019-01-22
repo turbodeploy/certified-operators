@@ -196,13 +196,12 @@ public class FunctionalOperatorUtil {
 
                             double discountedCost = 0;
                             double discountCoefficient = 0;
-                            double allocatedCoupons = 0;
+                            double totalAllocatedCoupons = 0;
                             if (availableCoupons > 0) {
-                                allocatedCoupons = Math.min(requestedCoupons, availableCoupons);
-                                discountCoefficient = allocatedCoupons / requestedCoupons;
-                                // normalizing allocatedCoupons for a single buyer
-                                allocatedCoupons = allocatedCoupons / groupFactor;
-                                buyer.setQuantity(boughtIndex, allocatedCoupons);
+                                totalAllocatedCoupons = Math.min(requestedCoupons, availableCoupons);
+                                discountCoefficient = totalAllocatedCoupons / requestedCoupons;
+                                // normalize total allocated coupons for a single buyer
+                                buyer.setQuantity(boughtIndex, totalAllocatedCoupons / groupFactor);
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                                                 * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                             }
@@ -212,14 +211,16 @@ public class FunctionalOperatorUtil {
                                 logger.info(buyer.getBuyer().getDebugInfoNeverUseInCode()
                                              + " migrated to CBTP "
                                              + seller.getDebugInfoNeverUseInCode()
-                                             + " offering a dicount of "
+                                             + " offering a discount of "
                                              + cbtpResourceBundle.getDiscountPercentage()
                                              + " on TP " + matchingTP.getDebugInfoNeverUseInCode()
                                              + " with a templateCost of " + templateCost
-                                             + " at a discountCoeff of" + discountCoefficient
+                                             + " and a group factor of " + groupFactor
+                                             + " at a discountCoeff of " + discountCoefficient
                                              + " with a final discount of " + discountedCost
                                              + " requests " + requestedCoupons
-                                             + " coupons, allowed " + allocatedCoupons + " coupons");
+                                             + " coupons, allowed " + totalAllocatedCoupons
+                                             + " coupons");
                             }
                             /** Increase the used value of coupon commodity sold by cbtp accordingly.
                              * Increase the value by what was allocated to the buyer and not
@@ -229,7 +230,7 @@ public class FunctionalOperatorUtil {
                              * requested by buyer.
                              */
                             return new double[]
-                                    {commSold.getQuantity() + allocatedCoupons * groupFactor, 0};
+                                    {commSold.getQuantity() + totalAllocatedCoupons, 0};
                         };
                         return UPDATE_COUPON_COMM;
     }
