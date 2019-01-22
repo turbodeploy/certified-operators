@@ -1,17 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    zone: secure
-    io.kompose.service: mediation-hpe3par
-  name: mediation-hpe3par
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -62,19 +48,12 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /home/turbonomic/data
-          name: mediation-hpe3par
         - mountPath: /tmp
           name: mediation-hpe3par-tmpfs0
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
       volumes:
-      - name: mediation-hpe3par
-        persistentVolumeClaim:
-          claimName: mediation-hpe3par
       - emptyDir:
           medium: Memory
         name: mediation-hpe3par-tmpfs0
