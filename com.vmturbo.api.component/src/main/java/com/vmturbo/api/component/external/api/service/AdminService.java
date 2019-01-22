@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
+import com.vmturbo.api.dto.admin.SystemStatusApiDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
@@ -82,6 +83,11 @@ public class AdminService implements IAdminService {
 
     @Override
     public HttpProxyDTO setProxyConfig(final HttpProxyDTO maintenanceDTO) {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public SystemStatusApiDTO getSystemStatus() {
         throw ApiUtils.notImplementedInXL();
     }
 
