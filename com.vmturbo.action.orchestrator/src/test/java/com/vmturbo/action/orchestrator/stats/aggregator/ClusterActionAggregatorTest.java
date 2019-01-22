@@ -126,6 +126,20 @@ public class ClusterActionAggregatorTest {
                 .addStaticMemberOids(CLUSTER_2_PM.getId())))
         .build();
 
+    private static final MgmtUnitSubgroup CLUSTER_1_GLOBAL_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
+            .id(12345)
+            .key(ImmutableMgmtUnitSubgroupKey.builder()
+                .mgmtUnitId(CLUSTER_1.getId())
+                .build())
+            .build();
+
+    private static final MgmtUnitSubgroup CLUSTER_2_GLOBAL_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
+        .id(6789)
+        .key(ImmutableMgmtUnitSubgroupKey.builder()
+            .mgmtUnitId(CLUSTER_2.getId())
+            .build())
+        .build();
+
     private static final MgmtUnitSubgroup CLUSTER_1_PM_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
             .id(321)
             .key(ImmutableMgmtUnitSubgroupKey.builder()
@@ -194,11 +208,14 @@ public class ClusterActionAggregatorTest {
         final Map<Integer, ActionStatsLatestRecord> recordsByMgtmtUnitSubgroup =
             clusterActionAggregator.createRecords(ImmutableMap.of(
                         CLUSTER_1_PM_SUBGROUP.key(), CLUSTER_1_PM_SUBGROUP,
-                        CLUSTER_2_PM_SUBGROUP.key(), CLUSTER_2_PM_SUBGROUP),
+                        CLUSTER_2_PM_SUBGROUP.key(), CLUSTER_2_PM_SUBGROUP,
+                        CLUSTER_1_GLOBAL_SUBGROUP.key(), CLUSTER_1_GLOBAL_SUBGROUP,
+                        CLUSTER_2_GLOBAL_SUBGROUP.key(), CLUSTER_2_GLOBAL_SUBGROUP),
                     ImmutableMap.of(ACTION_GROUP_KEY, ACTION_GROUP))
             .collect(Collectors.toMap(ActionStatsLatestRecord::getMgmtUnitSubgroupId, Function.identity()));
         assertThat(recordsByMgtmtUnitSubgroup.keySet(),
-                containsInAnyOrder(CLUSTER_1_PM_SUBGROUP.id(), CLUSTER_2_PM_SUBGROUP.id()));
+                containsInAnyOrder(CLUSTER_1_PM_SUBGROUP.id(), CLUSTER_2_PM_SUBGROUP.id(),
+                    CLUSTER_1_GLOBAL_SUBGROUP.id(), CLUSTER_2_GLOBAL_SUBGROUP.id()));
 
         final ActionStatsLatestRecord cluster1Record =
                 recordsByMgtmtUnitSubgroup.get(CLUSTER_1_PM_SUBGROUP.id());
@@ -209,6 +226,16 @@ public class ClusterActionAggregatorTest {
                 recordsByMgtmtUnitSubgroup.get(CLUSTER_2_PM_SUBGROUP.id());
         assertThat(cluster2Record.getTotalEntityCount(), is(1));
         assertThat(cluster2Record.getTotalActionCount(), is(2));
+
+        final ActionStatsLatestRecord cluster1GlobalRecord =
+            recordsByMgtmtUnitSubgroup.get(CLUSTER_1_GLOBAL_SUBGROUP.id());
+        assertThat(cluster1GlobalRecord.getTotalEntityCount(), is(2));
+        assertThat(cluster1GlobalRecord.getTotalActionCount(), is(1));
+
+        final ActionStatsLatestRecord cluster2GlobalRecord =
+            recordsByMgtmtUnitSubgroup.get(CLUSTER_2_GLOBAL_SUBGROUP.id());
+        assertThat(cluster2GlobalRecord.getTotalEntityCount(), is(1));
+        assertThat(cluster2GlobalRecord.getTotalActionCount(), is(2));
     }
 
     @Test

@@ -13,6 +13,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPagin
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
@@ -21,7 +22,9 @@ import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceCo
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
 
 @Configuration
-@Import({ActionStoreConfig.class, ActionExecutionConfig.class})
+@Import({ActionStoreConfig.class,
+    ActionExecutionConfig.class,
+    ActionStatsConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -35,6 +38,9 @@ public class RpcConfig {
 
     @Autowired
     private ActionTargetSelector actionTargetSelector;
+
+    @Autowired
+    private ActionStatsConfig actionStatsConfig;
 
     @Autowired
     WorkflowConfig workflowConfig;
@@ -53,7 +59,8 @@ public class RpcConfig {
                 actionTargetSelector,
                 actionTranslator,
                 actionPaginatorFactory(),
-                workflowConfig.workflowStore());
+                workflowConfig.workflowStore(),
+                actionStatsConfig.liveActionStatReader());
     }
 
     @Bean

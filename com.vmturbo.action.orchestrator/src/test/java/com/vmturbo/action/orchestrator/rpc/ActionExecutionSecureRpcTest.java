@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
@@ -94,6 +95,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
+    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     // Have the translator pass-through translate all actions.
@@ -114,7 +116,8 @@ public class ActionExecutionSecureRpcTest {
                     actionTargetSelector,
                     actionTranslator,
                     paginatorFactory,
-                    workflowStore);
+                    workflowStore,
+                    statReader);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;

@@ -9,7 +9,8 @@ import javax.annotation.Nullable;
 import org.jooq.Condition;
 import org.jooq.Table;
 
-import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+
 
 /**
  * A abstract class represents the filter object.

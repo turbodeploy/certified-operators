@@ -2,7 +2,9 @@ package com.vmturbo.action.orchestrator.stats.groups;
 
 import static com.vmturbo.action.orchestrator.db.tables.ActionGroup.ACTION_GROUP;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,12 +12,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
@@ -27,6 +30,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.ActionGroupFilter;
+import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Responsible for storing and retrieving {@link ActionGroup}s to/from the underlying database.
@@ -143,5 +150,92 @@ public class ActionGroupStore {
         record.setActionCategory((short)key.getCategory().getNumber());
         record.setActionState((short)key.getActionState().getNumber());
         return record;
+    }
+
+    /**
+     * Query the {@link ActionGroupStore} to get the action groups that match a filter.
+     *
+     * @param actionGroupFilter An {@link ActionGroupFilter} indicating which
+     *                          and which action groups to return.
+     * @return A {@link Optional} containing a {@link MatchedActionGroups} if one or more action
+     *         groups match the filter. An empty {@link Optional} otherwise.
+     */
+    @Nonnull
+    public Optional<MatchedActionGroups> query(@Nonnull final ActionGroupFilter actionGroupFilter) {
+        final List<Condition> conditions = new ArrayList<>(4);
+        if (actionGroupFilter.getActionCategoryCount() > 0) {
+            conditions.add(ACTION_GROUP.ACTION_CATEGORY.in(
+                actionGroupFilter.getActionCategoryList().stream()
+                    .map(category -> (short) category.getNumber())
+                    .toArray(Short[]::new)));
+        }
+
+        if (actionGroupFilter.getActionModeCount() > 0) {
+            conditions.add(ACTION_GROUP.ACTION_MODE.in(
+                actionGroupFilter.getActionModeList().stream()
+                    .map(mode -> (short) mode.getNumber())
+                    .toArray(Short[]::new)));
+        }
+
+        if (actionGroupFilter.getActionStateCount() > 0) {
+            conditions.add(ACTION_GROUP.ACTION_STATE.in(
+                actionGroupFilter.getActionStateList().stream()
+                    .map(state -> (short) state.getNumber())
+                    .toArray(Short[]::new)));
+        }
+
+        if (actionGroupFilter.getActionTypeCount() > 0) {
+            conditions.add(ACTION_GROUP.ACTION_TYPE.in(
+                actionGroupFilter.getActionTypeList().stream()
+                    .map(type -> (short) type.getNumber())
+                    .toArray(Short[]::new)));
+        }
+
+        try (DataMetricTimer timer = Metrics.QUERY_HISTOGRAM.startTimer()) {
+            final Map<Integer, ActionGroup> matchedActionGroups =
+                dsl.selectFrom(ACTION_GROUP).where(conditions).fetch().stream()
+                    .map(this::recordToGroup)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toMap(ActionGroup::id, Function.identity()));
+            if (matchedActionGroups.isEmpty()) {
+                // There are specific action groups requested, but no such groups are found.
+                return Optional.empty();
+            } else {
+                return Optional.of(ImmutableMatchedActionGroups.builder()
+                    .specificActionGroupsById(matchedActionGroups)
+                    .allActionGroups(conditions.isEmpty())
+                    .build());
+            }
+        }
+
+    }
+
+    /**
+     * The result of querying the {@link ActionGroupStore}.
+     */
+    @Value.Immutable
+    public interface MatchedActionGroups {
+
+        /**
+         * If true, indicate that all action groups matched the query.
+         */
+        boolean allActionGroups();
+
+        /**
+         * The action groups that matched the query, arranged by ID.
+         * Should not be empty.
+         */
+        Map<Integer, ActionGroup> specificActionGroupsById();
+    }
+
+    static class Metrics {
+
+        static final DataMetricHistogram QUERY_HISTOGRAM = DataMetricHistogram.builder()
+            .withName("ao_action_group_store_query_duration_seconds")
+            .withHelp("Duration of action group queries, in seconds.")
+            .withBuckets(0.1, 0.5, 1, 5)
+            .build()
+            .register();
     }
 }

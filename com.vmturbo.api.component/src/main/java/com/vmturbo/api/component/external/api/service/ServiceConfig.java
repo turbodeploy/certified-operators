@@ -22,6 +22,7 @@ import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
+import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
@@ -149,7 +150,9 @@ public class ServiceConfig {
                                   mapperConfig.actionSpecMapper(),
                                   communicationConfig.repositoryApi(),
                                   communicationConfig.getRealtimeTopologyContextId(),
-                                  communicationConfig.groupExpander());
+                                  communicationConfig.groupExpander(),
+                                  actionStatsQueryExecutor(),
+                                  mapperConfig.uuidMapper());
     }
 
     @Bean
@@ -220,13 +223,15 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 mapperConfig.actionSpecMapper(),
                 mapperConfig.groupMapper(),
+                mapperConfig.uuidMapper(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
                 communicationConfig.templateServiceBlockingStub(),
                 mapperConfig.entityAspectMapper(),
-                communicationConfig.searchServiceBlockingStub());
+                communicationConfig.searchServiceBlockingStub(),
+                actionStatsQueryExecutor());
     }
 
     @Bean
@@ -260,6 +265,7 @@ public class ServiceConfig {
                 communicationConfig.repositoryRpcService(),
                 userSessionContext(),
                 websocketConfig.websocketHandler(),
+                actionStatsQueryExecutor(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -479,5 +485,11 @@ public class ServiceConfig {
             communicationConfig.getRealtimeTopologyContextId());
         repositoryClientConfig.repository().addListener(gateway);
         return gateway;
+    }
+
+    @Bean
+    public ActionStatsQueryExecutor actionStatsQueryExecutor() {
+        return new ActionStatsQueryExecutor(communicationConfig.actionsRpcService(),
+            mapperConfig.actionSpecMapper());
     }
 }

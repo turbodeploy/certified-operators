@@ -116,7 +116,7 @@ public class LiveActionsStatistician {
     }
 
     private void internalRecordActionStats(final long topologyId,
-                                           @Nonnull final Stream<ActionView> actionStream) {
+                                @Nonnull final Stream<ActionView> actionStream) {
         // TODO (roman, Nov 15 2018): We should use the creation time of the topology as the
         // snapshot time, so that it's in sync with the other information about the topology.
         final LocalDateTime topologyCreationTime = LocalDateTime.now(clock);

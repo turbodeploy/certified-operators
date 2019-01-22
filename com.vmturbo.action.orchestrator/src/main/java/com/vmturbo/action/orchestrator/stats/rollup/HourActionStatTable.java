@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -35,7 +36,9 @@ public class HourActionStatTable implements ActionStatTable {
             .snapshotTable(Tables.ACTION_SNAPSHOT_HOUR)
             .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.HOURS))
             .temporalUnit(ChronoUnit.HOURS)
-            .actionGroupId(ActionStatsByHourRecord::getActionGroupId)
+            .actionGroupIdField(Tables.ACTION_STATS_BY_HOUR.ACTION_GROUP_ID)
+            .actionGroupIdExtractor(ActionStatsByHourRecord::getActionGroupId)
+            .shortTableName("hour")
             .build();
 
     private final DSLContext dslContext;
@@ -57,8 +60,8 @@ public class HourActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Optional<Reader> reader() {
-        return Optional.of(new HourlyReader(dslContext, statCalculator, toTableInfo));
+    public Reader reader() {
+        return new HourlyReader(dslContext, clock, statCalculator, toTableInfo);
     }
 
     /**
@@ -75,10 +78,14 @@ public class HourActionStatTable implements ActionStatTable {
     @VisibleForTesting
     static class HourlyReader extends BaseActionStatTableReader<ActionStatsByHourRecord, ActionSnapshotHourRecord> {
 
-        private HourlyReader(final DSLContext dslContext,
-                             final RolledUpStatCalculator statCalculator,
-                             final TableInfo<? extends Record, ? extends Record> toTableInfo) {
-            super(dslContext, statCalculator, HOUR_TABLE_INFO, toTableInfo);
+        private final RolledUpStatCalculator statCalculator;
+
+        private HourlyReader(@Nonnull final DSLContext dslContext,
+                             @Nonnull final Clock clock,
+                             @Nonnull final RolledUpStatCalculator statCalculator,
+                             @Nonnull final TableInfo<? extends Record, ? extends Record> toTableInfo) {
+            super(dslContext, clock, HOUR_TABLE_INFO, Optional.of(toTableInfo));
+            this.statCalculator = Objects.requireNonNull(statCalculator);
         }
 
         /**
@@ -101,6 +108,24 @@ public class HourActionStatTable implements ActionStatTable {
         @Override
         protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotHourRecord actionSnapshotHourRecord) {
             return actionSnapshotHourRecord.getNumActionSnapshots();
+        }
+
+        @Override
+        protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByHourRecord record) {
+            return ImmutableRolledUpActionGroupStat.builder()
+                .avgActionCount(record.getAvgActionCount().doubleValue())
+                .minActionCount(record.getMinActionCount())
+                .maxActionCount(record.getMaxActionCount())
+                .avgEntityCount(record.getAvgEntityCount().doubleValue())
+                .minEntityCount(record.getMinEntityCount())
+                .maxEntityCount(record.getMaxEntityCount())
+                .avgSavings(record.getAvgSavings().doubleValue())
+                .minSavings(record.getMinSavings().doubleValue())
+                .maxSavings(record.getMaxSavings().doubleValue())
+                .avgInvestment(record.getAvgInvestment().doubleValue())
+                .minInvestment(record.getMinInvestment().doubleValue())
+                .maxInvestment(record.getMaxInvestment().doubleValue())
+                .build();
         }
     }
 

@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.rollup;
 
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -33,17 +34,22 @@ public class LatestActionStatTable implements ActionStatTable {
             // Not really necessary/used for "LATEST" table.
             .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.MINUTES))
             .temporalUnit(ChronoUnit.MINUTES)
-            .actionGroupId(ActionStatsLatestRecord::getActionGroupId)
+            .actionGroupIdField(Tables.ACTION_STATS_LATEST.ACTION_GROUP_ID)
+            .actionGroupIdExtractor(ActionStatsLatestRecord::getActionGroupId)
+            .shortTableName("latest")
             .build();
 
     private final DSLContext dslContext;
+    private final Clock clock;
     private final RolledUpStatCalculator statCalculator;
     private final TableInfo<? extends Record, ? extends Record> toTableInfo;
 
     public LatestActionStatTable(@Nonnull final DSLContext dslContext,
+                                 @Nonnull final Clock clock,
                                  @Nonnull final RolledUpStatCalculator statCalculator,
                                  @Nonnull final TableInfo<? extends Record, ? extends Record> toTableInfo) {
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.clock = Objects.requireNonNull(clock);
         this.statCalculator = Objects.requireNonNull(statCalculator);
         this.toTableInfo = Objects.requireNonNull(toTableInfo);
     }
@@ -52,8 +58,8 @@ public class LatestActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Optional<Reader> reader() {
-        return Optional.of(new LatestReader(dslContext, statCalculator, toTableInfo));
+    public Reader reader() {
+        return new LatestReader(dslContext, clock, statCalculator, toTableInfo);
     }
 
     /**
@@ -71,10 +77,14 @@ public class LatestActionStatTable implements ActionStatTable {
     @VisibleForTesting
     static class LatestReader extends BaseActionStatTableReader<ActionStatsLatestRecord, ActionSnapshotLatestRecord> {
 
+        private final RolledUpStatCalculator statCalculator;
+
         private LatestReader(@Nonnull final DSLContext dsl,
-                             @Nonnull final RolledUpStatCalculator statCalculatorFactory,
+                             @Nonnull final Clock clock,
+                             @Nonnull final RolledUpStatCalculator statCalculator,
                              @Nonnull final TableInfo<? extends Record, ? extends Record> toTableInfo) {
-            super(dsl, statCalculatorFactory, LATEST_TABLE_INFO, toTableInfo);
+            super(dsl, clock, LATEST_TABLE_INFO, Optional.of(toTableInfo));
+            this.statCalculator = Objects.requireNonNull(statCalculator);
         }
 
         /**
@@ -98,6 +108,24 @@ public class LatestActionStatTable implements ActionStatTable {
         protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotLatestRecord actionSnapshotLatestRecord) {
             // Each latest snapshot record represents exactly one action plan snapshot.
             return 1;
+        }
+
+        @Override
+        protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsLatestRecord record) {
+            return ImmutableRolledUpActionGroupStat.builder()
+                .minActionCount(record.getTotalActionCount())
+                .avgActionCount(record.getTotalActionCount())
+                .maxActionCount(record.getTotalActionCount())
+                .minEntityCount(record.getTotalEntityCount())
+                .avgEntityCount(record.getTotalEntityCount())
+                .maxEntityCount(record.getTotalEntityCount())
+                .avgSavings(record.getTotalSavings().doubleValue())
+                .minSavings(record.getTotalSavings().doubleValue())
+                .maxSavings(record.getTotalSavings().doubleValue())
+                .avgInvestment(record.getTotalInvestment().doubleValue())
+                .minInvestment(record.getTotalInvestment().doubleValue())
+                .maxInvestment(record.getTotalInvestment().doubleValue())
+                .build();
         }
     }
 }

@@ -16,7 +16,9 @@ import org.jooq.Record;
 import org.jooq.Table;
 
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
+import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
 
 /**
  * Common abstraction for a table containing action stats.
@@ -31,6 +33,22 @@ public interface ActionStatTable {
      * into a {@link RolledUpActionStats} object.
      */
     interface Reader {
+
+        /**
+         * Query the stat records already saved in the database.
+         *
+         * @param timeRange The time range for the query.
+         * @param mgmtUnitSubgroups The IDs of the target management unit subgroups.
+         *                          If empty, there will be no results.
+         * @param matchedActionGroups The target action groups.
+         * @return
+         */
+        @Nonnull
+        Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> query(
+            @Nonnull final TimeRange timeRange,
+            @Nonnull final Set<Integer> mgmtUnitSubgroups,
+            @Nonnull final MatchedActionGroups matchedActionGroups);
+
         /**
          * Roll-up the action stats in this table for a particular {@link MgmtUnitSubgroup} and
          * time range. Note that we always roll-up one time unit at a time (i.e. one hour in
@@ -83,7 +101,7 @@ public interface ActionStatTable {
      * @return An {@link Optional} containing a {@link Reader}, or an empty {@link Optional} if
      *         this table does not get rolled up to any other table.
      */
-    Optional<Reader> reader();
+    Reader reader();
 
     /**
      * Get the {@link Writer} to use for this table.
@@ -129,6 +147,11 @@ public interface ActionStatTable {
         Field<Integer> mgmtUnitSubgroupIdField();
 
         /**
+         * The action_group_id field in the stat table.
+         */
+        Field<Integer> actionGroupIdField();
+
+        /**
          * The function to truncate a {@link LocalDateTime} to this table's {@link TemporalUnit}.
          * Separate from the {@link TableInfo#temporalUnit()} property because "Month" needs
          * special truncate logic.
@@ -143,7 +166,14 @@ public interface ActionStatTable {
         /**
          * The getter for the action_group_id field in the stat table record.
          */
-        Function<STAT_RECORD, Integer> actionGroupId();
+        Function<STAT_RECORD, Integer> actionGroupIdExtractor();
+
+        /**
+         * The short name of the table used for metrics. Not necessarily the name of the underlying
+         * table.
+         */
+        String shortTableName();
+
     }
 
     /**

@@ -152,6 +152,20 @@ public class ClusterActionAggregator extends ActionAggregator {
                 final ActionStat stat = getStat(muKey, actionSnapshot.actionGroupKey());
                 stat.recordAction(actionSnapshot.recommendation(), entities);
             });
+
+            // Add the "global" action stats record - all entities in this cluster that are
+            // involved in this action.
+            //
+            // We can't reliably re-construct the global records from the per-entity-type records
+            // because a single action may appear in a variable number of entity type records.
+            final MgmtUnitSubgroupKey globalSubgroupKey = ImmutableMgmtUnitSubgroupKey.builder()
+                .mgmtUnitId(clusterId)
+                .build();
+            final ActionStat stat = getStat(globalSubgroupKey, actionSnapshot.actionGroupKey());
+            // Not using all entities involved in the snapshot, because some of them may be out
+            // of the cluster.
+            stat.recordAction(actionSnapshot.recommendation(), entitiesByType.values());
+
         });
     }
 
