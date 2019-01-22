@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilde
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskArrayData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskCountData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeIopsData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LogicalPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageControllerData;
@@ -53,29 +53,29 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
 
         |"hybrid: false
         |flashAvailable: false
-        |disks {
-        |  numDiskName: \"NUM_SSD\"
-        |  numDisks: 0
+        |iopsItems {
+        |  iopsItemName: \"NUM_SSD\"
+        |  iopsItemValue: 0
         |}
-        |disks {
-        |  numDiskName: \"NUM_10K_DISKS\"
-        |  numDisks: 5
+        |iopsItems {
+        |  iopsItemName: \"NUM_10K_DISKS\"
+        |  iopsItemValue: 5
         |}"
     */
 
-    private static final String NUM_DISKS_KEY = DiskArrayData.newBuilder().getDescriptorForType()
-        .findFieldByNumber(DiskArrayData.DISKCOUNTS_FIELD_NUMBER).getFullName();
+    private static final String IOPS_COMPUTE_DATA_KEY = DiskArrayData.newBuilder().getDescriptorForType()
+        .findFieldByNumber(DiskArrayData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName();
 
     // map from entity type to the diskCounts key (which will be used to look up property string
     // value from the entity properties map), for example: for storage controller the key is:
     // "common_dto.EntityDTO.StorageControllerData.diskCounts"
     public static final Map<Integer, String> DISK_COUNTS_KEY_BY_ENTITY_TYPE = ImmutableMap.of(
             EntityType.DISK_ARRAY_VALUE, DiskArrayData.getDefaultInstance().getDescriptorForType()
-                    .findFieldByNumber(DiskArrayData.DISKCOUNTS_FIELD_NUMBER).getFullName(),
+                    .findFieldByNumber(DiskArrayData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName(),
             EntityType.LOGICAL_POOL_VALUE, LogicalPoolData.getDefaultInstance().getDescriptorForType()
-                    .findFieldByNumber(LogicalPoolData.DISKCOUNTS_FIELD_NUMBER).getFullName(),
+                    .findFieldByNumber(LogicalPoolData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName(),
             EntityType.STORAGE_CONTROLLER_VALUE, StorageControllerData.getDefaultInstance().getDescriptorForType()
-                    .findFieldByNumber(StorageControllerData.DISKCOUNTS_FIELD_NUMBER).getFullName()
+                    .findFieldByNumber(StorageControllerData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName()
     );
 
     private Predicate<CommoditySoldDTOOrBuilder> IS_STORAGE_ACCESS = commodity ->
@@ -157,14 +157,14 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
             return false;
         }
         try {
-            // parse the text-format message "DiskCountData" into "DiskCountData" proto java object
-            // for example: parse text "calculateFromHostedEntities: true\n" to DiskCountData
+            // parse the text-format message "ComputeIopsData" into "ComputeIopsData" proto java object
+            // for example: parse text "calculateFromHostedEntities: true\n" to ComputeIopsData
             // java object with a field "calculateFromHostedEntities" which is set to true
-            DiskCountData.Builder diskCountData = DiskCountData.newBuilder();
+            ComputeIopsData.Builder diskCountData = ComputeIopsData.newBuilder();
             TextFormat.getParser().merge(diskCountProperty, diskCountData);
             return diskCountData.getCalculateFromHostedEntities();
         } catch (ParseException e) {
-            logger.error("Invalid string value for DiskCountData: {}", diskCountProperty);
+            logger.error("Invalid string value for ComputeIopsData: {}", diskCountProperty);
             return false;
         }
     }
@@ -196,7 +196,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
      */
     private double calculateCapacityFromDisks(@Nonnull final TopologyEntity entity) {
         final String diskProperty =
-            entity.getTopologyEntityDtoBuilder().getEntityPropertyMapMap().get(NUM_DISKS_KEY);
+            entity.getTopologyEntityDtoBuilder().getEntityPropertyMapMap().get(IOPS_COMPUTE_DATA_KEY);
 
         if (diskProperty == null) {
             return 0;
