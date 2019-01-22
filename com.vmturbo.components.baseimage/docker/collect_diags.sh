@@ -3,13 +3,13 @@
 # Populate a temporary directory with diagnostic text files.
 # The directory to use is passed as the first argument.
 #
-diag_directory="/tmp/diags"
+diag_directory="/home/turbonomic/data/diags"
 rm -rf "${diag_directory}" >/dev/null 2>&1
 mkdir -p "${diag_directory}"
 
 # The diags_done indicates that the diagnostics has been collected.
 # The overall process might be rather long
-rm -rf "/tmp/diags_done" >/dev/null 2>&1
+rm -rf "/home/turbonomic/data/diags_done" >/dev/null 2>&1
 
 # In case column is not present in PATH, default to cat (i.e. pass it as is without formatting)
 function column() {
@@ -122,9 +122,12 @@ if [ ${DUMP_REQUEST_TIME} -ne 0 ]; then
     sh wait_for_full_gc.sh ${DUMP_REQUEST_TIME}
 fi
 
+# Copy GC logs
+cp -a /home/turbonomic/data/gclog/ ${diag_directory}/gclog
+
 # Check server configured Memory and CPU
-echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > /tmp/diags/server_mem_cpu_capacity.txt
-echo "XL Instance Number VCPUs: $(nproc)" >> /tmp/diags/server_mem_cpu_capacity.txt
+echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > ${diag_directory}/server_mem_cpu_capacity.txt
+echo "XL Instance Number VCPUs: $(nproc)" >> ${diag_directory}/server_mem_cpu_capacity.txt
 
 # Done
-echo "1" > /tmp/diags_done
+echo "1" > /home/turbonomic/data/diags_done

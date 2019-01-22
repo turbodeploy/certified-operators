@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: internal
+    io.kompose.service: repository
+  name: {{ .Chart.Name }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -51,12 +65,17 @@ spec:
             drop:
             - ALL
         volumeMounts:
+        - mountPath: /home/turbonomic/data
+          name: repository
         - mountPath: /tmp
           name: repository-tmpfs0
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
       volumes:
+      - name: repository
+        persistentVolumeClaim:
+          claimName: repository
       - emptyDir:
           medium: Memory
         name: repository-tmpfs0

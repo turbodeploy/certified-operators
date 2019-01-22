@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.IopsItemNames;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.NumDiskNames;
 
 public class DiskCapacityCalculationTest {
 
@@ -28,38 +28,38 @@ public class DiskCapacityCalculationTest {
 
     @Test
     public void testSingleDiskType() {
-        final String propString = makePropertyStringSegment(IopsItemNames.NUM_7200_DISKS.name(), 4);
+        final String propString = makePropertyStringSegment(NumDiskNames.NUM_7200_DISKS.name(), 4);
         assertEquals(4, calculator.calculateCapacity(propString), 1e-5);
     }
 
     @Test
     public void testDuplicateDiskType() {
-        final String propString = makePropertyString(IopsItemNames.NUM_7200_DISKS.name(), 4,
-            IopsItemNames.NUM_7200_DISKS.name(), 10);
+        final String propString = makePropertyString(NumDiskNames.NUM_7200_DISKS.name(), 4,
+            NumDiskNames.NUM_7200_DISKS.name(), 10);
         assertEquals(14, calculator.calculateCapacity(propString), 1e-5);
     }
 
     @Test
     public void testZeroDiskType() {
-        final String propString = makePropertyString(IopsItemNames.NUM_7200_DISKS.name(), 4,
-            IopsItemNames.NUM_15K_DISKS.name(), 0);
+        final String propString = makePropertyString(NumDiskNames.NUM_7200_DISKS.name(), 4,
+            NumDiskNames.NUM_15K_DISKS.name(), 0);
         assertEquals(4, calculator.calculateCapacity(propString), 1e-5);
     }
 
     @Test
     public void testMultipleDiskTypes() {
-        final String propString = makePropertyString(IopsItemNames.NUM_7200_DISKS.name(), 4,
-            IopsItemNames.NUM_10K_DISKS.name(), 10);
+        final String propString = makePropertyString(NumDiskNames.NUM_7200_DISKS.name(), 4,
+            NumDiskNames.NUM_10K_DISKS.name(), 10);
         assertEquals(14, calculator.calculateCapacity(propString), 1e-5);
     }
 
     @Test
     public void testFlags() {
-        final String hybridFalse = "hybrid: false\n" + makePropertyStringSegment(IopsItemNames.NUM_10K_DISKS.name(), 1);
-        final String hybridTrue = "hybrid: true\n" + makePropertyStringSegment(IopsItemNames.NUM_10K_DISKS.name(), 1);
-        final String bothFalse = makePropertyString(false, false, IopsItemNames.NUM_10K_DISKS.name(), 1);
-        final String hybridFalseFlashTrue = makePropertyString(false, true, IopsItemNames.NUM_10K_DISKS.name(), 1);
-        final String bothTrueHybridWins = makePropertyString(true, true, IopsItemNames.NUM_10K_DISKS.name(), 1);
+        final String hybridFalse = "hybrid: false\n" + makePropertyStringSegment(NumDiskNames.NUM_10K_DISKS.name(), 1);
+        final String hybridTrue = "hybrid: true\n" + makePropertyStringSegment(NumDiskNames.NUM_10K_DISKS.name(), 1);
+        final String bothFalse = makePropertyString(false, false, NumDiskNames.NUM_10K_DISKS.name(), 1);
+        final String hybridFalseFlashTrue = makePropertyString(false, true, NumDiskNames.NUM_10K_DISKS.name(), 1);
+        final String bothTrueHybridWins = makePropertyString(true, true, NumDiskNames.NUM_10K_DISKS.name(), 1);
 
         assertEquals(1, calculator.calculateCapacity(bothFalse), 1e-5);
         assertEquals(1, calculator.calculateCapacity(hybridFalse), 1e-5);
@@ -81,6 +81,6 @@ public class DiskCapacityCalculationTest {
     }
 
     private String makePropertyStringSegment(final String diskTypeKey, final int numDisks) {
-        return "iopsItems {\n  iopsItemName: \"" + diskTypeKey + "\"\n  iopsItemValue: " + numDisks + "\n}\n";
+        return "disks {\n  numDiskName: \"" + diskTypeKey + "\"\n  numDisks: " + numDisks + "\n}\n";
     }
 }

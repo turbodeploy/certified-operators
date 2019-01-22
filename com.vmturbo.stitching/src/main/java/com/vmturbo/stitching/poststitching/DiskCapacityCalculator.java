@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.IopsItemNames;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.NumDiskNames;
 
 /**
  * This class is used to calculate the IOPS capacity of a Logical Pool, Storage Controller, or
@@ -33,23 +33,23 @@ public class DiskCapacityCalculator {
     private static final Logger logger = LogManager.getLogger();
 
     /* The constant Strings and regexes below are used to retrieve information about the number
-       and type of iopsItems in an entity. All of this information is currently in the form of a
+       and type of disks in an entity. All of this information is currently in the form of a
        String within the entity property map. An example string might look like this:
 
         |"hybrid: false
         |flashAvailable: false
-        |iopsItems {
-        |  iopsItemName: \"NUM_SSD\"
-        |  iopsItemValue: 0
+        |disks {
+        |  numDiskName: \"NUM_SSD\"
+        |  numDisks: 0
         |}
-        |iopsItems {
-        |  iopsItemName: \"NUM_10K_DISKS\"
-        |  iopsItemValue: 5
+        |disks {
+        |  numDiskName: \"NUM_10K_DISKS\"
+        |  numDisks: 5
         |}"
     */
 
     private static final Pattern DISK_COUNT_PATTERN = Pattern.compile(
-        "\\s*\\{\\s*iopsItemName: \\\"(NUM_[\\d\\w_]+)\\\"\\s*iopsItemValue: ([\\d]+)[\\s\\}]*"
+        "\\s*\\{\\s*numDiskName: \\\"(NUM_[\\d\\w_]+)\\\"\\s*numDisks: ([\\d]+)[\\s\\}]*"
     );
 
     private static final String HYBRID_PATTERN = "hybrid: true";
@@ -58,7 +58,7 @@ public class DiskCapacityCalculator {
     private final double hybridDiskIopsFactor;
     private final double flashAvailableDiskIopsFactor;
 
-    private final ImmutableMap<IopsItemNames, Double> diskTypeMap;
+    private final ImmutableMap<NumDiskNames, Double> diskTypeMap;
 
     public DiskCapacityCalculator(final double diskIopsCapacitySsd,
                                   final double diskIopsCapacity7200Rpm,
@@ -83,11 +83,11 @@ public class DiskCapacityCalculator {
         }
 
         diskTypeMap = ImmutableMap.of(
-            IopsItemNames.NUM_10K_DISKS, diskIopsCapacity10kRpm,
-            IopsItemNames.NUM_15K_DISKS, diskIopsCapacity15kRpm,
-            IopsItemNames.NUM_7200_DISKS, diskIopsCapacity7200Rpm,
-            IopsItemNames.NUM_SSD, diskIopsCapacitySsd,
-            IopsItemNames.NUM_VSERIES_DISKS, diskIopsCapacityVseriesLun
+            NumDiskNames.NUM_10K_DISKS, diskIopsCapacity10kRpm,
+            NumDiskNames.NUM_15K_DISKS, diskIopsCapacity15kRpm,
+            NumDiskNames.NUM_7200_DISKS, diskIopsCapacity7200Rpm,
+            NumDiskNames.NUM_SSD, diskIopsCapacitySsd,
+            NumDiskNames.NUM_VSERIES_DISKS, diskIopsCapacityVseriesLun
         );
     }
 
@@ -100,7 +100,7 @@ public class DiskCapacityCalculator {
      * @return the calculated capacity, which may be 0 or more
      */
     public double calculateCapacity(@Nonnull final String diskProperty) {
-        final Map<IopsItemNames, Integer> diskSettingsCounts = parseIopsItemData(diskProperty);
+        final Map<NumDiskNames, Integer> diskSettingsCounts = parseDiskCounts(diskProperty);
         final double flagFactor = parseFlagFactor(diskProperty);
 
         final double baseCapacity = diskSettingsCounts.entrySet().stream()
@@ -120,13 +120,13 @@ public class DiskCapacityCalculator {
      * @return a map with EntitySettingSpecs applying to each type of disk as the key and the
      *          number of disks of each type as the value.
      */
-    private Map<IopsItemNames, Integer> parseIopsItemData(@Nonnull final String property) {
+    private Map<NumDiskNames, Integer> parseDiskCounts(@Nonnull final String property) {
 
-        return Stream.of(property.split("iopsItems"))
+        return Stream.of(property.split("disks"))
             .map(DISK_COUNT_PATTERN::matcher)
             .filter(Matcher::matches)
             .collect(Collectors.toMap(
-                matcher -> IopsItemNames.valueOf(matcher.group(1)),
+                matcher -> NumDiskNames.valueOf(matcher.group(1)),
                 matcher -> Integer.parseInt(matcher.group(2)),
                 (a, b) -> a + b)
             );
@@ -141,7 +141,7 @@ public class DiskCapacityCalculator {
      */
     private double parseFlagFactor(@Nonnull final String property) {
 
-        for (String segment : property.split("iopsItems")) {
+        for (String segment : property.split("disks")) {
             if (segment.contains(HYBRID_PATTERN)) {
                 return hybridDiskIopsFactor;
             }

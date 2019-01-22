@@ -26,6 +26,21 @@ spec:
     requests:
       storage: 1Gi
 ---
+#apiVersion: v1
+#kind: PersistentVolumeClaim
+#metadata:
+#  labels:
+#    zone: secure
+#    io.kompose.service: mysql-var
+#  name: {{ .Chart.Name }}-var
+#
+#spec:
+#  accessModes:
+#  - ReadWriteOnce
+#  resources:
+#    requests:
+#      storage: 1Gi
+#---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -64,6 +79,8 @@ spec:
           name: mysql-data
         - mountPath: /var/log/mysql
           name: mysql-log
+#        - mountPath: /var/run
+#          name: mysql-var
         - mountPath: /tmp
           name: db-tmpfs0
       imagePullSecrets:
@@ -78,6 +95,9 @@ spec:
       - name: mysql-log
         persistentVolumeClaim:
           claimName: mysql-log
+#      - name: mysql-var
+#        persistentVolumeClaim:
+#          claimName: mysql-var
       - emptyDir:
           medium: Memory
         name: db-tmpfs0
