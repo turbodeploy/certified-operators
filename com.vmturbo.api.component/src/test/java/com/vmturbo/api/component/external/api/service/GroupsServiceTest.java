@@ -40,9 +40,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -50,7 +48,6 @@ import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
@@ -109,10 +106,7 @@ public class GroupsServiceTest {
     private RepositoryApi repositoryApi;
 
     @Mock
-    private UuidMapper uuidMapper;
-
-    @Mock
-    private ActionStatsQueryExecutor actionStatsQueryExecutor;
+    private Channel channelMock;
 
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
@@ -121,34 +115,32 @@ public class GroupsServiceTest {
 
     private TemplateServiceMole templateServiceSpy = spy(new TemplateServiceMole());
 
-    private ActionsServiceMole actionServiceSpy = spy(new ActionsServiceMole());
-
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
 
     @Rule
-    public GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy);
 
     @Before
     public void init() throws Exception {
         MockitoAnnotations.initMocks(this);
 
+        channelMock = Mockito.mock(Channel.class);
+        ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService = ActionsServiceGrpc.newBlockingStub(channelMock);
+
         long realtimeTopologyContextId = 7777777;
         groupsService =  new GroupsService(
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionsRpcService,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionSpecMapper,
                 groupMapper,
-                uuidMapper,
                 paginationMapper,
                 repositoryApi,
                 realtimeTopologyContextId,
                 mock(SettingsManagerMapping.class),
                 TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 entityAspectMapper,
-                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                actionStatsQueryExecutor);
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);

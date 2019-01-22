@@ -8,8 +8,8 @@ import javax.annotation.Nullable;
 
 import org.jooq.Table;
 
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 
 /**
  * A filter to restrict the reserved instance coverage records from the

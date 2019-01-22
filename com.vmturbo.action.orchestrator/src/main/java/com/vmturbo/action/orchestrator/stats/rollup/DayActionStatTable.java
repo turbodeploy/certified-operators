@@ -7,7 +7,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -36,9 +35,7 @@ public class DayActionStatTable implements ActionStatTable {
             .snapshotTable(Tables.ACTION_SNAPSHOT_DAY)
             .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.DAYS))
             .temporalUnit(ChronoUnit.DAYS)
-            .actionGroupIdField(Tables.ACTION_STATS_BY_DAY.ACTION_GROUP_ID)
-            .actionGroupIdExtractor(ActionStatsByDayRecord::getActionGroupId)
-            .shortTableName("day")
+            .actionGroupId(ActionStatsByDayRecord::getActionGroupId)
             .build();
 
     private final DSLContext dslContext;
@@ -63,8 +60,8 @@ public class DayActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Reader reader() {
-        return new DailyReader(dslContext, clock, statCalculator, toTableInfo);
+    public Optional<Reader> reader() {
+        return Optional.of(new DailyReader(dslContext, statCalculator, toTableInfo));
     }
 
     /**
@@ -81,14 +78,10 @@ public class DayActionStatTable implements ActionStatTable {
     @VisibleForTesting
     static class DailyReader extends BaseActionStatTableReader<ActionStatsByDayRecord, ActionSnapshotDayRecord> {
 
-        private final RolledUpStatCalculator statCalculator;
-
-        private DailyReader(@Nonnull final DSLContext dslContext,
-                            @Nonnull final Clock clock,
-                            @Nonnull final RolledUpStatCalculator statCalculator,
-                            @Nonnull final TableInfo<? extends Record, ? extends Record> toTableInfo) {
-            super(dslContext, clock, DAY_TABLE_INFO, Optional.of(toTableInfo));
-            this.statCalculator = Objects.requireNonNull(statCalculator);
+        private DailyReader(final DSLContext dslContext,
+                             final RolledUpStatCalculator statCalculator,
+                             final TableInfo<? extends Record, ? extends Record> toTableInfo) {
+            super(dslContext, statCalculator, DAY_TABLE_INFO, toTableInfo);
         }
 
         /**
@@ -111,24 +104,6 @@ public class DayActionStatTable implements ActionStatTable {
         @Override
         protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotDayRecord actionSnapshotDayRecord) {
             return actionSnapshotDayRecord.getNumActionSnapshots();
-        }
-
-        @Override
-        protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByDayRecord record) {
-            return ImmutableRolledUpActionGroupStat.builder()
-                .avgActionCount(record.getAvgActionCount().doubleValue())
-                .minActionCount(record.getMinActionCount())
-                .maxActionCount(record.getMaxActionCount())
-                .avgEntityCount(record.getAvgEntityCount().doubleValue())
-                .minEntityCount(record.getMinEntityCount())
-                .maxEntityCount(record.getMaxEntityCount())
-                .avgSavings(record.getAvgSavings().doubleValue())
-                .minSavings(record.getMinSavings().doubleValue())
-                .maxSavings(record.getMaxSavings().doubleValue())
-                .avgInvestment(record.getAvgInvestment().doubleValue())
-                .minInvestment(record.getMinInvestment().doubleValue())
-                .maxInvestment(record.getMaxInvestment().doubleValue())
-                .build();
         }
     }
 

@@ -35,13 +35,9 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
-import com.vmturbo.api.component.external.api.util.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -138,8 +134,6 @@ public class GroupsService implements IGroupsService {
 
     private final GroupMapper groupMapper;
 
-    private final UuidMapper uuidMapper;
-
     private final PaginationMapper paginationMapper;
 
     private final EntityAspectMapper entityAspectMapper;
@@ -154,28 +148,23 @@ public class GroupsService implements IGroupsService {
 
     private final SearchServiceBlockingStub searchServiceBlockingStub;
 
-    private final ActionStatsQueryExecutor actionStatsQueryExecutor;
-
     private final Logger logger = LogManager.getLogger();
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
-                  @Nonnull final ActionSpecMapper actionSpecMapper,
-                  @Nonnull final GroupMapper groupMapper,
-                  @Nonnull final UuidMapper uuidMapper,
-                  @Nonnull final PaginationMapper paginationMapper,
-                  @Nonnull final RepositoryApi repositoryApi,
-                  final long realtimeTopologyContextId,
-                  @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                  @Nonnull final TemplateServiceBlockingStub templateService,
-                  @Nonnull final EntityAspectMapper entityAspectMapper,
-                  @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
-                  @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor) {
+                         @Nonnull final GroupServiceBlockingStub groupServiceRpc,
+                         @Nonnull final ActionSpecMapper actionSpecMapper,
+                         @Nonnull final GroupMapper groupMapper,
+                         @Nonnull final PaginationMapper paginationMapper,
+                         @Nonnull final RepositoryApi repositoryApi,
+                         final long realtimeTopologyContextId,
+                         @Nonnull final SettingsManagerMapping settingsManagerMapping,
+                         @Nonnull final TemplateServiceBlockingStub templateService,
+                         @Nonnull final EntityAspectMapper entityAspectMapper,
+                         @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.groupMapper = Objects.requireNonNull(groupMapper);
-        this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -183,7 +172,6 @@ public class GroupsService implements IGroupsService {
         this.templateService = templateService;
         this.entityAspectMapper = entityAspectMapper;
         this.searchServiceBlockingStub = searchServiceBlockingStub;
-        this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
     }
 
     @Override
@@ -520,16 +508,10 @@ public class GroupsService implements IGroupsService {
                 actionSpecMapper.createActionFilter(inputDto, getMemberIds(uuid));
 
         try {
-            // TODO : We need to support cloud stats for all scopes e.g. Stats for a group of 2 AWS VM entities.
-            final boolean specialCloudStatsQuery =
-                uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) &&
-                !inputDto.getGroupBy().isEmpty() &&
-                // For this special query we expect and support a specific way to group results.
-                inputDto.getGroupBy().get(0).equals(StringConstants.RISK_SUB_CATEGORY);
-            final boolean historicalQuery =
-                inputDto.getStartTime() != null && inputDto.getEndTime() != null;
             // Handle cloud stats
-            if (specialCloudStatsQuery) {
+            // TODO : We need to support cloud stats for all scopes e.g. Stats for a group of 2 AWS VM entities.
+            if (uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) &&
+                    !inputDto.getGroupBy().isEmpty() && inputDto.getGroupBy().get(0).equals(StringConstants.RISK_SUB_CATEGORY)) {
                 GetActionCategoryStatsResponse response =
                         actionOrchestratorRpc.getActionCategoryStats(
                                 GetActionCategoryStatsRequest.newBuilder()
@@ -557,22 +539,13 @@ public class GroupsService implements IGroupsService {
                             });
                 }
                 return statSnapshotApiDTOS;
-            } else if (historicalQuery) {
-                // (roman, Jan 16 2019): We only support historical action stats for clusters, so
-                // all other groups will not return anything.
-                final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
-                return actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
-                    .scope(apiScopeId)
-                    .actionInput(inputDto)
-                    .build());
-            } else {
-                final GetActionCountsResponse response =
+            }
+            final GetActionCountsResponse response =
                     actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)
                         .setFilter(filter)
                         .build());
-                return ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList());
-            }
+            return ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList());
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();

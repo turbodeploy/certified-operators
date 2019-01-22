@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.TableInfo;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Drives the roll-ups of action stats.
@@ -226,8 +227,6 @@ public class ActionStatRollupScheduler {
 
         static final String STAT_ROLLUP_LABEL = "step";
 
-        static final String TABLE_NAME_LABEL = "table";
-
         static final String ROLLUP_STEP = "rollup";
 
         static final String INSERT_STEP = "insert";
@@ -235,7 +234,7 @@ public class ActionStatRollupScheduler {
         static final DataMetricSummary STAT_ROLLUP_SUMMARY = DataMetricSummary.builder()
             .withName("ao_stat_rollup_duration_seconds")
             .withHelp("Duration of an action stat rollup.")
-            .withLabelNames(STAT_ROLLUP_LABEL, TABLE_NAME_LABEL)
+            .withLabelNames(STAT_ROLLUP_LABEL)
             .build()
             .register();
 

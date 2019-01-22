@@ -19,6 +19,8 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,8 +29,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
-
-import com.google.common.collect.ImmutableList;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -45,9 +45,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.util.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -82,8 +80,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -171,8 +172,6 @@ public class MarketsService implements IMarketsService {
 
     private final UserSessionContext userSessionContext;
 
-    private final ActionStatsQueryExecutor actionStatsQueryExecutor;
-
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -188,7 +187,6 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
                           @Nonnull final UserSessionContext userSessionContext,
                           @Nonnull final UINotificationChannel uiNotificationChannel,
-                          @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -206,7 +204,7 @@ public class MarketsService implements IMarketsService {
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
+
         this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
     }
 
@@ -577,38 +575,32 @@ public class MarketsService implements IMarketsService {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         // if the user is scoped, we should use their scope set as the filter. This might make for
         // a very inefficient filter though at scale. :(
-        final EntityAccessScope userScope = userSessionContext.getUserAccessScope();
-        final Optional<Set<Long>> includedOids = userScope.containsAll()
+        EntityAccessScope userScope = userSessionContext.getUserAccessScope();
+        Optional<Set<Long>> includedOids = userScope.containsAll()
                 ? Optional.empty()
                 : Optional.of(userScope.getScopeGroupMembers().toSet());
-
-        final boolean historicalQuery =
-            actionApiInputDTO.getStartTime() != null &&
-                actionApiInputDTO.getEndTime() != null;
+        final ActionQueryFilter filter =
+                actionSpecMapper.createActionFilter(actionApiInputDTO, includedOids);
         try {
-            if (historicalQuery) {
-                if (!userScope.containsAll()) {
-                    logger.warn("Scoped user (scope: {}) requested historical action stats." +
-                        "Returning empty.", userScope.toString());
-                    return Collections.emptyList();
-                }
-
-                return actionStatsQueryExecutor.retrieveActionStats(
-                    ImmutableActionStatsQuery.builder()
-                        .scope(apiId)
-                        .actionInput(actionApiInputDTO)
-                        .build());
-            } else {
-                final ActionQueryFilter filter =
-                    actionSpecMapper.createActionFilter(actionApiInputDTO, includedOids);
-                // if UI doesn't provide start and end date, will call ActionRpcService#getActionCounts
-                final GetActionCountsResponse actionCountsResponse =
-                    actionRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
-                        .setTopologyContextId(apiId.oid())
-                        .setFilter(filter)
-                        .build());
-                return ActionCountsMapper.countsByTypeToApi(actionCountsResponse.getCountsByTypeList());
+            // if UI provides start and end date, will call ActionRpcService#getActionCountsByDate
+            if (filter.hasEndDate() && filter.hasStartDate()) {
+                final GetActionCountsByDateResponse actionCountsResponse =
+                        actionRpcService.getActionCountsByDate(GetActionCountsRequest.newBuilder()
+                                .setTopologyContextId(apiId.oid())
+                                .setFilter(filter)
+                                .build());
+                List<ActionCountsByDateEntry> actionCountsByDateEntryList = actionCountsResponse.getActionCountsByDateList();
+                Map<Long, List<StateAndModeCount>> stateAndModeCountsByDateMap = actionCountsByDateEntryList.stream().collect(
+                        Collectors.toMap(ActionCountsByDateEntry::getDate, ActionCountsByDateEntry::getCountsByStateAndModeList));
+                return ActionCountsMapper.countsByStateAndModeGroupByDateToApi(stateAndModeCountsByDateMap);
             }
+            // if UI doesn't provide start and end date, will call ActionRpcService#getActionCounts
+            final GetActionCountsResponse actionCountsResponse =
+                    actionRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
+                            .setTopologyContextId(apiId.oid())
+                            .setFilter(filter)
+                            .build());
+            return ActionCountsMapper.countsByTypeToApi(actionCountsResponse.getCountsByTypeList());
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();

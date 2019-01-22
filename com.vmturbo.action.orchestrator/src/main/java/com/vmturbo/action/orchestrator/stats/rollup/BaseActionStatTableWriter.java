@@ -80,7 +80,7 @@ public abstract class BaseActionStatTableWriter<STAT_RECORD extends Record, SNAP
     public void insert(final int mgmtUnitSubgroupId,
                        @Nonnull final RolledUpActionStats rolledUpStats) {
         try (DataMetricTimer timer = ActionStatRollup.STAT_ROLLUP_SUMMARY
-            .labels(ActionStatRollup.INSERT_STEP, tableInfo.shortTableName())
+            .labels(ActionStatRollup.INSERT_STEP)
             .startTimer()) {
             dslContext.transaction(transactionContext -> {
                 final DSLContext transactionDsl = DSL.using(transactionContext);

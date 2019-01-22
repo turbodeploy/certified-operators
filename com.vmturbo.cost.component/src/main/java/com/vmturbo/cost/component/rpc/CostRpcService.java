@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -57,8 +58,7 @@ import com.vmturbo.commons.forecasting.ForecastingContext;
 import com.vmturbo.commons.forecasting.ForecastingStrategyNotProvidedException;
 import com.vmturbo.commons.forecasting.InvalidForecastingDateRangeException;
 import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
-import com.vmturbo.components.api.TimeFrameCalculator;
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
@@ -66,6 +66,8 @@ import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;

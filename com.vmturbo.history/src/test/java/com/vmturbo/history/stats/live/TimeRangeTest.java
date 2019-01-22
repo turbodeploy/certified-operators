@@ -29,7 +29,7 @@ public class TimeRangeTest {
 
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
 
-    private HistoryTimeFrameCalculator timeFrameCalculator = mock(HistoryTimeFrameCalculator.class);
+    private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
     private final TimeRangeFactory timeRangeFactory =
             new DefaultTimeRangeFactory(historydbIO,

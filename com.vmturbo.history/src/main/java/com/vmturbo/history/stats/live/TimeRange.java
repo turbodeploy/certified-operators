@@ -118,13 +118,13 @@ public class TimeRange {
 
             private final HistorydbIO historydbIO;
 
-            private final HistoryTimeFrameCalculator timeFrameCalculator;
+            private final TimeFrameCalculator timeFrameCalculator;
 
             // time (MS) to specify a window before startTime; the config property is latestTableTimeWindowMin
             private final long latestTableTimeWindowMS;
 
             public DefaultTimeRangeFactory(@Nonnull final HistorydbIO historydbIO,
-                                           @Nonnull final HistoryTimeFrameCalculator timeFrameCalculator,
+                                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                                            final long latestTableTimeWindow,
                                            final TimeUnit latestTableTimeWindowUnit) {
                 this.historydbIO = Objects.requireNonNull(historydbIO);

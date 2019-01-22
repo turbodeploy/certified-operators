@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
-import com.vmturbo.components.api.TimeFrameCalculator;
+import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;

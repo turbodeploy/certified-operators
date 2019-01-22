@@ -49,17 +49,17 @@ public class ActionStatsRollupConfig {
     public ActionStatRollupScheduler rollupScheduler() {
         final List<RollupDirection> rollupDependencies = new ArrayList<>();
         rollupDependencies.add(ImmutableRollupDirection.builder()
-                .fromTableReader(latestTable().reader())
+                .fromTableReader(latestTable().reader().get())
                 .toTableWriter(hourlyTable().writer().get())
                 .description("latest to hourly")
                 .build());
         rollupDependencies.add(ImmutableRollupDirection.builder()
-                .fromTableReader(hourlyTable().reader())
+                .fromTableReader(hourlyTable().reader().get())
                 .toTableWriter(dailyTable().writer().get())
                 .description("hourly to daily")
                 .build());
         rollupDependencies.add(ImmutableRollupDirection.builder()
-                .fromTableReader(dailyTable().reader())
+                .fromTableReader(dailyTable().reader().get())
                 .toTableWriter(monthlyTable().writer().get())
                 .description("daily to monthly")
                 .build());
@@ -83,7 +83,6 @@ public class ActionStatsRollupConfig {
     @Bean
     public LatestActionStatTable latestTable() {
         return new LatestActionStatTable(sqlDatabaseConfig.dsl(),
-                globalConfig.actionOrchestratorClock(),
                 rolledUpStatCalculator(), HourActionStatTable.HOUR_TABLE_INFO);
     }
 

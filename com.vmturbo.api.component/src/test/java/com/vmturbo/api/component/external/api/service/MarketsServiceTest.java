@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,11 +63,12 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
+import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
@@ -82,6 +84,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -287,17 +291,12 @@ public class MarketsServiceTest {
                     policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
-                    uiNotificationChannel(), actionStatsQueryExecutor(), REALTIME_CONTEXT_ID);
+                    uiNotificationChannel(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
         public UINotificationChannel uiNotificationChannel() {
             return Mockito.mock(UINotificationChannel.class);
-        }
-
-        @Bean
-        public ActionStatsQueryExecutor actionStatsQueryExecutor() {
-            return Mockito.mock(ActionStatsQueryExecutor.class);
         }
 
         @Bean

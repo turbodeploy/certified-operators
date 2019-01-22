@@ -46,7 +46,8 @@ public class DayActionStatTableTest {
 
     @Test
     public void testReaderIsPresent() {
-        assertTrue(dayActionStatsTable.reader() instanceof DailyReader);
+        assertTrue(dayActionStatsTable.reader().isPresent());
+        assertTrue(dayActionStatsTable.reader().get() instanceof DailyReader);
     }
 
     @Test
@@ -57,7 +58,7 @@ public class DayActionStatTableTest {
 
     @Test
     public void testReaderSummarize() {
-        final DailyReader reader = (DailyReader) dayActionStatsTable.reader();
+        final DailyReader reader = (DailyReader) dayActionStatsTable.reader().get();
         final int ag1Id = 1;
         final int ag2Id = 2;
         final StatWithSnapshotCnt<ActionStatsByDayRecord> ag1Record =
@@ -82,15 +83,6 @@ public class DayActionStatTableTest {
         assertThat(statsByGroupId.keySet(), containsInAnyOrder(ag1Id, ag2Id));
         assertThat(statsByGroupId.get(ag1Id), is(ag1Stat));
         assertThat(statsByGroupId.get(ag2Id), is(ag2Stat));
-    }
-
-    @Test
-    public void testReaderNumSnapshots() {
-        final DailyReader reader = (DailyReader) dayActionStatsTable.reader();
-        final int numSnapshots = 11;
-        final ActionSnapshotDayRecord record = new ActionSnapshotDayRecord();
-        record.setNumActionSnapshots(numSnapshots);
-        assertThat(reader.numSnapshotsInSnapshotRecord(record), is(numSnapshots));
     }
 
     @Test
@@ -142,32 +134,5 @@ public class DayActionStatTableTest {
         assertThat(statRecord.getDayTime(), is(time));
         assertThat(statRecord.getDayRollupTime(), is(LocalDateTime.now(clock)));
         assertThat(statRecord.getNumActionSnapshots(), is(numActionSnapshots));
-    }
-
-    @Test
-    public void testReaderToGroupStatRoundTrip() {
-        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer().get();
-        final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
-        final int mgmtSubgroupId = 1;
-        final int actionGroupId = 2;
-        final RolledUpActionGroupStat rolledUpStat = ImmutableRolledUpActionGroupStat.builder()
-            .avgActionCount(3)
-            .avgEntityCount(4)
-            .avgInvestment(5.0)
-            .avgSavings(6.0)
-            .minActionCount(7)
-            .minEntityCount(8)
-            .minInvestment(9.0)
-            .minSavings(10.0)
-            .maxActionCount(11)
-            .maxEntityCount(12)
-            .maxInvestment(13.0)
-            .maxSavings(14.0)
-            .build();
-        final ActionStatsByDayRecord record =
-            writer.statRecord(mgmtSubgroupId, actionGroupId, time, rolledUpStat);
-
-        final DailyReader reader = (DailyReader) dayActionStatsTable.reader();
-        assertThat(reader.recordToGroupStat(record), is(rolledUpStat));
     }
 }

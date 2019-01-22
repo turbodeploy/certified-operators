@@ -94,12 +94,12 @@ public class ScheduledRollupIntegrationTest {
         final RolledUpStatCalculator statCalculator = new RolledUpStatCalculator();
         final HourActionStatTable hourTable = new HourActionStatTable(dsl, clock,
             statCalculator, DayActionStatTable.DAY_TABLE_INFO);
-        final LatestActionStatTable latestTable = new LatestActionStatTable(dsl, clock,
+        final LatestActionStatTable latestTable = new LatestActionStatTable(dsl,
             statCalculator, HourActionStatTable.HOUR_TABLE_INFO);
 
         final ActionStatRollupScheduler scheduler = new ActionStatRollupScheduler(
             Collections.singletonList(ImmutableRollupDirection.builder()
-                .fromTableReader(latestTable.reader())
+                .fromTableReader(latestTable.reader().get())
                 .toTableWriter(hourTable.writer().get())
                 .description("latest to hour")
                 .build()), executorService);
@@ -350,7 +350,7 @@ public class ScheduledRollupIntegrationTest {
 
         final ActionStatRollupScheduler scheduler = new ActionStatRollupScheduler(
             Collections.singletonList(ImmutableRollupDirection.builder()
-                .fromTableReader(hourTable.reader())
+                .fromTableReader(hourTable.reader().get())
                 .toTableWriter(dayTable.writer().get())
                 .description("hour to day")
                 .build()), executorService);
@@ -625,7 +625,7 @@ public class ScheduledRollupIntegrationTest {
 
         final ActionStatRollupScheduler scheduler = new ActionStatRollupScheduler(
             Collections.singletonList(ImmutableRollupDirection.builder()
-                .fromTableReader(dayTable.reader())
+                .fromTableReader(dayTable.reader().get())
                 .toTableWriter(monthTable.writer().get())
                 .description("day to month")
                 .build()), executorService);

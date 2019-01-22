@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
@@ -17,7 +16,6 @@ import io.grpc.Status.Code;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -34,22 +32,20 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 public class ActionDeletionRpcTest {
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
-    private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
-    private final ActionStore actionStore = mock(ActionStore.class);
-    private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
-    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
-    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
+    private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
+    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
+    private final ActionPaginatorFactory paginatorFactory = Mockito.mock(ActionPaginatorFactory.class);
+    private final WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
 
     private final long topologyContextId = 3;
 
     private ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse,
-                    mock(ActionExecutor.class),
-                    mock(ActionTargetSelector.class),
-                    mock(ActionTranslator.class),
+                    Mockito.mock(ActionExecutor.class),
+                    Mockito.mock(ActionTargetSelector.class),
+                    Mockito.mock(ActionTranslator.class),
                     paginatorFactory,
-                    workflowStore,
-                    statReader);
+                    workflowStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

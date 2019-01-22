@@ -16,7 +16,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -38,7 +37,6 @@ import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
@@ -64,7 +62,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionProbePriorities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsResponse;
@@ -84,8 +81,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
@@ -136,8 +131,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final WorkflowStore workflowStore;
 
-    private final LiveActionStatReader actionStatsReader;
-
     /**
      * Create a new ActionsRpcService.
      *
@@ -153,15 +146,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                              @Nonnull final ActionTargetSelector actionTargetSelector,
                              @Nonnull final ActionTranslator actionTranslator,
                              @Nonnull final ActionPaginatorFactory paginatorFactory,
-                             @Nonnull final WorkflowStore workflowStore,
-                             @Nonnull final LiveActionStatReader liveActionStatReader) {
+                             @Nonnull final WorkflowStore workflowStore) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
         this.workflowStore = Objects.requireNonNull(workflowStore);
-        this.actionStatsReader = Objects.requireNonNull(liveActionStatReader);
     }
 
     /**
@@ -573,23 +564,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         });
         responseObserver.onNext(actionCategoryStatsResponse.build());
         responseObserver.onCompleted();
-    }
-
-    @Override
-    public void getHistoricalActionStats(GetHistoricalActionStatsRequest request,
-                                         StreamObserver<GetHistoricalActionStatsResponse> responseObserver) {
-        try {
-            final ActionStats actionStats = actionStatsReader.readActionStats(request.getQuery());
-            responseObserver.onNext(GetHistoricalActionStatsResponse.newBuilder()
-                .setActionStats(actionStats)
-                .build());
-            responseObserver.onCompleted();
-        } catch (DataAccessException e) {
-            logger.error("Failed to retrieve historical stats!", e);
-            responseObserver.onError(Status.INTERNAL
-                .withDescription(e.getLocalizedMessage())
-                .asException());
-        }
     }
 
     private void addAllActionProbePrioritiesToResponse(

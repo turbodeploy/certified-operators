@@ -25,8 +25,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStats
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
-import com.vmturbo.components.api.TimeFrameCalculator;
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.reserved.instance.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.cost.component.reserved.instance.ProjectedRICoverageStore;

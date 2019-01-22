@@ -173,7 +173,6 @@ CREATE TABLE action_stats_by_hour (
     FOREIGN KEY (action_group_id) REFERENCES action_group(id)
 );
 
--- Information about the action snapshots rolled up into each hour.
 CREATE TABLE action_snapshot_hour (
     -- The "hour" timestamp.
     -- There should be an action_snapshot_hour row for each unique "hour" timestamp in
@@ -227,7 +226,6 @@ CREATE TABLE action_stats_by_day (
     FOREIGN KEY (action_group_id) REFERENCES action_group(id)
 );
 
--- Information about the action snapshots rolled up into each day.
 CREATE TABLE action_snapshot_day (
     -- The "day" timestamp.
     -- There should be an action_snapshot_day row for each unique "day" timestamp in
@@ -281,7 +279,6 @@ CREATE TABLE action_stats_by_month (
     FOREIGN KEY (action_group_id) REFERENCES action_group(id)
 );
 
--- Information about the action snapshots rolled up into each month.
 CREATE TABLE action_snapshot_month (
     -- The "month" timestamp.
     -- There should be an action_snapshot_month row for each unique "month" timestamp in

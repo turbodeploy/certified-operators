@@ -13,7 +13,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -48,12 +47,11 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionVie
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -63,7 +61,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
@@ -74,10 +71,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRespo
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
@@ -106,7 +99,6 @@ public class ActionQueryRpcTest {
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
-    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
     private final ActionTranslator actionTranslator = new ActionTranslator(actionStream ->
         actionStream.map(action -> {
             action.getActionTranslation().setPassthroughTranslationSuccess();
@@ -128,12 +120,12 @@ public class ActionQueryRpcTest {
     private ActionsRpcService actionsRpcService = new ActionsRpcService(
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslator, paginatorFactory,
-            workflowStore, statReader);
+            workflowStore);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslatorWithFailedTranslation, paginatorFactory,
-            workflowStore, statReader);
+            workflowStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -811,26 +803,6 @@ public class ActionQueryRpcTest {
                 GetActionCountsRequest.newBuilder()
                         .setTopologyContextId(topologyContextId)
                         .build());
-    }
-
-    @Test
-    public void testGetHistoricalActionStats() {
-        final HistoricalActionCountsQuery query = HistoricalActionCountsQuery.newBuilder()
-            .setGroupBy(GroupBy.ACTION_CATEGORY)
-            .build();
-        final ActionStats actionStats = ActionStats.newBuilder()
-            .setMgmtUnitId(7)
-            .build();
-        when(statReader.readActionStats(query)).thenReturn(actionStats);
-
-        final GetHistoricalActionStatsResponse response =
-            actionOrchestratorServiceClient.getHistoricalActionStats(
-                GetHistoricalActionStatsRequest.newBuilder()
-                    .setQuery(query)
-                    .build());
-
-        verify(statReader).readActionStats(query);
-        assertThat(response.getActionStats(), is(actionStats));
     }
 
 

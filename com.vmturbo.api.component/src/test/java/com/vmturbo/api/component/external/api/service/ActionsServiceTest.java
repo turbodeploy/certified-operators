@@ -5,7 +5,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -31,10 +30,7 @@ import com.google.common.collect.Sets;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -78,10 +74,6 @@ public class ActionsServiceTest {
 
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
-    private ActionStatsQueryExecutor actionStatsQueryExecutor = mock(ActionStatsQueryExecutor.class);
-
-    private UuidMapper uuidMapper = mock(UuidMapper.class);
-
     ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
 
     private ActionSpecMapper actionSpecMapper;
@@ -105,8 +97,7 @@ public class ActionsServiceTest {
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
-            repositoryApi, REALTIME_TOPOLOGY_ID, groupExpander,
-            actionStatsQueryExecutor, uuidMapper);
+            repositoryApi, REALTIME_TOPOLOGY_ID, groupExpander);
     }
 
     /**

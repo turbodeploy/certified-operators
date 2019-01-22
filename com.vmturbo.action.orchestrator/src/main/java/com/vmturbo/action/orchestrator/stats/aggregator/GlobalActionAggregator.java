@@ -24,7 +24,7 @@ public class GlobalActionAggregator extends ActionAggregator {
     /**
      * The global scope doesn't have a "real" ID, so we use a hard-coded value.
      */
-    public static final long GLOBAL_MGMT_UNIT_ID = 0;
+    private static final long GLOBAL_MGMT_UNIT_ID = 0;
 
     GlobalActionAggregator(@Nonnull final LocalDateTime snapshotTime) {
         super(snapshotTime);

@@ -2,9 +2,7 @@ package com.vmturbo.action.orchestrator.stats.groups;
 
 import static com.vmturbo.action.orchestrator.db.Tables.MGMT_UNIT_SUBGROUP;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -17,22 +15,14 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
-import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.proactivesupport.DataMetricCounter;
-import com.vmturbo.proactivesupport.DataMetricHistogram;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Responsible for storing and retrieving {@link MgmtUnitSubgroup}s to/from the underlying database.
@@ -68,10 +58,10 @@ public class MgmtUnitSubgroupStore {
             final DSLContext transactionDsl = DSL.using(transactionContext);
 
             final int[] inserted = transactionDsl.batch(keys.stream()
-                .map(key -> transactionDsl.insertInto(MGMT_UNIT_SUBGROUP)
-                    .set(keyToRecord(key))
-                    .onDuplicateKeyIgnore())
-                .collect(Collectors.toList()))
+                    .map(key -> transactionDsl.insertInto(MGMT_UNIT_SUBGROUP)
+                        .set(keyToRecord(key))
+                        .onDuplicateKeyIgnore())
+                    .collect(Collectors.toList()))
                 .execute();
 
             final int insertedSum = IntStream.of(inserted).sum();
@@ -113,12 +103,12 @@ public class MgmtUnitSubgroupStore {
 
         try {
             return Optional.of(ImmutableMgmtUnitSubgroup.builder()
-                .id(record.getId())
-                .key(keyBuilder.build())
-                .build());
+                    .id(record.getId())
+                    .key(keyBuilder.build())
+                    .build());
         } catch (IllegalStateException e) {
             logger.error("Failed to build subgroup out of database record. Error: {}",
-                e.getLocalizedMessage());
+                    e.getLocalizedMessage());
             return Optional.empty();
         }
     }
@@ -143,119 +133,4 @@ public class MgmtUnitSubgroupStore {
         return record;
     }
 
-    /**
-     * Query the {@link MgmtUnitSubgroupStore} to get the subgroups that match a filter.
-     *
-     * @param mgmtUnitSubgroupFilter A {@link MgmtUnitSubgroupFilter} indicating which
-     *                               management unit to target, and which subgroups to return.
-     * @return A {@link QueryResult} if one or more mgmt unit subgroups match the filter. Empty
-     *         otherwise.
-     */
-    @Nonnull
-    public Optional<QueryResult> query(@Nonnull final MgmtUnitSubgroupFilter mgmtUnitSubgroupFilter) {
-        final List<Condition> conditions = new ArrayList<>();
-        final long mgmtUnitId;
-        if (mgmtUnitSubgroupFilter.getMarket()) {
-            mgmtUnitId = GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
-        } else if (mgmtUnitSubgroupFilter.hasMgmtUnitId()) {
-            mgmtUnitId = mgmtUnitSubgroupFilter.getMgmtUnitId();
-        } else {
-            logger.error("Invalid filter does not target the market or a specific mgmt unit: {}",
-                mgmtUnitSubgroupFilter);
-            return Optional.empty();
-        }
-
-
-        logger.debug("Querying for subgroups in mgmt unit: {}", mgmtUnitId);
-
-        // This will guarantee that all records we get back have the same mgmt unit ID.
-        conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(mgmtUnitId));
-
-        if (mgmtUnitSubgroupFilter.getEntityTypeList().isEmpty()) {
-            // Special case - unset entity type, look in the "global" record.
-            conditions.add(MGMT_UNIT_SUBGROUP.ENTITY_TYPE.eq(UNSET_ENUM_VALUE));
-        } else {
-            if (mgmtUnitSubgroupFilter.getEntityTypeCount() > 1) {
-                // We allow this, because it's supported in the external API and the error is non-fatal.
-                // But the action counts, investment, and savings will likely be wrong because
-                // "MOVE" actions will be double-counted.
-                logger.warn("Filter: {} targetting {} entity types." +
-                        " Combining results of multiple entity types may lead to inflated counts.",
-                    mgmtUnitSubgroupFilter, mgmtUnitSubgroupFilter.getEntityTypeCount());
-                Metrics.MULTI_ENTITY_TYPE_COUNTER.increment();
-            }
-            conditions.add(MGMT_UNIT_SUBGROUP.ENTITY_TYPE.in(
-                Collections2.transform(mgmtUnitSubgroupFilter.getEntityTypeList(),
-                    Integer::shortValue)));
-        }
-
-        if (mgmtUnitSubgroupFilter.hasEnvironmentType()) {
-            conditions.add(MGMT_UNIT_SUBGROUP.ENVIRONMENT_TYPE.eq(
-                (short) mgmtUnitSubgroupFilter.getEnvironmentType().getNumber()));
-        }
-
-        logger.trace("Using the following conditions for the mgmt unit subgroup " +
-            "filter {}\nConditions:{}", mgmtUnitSubgroupFilter, conditions);
-
-        try (final DataMetricTimer timer = Metrics.QUERY_HISTOGRAM.startTimer()) {
-
-            final Set<MgmtUnitSubgroup> matchingSubgroups = dsl.selectFrom(MGMT_UNIT_SUBGROUP)
-                .where(conditions)
-                .fetch()
-                .stream()
-                .map(this::recordToGroup)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-
-            if (matchingSubgroups.isEmpty()) {
-                return Optional.empty();
-            } else {
-                final ImmutableQueryResult.Builder builder = ImmutableQueryResult.builder();
-
-                if (mgmtUnitId != GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID) {
-                    builder.mgmtUnit(mgmtUnitId);
-                }
-
-                // In the future if we want to group results by environment type or entity type we will
-                // need to return the full MgmtUnitSubgroup objects as part of the query result.
-                // For now just the ID is sufficient.
-                matchingSubgroups.forEach(subgroup -> builder.addMgmtUnitSubgroups(subgroup.id()));
-
-                return Optional.of(builder.build());
-            }
-        }
-    }
-
-    /**
-     * The result of querying the {@link MgmtUnitSubgroupStore}.
-     */
-    @Value.Immutable
-    public interface QueryResult {
-
-        /**
-         * The ID of the mgmt unit targeted by the query. Empty if describing the whole market.
-         */
-        Optional<Long> mgmtUnit();
-
-        /**
-         * The set of mgmt unit subgroups targeted by the query. Should be non-empty.
-         */
-        Set<Integer> mgmtUnitSubgroups();
-    }
-
-    static class Metrics {
-        static final DataMetricCounter MULTI_ENTITY_TYPE_COUNTER = DataMetricCounter.builder()
-            .withName("ao_mu_subgroup_multi_entity_type_query_count")
-            .withHelp("Number of mgmt subunit queries that target multiple entity types.")
-            .build()
-            .register();
-
-        static final DataMetricHistogram QUERY_HISTOGRAM = DataMetricHistogram.builder()
-            .withName("ao_mu_subgroup_store_query_duration_seconds")
-            .withHelp("Duration of mgmt subunit queries, in seconds.")
-            .withBuckets(0.1, 0.5, 1, 5)
-            .build()
-            .register();
-    }
 }

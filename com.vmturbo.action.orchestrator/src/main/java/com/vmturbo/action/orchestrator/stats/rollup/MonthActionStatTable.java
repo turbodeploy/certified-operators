@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -33,9 +31,7 @@ public class MonthActionStatTable implements ActionStatTable {
             .snapshotTable(Tables.ACTION_SNAPSHOT_MONTH)
             .timeTruncateFn(time -> LocalDateTime.of(time.getYear(), time.getMonth(), 1, 0, 0))
             .temporalUnit(ChronoUnit.MONTHS)
-            .actionGroupIdField(Tables.ACTION_STATS_BY_MONTH.ACTION_GROUP_ID)
-            .actionGroupIdExtractor(ActionStatsByMonthRecord::getActionGroupId)
-            .shortTableName("month")
+            .actionGroupId(ActionStatsByMonthRecord::getActionGroupId)
             .build();
 
     private final DSLContext dslContext;
@@ -51,9 +47,9 @@ public class MonthActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Reader reader() {
+    public Optional<Reader> reader() {
         // No reader for the monthly table because it doesn't roll over into any other table.
-        return new MonthlyReader(dslContext, clock);
+        return Optional.empty();
     }
 
     /**
@@ -62,47 +58,6 @@ public class MonthActionStatTable implements ActionStatTable {
     @Override
     public Optional<Writer> writer() {
         return Optional.of(new MonthlyWriter(dslContext, clock));
-    }
-
-    /**
-     * The {@link ActionStatTable.Reader} for the hourly stats table.
-     */
-    @VisibleForTesting
-    static class MonthlyReader extends BaseActionStatTableReader<ActionStatsByMonthRecord, ActionSnapshotMonthRecord> {
-
-        private MonthlyReader(@Nonnull final DSLContext dslContext,
-                             @Nonnull final Clock clock) {
-            super(dslContext, clock, MONTH_TABLE_INFO, Optional.empty());
-        }
-
-        @Override
-        protected Map<Integer, RolledUpActionGroupStat> rollupRecords(final int numStatSnapshotsInRange,
-                @Nonnull final Map<Integer, List<StatWithSnapshotCnt<ActionStatsByMonthRecord>>> recordsByActionGroupId) {
-            throw new UnsupportedOperationException("Unexpected rollup on monthly record.");
-        }
-
-        @Override
-        protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotMonthRecord record) {
-            throw new UnsupportedOperationException("Unexpected rollup on monthly record.");
-        }
-
-        @Override
-        protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByMonthRecord record) {
-            return ImmutableRolledUpActionGroupStat.builder()
-                .avgActionCount(record.getAvgActionCount().doubleValue())
-                .minActionCount(record.getMinActionCount())
-                .maxActionCount(record.getMaxActionCount())
-                .avgEntityCount(record.getAvgEntityCount().doubleValue())
-                .minEntityCount(record.getMinEntityCount())
-                .maxEntityCount(record.getMaxEntityCount())
-                .avgSavings(record.getAvgSavings().doubleValue())
-                .minSavings(record.getMinSavings().doubleValue())
-                .maxSavings(record.getMaxSavings().doubleValue())
-                .avgInvestment(record.getAvgInvestment().doubleValue())
-                .minInvestment(record.getMinInvestment().doubleValue())
-                .maxInvestment(record.getMaxInvestment().doubleValue())
-                .build();
-        }
     }
 
     @VisibleForTesting

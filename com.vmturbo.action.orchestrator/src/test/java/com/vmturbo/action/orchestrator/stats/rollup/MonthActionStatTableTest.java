@@ -10,15 +10,12 @@ import static org.mockito.Mockito.mock;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.ZoneOffset;
-import java.util.Collections;
 
 import org.jooq.DSLContext;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotMonthRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByMonthRecord;
-import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
-import com.vmturbo.action.orchestrator.stats.rollup.MonthActionStatTable.MonthlyReader;
 import com.vmturbo.action.orchestrator.stats.rollup.MonthActionStatTable.MonthlyWriter;
 import com.vmturbo.components.api.test.MutableFixedClock;
 
@@ -32,24 +29,24 @@ public class MonthActionStatTableTest {
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
-    private MonthActionStatTable monthActionStatTable =
+    private MonthActionStatTable dayActionStatsTable =
         new MonthActionStatTable(dslContext, clock);
 
     @Test
-    public void testReaderIsPresent() {
-        assertTrue(monthActionStatTable.reader() instanceof MonthlyReader);
+    public void testReaderIsNotPresent() {
+        assertFalse(dayActionStatsTable.reader().isPresent());
     }
 
     @Test
     public void testWriterIsPresent() {
-        assertTrue(monthActionStatTable.writer().isPresent());
-        assertTrue(monthActionStatTable.writer().get() instanceof MonthlyWriter);
+        assertTrue(dayActionStatsTable.writer().isPresent());
+        assertTrue(dayActionStatsTable.writer().get() instanceof MonthlyWriter);
     }
 
     @Test
     public void testWriterSummaryToRecord() {
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
-        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer().get();
+        final MonthlyWriter writer = (MonthlyWriter) dayActionStatsTable.writer().get();
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final ActionStatsByMonthRecord record =
@@ -87,7 +84,7 @@ public class MonthActionStatTableTest {
 
     @Test
     public void testWriterStatRecord() {
-        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer().get();
+        final MonthlyWriter writer = (MonthlyWriter) dayActionStatsTable.writer().get();
         final LocalDateTime time =
             LocalDateTime.ofEpochSecond(100000, 10000, ZoneOffset.UTC);
         final int numActionSnapshots = 10;
@@ -95,44 +92,5 @@ public class MonthActionStatTableTest {
         assertThat(statRecord.getMonthTime(), is(time));
         assertThat(statRecord.getMonthRollupTime(), is(LocalDateTime.now(clock)));
         assertThat(statRecord.getNumActionSnapshots(), is(numActionSnapshots));
-    }
-
-    @Test
-    public void testReaderToGroupStatRoundTrip() {
-        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer().get();
-        final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
-        final int mgmtSubgroupId = 1;
-        final int actionGroupId = 2;
-        final RolledUpActionGroupStat rolledUpStat = ImmutableRolledUpActionGroupStat.builder()
-            .avgActionCount(3)
-            .avgEntityCount(4)
-            .avgInvestment(5.0)
-            .avgSavings(6.0)
-            .minActionCount(7)
-            .minEntityCount(8)
-            .minInvestment(9.0)
-            .minSavings(10.0)
-            .maxActionCount(11)
-            .maxEntityCount(12)
-            .maxInvestment(13.0)
-            .maxSavings(14.0)
-            .build();
-        final ActionStatsByMonthRecord record =
-            writer.statRecord(mgmtSubgroupId, actionGroupId, time, rolledUpStat);
-
-        final MonthlyReader reader = (MonthlyReader) monthActionStatTable.reader();
-        assertThat(reader.recordToGroupStat(record), is(rolledUpStat));
-    }
-
-    @Test(expected = IllegalStateException.class)
-    public void testReaderRollupRecordsException() {
-        final MonthlyReader reader = (MonthlyReader) monthActionStatTable.reader();
-        reader.rollupRecords(1, Collections.emptyMap());
-    }
-
-    @Test(expected = IllegalStateException.class)
-    public void testReaderNumSnapshotsInRecordException() {
-        final MonthlyReader reader = (MonthlyReader) monthActionStatTable.reader();
-        reader.numSnapshotsInSnapshotRecord(new ActionSnapshotMonthRecord());
     }
 }
