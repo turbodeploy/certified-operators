@@ -17,6 +17,7 @@ import java.util.Map.Entry;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -352,6 +353,7 @@ public class MarketTest {
         };
     }
 
+    @Ignore
     @Test
     public void testBuyerSortCloud() {
         BalanceAccountDTO ba = BalanceAccountDTO.newBuilder().setBudget(10000).setSpent(100).setId(1).build();
