@@ -918,14 +918,14 @@ public class BootstrapSupply {
         }
         List<Action> provisionRelatedActionList = new ArrayList<>();
         Action bootstrapAction;
-        Trader provisionedSeller;
+        Trader provisionedSeller = null;
 
         boolean isDebugBuyer = shoppingList.getBuyer().isDebugEnabled();
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
 
-        List<Trader> activeSellers = market.getActiveSellersAvailableForPlacement();
+        List<Trader> activeSellerThatCanAcceptNewCustomers = market.getActiveSellersAvailableForPlacement();
         // Return if there are active sellers and none of them are cloneable
-        if (!activeSellers.isEmpty() && activeSellers.stream()
+        if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && activeSellerThatCanAcceptNewCustomers.stream()
                         .filter(seller -> seller.getSettings().isCloneable()).count() == 0) {
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info("There are no active sellers available to place "
@@ -933,7 +933,7 @@ public class BootstrapSupply {
             }
             return actions;
         }
-        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellers, market, economy, Optional.empty());
+        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellerThatCanAcceptNewCustomers, market, economy, Optional.empty());
         if (sellerThatFits != null) {
             boolean isDebugSeller = sellerThatFits.isDebugEnabled();
             String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
@@ -945,12 +945,12 @@ public class BootstrapSupply {
             }
 
             return Collections.emptyList();
-        } else if (!activeSellers.isEmpty()) {
+        } else if (!activeSellerThatCanAcceptNewCustomers.isEmpty()) {
             // if none of the existing sellers can fit the shoppingList, provision current seller
             bootstrapAction = new ProvisionByDemand(economy, shoppingList,
                     (shoppingList.getSupplier() != null
-                            && activeSellers.contains(shoppingList.getSupplier()))
-                            ? shoppingList.getSupplier() : activeSellers.get(0)).take();
+                            && activeSellerThatCanAcceptNewCustomers.contains(shoppingList.getSupplier()))
+                            ? shoppingList.getSupplier() : activeSellerThatCanAcceptNewCustomers.get(0)).take();
             ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
             provisionRelatedActionList.add(bootstrapAction);
@@ -982,7 +982,9 @@ public class BootstrapSupply {
                             }
                         }
             });
-        } else {
+            // When the current seller can't accept new customers the active sellers are not empty
+            // and we want to avoid a reconfigure action. Look OM-34627.
+        } else if (market.getActiveSellers().isEmpty()) {
             // when there is no seller in the market we could handle this through 3 approaches,
             // 1) TODO: provisionAction = new ProvisionByDemand(economy, shoppingList); OR
             // 2) consider using templates
@@ -998,7 +1000,9 @@ public class BootstrapSupply {
         actions.addAll(provisionRelatedActionList);
         // Note: This move action is to place the newly provisioned trader to a proper
         // supplier.
-        actions.add(new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY));
+        if (provisionedSeller != null) {
+            actions.add(new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY));
+        }
         return actions;
     }
 

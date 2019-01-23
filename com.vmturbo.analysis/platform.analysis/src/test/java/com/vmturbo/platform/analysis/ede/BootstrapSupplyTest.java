@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -22,6 +23,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -842,4 +844,61 @@ public class BootstrapSupplyTest {
         assertTrue(sl1Move.equals(sl1PossibleMove1) && sl2Move.equals(sl2PossibleMove1)
             || sl1Move.equals(sl1PossibleMove2) && sl2Move.equals(sl2PossibleMove2));
     }
+
+    @Test
+    public void testCanAcceptNewCustomerIsFalseNonShopTogether() {
+        Economy economy = new Economy();
+
+        // Create a storage and set canAcceptNewCustomers to false.
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        st1.getSettings().setCanAcceptNewCustomers(false);
+
+        // Create a VM.
+        Trader vm1 = TestUtils.createVM(economy);
+
+        // Create a shopping list for the storage.
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+
+        economy.populateMarketsWithSellers();
+        Market market = economy.getMarket(sl1);
+
+        // Call non shop together to test that no reconfigure action is generated according to the
+        // description of OM-34627. Normally bootstrap runs in plans and in 2nd round of real time analysis.
+        List<Action> bootStrapActionList =
+                BootstrapSupply.nonShopTogetherBootStrapForIndividualBuyer(economy, sl1, market,
+                        new HashMap<>());
+
+        // A MOVE action exists
+        assertEquals(0, bootStrapActionList.size());
+    }
+
+    @Test
+    public void testCanAcceptNewCustomerIsTrueNonShopTogether() {
+        Economy economy = new Economy();
+
+        // Create a storage and set canAcceptNewCustomers to true.
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        st1.getSettings().setCanAcceptNewCustomers(true);
+
+        // Create a VM.
+        Trader vm1 = TestUtils.createVM(economy);
+
+        // Create a shopping list for the storage.
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+
+        economy.populateMarketsWithSellers();
+        Market market = economy.getMarket(sl1);
+
+        // Call non shop together. This test is in contrast to the previous one when canAcceptNewCustomers
+        // is false. Normally bootstrap runs in plans and in 2nd round of real time analysis.
+        List<Action> bootStrapActionList =
+                BootstrapSupply.nonShopTogetherBootStrapForIndividualBuyer(economy, sl1, market,
+                        new HashMap<>());
+
+        // No action exists
+        assertEquals(0, bootStrapActionList.size());
+    }
+
 }
