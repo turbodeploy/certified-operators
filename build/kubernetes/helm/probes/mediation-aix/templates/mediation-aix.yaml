@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: secure
+    io.kompose.service: mediation-aix
+  name: mediation-aix
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -47,12 +61,19 @@ spec:
             drop:
             - ALL
         volumeMounts:
+        - mountPath: /home/turbonomic/data
+          name: mediation-aix
         - mountPath: /tmp
           name: mediation-aix-tmpfs0
       restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
       imagePullSecrets:
       - name: turbocred
       volumes:
+      - name: mediation-aix
+        persistentVolumeClaim:
+          claimName: mediation-aix
       - emptyDir:
           medium: Memory
         name: mediation-aix-tmpfs0
