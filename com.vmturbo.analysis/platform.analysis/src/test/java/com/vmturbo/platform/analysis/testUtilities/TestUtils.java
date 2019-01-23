@@ -53,6 +53,7 @@ public class TestUtils {
     public static final int POD_TYPE = 8;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
+    public static final double FlOATING_POINT_DELTA2 = 1e-15;
     public static final List<Long> NO_CLIQUES = new ArrayList<>();
 
     private static int commSpecCounter;
@@ -64,6 +65,7 @@ public class TestUtils {
     // CommoditySpecifications to use in tests
     public static final CommoditySpecification CPU = createNewCommSpec();
     public static final CommoditySpecification MEM = createNewCommSpec();
+    public static final CommoditySpecification COUPON_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification ST_AMT = createNewCommSpec();
     public static final CommoditySpecification CPU_ALLOC = createNewCommSpec();
     public static final CommoditySpecification MEM_ALLOC = createNewCommSpec();
