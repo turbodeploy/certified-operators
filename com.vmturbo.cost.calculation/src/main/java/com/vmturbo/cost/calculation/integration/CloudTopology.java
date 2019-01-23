@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -171,4 +172,9 @@ public interface CloudTopology<ENTITY_CLASS> {
     @Nonnull
     List<ENTITY_CLASS> getAllEntitesOfType(int entityType);
 
+    /*
+     * Get all entities of particular types in the topology.
+     */
+    @Nonnull
+    List<ENTITY_CLASS> getAllEntitesOfTypes(Set<Integer> entityTypes);
 }

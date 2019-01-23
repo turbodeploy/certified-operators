@@ -316,4 +316,17 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 .filter(entity -> entity.getEntityType() == entityType)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public List<TopologyEntityDTO> getAllEntitesOfTypes(Set<Integer> entityTypes) {
+        return getEntities().values()
+                .stream()
+                .filter(entity -> entityTypes.contains(entity.getEntityType()))
+                .collect(Collectors.toList());
+
+    }
 }

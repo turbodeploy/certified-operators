@@ -427,8 +427,7 @@ public class TopologyConverter {
     }
 
     /**
-     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.ProjectedTopologyEntity}s. This method
-     * creates a lazy collection, which is really converted during iteration.
+     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.ProjectedTopologyEntity}s.
      *
      * @param projectedTraders list of {@link EconomyDTOs.TraderTO}s that are to be converted to
      * {@link TopologyDTO.TopologyEntityDTO}s
@@ -451,27 +450,30 @@ public class TopologyConverter {
         List <ProjectedTopologyEntity> projectedTopologyEntities = new ArrayList<>(
                 projectedTraders.size());
         for (TraderTO projectedTrader : projectedTraders) {
-            final TopologyDTO.TopologyEntityDTO projectedEntity =
+            final Optional<TopologyDTO.TopologyEntityDTO> projectedEntityOptional =
                     traderTOtoTopologyDTO(projectedTrader, originalTopology);
-            final ProjectedTopologyEntity.Builder projectedEntityBuilder =
-                    ProjectedTopologyEntity.newBuilder()
-                        .setEntity(projectedEntity);
-            final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
-            if (priceIndex != null) {
-                if (originalTopology.containsKey(projectedEntity.getOid())) {
-                    projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+            projectedEntityOptional.ifPresent(projectedEntity -> {
+                final ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                        ProjectedTopologyEntity.newBuilder()
+                                .setEntity(projectedEntity);
+                final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
+                if (priceIndex != null) {
+                    if (originalTopology.containsKey(projectedEntity.getOid())) {
+                        projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+                    }
+                    projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
                 }
-                projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
-            }
-            TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
-            Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
-            // original trader can be null in case of provisioned entity
-            if (originalTraderTO != null) {
-                originalRiCoverage = cloudCostData
-                        .getRiCoverageForEntity(originalTraderTO.getOid());
-            }
-            calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
-            projectedTopologyEntities.add(projectedEntityBuilder.build());
+                projectedTopologyEntities.add(projectedEntityBuilder.build());
+                // Calculate projected RI Coverage
+                TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
+                Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
+                // original trader can be null in case of provisioned entity
+                if (originalTraderTO != null) {
+                    originalRiCoverage = cloudCostData
+                            .getRiCoverageForEntity(originalTraderTO.getOid());
+                }
+                calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
+            });
         }
         return projectedTopologyEntities;
     }
@@ -688,10 +690,12 @@ public class TopologyConverter {
      * traderTO
      * @return list of {@link TopologyDTO.TopologyEntityDTO}s
      */
-    private TopologyDTO.TopologyEntityDTO traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
+    private Optional<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
         if (cloudTc.isMarketTier(traderTO.getOid())) {
-            return cloudTc.getMarketTier(traderTO.getOid()).getTier();
+            // Tiers and regions are added from the original topology into the projected traders
+            // because there can be no change to these entities by market.
+            return Optional.empty();
         }
         List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping =
             new ArrayList<>();
@@ -827,11 +831,11 @@ public class TopologyConverter {
         }
         // get dspm and datastore commodity sold from the original trader, add
         // them to projected topology entity DTO
-        return entityDTO.addAllCommoditySoldList(originalEntity.getCommoditySoldListList().stream()
+        return Optional.of(entityDTO.addAllCommoditySoldList(originalEntity.getCommoditySoldListList().stream()
                         .filter(c -> AnalysisUtil.DSPM_OR_DATASTORE
                                         .contains(c.getCommodityType().getType()))
                         .collect(Collectors.toSet()))
-                        .build();
+                        .build());
     }
 
     /**

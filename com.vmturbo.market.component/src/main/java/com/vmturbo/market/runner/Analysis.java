@@ -52,6 +52,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -317,12 +318,13 @@ public class Analysis {
             logger.info(logPrefix + "Done performing analysis");
 
             List<TraderTO> projectedTraderDTO = new ArrayList<>();
-            // retrieve regions, business accounts and virtual volumes from the original
-            // entities topology
-            List<TopologyEntityDTO> entitiesFromOriginalTopo = getOriginalEntitiesOfTypes(
-                    Lists.newArrayList(EntityType.REGION_VALUE,
-                            EntityType.BUSINESS_ACCOUNT_VALUE,
-                            EntityType.VIRTUAL_VOLUME_VALUE));
+            // retrieve entities which were not converted so that they can be added to the projected
+            // topology
+            List<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
+                    originalCloudTopology.getAllEntitesOfTypes(
+                            TopologyConversionConstants.CLOUD_ENTITY_TYPES_TO_SKIP_CONVERSION)
+                            .stream().map(p -> ProjectedTopologyEntity.newBuilder()
+                                    .setEntity(p).build()).collect(Collectors.toList());
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
                 if (enableThrottling) {
                     // remove the fake entities used in suspension throttling
@@ -347,16 +349,13 @@ public class Analysis {
                     projectedTraderDTO,
                     topologyDTOs,
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
+                projectedEntities.addAll(projectedEntitiesFromOriginalTopo);
 
                 // Calculate the projected entity costs.
                 final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
-                        cloudTopologyFactory.newCloudTopology(
-                                Stream.concat(
-                                    projectedEntities.stream()
-                                            .filter(ProjectedTopologyEntity::hasEntity)
-                                            .map(ProjectedTopologyEntity::getEntity),
-                                    // pass region and businessAccount from the original topo
-                                    entitiesFromOriginalTopo.stream()));
+                        cloudTopologyFactory.newCloudTopology(projectedEntities.stream()
+                                .filter(ProjectedTopologyEntity::hasEntity)
+                                .map(ProjectedTopologyEntity::getEntity));
                 // Projected RI coverage has been calculated by convertFromMarket
                 // Get it from TopologyCoverter and pass it along to use for calculation of savings
                 projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
@@ -371,11 +370,13 @@ public class Analysis {
                     .setTopologyContextId(topologyInfo.getTopologyContextId())
                     .setAnalysisStartTimestamp(startTime.toEpochMilli());
             // We need to put all the entities from the projected topology into this map.
-            // We also need to put some entities like Volumes from the original topology because
-            // traders are not created for these entity types, but will be used to interpret actions.
+            // We also need to put entities for which no traders were created (like Volumes)
+            // from the original topology because these will be used to interpret actions.
             final Map<Long, Integer> entityIdToType = projectedTraderDTO.stream()
                     .collect(Collectors.toMap(TraderTO::getOid, TraderTO::getType));
-            entitiesFromOriginalTopo.forEach(e -> entityIdToType.put(e.getOid(), e.getEntityType()));
+            projectedEntitiesFromOriginalTopo.stream().filter(p -> p.hasEntity())
+                    .map(p -> p.getEntity())
+                    .forEach(e -> entityIdToType.put(e.getOid(), e.getEntityType()));
 
             results.getActionsList().stream()
                     .map(action -> converter.interpretAction(action, entityIdToType,
@@ -402,15 +403,6 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
-    }
-
-    @Nonnull
-    private List<TopologyEntityDTO> getOriginalEntitiesOfTypes(@Nonnull List<Integer> entityTypes) {
-        List<TopologyEntityDTO> entitiesFromOriginalTopo = new ArrayList<>();
-        for (Integer type : entityTypes) {
-            entitiesFromOriginalTopo.addAll(originalCloudTopology.getAllEntitesOfType(type));
-        }
-        return entitiesFromOriginalTopo;
     }
 
     /**
