@@ -106,9 +106,6 @@
                             <serverId>docker-registry</serverId>
                             <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}</baseImage>
                             <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                            <volumes>
-                                <volume>/home/turbonomic/data</volume>
-                            </volumes>
                             <exposes>
                                 <port>8889</port>
                             </exposes>
