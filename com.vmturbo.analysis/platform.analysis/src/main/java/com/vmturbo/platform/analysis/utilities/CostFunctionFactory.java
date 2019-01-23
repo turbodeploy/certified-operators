@@ -533,8 +533,8 @@ public class CostFunctionFactory {
     public static double calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
                     CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
         long groupFactor = buyer.getGroupFactor();
-        // If the buyer is not a member of a scaling group and is already placed on a CBTP return 0
-        if (buyer.getGroupFactor() == 1 && buyer.getSupplier() == seller) {
+        // If the buyer is already placed on a CBTP return 0
+        if (buyer.getSupplier() == seller) {
             return 0;
         }
 
