@@ -66,6 +66,7 @@ volumes:
 #  mediation-snmp: *localdriver
   mediation-appdynamics: *localdriver
   mediation-dynatrace: *localdriver
+#  mediation-pivotal: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -539,6 +540,15 @@ services:
 #    environment:
 #      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-pivotal:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-pivotal-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 
   mediation-actionscript:

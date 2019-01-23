@@ -692,3 +692,16 @@ services:
     volumes:
       - mediation-dynatrace:/home/turbonomic/data
     restart: always
+
+  mediation-pivotal-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.pivotal.component
+    environment:
+      consul_host: consul
+      component_type: mediation-pivotal
+      instance_id: mediation-pivotal-1
+    volumes:
+      - mediation-pivotal:/home/turbonomic/data
+    restart: always

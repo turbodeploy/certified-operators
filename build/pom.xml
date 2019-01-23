@@ -310,6 +310,7 @@
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
@@ -558,6 +559,13 @@
         </profile>
 
         <profile>
+            <id>mediation-pivotal</id>
+            <modules>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -645,6 +653,7 @@
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -772,6 +781,7 @@
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

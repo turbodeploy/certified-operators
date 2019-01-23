@@ -74,6 +74,7 @@ volumes:
   mediation-snmp: *localdriver
   mediation-appdynamics: *localdriver
   mediation-dynatrace: *localdriver
+  mediation-pivotal: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -1110,3 +1111,20 @@ services:
     volumes:
       - mediation-dynatrace:/home/turbonomic/data
     mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_MB}M
+
+  mediation-pivotal:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.pivotal.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_PIVOTAL_PORT}"
+      - "${MEDIATION_PIVOTAL_DEBUG_PORT}"
+    environment:
+      component_type: mediation-pivotal
+      instance_id: mediation-pivotal-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_PIVOTAL_XMX_MB}M ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-pivotal:/home/turbonomic/data
+    mem_limit: ${MEDIATION_PIVOTAL_MEM_LIMIT_MB}M
