@@ -38,9 +38,6 @@ dependencies:
     version: 0.1.0
 
 # Services dependencies
-  - name: actionscript
-    repository: file://../services/actionscript
-    version: 0.1.0
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
@@ -86,6 +83,10 @@ dependencies:
     condition: grafana.enabled
 
 # Mediation dependencies
+  - name: mediation-actionscript
+    repository: file://../probes/mediation-actionscript
+    version: 0.1.0
+    condition: actionscript.enabled
   - name: mediation-aix
     repository: file://../probes/mediation-aix
     version: 0.1.0

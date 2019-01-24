@@ -2,7 +2,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "actionscript.name" -}}
+{{- define "mediation-actionscript.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
@@ -11,7 +11,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "actionscript.fullname" -}}
+{{- define "mediation-actionscript.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -27,14 +27,14 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "actionscript.chart" -}}
+{{- define "mediation-actionscript.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Return the proper image name
 */}}
-{{- define "image" -}}
+{{- define "actionscript_image" -}}
 {{- $repositoryName := .Values.image.repository -}}
 {{- $tag := .Values.image.tag | toString -}}
 {{/*
@@ -44,9 +44,9 @@ Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
     {{- if .Values.global.repository }}
-        {{- printf "%s/%s:%s" .Values.global.repository .Chart.Name .Values.global.tag -}}
+        {{- printf "%s/com.vmturbo.mediation.actionscript.component:%s" .Values.global.repository .Values.global.tag -}}
     {{- end -}}
 {{- else -}}
-    {{- printf "%s/%s:%s" $repositoryName .Chart.Name $tag -}}
+    {{- printf "%s/com.vmturbo.mediation.actionscript.component:%s" $repositoryName $tag -}}
 {{- end -}}
 {{- end -}}

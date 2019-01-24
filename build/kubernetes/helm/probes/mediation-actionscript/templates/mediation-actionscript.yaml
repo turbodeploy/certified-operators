@@ -2,8 +2,8 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   labels:
-    zone: internal
-    io.kompose.service: actionscript
+    zone: secure
+    io.kompose.service: mediation-actionscript
   name: {{ .Chart.Name }}
 spec:
   replicas: 1
@@ -12,16 +12,18 @@ spec:
   template:
     metadata:
       labels:
-        zone: internal
-        io.kompose.service: actionscript
+        zone: secure
+        io.kompose.service: mediation-actionscript
     spec:
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "image" . }}
+        image: {{ template "mediation-actionscript_imageimage" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: JAVA_OPTS
           value: {{ .Values.java.options }}
+        - name: LOG4J_CONTEXT_SELECTOR
+          value: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -29,15 +31,11 @@ spec:
         - name: clustermgr_retry_delay_sec
           value: "10"
         - name: component_type
-          value: actionscript
+          value: mediation-actionscript
         - name: consul_host
           value: consul
         - name: instance_id
-          value: actionscript-1
-        - name: kafkaServers
-          value: kafka:9092
-        - name: realtimeTopologyContextId
-          value: "777777"
+          value: mediation-actionscript-1
         readinessProbe:
           httpGet:
             port: 8080
@@ -50,33 +48,31 @@ spec:
             - ALL
         volumeMounts:
         - mountPath: /tmp
-          name: actionscript-tmpfs0
+          name: mediation-actionscript-tmpfs0
+      restartPolicy: Always
       imagePullSecrets:
       - name: turbocred
-      restartPolicy: Always
       volumes:
       - emptyDir:
           medium: Memory
-        name: actionscript-tmpfs0
+        name: mediation-actionscript-tmpfs0
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    zone: internal
-    io.kompose.service: actionscript
+    zone: secure
+    io.kompose.service: mediation-actionscript
   name: {{ .Chart.Name }}
 spec:
   ports:
-  - name: actionscript
+  - name: mediation-actionscript
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: actionscript-debug
+  - name: mediation-actionscript-debug
     port: 8000
   {{- end -}}
 {{- end }}
-  - name: "9001"
-    port: 9001
   selector:
-    io.kompose.service: actionscript
+    io.kompose.service: mediation-actionscript

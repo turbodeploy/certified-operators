@@ -33,6 +33,8 @@ grafana:
   enabled: false
 
 # Enable medation
+actionscript:
+  enabled: false
 aix:
   enabled: false
 appdynamics:
