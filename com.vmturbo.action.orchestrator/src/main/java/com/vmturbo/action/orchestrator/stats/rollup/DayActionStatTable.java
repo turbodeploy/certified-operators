@@ -21,7 +21,6 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotDayRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByDayRecord;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
  * An {@link ActionStatTable} for action stats by day.
@@ -72,15 +71,8 @@ public class DayActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Writer writer() {
-        return new DailyWriter(dslContext, clock);
-    }
-
-    @Nonnull
-    @Override
-    public LocalDateTime getTrimTime(@Nonnull final RetentionPeriods retentionPeriods) {
-        return DAY_TABLE_INFO.timeTruncateFn().apply(LocalDateTime.now(clock)
-            .minusDays(retentionPeriods.dailyRetentionDays()));
+    public Optional<Writer> writer() {
+        return Optional.of(new DailyWriter(dslContext, clock));
     }
 
     /**

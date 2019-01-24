@@ -18,7 +18,6 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotMonthRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByMonthRecord;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
  * An {@link ActionStatTable} for action stats by month.
@@ -61,19 +60,12 @@ public class MonthActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Writer writer() {
-        return new MonthlyWriter(dslContext, clock);
-    }
-
-    @Nonnull
-    @Override
-    public LocalDateTime getTrimTime(@Nonnull final RetentionPeriods retentionPeriods) {
-        return MONTH_TABLE_INFO.timeTruncateFn().apply(
-            LocalDateTime.now(clock).minusMonths(retentionPeriods.monthlyRetentionMonths()));
+    public Optional<Writer> writer() {
+        return Optional.of(new MonthlyWriter(dslContext, clock));
     }
 
     /**
-     * The {@link ActionStatTable.Reader} for the monthly stats table.
+     * The {@link ActionStatTable.Reader} for the hourly stats table.
      */
     @VisibleForTesting
     static class MonthlyReader extends BaseActionStatTableReader<ActionStatsByMonthRecord, ActionSnapshotMonthRecord> {

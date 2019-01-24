@@ -14,13 +14,11 @@ import org.immutables.value.Value;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Table;
-import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
  * Common abstraction for a table containing action stats.
@@ -43,15 +41,13 @@ public interface ActionStatTable {
          * @param mgmtUnitSubgroups The IDs of the target management unit subgroups.
          *                          If empty, there will be no results.
          * @param matchedActionGroups The target action groups.
-         * @return (stat time) -> (action group) -> (action stats for the ag at that time)
-         * @throws DataAccessException If there is an error interacting with the database.
+         * @return
          */
         @Nonnull
         Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> query(
             @Nonnull final TimeRange timeRange,
             @Nonnull final Set<Integer> mgmtUnitSubgroups,
-            @Nonnull final MatchedActionGroups matchedActionGroups)
-                throws DataAccessException;
+            @Nonnull final MatchedActionGroups matchedActionGroups);
 
         /**
          * Roll-up the action stats in this table for a particular {@link MgmtUnitSubgroup} and
@@ -64,11 +60,10 @@ public interface ActionStatTable {
          *                  truncated, depending on the table we're rolling up to (e.g. truncated
          *                  to hour when reading from latest to roll up to hourly).
          * @return An {@link Optional} containing the {@link RolledUpActionStats}
-         * @throws DataAccessException If there is an error interacting with the database.
          */
         @Nonnull
         Optional<RolledUpActionStats> rollup(final int mgmtUnitSubgroupId,
-                         @Nonnull final LocalDateTime startTime) throws DataAccessException;
+                                             @Nonnull final LocalDateTime startTime);
 
         /**
          * Get a list of times from this table which are "rollup-ready".
@@ -78,11 +73,10 @@ public interface ActionStatTable {
          *
          * These time-ranges can be passed into {@link Reader#rollup(int, LocalDateTime)}.
          *
-         * @return A {@link RollupReadyInfo} describing the times ready for rollup.
-         * @throws DataAccessException If there is an error interacting with the database.
+         * @return A list of {@link RollupReadyInfo}.
          */
         @Nonnull
-        List<RollupReadyInfo> rollupReadyTimes() throws DataAccessException;
+        List<RollupReadyInfo> rollupReadyTimes();
     }
 
     /**
@@ -96,47 +90,26 @@ public interface ActionStatTable {
          *
          * @param mgmtUnitSubgroupId The id of the {@link MgmtUnitSubgroup} the record applies to.
          * @param summary The {@link RolledUpActionStats} to insert.
-         * @throws DataAccessException If there is an error interacting with the database.
          */
         void insert(final int mgmtUnitSubgroupId,
-                    @Nonnull final RolledUpActionStats summary) throws  DataAccessException;
-
-        /**
-         * Trim stats records from the stat table this writer is for.
-         *
-         * @param trimToTime The earliest time allowed in the table. Records for any earlier times
-         *                   will be deleted.
-         * @throws DataAccessException If there is an error interacting with the database.
-         */
-        void trim(@Nonnull final LocalDateTime trimToTime) throws DataAccessException;
+                    @Nonnull final RolledUpActionStats summary);
     }
 
     /**
      * Get the {@link Reader} to use for this table.
      *
-     * @return The {@link Reader} used for queries on this stat table.
+     * @return An {@link Optional} containing a {@link Reader}, or an empty {@link Optional} if
+     *         this table does not get rolled up to any other table.
      */
     Reader reader();
 
     /**
      * Get the {@link Writer} to use for this table.
      *
-     * @return The {@link Writer} used for writes to this table.
+     * @return An {@link Optional} containing a {@link Writer}, or an empty {@link Optional} if
+     *         no table gets rolled up to this table.
      */
-    Writer writer();
-
-    /**
-     * Determine whether or not the table needs to be trimmed in order to conform with
-     * the input retention periods.
-     *
-     * @param retentionPeriods The {@link RetentionPeriods} specifying how long to retain
-     *                         various stats data for.
-     * @return If a trim is needed, an {@link Optional} containing the time to trim to (i.e.
-     *         the earlies snapshot in the table that's within the retention period).
-     *         If a trim is not needed, an empty {@link Optional}.
-     */
-    @Nonnull
-    LocalDateTime getTrimTime(@Nonnull final RetentionPeriods retentionPeriods);
+    Optional<Writer> writer();
 
     /**
      * Information about the underlying database table. The various time frames have very similar

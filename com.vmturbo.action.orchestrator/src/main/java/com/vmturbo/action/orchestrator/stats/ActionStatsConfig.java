@@ -20,9 +20,8 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.api.TimeFrameCalculator;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -57,6 +56,15 @@ public class ActionStatsConfig {
     @Value("${actionStatsWriteBatchSize}")
     private int actionStatsWriteBatchSize;
 
+    @Value("${numRetainedMinutes}")
+    private int numRetainedMinutes;
+
+    @Value("${numRetainedHours}")
+    private int numRetainedHours;
+
+    @Value("${numRetainedDays}")
+    private int numRetainedDays;
+
     @Bean
     public ClusterActionAggregatorFactory clusterAggregatorFactory() {
         return new ClusterActionAggregatorFactory(groupClientConfig.groupChannel(), repositoryClientConfig.repositoryChannel());
@@ -85,7 +93,7 @@ public class ActionStatsConfig {
     @Bean
     public TimeFrameCalculator timeFrameCalculator() {
         return new TimeFrameCalculator(globalConfig.actionOrchestratorClock(),
-            rollupConfig.retentionPeriodFetcher());
+            numRetainedMinutes, numRetainedHours, numRetainedDays);
     }
     @Bean
     public LiveActionStatReader liveActionStatReader() {
@@ -112,7 +120,6 @@ public class ActionStatsConfig {
                 Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
                 actionTranslationConfig.actionTranslator(),
-                rollupConfig.rollupScheduler(),
-                rollupConfig.cleanupScheduler());
+                rollupConfig.rollupScheduler());
     }
 }

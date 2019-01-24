@@ -53,8 +53,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.api.TimeFrameCalculator;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;

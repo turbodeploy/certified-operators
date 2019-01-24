@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.rollup;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -19,15 +18,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.RollupDirection;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
-import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({
     SQLDatabaseConfig.class,
-    GroupClientConfig.class,
     ActionOrchestratorGlobalConfig.class
 })
 public class ActionStatsRollupConfig {
@@ -38,93 +33,46 @@ public class ActionStatsRollupConfig {
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
 
-    @Autowired
-    private GroupClientConfig groupClientConfig;
-
     @Value("${actionStatRollup.corePoolSize}")
-    private int rollupCorePoolSize;
+    private int corePoolSize;
 
     @Value("${actionStatRollup.maxPoolSize}")
-    private int rollupMaxPoolSize;
+    private int maxPoolSize;
 
     @Value("${actionStatRollup.threadKeepAliveMins}")
-    private int rollupThreadKeepAliveMins;
+    private int threadKeepAliveMins;
 
     @Value("${actionStatRollup.executorQueueSize}")
-    private int rollupExecutorQueueSize;
-
-    @Value("${retention.numRetainedMinutes}")
-    private int numRetainedMinutes;
-
-    @Value("${retention.updateRetentionIntervalSeconds}")
-    private int updateRetentionIntervalSeconds;
-
-    @Value("${actionStatCleanup.minTimeBetweenCleanupsMinutes}")
-    private int minTimeBetweenCleanupsMinutes;
-
-    @Value("${actionStatRollup.corePoolSize}")
-    private int cleanupCorePoolSize;
-
-    @Value("${actionStatRollup.maxPoolSize}")
-    private int cleanupMaxPoolSize;
-
-    @Value("${actionStatRollup.threadKeepAliveMins}")
-    private int cleanupThreadKeepAliveMins;
-
-    @Value("${actionStatRollup.executorQueueSize}")
-    private int cleanupExecutorQueueSize;
+    private int executorQueueSize;
 
     @Bean
     public ActionStatRollupScheduler rollupScheduler() {
         final List<RollupDirection> rollupDependencies = new ArrayList<>();
         rollupDependencies.add(ImmutableRollupDirection.builder()
                 .fromTableReader(latestTable().reader())
-                .toTableWriter(hourlyTable().writer())
+                .toTableWriter(hourlyTable().writer().get())
                 .description("latest to hourly")
                 .build());
         rollupDependencies.add(ImmutableRollupDirection.builder()
                 .fromTableReader(hourlyTable().reader())
-                .toTableWriter(dailyTable().writer())
+                .toTableWriter(dailyTable().writer().get())
                 .description("hourly to daily")
                 .build());
         rollupDependencies.add(ImmutableRollupDirection.builder()
                 .fromTableReader(dailyTable().reader())
-                .toTableWriter(monthlyTable().writer())
+                .toTableWriter(monthlyTable().writer().get())
                 .description("daily to monthly")
                 .build());
-        return new ActionStatRollupScheduler(rollupDependencies, rollupExecutorService());
-    }
-
-    @Bean
-    public ActionStatCleanupScheduler cleanupScheduler() {
-        return new ActionStatCleanupScheduler(globalConfig.actionOrchestratorClock(),
-            Arrays.asList(latestTable(), hourlyTable(), dailyTable(), monthlyTable()),
-            retentionPeriodFetcher(),
-            cleanupExecutorService(),
-            minTimeBetweenCleanupsMinutes, TimeUnit.MINUTES);
+        return new ActionStatRollupScheduler(rollupDependencies, executorService());
     }
 
     @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService cleanupExecutorService() {
-        return new ThreadPoolExecutor(cleanupCorePoolSize,
-            cleanupMaxPoolSize,
-            cleanupThreadKeepAliveMins,
+    public ExecutorService executorService() {
+        return new ThreadPoolExecutor(corePoolSize,
+            maxPoolSize,
+            threadKeepAliveMins,
             TimeUnit.MINUTES,
-            new ArrayBlockingQueue<>(cleanupExecutorQueueSize),
-            new ThreadFactoryBuilder()
-                .setNameFormat("action-cleanup-thread-%d")
-                .setDaemon(true)
-                .build(),
-            new CallerRunsPolicy());
-    }
-
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService rollupExecutorService() {
-        return new ThreadPoolExecutor(rollupCorePoolSize,
-            rollupMaxPoolSize,
-            rollupThreadKeepAliveMins,
-            TimeUnit.MINUTES,
-            new ArrayBlockingQueue<>(rollupExecutorQueueSize),
+            new ArrayBlockingQueue<>(executorQueueSize),
             new ThreadFactoryBuilder()
                 .setNameFormat("action-rollup-thread-%d")
                 .setDaemon(true)
@@ -159,19 +107,9 @@ public class ActionStatsRollupConfig {
                 globalConfig.actionOrchestratorClock());
     }
 
+
     @Bean
     public RolledUpStatCalculator rolledUpStatCalculator() {
         return new RolledUpStatCalculator();
-    }
-
-    /**
-     * This may not be the best place for this bean, since it's not strictly rollup-specific.
-     * But leaving it here for now, because it's needed by the cleanup scheduler.
-     */
-    @Bean
-    public RetentionPeriodFetcher retentionPeriodFetcher() {
-        return new RetentionPeriodFetcher(globalConfig.actionOrchestratorClock(),
-            updateRetentionIntervalSeconds, TimeUnit.SECONDS,
-            numRetainedMinutes, SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 }

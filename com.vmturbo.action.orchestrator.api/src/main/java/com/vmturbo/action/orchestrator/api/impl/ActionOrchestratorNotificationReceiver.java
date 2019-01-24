@@ -9,10 +9,11 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import org.apache.kafka.common.errors.ApiException;
+
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
-import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 
@@ -39,7 +40,7 @@ public class ActionOrchestratorNotificationReceiver extends
 
     @Override
     protected void processMessage(@Nonnull final ActionOrchestratorNotification message)
-            throws ApiClientException {
+            throws ApiException {
         switch (message.getTypeCase()) {
             case ACTION_PLAN: // DEPRECATED
                 doWithListeners(
@@ -67,7 +68,7 @@ public class ActionOrchestratorNotificationReceiver extends
                     message.getTypeCase());
                 break;
             default:
-                throw new ApiClientException("Message type unrecognized: " + message);
+                throw new ApiException("Message type unrecognized: " + message);
         }
     }
 

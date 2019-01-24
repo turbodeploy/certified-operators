@@ -3,14 +3,13 @@ package com.vmturbo.action.orchestrator.stats.rollup;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -25,9 +24,7 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
 import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.StatWithSnapshotCnt;
 import com.vmturbo.action.orchestrator.stats.rollup.LatestActionStatTable.LatestReader;
-import com.vmturbo.action.orchestrator.stats.rollup.LatestActionStatTable.LatestWriter;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 public class LatestActionStatTableTest {
 
@@ -45,16 +42,8 @@ public class LatestActionStatTableTest {
         new LatestActionStatTable(dsl, clock, calculator, HourActionStatTable.HOUR_TABLE_INFO);
 
     @Test
-    public void testProperWriter() {
-        assertTrue(latestActionStatTable.writer() instanceof LatestWriter);
-    }
-
-    @Test
-    public void testTrimTime() {
-        final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
-        when(retentionPeriods.latestRetentionMinutes()).thenReturn(5);
-        final LocalDateTime trimmedTime = latestActionStatTable.getTrimTime(retentionPeriods);
-        assertThat(trimmedTime, is(LocalDateTime.now(clock).minusMinutes(5).truncatedTo(ChronoUnit.MINUTES)));
+    public void testNoWriter() {
+        assertFalse(latestActionStatTable.writer().isPresent());
     }
 
     @Test

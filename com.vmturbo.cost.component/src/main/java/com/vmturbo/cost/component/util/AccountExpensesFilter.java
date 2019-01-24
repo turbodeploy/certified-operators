@@ -4,6 +4,7 @@ import static com.vmturbo.cost.component.db.Tables.ACCOUNT_EXPENSES;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -14,7 +15,7 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
 /**

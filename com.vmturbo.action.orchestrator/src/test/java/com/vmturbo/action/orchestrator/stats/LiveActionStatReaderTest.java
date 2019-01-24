@@ -48,8 +48,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.api.TimeFrameCalculator;
+import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
 
 public class LiveActionStatReaderTest {
 

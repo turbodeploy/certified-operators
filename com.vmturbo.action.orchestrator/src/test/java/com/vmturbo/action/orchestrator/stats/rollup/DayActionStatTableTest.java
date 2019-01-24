@@ -8,11 +8,9 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +27,6 @@ import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.St
 import com.vmturbo.action.orchestrator.stats.rollup.DayActionStatTable.DailyReader;
 import com.vmturbo.action.orchestrator.stats.rollup.DayActionStatTable.DailyWriter;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 public class DayActionStatTableTest {
 
@@ -54,15 +51,8 @@ public class DayActionStatTableTest {
 
     @Test
     public void testWriterIsPresent() {
-        assertTrue(dayActionStatsTable.writer() instanceof DailyWriter);
-    }
-
-    @Test
-    public void testTrimTime() {
-        final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
-        when(retentionPeriods.dailyRetentionDays()).thenReturn(1);
-        final LocalDateTime trimmedTime = dayActionStatsTable.getTrimTime(retentionPeriods);
-        assertThat(trimmedTime, is(LocalDateTime.now(clock).minusDays(1).truncatedTo(ChronoUnit.DAYS)));
+        assertTrue(dayActionStatsTable.writer().isPresent());
+        assertTrue(dayActionStatsTable.writer().get() instanceof DailyWriter);
     }
 
     @Test
@@ -106,7 +96,7 @@ public class DayActionStatTableTest {
     @Test
     public void testWriterSummaryToRecord() {
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 30, 0, 0);
-        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer();
+        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer().get();
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final ActionStatsByDayRecord record =
@@ -144,7 +134,7 @@ public class DayActionStatTableTest {
 
     @Test
     public void testWriterStatRecord() {
-        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer();
+        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer().get();
         final LocalDateTime time =
             LocalDateTime.ofEpochSecond(100000, 10000, ZoneOffset.UTC);
         final int numActionSnapshots = 10;
@@ -156,7 +146,7 @@ public class DayActionStatTableTest {
 
     @Test
     public void testReaderToGroupStatRoundTrip() {
-        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer();
+        final DailyWriter writer = (DailyWriter) dayActionStatsTable.writer().get();
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;

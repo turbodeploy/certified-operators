@@ -25,7 +25,6 @@ import org.immutables.value.Value;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
-import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.google.common.base.Preconditions;
@@ -56,7 +55,7 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
 
     private final DSLContext dslContext;
 
-    protected final Clock clock;
+    private final Clock clock;
 
     /**
      * The {@link TableInfo} for the table the reader is for.
@@ -104,7 +103,7 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
     public Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> query(
             @Nonnull final TimeRange timeRange,
             @Nonnull final Set<Integer> mgmtUnitSubgroups,
-            @Nonnull final MatchedActionGroups matchedActionGroups) throws DataAccessException {
+            @Nonnull final MatchedActionGroups matchedActionGroups) {
 
         Preconditions.checkArgument(!mgmtUnitSubgroups.isEmpty());
 
@@ -163,7 +162,7 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
     @Nonnull
     @Override
     public Optional<RolledUpActionStats> rollup(final int mgmtUnitSubgroupId,
-                                @Nonnull final LocalDateTime startTime) throws DataAccessException {
+                                                @Nonnull final LocalDateTime startTime) {
         if (!toTableOpt.isPresent()) {
             logger.error("Attempting to rollup table that shouldn't get rolled up: {}",
                 tableInfo);
@@ -258,7 +257,7 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
      */
     @Nonnull
     @Override
-    public List<RollupReadyInfo> rollupReadyTimes() throws DataAccessException {
+    public List<RollupReadyInfo> rollupReadyTimes() {
         if (toTableOpt.isPresent()) {
             final TableInfo<? extends Record, ? extends Record> toTable = toTableOpt.get();
             try (final DataMetricTimer timer = Metrics.ROLLUP_READY_TIME

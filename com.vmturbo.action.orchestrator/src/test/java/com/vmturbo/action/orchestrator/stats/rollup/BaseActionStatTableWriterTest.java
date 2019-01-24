@@ -143,58 +143,6 @@ public class BaseActionStatTableWriterTest {
         rollupTestUtils.compareSnapshotRecords(snapshotRecords.get(0), insertedSnapshotRecord);
     }
 
-    @Test
-    public void testTrim() {
-        final LocalDateTime trimTime = RollupTestUtils.time(12, 0);
-        rollupTestUtils.insertMgmtUnit(MGMT_UNIT_SUBGROUP);
-        rollupTestUtils.insertActionGroup(ACTION_GROUP);
-
-        final ActionStatsLatestRecord recordToTrim =
-            rollupTestUtils.dummyRecord(MGMT_UNIT_SUBGROUP, ACTION_GROUP, trimTime.minusMinutes(10));
-        final ActionStatsLatestRecord borderlineRecord =
-            rollupTestUtils.dummyRecord(MGMT_UNIT_SUBGROUP, ACTION_GROUP, trimTime);
-        final ActionStatsLatestRecord recordToKeep =
-            rollupTestUtils.dummyRecord(MGMT_UNIT_SUBGROUP, ACTION_GROUP, trimTime.plusMinutes(10));
-
-        final ActionSnapshotLatestRecord trimSnapshotRecord = new ActionSnapshotLatestRecord();
-        trimSnapshotRecord.setActionSnapshotTime(trimTime.minusMinutes(10));
-        trimSnapshotRecord.setSnapshotRecordingTime(trimTime.plusMinutes(1));
-        trimSnapshotRecord.setTopologyId(1L);
-        trimSnapshotRecord.setActionsCount(1);
-
-        final ActionSnapshotLatestRecord borderlineSnapshot = trimSnapshotRecord.copy();
-        borderlineSnapshot.setActionSnapshotTime(trimTime);
-
-        final ActionSnapshotLatestRecord snapshotToKeep = trimSnapshotRecord.copy();
-        snapshotToKeep.setActionSnapshotTime(trimTime.plusMinutes(10));
-
-        dsl.insertInto(Tables.ACTION_STATS_LATEST).set(recordToTrim).execute();
-        dsl.insertInto(Tables.ACTION_STATS_LATEST).set(borderlineRecord).execute();
-        dsl.insertInto(Tables.ACTION_STATS_LATEST).set(recordToKeep).execute();
-
-        dsl.insertInto(Tables.ACTION_SNAPSHOT_LATEST).set(trimSnapshotRecord).execute();
-        dsl.insertInto(Tables.ACTION_SNAPSHOT_LATEST).set(borderlineSnapshot).execute();
-        dsl.insertInto(Tables.ACTION_SNAPSHOT_LATEST).set(snapshotToKeep).execute();
-
-        writer.trim(trimTime);
-
-        final List<ActionStatsLatestRecord> records = dsl.selectFrom(Tables.ACTION_STATS_LATEST)
-            .orderBy(Tables.ACTION_STATS_LATEST.ACTION_SNAPSHOT_TIME.asc())
-            .fetch();
-        assertThat(records.size(), is(2));
-        rollupTestUtils.compareRecords(records.get(0), borderlineRecord);
-        rollupTestUtils.compareRecords(records.get(1), recordToKeep);
-
-        final List<ActionSnapshotLatestRecord> snapshotRecords =
-            dsl.selectFrom(Tables.ACTION_SNAPSHOT_LATEST)
-                .orderBy(Tables.ACTION_SNAPSHOT_LATEST.ACTION_SNAPSHOT_TIME.asc())
-                .fetch();
-        assertThat(snapshotRecords.size(), is(2));
-        rollupTestUtils.compareSnapshotRecords(snapshotRecords.get(0), borderlineSnapshot);
-        rollupTestUtils.compareSnapshotRecords(snapshotRecords.get(1), snapshotToKeep);
-
-    }
-
     /**
      * Test that if there are no stats for the management unit we still insert a stat record.
      */

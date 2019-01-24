@@ -21,7 +21,6 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotHourRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByHourRecord;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
  * An {@link ActionStatTable} for action stats by hour.
@@ -69,15 +68,8 @@ public class HourActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Writer writer() {
-        return new HourlyWriter(dslContext, clock);
-    }
-
-    @Nonnull
-    @Override
-    public LocalDateTime getTrimTime(@Nonnull final RetentionPeriods retentionPeriods) {
-        return HOUR_TABLE_INFO.timeTruncateFn().apply(
-            LocalDateTime.now(clock).minusHours(retentionPeriods.hourlyRetentionHours()));
+    public Optional<Writer> writer() {
+        return Optional.of(new HourlyWriter(dslContext, clock));
     }
 
     /**

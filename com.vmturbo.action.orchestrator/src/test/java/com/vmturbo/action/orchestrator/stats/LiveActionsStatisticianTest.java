@@ -58,7 +58,6 @@ import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
-import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -94,8 +93,6 @@ public class LiveActionsStatisticianTest {
 
     private ActionStatRollupScheduler rollupScheduler = mock(ActionStatRollupScheduler.class);
 
-    private ActionStatCleanupScheduler cleanupScheduler = mock(ActionStatCleanupScheduler.class);
-
     /**
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
      * epoch millis starts in 1969.
@@ -114,7 +111,7 @@ public class LiveActionsStatisticianTest {
 
         statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
             mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
-            clock, actionTranslator, rollupScheduler, cleanupScheduler);
+            clock, actionTranslator, rollupScheduler);
     }
 
     @After
@@ -171,8 +168,6 @@ public class LiveActionsStatisticianTest {
 
         // Verify that the statistician schedules rollups.
         verify(rollupScheduler).scheduleRollups();
-        // Verify that the statistician schedules cleanups.
-        verify(cleanupScheduler).scheduleCleanups();
 
         final Map<Integer, ActionStatsLatestRecord> recordsByMgmtUnit = dsl.selectFrom(ACTION_STATS_LATEST)
                 .fetch()
