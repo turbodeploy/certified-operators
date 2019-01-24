@@ -424,9 +424,9 @@ public class BusinessUnitMapper {
      * @return discovered business unit with discount type
      * @throws InvalidOperationException if search operation failed
      */
-    public List<BusinessUnitApiDTO> toDiscoveredBusinessUnitDTO(@Nonnull final ISearchService searchService,
-                                                                @Nonnull final ITargetsService targetsService,
-                                                                @Nonnull final RepositoryClient repositoryClient)
+    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(@Nonnull final ISearchService searchService,
+                                                                         @Nonnull final ITargetsService targetsService,
+                                                                         @Nonnull final RepositoryClient repositoryClient)
             throws Exception {
         // TODO optimize following search, using search service to get all the discovered business accounts seems overkill
         final GroupApiDTO groupApiDTO = new GroupApiDTO();

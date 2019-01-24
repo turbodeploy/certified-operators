@@ -33,10 +33,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
@@ -49,6 +51,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -95,6 +98,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Service entry points to search the Repository.
@@ -133,6 +137,10 @@ public class SearchService implements ISearchService {
 
     private final TagsService tagsService;
 
+    private final RepositoryClient repositoryClient;
+
+    private BusinessUnitMapper businessUnitMapper;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -147,6 +155,8 @@ public class SearchService implements ISearchService {
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
                   @Nonnull UuidMapper uuidMapper,
                   @Nonnull TagsService tagsService,
+                  @Nonnull RepositoryClient repositoryClient,
+                  @Nonnull BusinessUnitMapper businessUnitMapper,
                   final long realtimeTopologyContextId) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
@@ -162,6 +172,8 @@ public class SearchService implements ISearchService {
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.uuidMapper = uuidMapper;
         this.tagsService = tagsService;
+        this.repositoryClient = repositoryClient;
+        this.businessUnitMapper = businessUnitMapper;
         this.realtimeContextId = realtimeTopologyContextId;
     }
 
@@ -238,6 +250,10 @@ public class SearchService implements ISearchService {
             } else if (types.contains(TargetsService.TARGET)) {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 result = Lists.newArrayList(targets);
+            } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.getValue())) {
+                final Collection<BusinessUnitApiDTO> businessAccounts =
+                        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(this, targetsService, repositoryClient);
+                result = Lists.newArrayList(businessAccounts);
             }
             // if this one of the specific service queries, return the result.
             if (!CollectionUtils.isEmpty(result)) {

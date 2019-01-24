@@ -177,7 +177,7 @@ public class BusinessUnitMapperTest {
 
     @Test
     public void testToDiscoveredBusinessUnitDTO() throws Exception {
-        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.toDiscoveredBusinessUnitDTO(searchService, targetsService, repositoryClient);
+        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
         assertEquals(1, businessUnitApiDTOs.size());
         assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
         assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
@@ -192,7 +192,7 @@ public class BusinessUnitMapperTest {
         targetApiDTO.setType("AWS Billing");
         targetApiDTO.setDisplayName("engineering.billing.aws.amazon.com");
         when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
-        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.toDiscoveredBusinessUnitDTO(searchService, targetsService, repositoryClient);
+        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
         assertEquals(1, businessUnitApiDTOs.size());
         assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
         assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
@@ -204,7 +204,7 @@ public class BusinessUnitMapperTest {
 
     @Test(expected = MissingTopologyEntityException.class)
     public void testToDiscoveredBusinessUnitDTOWithException() throws Exception {
-        businessUnitMapper.toDiscoveredBusinessUnitDTO(searchService, targetsService, Mockito.mock(RepositoryClient.class));
+        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, Mockito.mock(RepositoryClient.class));
     }
 
 }

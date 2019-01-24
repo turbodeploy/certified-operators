@@ -20,7 +20,6 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
-import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -94,7 +93,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     .build());
             return mapper.toDiscountBusinessUnitApiDTO(discounts, repositoryClient, targetsService);
         } else if (BusinessUnitType.DISCOVERED.equals(type)) {
-            return mapper.toDiscoveredBusinessUnitDTO(searchService, targetsService, repositoryClient);
+            return mapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
         }
         return ImmutableList.of(new BusinessUnitApiDTO());
     }

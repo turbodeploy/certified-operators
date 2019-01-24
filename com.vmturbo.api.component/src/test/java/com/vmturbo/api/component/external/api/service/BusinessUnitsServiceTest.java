@@ -104,7 +104,7 @@ public class BusinessUnitsServiceTest {
         apiDTO.setDisplayName(TEST_DISPLAY_NAME);
         apiDTO.setUuid(UUID_STRING);
         apiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-        when(mapper.toDiscoveredBusinessUnitDTO(any(), any(), any())).thenReturn(ImmutableList.of(apiDTO));
+        when(mapper.getAndConvertDiscoveredBusinessUnits(any(), any(), any())).thenReturn(ImmutableList.of(apiDTO));
         List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null);
         assertEquals(1, businessUnitApiDTOList.size());
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());

@@ -369,6 +369,8 @@ public class ServiceConfig {
                 mapperConfig.groupUseCaseParser(),
                 mapperConfig.uuidMapper(),
                 tagsService(),
+                repositoryClientConfig.repositoryClient(),
+                mapperConfig.businessUnitMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

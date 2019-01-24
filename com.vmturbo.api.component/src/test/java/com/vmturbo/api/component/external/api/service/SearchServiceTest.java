@@ -36,6 +36,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -79,6 +80,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Unit test for {@link SearchService}.
@@ -98,6 +100,8 @@ public class SearchServiceTest {
     private final GroupExpander groupExpander = mock(GroupExpander.class);
     private final PaginationMapper paginationMapperSpy = spy(new PaginationMapper());
     private final TagsService tagsService = mock(TagsService.class);
+    private final RepositoryClient repositoryClient = mock(RepositoryClient.class);
+    private final BusinessUnitMapper businessUnitMapper = mock(BusinessUnitMapper.class);
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -131,6 +135,8 @@ public class SearchServiceTest {
                 groupUseCaseParser,
                 uuidMapper,
                 tagsService,
+                repositoryClient,
+                businessUnitMapper,
                 777777
         );
     }
@@ -151,6 +157,9 @@ public class SearchServiceTest {
 
         getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM);
         Mockito.verify(targetsService).getTargets(null);
+
+        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD);
+        Mockito.verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
     }
 
     @Test
