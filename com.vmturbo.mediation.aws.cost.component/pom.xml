@@ -74,21 +74,6 @@
                                 <volumes>
                                     <volume>/home/turbonomic/data</volume>
                                 </volumes>
-                                <resources>
-                                    <resource>
-                                        <targetPath>/</targetPath>
-                                        <directory>${project.build.directory}</directory>
-                                        <include>${project.build.finalName}.jar</include>
-                                    </resource>
-                                    <resource>
-                                        <targetPath>/lib</targetPath>
-                                        <directory>${project.build.directory}/lib</directory>
-                                    </resource>
-                                    <resource>
-                                        <targetPath>/swagger</targetPath>
-                                        <directory>${project.build.directory}/generated-docs/swagger</directory>
-                                    </resource>
-                                </resources>
                             </configuration>
                             <executions>
                                 <execution>
@@ -117,24 +102,6 @@
                                     </goals>
                                     <configuration>
                                         <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
-                                    </configuration>
-                                </execution>
-                            </executions>
-                        </plugin>
-                        <plugin>
-                            <groupId>org.apache.maven.plugins</groupId>
-                            <artifactId>maven-dependency-plugin</artifactId>
-                            <executions>
-                                <execution>
-                                    <id>copy-dependencies</id>
-                                    <goals>
-                                        <goal>copy-dependencies</goal>
-                                    </goals>
-                                    <phase>prepare-package</phase>
-                                    <configuration>
-                                        <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                                        <useBaseVersion>false</useBaseVersion>
-                                        <includeScope>runtime</includeScope>
                                     </configuration>
                                 </execution>
                             </executions>
