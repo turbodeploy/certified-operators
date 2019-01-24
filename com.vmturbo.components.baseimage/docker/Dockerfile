@@ -2,17 +2,16 @@ FROM ubuntu:18.04
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 RUN apt-get update -q -y && apt-get upgrade -q -y && \
-apt-get install -q -y --no-install-recommends rsyslog python2.7 xz-utils net-tools vim-tiny openjdk-8-jdk && \
+apt-get install -q -y --no-install-recommends rsyslog python2.7 openjdk-8-jre-headless ca-certificates-java && \
 rm -rf /var/lib/apt/lists/* && apt-get clean
 
 COPY entrypoint.sh /
 COPY collect_diags.sh /
 COPY diags.py /
-COPY logrotate.sh /
 COPY dump_histogram.sh /
 COPY wait_for_full_gc.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && \
-chmod 755 /diags.py && chmod 755 /logrotate.sh && chmod 755 /dump_histogram.sh && chmod 755 /wait_for_full_gc.sh
+chmod 755 /diags.py && chmod 755 /dump_histogram.sh && chmod 755 /wait_for_full_gc.sh
 
 # add the swagger UI
 COPY swagger /swagger/
@@ -27,8 +26,6 @@ passwd -l root
 USER turbonomic
 
 RUN mkdir -p /home/turbonomic/data
-
-VOLUME ["/home/turbonomic/data"]
 
 ENTRYPOINT ["/entrypoint.sh"]
 

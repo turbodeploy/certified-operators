@@ -152,8 +152,6 @@ services:
       instance_id: market-1
       consul_host: consul
       kafkaServers: kafka1:9092
-    volumes:
-      - market:/home/turbonomic/data
     restart: always
 
   action-orchestrator-prod:
@@ -166,8 +164,6 @@ services:
       instance_id: action-orchestrator-1
       consul_host: consul
       kafkaServers: kafka1:9092
-    volumes:
-      - action-orchestrator:/home/turbonomic/data
     restart: always
 
   topology-processor-prod:
@@ -181,8 +177,6 @@ services:
       node_name: default
       consul_host: consul
       kafkaServers: kafka1:9092
-    volumes:
-      - topology-processor:/home/turbonomic/data
     restart: always
 
   arangodb-prod:
@@ -209,8 +203,6 @@ services:
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
       kafkaServers: kafka1:9092
-    volumes:
-      - repository:/home/turbonomic/data
     restart: always
 
   group-prod:
@@ -218,8 +210,6 @@ services:
       file: common-services.yml
       service: prod-component
     image: turbonomic/com.vmturbo.group
-    volumes:
-      - group:/home/turbonomic/data
     environment:
       consul_host: consul
       component_type: group
@@ -232,8 +222,6 @@ services:
       file: common-services.yml
       service: prod-component
     image: turbonomic/com.vmturbo.history
-    volumes:
-      - history:/home/turbonomic/data
     environment:
       consul_host: consul
       component_type: history
@@ -247,8 +235,6 @@ services:
       file: common-services.yml
       service: prod-component
     image: turbonomic/com.vmturbo.plan.orchestrator
-    volumes:
-      - plan-orchestrator:/home/turbonomic/data
     environment:
       consul_host: consul
       component_type: plan-orchestrator
@@ -276,8 +262,6 @@ services:
       file: common-services.yml
       service: prod-component
     image: turbonomic/com.vmturbo.cost.component
-    volumes:
-      - cost:/home/turbonomic/data
     environment:
       consul_host: consul
       component_type: cost
@@ -311,8 +295,6 @@ services:
       component_type: ml-datastore
       instance_id: ml-datastore-1
       kafkaServers: kafka1:9092
-    volumes:
-      - ml-datastore:/home/turbonomic/data
     # Only restart on failure. Allow normal exit. The component will exit normally if
     # the METRON_ENABLED environment flag is not set. Set the METRON_ENABLED flag
     # in the common-services.yml file.
@@ -327,8 +309,6 @@ services:
       consul_host: consul
       component_type: mediation-vcenter
       instance_id: mediation-vcenter-1
-    volumes:
-      - mediation-vcenter:/home/turbonomic/data
     restart: always
 
   mediation-vcenter-browsing-prod:
@@ -340,8 +320,6 @@ services:
       consul_host: consul
       component_type: mediation-vcenter-browsing
       instance_id: mediation-vcenter-browsing-1
-    volumes:
-      - mediation-vcenter-browsing:/home/turbonomic/data
     restart: always
 
   mediation-hyperv-prod:
@@ -353,8 +331,6 @@ services:
       consul_host: consul
       component_type: mediation-hyperv
       instance_id: mediation-hyperv-1
-    volumes:
-      - mediation-hyperv:/home/turbonomic/data
     restart: always
 
   mediation-netapp-prod:
@@ -366,8 +342,6 @@ services:
       consul_host: consul
       component_type: mediation-netapp
       instance_id: mediation-netapp-1
-    volumes:
-      - mediation-netapp:/home/turbonomic/data
     restart: always
 
   mediation-ucs-prod:
@@ -379,8 +353,6 @@ services:
       consul_host: consul
       component_type: mediation-ucs
       instance_id: mediation-ucs-1
-    volumes:
-      - mediation-ucs:/home/turbonomic/data
     restart: always
 
   mediation-vmax-prod:
@@ -392,8 +364,6 @@ services:
       consul_host: consul
       component_type: mediation-vmax
       instance_id: mediation-vmax-1
-    volumes:
-      - mediation-vmax:/home/turbonomic/data
     restart: always
 
   mediation-vmm-prod:
@@ -405,8 +375,6 @@ services:
       consul_host: consul
       component_type: mediation-vmm
       instance_id: mediation-vmm-1
-    volumes:
-      - mediation-vmm:/home/turbonomic/data
     restart: always
 
   mediation-hpe3par-prod:
@@ -418,8 +386,6 @@ services:
       consul_host: consul
       component_type: mediation-hpe3par
       instance_id: mediation-hpe3par-1
-    volumes:
-      - mediation-hpe3par:/home/turbonomic/data
     restart: always
 
   mediation-pure-prod:
@@ -431,8 +397,6 @@ services:
       consul_host: consul
       component_type: mediation-pure
       instance_id: mediation-pure-1
-    volumes:
-      - mediation-pure:/home/turbonomic/data
     restart: always
 
   mediation-scaleio-prod:
@@ -444,8 +408,6 @@ services:
       consul_host: consul
       component_type: mediation-scaleio
       instance_id: mediation-scaleio-1
-    volumes:
-      - mediation-scaleio:/home/turbonomic/data
     restart: always
 
   mediation-hds-prod:
@@ -457,8 +419,6 @@ services:
       consul_host: consul
       component_type: mediation-hds
       instance_id: mediation-hds-1
-    volumes:
-      - mediation-hds:/home/turbonomic/data
     restart: always
 
   mediation-compellent-prod:
@@ -470,8 +430,6 @@ services:
       consul_host: consul
       component_type: mediation-compellent
       instance_id: mediation-compellent-1
-    volumes:
-      - mediation-compellent:/home/turbonomic/data
     restart: always
 
   mediation-xtremio-prod:
@@ -483,8 +441,6 @@ services:
       consul_host: consul
       component_type: mediation-xtremio
       instance_id: mediation-xtremio-1
-    volumes:
-      - mediation-xtremio:/home/turbonomic/data
     restart: always
 
   mediation-vplex-prod:
@@ -496,8 +452,6 @@ services:
       consul_host: consul
       component_type: mediation-vplex
       instance_id: mediation-vplex-1
-    volumes:
-      - mediation-vplex:/home/turbonomic/data
     restart: always
 
   mediation-rhv-prod:
@@ -509,8 +463,6 @@ services:
       consul_host: consul
       component_type: mediation-rhv
       instance_id: mediation-rhv-1
-    volumes:
-      - mediation-rhv:/home/turbonomic/data
     restart: always
 
   mediation-openstack-prod:
@@ -522,8 +474,6 @@ services:
       consul_host: consul
       component_type: mediation-openstack
       instance_id: mediation-openstack-1
-    volumes:
-      - mediation-openstack:/home/turbonomic/data
 
   mediation-ucsdirector-prod:
     extends:
@@ -534,8 +484,6 @@ services:
       consul_host: consul
       component_type: mediation-ucsdirector
       instance_id: mediation-ucsdirector-1
-    volumes:
-      - mediation-ucsdirector:/home/turbonomic/data
     restart: always
 
   mediation-aws-prod:
@@ -611,8 +559,6 @@ services:
       consul_host: consul
       component_type: mediation-oneview
       instance_id: mediation-oneview-1
-    volumes:
-      - mediation-oneview:/home/turbonomic/data
     restart: always
 
   mediation-vcd-prod:
@@ -624,8 +570,6 @@ services:
       consul_host: consul
       component_type: mediation-vcd
       instance_id: mediation-vcd-1
-    volumes:
-      - mediation-vcd:/home/turbonomic/data
     restart: always
 
   mediation-mssql-prod:
@@ -637,8 +581,6 @@ services:
       consul_host: consul
       component_type: mediation-mssql
       instance_id: mediation-mssql-1
-    volumes:
-      - mediation-mssql:/home/turbonomic/data
     restart: always
 
   mediation-actionscript-prod:
@@ -650,8 +592,6 @@ services:
       consul_host: consul
       component_type: mediation-actionscript
       instance_id: mediation-actionscript-1
-    volumes:
-    - mediation-actionscript:/home/turbonomic/data
     restart: always
 
   mediation-snmp-prod:
@@ -663,8 +603,6 @@ services:
       consul_host: consul
       component_type: mediation-snmp
       instance_id: mediation-snmp-1
-    volumes:
-      - mediation-snmp:/home/turbonomic/data
     restart: always
 
   mediation-appdynamics-prod:
@@ -676,8 +614,6 @@ services:
       consul_host: consul
       component_type: mediation-appdynamics
       instance_id: mediation-appdynamics-1
-    volumes:
-      - mediation-appdynamics:/home/turbonomic/data
     restart: always
 
   mediation-dynatrace-prod:
@@ -689,8 +625,6 @@ services:
       consul_host: consul
       component_type: mediation-dynatrace
       instance_id: mediation-dynatrace-1
-    volumes:
-      - mediation-dynatrace:/home/turbonomic/data
     restart: always
 
   mediation-pivotal-prod:
@@ -702,6 +636,4 @@ services:
       consul_host: consul
       component_type: mediation-pivotal
       instance_id: mediation-pivotal-1
-    volumes:
-      - mediation-pivotal:/home/turbonomic/data
     restart: always

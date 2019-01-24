@@ -42,12 +42,12 @@ public class DiagnosticService {
     /**
      * The diags destination directory.
      */
-    private static final String DIAGS_DIRECTORY = "/home/turbonomic/data/diags";
+    private static final String DIAGS_DIRECTORY = "/tmp/diags";
 
     /**
      * The diags completion flag file.
      */
-    private static final String DIAGS_COMPLETION_FILE = "/home/turbonomic/data/diags_done";
+    private static final String DIAGS_COMPLETION_FILE = "/tmp/diags_done";
 
     /**
      * The time to sleep between attempts to check the diags collection completion.
