@@ -96,7 +96,7 @@ public class HistoricalEditor {
         final DataMetricTimer loadDurationTimer = HISTORICAL_USED_AND_PEAK_VALUES_LOAD_TIME_SUMMARY.startTimer();
         HistoricalInfoRecord record = historicalUtilizationDatabase.getInfo();
         double loadTime = loadDurationTimer.observe();
-        logger.info("Historical used and peak values were loaded from the database in " + loadTime + " seconds");
+        logger.info("Historical used and peak values were loaded from the database in {} seconds", loadTime);
 
         if (record != null) {
             byte[] bytes = record.getInfo();
@@ -214,7 +214,7 @@ public class HistoricalEditor {
         // If not, add it. Otherwise, add new commodities and match the existing ones.
         HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
         if (histSeInfo == null) {
-            logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity " + topoEntity.getOid());
+            logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
         } else if (histSeInfo.getHistoricalCommoditySold().size() == 0) {
             // Add all the sold commodities info
             List<HistoricalCommodityInfo> histSoldInfoList = new ArrayList<>();
@@ -271,20 +271,20 @@ public class HistoricalEditor {
 
     private void calculateSmoothValuesForCommoditySold(TopologyEntity topoEntity, CommoditySoldDTO.Builder topoCommSold) {
         if (topoCommSold == null) {
-            logger.error("The topoCommSold is null for the entity " + topoEntity.getOid());
+            logger.error("The topoCommSold is null for the entity {}", topoEntity.getOid());
             return;
         }
         final CommodityType commodityType = topoCommSold.getCommodityType();
         float used = (float) topoCommSold.getUsed();
         float peak = (float) topoCommSold.getPeak();
-        logger.trace("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Used from mediation=" + used
-                + ", Peak from mediation=" + peak);
+        logger.trace("Entity={}, Sold commodity={}, Used from mediation={}, Peak from mediation={}", topoEntity.getOid(),
+                topoCommSold.getCommodityType().getType(), used, peak);
 
         // Using historical values in calculation of used and peak
         if (!accessCommodities.contains(commodityType.getType())) {
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
-                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity " + topoEntity.getOid());
+                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
             } else {
                 boolean commSoldFound = false;
                 List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
@@ -297,10 +297,10 @@ public class HistoricalEditor {
                             float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                             used = usedHistWeight * histSoldInfo.getHistoricalUsed() + (1 - usedHistWeight) * used;
                             peak = peakHistWeight * histSoldInfo.getHistoricalPeak() + (1 - peakHistWeight) * peak;
-                            logger.trace("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Historical used=" + histSoldInfo.getHistoricalUsed()
-                                    + ", Historical peak=" + histSoldInfo.getHistoricalPeak());
-                            logger.trace("Entity=" + topoEntity.getOid() + ", Sold commodity=" + topoCommSold.getCommodityType().getType() + ", Calculated used=" + used
-                                    + ", Calculated peak=" + peak);
+                            logger.trace("Entity={}, Sold commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
+                                    topoCommSold.getCommodityType().getType(), histSoldInfo.getHistoricalUsed(), histSoldInfo.getHistoricalPeak());
+                            logger.trace("Entity={}, Sold commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
+                                    topoCommSold.getCommodityType().getType(), used, peak);
                         }
                         histSoldInfo.setHistoricalUsed(used);
                         histSoldInfo.setHistoricalPeak(peak);
@@ -314,7 +314,7 @@ public class HistoricalEditor {
                     }
                 }
                 if (!commSoldFound) {
-                    logger.error("A sold commodity with type " + commodityType.getType() + " is missing in HistoricalServiceEntityInfo");
+                    logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", commodityType.getType());
                 }
             }
         }
@@ -333,7 +333,7 @@ public class HistoricalEditor {
         if (topoEntity.getEnvironmentType() != EnvironmentType.CLOUD) {
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
-                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity " + topoEntity.getOid());
+                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
             } else if (histSeInfo.getHistoricalCommodityBought().size() == 0) {
                 // Add all the bought commodities info
                 List<HistoricalCommodityInfo> histBoughtInfoList = new ArrayList<>();
@@ -419,15 +419,15 @@ public class HistoricalEditor {
     private void calculateSmoothValuesForCommodityBought(TopologyEntity topoEntity, CommodityBoughtDTO.Builder topoCommBought, long sourceId) {
         float usedQuantity = (float) topoCommBought.getUsed();
         float peakQuantity = (float) topoCommBought.getPeak();
-        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Used from mediation=" + usedQuantity
-                + ", Peak from mediation=" + peakQuantity);
+        logger.trace("Entity={}, Bought commodity={}, Used from mediation={}, Peak from mediation={}", topoEntity.getOid(),
+                topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
 
         if ((!(topoEntity.getEnvironmentType() == EnvironmentType.CLOUD)) &&
                 (!accessCommodities.contains(topoCommBought.getCommodityType().getType()))) {
             // Using historical values in calculation of used and peak
             HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
             if (histSeInfo == null) {
-                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity " + topoEntity.getOid());
+                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
             } else {
                 boolean commBoughtFound = false;
                 List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
@@ -442,10 +442,10 @@ public class HistoricalEditor {
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                         usedQuantity = usedHistWeight * histBoughtInfo.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
                         peakQuantity = peakHistWeight * histBoughtInfo.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
-                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Historical used=" + histBoughtInfo.getHistoricalUsed()
-                                + ", Historical peak=" + histBoughtInfo.getHistoricalPeak());
-                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Calculated used=" + usedQuantity
-                                + ", Calculated peak=" + peakQuantity);
+                        logger.trace("Entity={}, Bought commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
+                                topoCommBought.getCommodityType().getType(), histBoughtInfo.getHistoricalUsed(), histBoughtInfo.getHistoricalPeak());
+                        logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
+                                topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
                         histBoughtInfo.setHistoricalUsed(usedQuantity);
                         histBoughtInfo.setHistoricalPeak(peakQuantity);
                         histBoughtInfo.setExisting(true);
@@ -490,10 +490,10 @@ public class HistoricalEditor {
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                         usedQuantity = usedHistWeight * previousComm.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
                         peakQuantity = peakHistWeight * previousComm.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
-                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Historical used=" + previousComm.getHistoricalUsed()
-                                + ", Historical peak=" + previousComm.getHistoricalPeak());
-                        logger.trace("Entity=" + topoEntity.getOid() + ", Bought commodity=" + topoCommBought.getCommodityType().getType() + ", Calculated used=" + usedQuantity
-                                + ", Calculated peak=" + peakQuantity);
+                        logger.trace("Entity={}, Bought commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
+                                topoCommBought.getCommodityType().getType(), previousComm.getHistoricalUsed(), previousComm.getHistoricalPeak());
+                        logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
+                                topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
                         newComm.setHistoricalUsed(usedQuantity);
                         newComm.setHistoricalPeak(peakQuantity);
                         newComm.setExisting(true);
