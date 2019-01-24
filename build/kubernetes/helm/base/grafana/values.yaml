@@ -191,18 +191,18 @@ datasources:
 ##
 ## `path` must be /var/lib/grafana/dashboards/<provider_name>
 ##
-dashboardProviders: {}
-#  dashboardproviders.yaml:
-#    apiVersion: 1
-#    providers:
-#    - name: 'default'
-#      orgId: 1
-#      folder: ''
-#      type: file
-#      disableDeletion: false
-#      editable: true
-#      options:
-#        path: /var/lib/grafana/dashboards/default
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /var/lib/grafana/dashboards/default
 
 ## Configure grafana dashboard to import
 ## NOTE: To use dashboards you must also enable/configure dashboardProviders
@@ -210,10 +210,24 @@ dashboardProviders: {}
 ##
 ## dashboards per provider, use provider name as key.
 ##
-dashboards: {}
-#  default:
-#    some-dashboard:
-#      json: dashboards/custom-dashboard.json
+dashboards:
+  default:
+    Action-Orchestrator-Dashboard:
+      json: dashboards/Action Orchestrator Dashboard.json
+    History-Dashboard:
+      json: dashboards/History Dashboard.json
+    Market-Dashboard:
+      json: dashboards/Market Dashboard.json
+    Messaging-Metrics:
+      json: dashboards/Messaging Metrics.json
+    Repository-Dashboard:
+      json: dashboards/Repository Dashboard.json
+    Statistical-Summary:
+      json: dashboards/Statistical Summary.json
+    System-Latencies:
+      json: dashboards/System Latencies.json
+    Topology-Processor-Dashboard:
+      json: dashboards/Topology Processor Dashboard.json
 #    prometheus-stats:
 #      gnetId: 2
 #      revision: 2
