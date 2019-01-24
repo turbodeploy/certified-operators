@@ -3,11 +3,13 @@ package com.vmturbo.mediation.actionscript;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,16 +20,22 @@ import org.apache.sshd.client.subsystem.sftp.SftpClient;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.DirEntry;
 import org.apache.sshd.client.subsystem.sftp.SftpClientFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
+import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterDefinition;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.Parameter;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.WorkflowData;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.WorkflowData.Builder;
 
 /**
  * Class to validate and discover the ActionScript folder.
@@ -43,9 +51,11 @@ public class ActionScriptPathValidator {
 
     private static final Logger logger = LogManager.getLogger();
 
-    public static final long SESSION_CONNECT_TIMEOUT_SECS = 10L;
+    private static final long SESSION_CONNECT_TIMEOUT_SECS = 10L;
     private static final long AUTH_TIMEOUT_SECS = 15L;
     private static final String WORKFLOW_PREFIX = "AS-WF-";
+    @VisibleForTesting
+    public static final String WORKFLOW_PARAMETER_TYPE = "text";
 
     public ActionScriptPathValidator() {
 
@@ -175,10 +185,8 @@ public class ActionScriptPathValidator {
                                     .setId(generateWorkflowID(accountValues.name, filename))
                                     .setDisplayName(filename)
                                     .setDescription(dirEntry.getLongFilename())
-                                    // TODO: Detect entity type (via naming convention, etc.) and
-                                    //  add workflow data for this
-                                    //.setWorkflowData(WorkflowData.newBuilder()
-                                    //        .setEntityType().build())
+                                    // TODO: Detect entity type (via naming convention, etc.)
+                                    .setWorkflowData(generateWorkflowData(null))
                                     .setEntityType(NonMarketEntityType.WORKFLOW));
                 }
             }
@@ -203,8 +211,39 @@ public class ActionScriptPathValidator {
      * @param filename the filename of the script being called in this workflow
      * @return id prepended with "AS-WF-" and server name
      */
-    private static String generateWorkflowID(@Nonnull String targetName, String filename) {
+    private static String generateWorkflowID(@Nonnull String targetName, @Nonnull String filename) {
         return WORKFLOW_PREFIX + targetName + "-" + filename;
+    }
+
+    /**
+     * Generate workflow data, representing the type of entity a script operates on as well as the
+     * variables that can be passed to the script.
+     *
+     * @param entityType the type of entity the script operates on, or {@code null} if unknown
+     * @return a {@code WorkflowData}, representing the type of entity a script operates on as well as the
+     *      variables that can be passed to the script.
+     */
+    private static WorkflowData generateWorkflowData(@Nullable EntityType entityType) {
+        final Builder workflowBuilder = WorkflowData.newBuilder();
+
+        // Include the entity type, if it is known
+        if (entityType != null) {
+            workflowBuilder.setEntityType(entityType);
+        }
+
+        // Include the standard variables that are available to all scripts
+        Arrays.stream(ActionScriptParameterDefinition.values())
+            .forEach(parameter -> workflowBuilder.addParam(generateParameter(parameter.name())));
+
+        return workflowBuilder.build();
+    }
+
+    private static Parameter generateParameter(@Nonnull String name) {
+        return Parameter.newBuilder()
+            .setName(name)
+            .setType(WORKFLOW_PARAMETER_TYPE)
+            .setMandatory(false)
+            .build();
     }
 
     /**
