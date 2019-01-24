@@ -31,7 +31,6 @@ volumes:
   clustermgr: *localdriver
   api: *localdriver
   auth: *localdriver
-  topology-processor: *localdriver
   reporting: *localdriver
   mediation-aws: *localdriver
   mediation-awsbilling: *localdriver
@@ -278,8 +277,6 @@ services:
       node_name: default
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${TOPOLOGY_PROCESSOR_XMX_MB}M ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
-    volumes:
-      - topology-processor:/home/turbonomic/data
     mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_MB}M
 
   sample:
