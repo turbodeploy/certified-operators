@@ -28,6 +28,7 @@ volumes:
   clustermgr: *localdriver
   api: *localdriver
   auth: *localdriver
+  topology-processor: *localdriver
   reporting: *localdriver
 #  mediation-aws: *localdriver
 #  mediation-awsbilling: *localdriver
