@@ -25,6 +25,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.ImmutableSet;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
@@ -39,6 +41,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
@@ -65,6 +68,17 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         .withHelp("Duration in seconds it takes repository to retrieve single source supply chain.")
         .build()
         .register();
+
+    // the entity types to ignore when traversing the topology to construct global supply chain,
+    // currently these are cloud entity types which we don't want to show in global supply chain
+    public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN = ImmutableSet.of(
+            EntityType.COMPUTE_TIER_VALUE,
+            EntityType.STORAGE_TIER_VALUE,
+            EntityType.DATABASE_TIER_VALUE,
+            EntityType.DATABASE_SERVER_TIER_VALUE,
+            EntityType.BUSINESS_ACCOUNT_VALUE,
+            EntityType.CLOUD_SERVICE_VALUE
+    );
 
     public SupplyChainRpcService(@Nonnull final GraphDBService graphDBService,
                                  @Nonnull final SupplyChainService supplyChainService,
@@ -191,7 +205,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
                                                         @Nonnull final Optional<Long> contextId,
                                                         @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
-            supplyChainService.getGlobalSupplyChain(contextId, environmentType)
+            supplyChainService.getGlobalSupplyChain(contextId, environmentType,
+                    IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)
                 .subscribe(supplyChainNodes -> {
                     supplyChainNodes.values().stream()
                             // if entityTypes are to be limited, restrict to SupplyChainNode types in the list

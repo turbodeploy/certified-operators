@@ -15,6 +15,8 @@ import com.google.common.collect.Multimap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
+import com.vmturbo.repository.service.SupplyChainRpcService;
 
 /**
  * Used to compute a multimap where the keys are SE types and the values associated with
@@ -75,6 +77,18 @@ public class IncrementalTopologyRelationshipRecorder {
                         unknownProvidersMap.put(provider.getProviderId(), seType);
                     }
                 }
+            }
+
+            // add connectedTo entity types to providers since we want to show a mix of consumes
+            // and connected relationship in the global supply chain
+            // Note: currently we don't want to show some cloud entity types, so we skip them
+            if (!SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(seType)) {
+                dto.getConnectedEntityListList().forEach(connectedEntity -> {
+                    Integer providerType = connectedEntity.getConnectedEntityType();
+                    if (!SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.contains(providerType)) {
+                        providerRels.put(seType, providerType);
+                    }
+                });
             }
         }
     }

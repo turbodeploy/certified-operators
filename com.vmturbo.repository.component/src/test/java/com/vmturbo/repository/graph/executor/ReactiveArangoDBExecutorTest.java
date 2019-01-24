@@ -105,7 +105,7 @@ public class ReactiveArangoDBExecutorTest {
                                                                    objectMapper);
 
         final GraphCmd.GetGlobalSupplyChain globalSupplyChainCmd = new GraphCmd.GetGlobalSupplyChain(
-                TEST_DATABASE, TEST_COLLECTION, Optional.empty(), Optional.empty());
+                TEST_DATABASE, TEST_COLLECTION, Optional.empty(), Optional.empty(), Collections.emptySet());
 
         final GlobalSupplyChainFluxResult globalResults = reactiveArangoDBExecutor
                 .executeGlobalSupplyChainCmd(globalSupplyChainCmd);

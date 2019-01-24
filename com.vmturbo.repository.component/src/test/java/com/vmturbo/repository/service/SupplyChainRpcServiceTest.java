@@ -15,6 +15,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -356,7 +357,9 @@ public class SupplyChainRpcServiceTest {
         final Map<String, SupplyChainNode> inputNodes = ImmutableMap.of(
             "PhysicalMachine", pmNode,
             "VirtualMachine", vmNode);
-        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD))))
+        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)),
+                eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)))
             .thenReturn(Mono.just(inputNodes));
 
         // Force evaluation of the stream
@@ -370,7 +373,9 @@ public class SupplyChainRpcServiceTest {
 
     @Test
     public void testGetGlobalSupplyChainFailure() throws Exception {
-        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD))))
+        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L)),
+                eq(Optional.of(UIEnvironmentType.CLOUD)),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)))
             .thenReturn(Mono.error(new RuntimeException("failed")));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher

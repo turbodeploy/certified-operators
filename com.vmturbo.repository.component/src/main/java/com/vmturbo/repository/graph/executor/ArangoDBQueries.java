@@ -104,6 +104,9 @@ public class ArangoDBQueries {
     static final String GLOBAL_SUPPLY_CHAIN_QUERY_TEMPLATE =
             "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
             "FOR entity IN <seCollection>\n" +
+            "<if(hasIgnoredEntityTypes)>" +
+                "FILTER entity.entityType NOT IN <ignoredEntityTypes>\n" +
+            "<endif>" +
             "<if(hasEnvType)>" +
                 "FILTER entity.environmentType == '<envType>'\n" +
             "<endif>" +

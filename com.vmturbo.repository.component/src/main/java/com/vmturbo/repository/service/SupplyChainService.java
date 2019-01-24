@@ -74,7 +74,8 @@ public class SupplyChainService {
      * @return A map of entity type names to {@link SupplyChainNode}s.
      */
     public Mono<Map<String, SupplyChainNode>> getGlobalSupplyChain(final Optional<Long> contextID,
-                                               final Optional<UIEnvironmentType> environmentType) {
+                                               final Optional<UIEnvironmentType> environmentType,
+                                               final Set<Integer> ignoredEntityTypes) {
 
         Optional<TopologyID> targetTopology = contextID
             .map(context -> lifecycleManager.getTopologyId(context, TopologyType.SOURCE))
@@ -90,7 +91,8 @@ public class SupplyChainService {
                 targetTopology.get().database(),
                 graphDefinition.getServiceEntityVertex(),
                 environmentType,
-                Optional.of(userSessionContext.getUserAccessScope()));
+                Optional.of(userSessionContext.getUserAccessScope()),
+                ignoredEntityTypes);
 
         final GlobalSupplyChainFluxResult results = executor.executeGlobalSupplyChainCmd(cmd);
 
@@ -112,7 +114,10 @@ public class SupplyChainService {
                                                                final String startId,
                                                                Optional<UIEnvironmentType> envType) {
         if (startId.equals(GLOBAL_SCOPE)) {
-            return getGlobalSupplyChain(Optional.of(contextID), Optional.empty())
+            // do not specify ignored entity types, since this is used by Search API in UI,
+            // where we want all entities to be searchable. For example: we don't want to show
+            // BusinessAccount in supply chain, but we want it to be searchable in UI.
+            return getGlobalSupplyChain(Optional.of(contextID), Optional.empty(), Collections.emptySet())
                 .map(nodeMap -> nodeMap.entrySet().stream()
                     .collect(Collectors.toMap(
                         Entry::getKey, entry -> RepositoryDTOUtil.getAllMemberOids(entry.getValue())

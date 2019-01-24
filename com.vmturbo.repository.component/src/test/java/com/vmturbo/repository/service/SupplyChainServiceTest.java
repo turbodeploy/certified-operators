@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,7 +80,8 @@ public class SupplyChainServiceTest {
                 .thenReturn(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE);
 
         final Mono<Map<String, SupplyChainNode>> globalSupplyChain =
-            testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty(), Optional.empty());
+            testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty(),
+                    Optional.empty(), Collections.emptySet());
         final Map<String, SupplyChainNode> result = globalSupplyChain.toFuture().get();
         Assert.assertEquals(2, result.size());
         assertThat(RepositoryDTOUtil.getAllMemberOids(result.get(VMS)),

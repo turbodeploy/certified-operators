@@ -3,7 +3,11 @@ package com.vmturbo.repository.graph.executor;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoCursor;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +25,7 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import com.vmturbo.auth.api.authorization.scoping.OidSet;
+import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
@@ -70,7 +75,28 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
         // set the "hasAllowedOidList" attribute based on if we populated a list or not.
         queryTemplate.add("hasAllowedOidList", queryTemplate.getAttribute("allowedOidList") != null);
 
+        // add ignoredEntityTypes if we don't want to return entities of some types
+        Set<Integer> ignoredEntityTypes = globalSupplyChainCmd.getIgnoredEntityTypes();
+        if (!ignoredEntityTypes.isEmpty()) {
+            queryTemplate.add("hasIgnoredEntityTypes", true);
+            queryTemplate.add("ignoredEntityTypes", entityTypesListToAQL(ignoredEntityTypes));
+        }
+
         return queryTemplate.render();
+    }
+
+    /**
+     * Convert the given set of entity types into the AQL string list representation.
+     *
+     * @param entityTypes the set of entity types to convert
+     * @return AQL string list representation of given set
+     */
+    private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
+        final String entityTypesAQL = entityTypes.stream()
+                .map(RepoObjectType::mapEntityType)
+                .map(entityType -> "\"" + entityType + "\"")
+                .collect(Collectors.joining(","));
+        return "[" + entityTypesAQL + "]";
     }
 
     private static String scopedEntitiesQuery(final String collection, final List<Long> oids) {

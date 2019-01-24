@@ -136,14 +136,19 @@ public abstract class GraphCmd {
         // the entity access scope represents the set of entities a user has access to.
         private final Optional<EntityAccessScope> entityAccessScope;
 
+        // the entity types to skip while traversing the repository
+        private final Set<Integer> ignoredEntityTypes;
+
         public GetGlobalSupplyChain(final TopologyDatabase topologyDatabase,
                                     final String vertexCollection,
                                     final Optional<UIEnvironmentType> environmentType,
-                                    final Optional<EntityAccessScope> entityAccessScope) {
+                                    final Optional<EntityAccessScope> entityAccessScope,
+                                    final Set<Integer> ignoredEntityTypes) {
             this.topologyDatabase = topologyDatabase;
             this.vertexCollection = vertexCollection;
             this.environmentType = environmentType;
             this.entityAccessScope = entityAccessScope;
+            this.ignoredEntityTypes = ignoredEntityTypes;
         }
 
         public String getVertexCollection() {
@@ -162,6 +167,10 @@ public abstract class GraphCmd {
             return entityAccessScope;
         }
 
+        public Set<Integer> getIgnoredEntityTypes() {
+            return ignoredEntityTypes;
+        }
+
         @Override
         public String toString() {
             return MoreObjects.toStringHelper(this)
@@ -172,6 +181,7 @@ public abstract class GraphCmd {
                             (entityAccessScope.isPresent() && !entityAccessScope.get().containsAll())
                             ? "Groups: "+ entityAccessScope.get().getScopeGroupIds()
                             : "All")
+                    .add("ignoredEntityTypes", ignoredEntityTypes)
                     .toString();
         }
     }

@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -29,14 +28,14 @@ import com.arangodb.model.AqlQueryOptions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
+import com.google.common.collect.ImmutableSet;
 import javaslang.collection.Seq;
 import javaslang.control.Try;
 
-import com.vmturbo.auth.api.authorization.scoping.OidSet;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.constant.RepoObjectType;
