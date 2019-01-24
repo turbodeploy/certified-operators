@@ -70,7 +70,8 @@ public class GraphDBServiceTest {
             Try.success(subgraph));
 
         final Map<String, SupplyChainNode> nodes =
-            graphDBService.getSupplyChain(Optional.empty(), Optional.empty(), "123", Optional.empty()).get()
+            graphDBService.getSupplyChain(Optional.empty(), Optional.empty(), "123",
+                    Optional.empty(), Collections.emptySet(), Collections.emptySet()).get()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
         assertEquals(node, nodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()));

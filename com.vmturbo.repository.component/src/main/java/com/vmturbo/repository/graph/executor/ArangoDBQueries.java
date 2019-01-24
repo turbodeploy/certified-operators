@@ -13,14 +13,14 @@ public class ArangoDBQueries {
         // Collect edges up to a maximum of 10 degrees away from the starting vertex.
         "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
         "LET edgeCollection = (" +
-        "   FOR v, e IN 1 .. 10\n" +
+        "   FOR v, e, p IN 1 .. 10\n" +
         "       OUTBOUND '<startingId>'\n" +
         "       <edgeCollection>\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
+        "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
+        "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
         "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
         "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
-        // Filter on edge type (consumes or connected)
-        "       FILTER e.type == '<edgeType>'\n" +
         // From are starting vertices on the directed edges (the consumers).
         "       LET from = FIRST(\n" +
         "           FOR fv IN <vertexCollection>\n" +
@@ -60,14 +60,14 @@ public class ArangoDBQueries {
         // Collect edges up to a maximum of 10 degrees away from the starting vertex.
         "<if(hasAllowedOidList)>LET accessOids = [<allowedOidList;separator=\",\">]<endif>\n" +
         "LET edgeCollection = (" +
-        "   FOR v, e IN 1 .. 10\n" +
+        "   FOR v, e, p IN 1 .. 10\n" +
         "       INBOUND '<startingId>'\n" +
         "       <edgeCollection>\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
+        "       <if(hasInclusionEntityTypes)>FILTER p.vertices[*].entityType ALL IN <inclusionEntityTypes><endif>\n" +
+        "       <if(hasExclusionEntityTypes)>FILTER p.vertices[*].entityType NONE IN <exclusionEntityTypes><endif>\n" +
         "       <if(hasEnvType)>FILTER v.environmentType == '<envType>'<endif>\n" +
         "       <if(hasAllowedOidList)>FILTER TO_NUMBER(v.oid) IN accessOids<endif>\n" +
-        // Filter on edge type (consumes or connected)
-        "       FILTER e.type == '<edgeType>'\n" +
         // From are starting vertices on the directed edges (the consumers).
         "       LET from = FIRST(\n" +
         "           FOR fv IN <vertexCollection>\n" +

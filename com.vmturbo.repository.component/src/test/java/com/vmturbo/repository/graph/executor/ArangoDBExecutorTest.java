@@ -215,7 +215,8 @@ public class ArangoDBExecutorTest {
                                       final Optional<UIEnvironmentType> environmentType,
                                       final String vertexColl) {
         graphCmd = new GraphCmd.GetSupplyChain(starting, environmentType,
-                TopologyDatabase.from(databaseName),graphName, vertexColl, Optional.empty());
+                TopologyDatabase.from(databaseName),graphName, vertexColl, Optional.empty(),
+                Collections.emptySet(), Collections.emptySet());
     }
 
     @SuppressWarnings("unchecked")

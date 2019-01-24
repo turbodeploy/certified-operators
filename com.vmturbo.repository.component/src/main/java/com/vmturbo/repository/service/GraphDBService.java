@@ -81,7 +81,9 @@ public class GraphDBService {
             final Optional<Long> contextID,
             final Optional<UIEnvironmentType> envType,
             final String startId,
-            final Optional<EntityAccessScope> entityAccessScope) {
+            final Optional<EntityAccessScope> entityAccessScope,
+            final Set<Integer> inclusionEntityTypes,
+            final Set<Integer> exclusionEntityTypes) {
         final Optional<TopologyID> targetTopologyId = contextID
                 .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
                 .orElse(topologyManager.getRealtimeTopologyId());
@@ -96,7 +98,9 @@ public class GraphDBService {
                 topologyDB,
                 graphDefinition.getProviderRelationship(),
                 graphDefinition.getServiceEntityVertex(),
-                entityAccessScope);
+                entityAccessScope,
+                inclusionEntityTypes,
+                exclusionEntityTypes);
             logger.debug("Constructed command, {}", cmd);
 
             final Try<SupplyChainSubgraph> supplyChainResults = executor.executeSupplyChainCmd(cmd);

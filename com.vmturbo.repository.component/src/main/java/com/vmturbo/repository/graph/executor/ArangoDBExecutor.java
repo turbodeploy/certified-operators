@@ -28,14 +28,13 @@ import com.arangodb.model.AqlQueryOptions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+
 import javaslang.collection.Seq;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -116,7 +115,36 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         // set the "hasAllowedOidList" attribute based on if we populated a list or not.
         template.add("hasAllowedOidList", template.getAttribute("allowedOidList") != null);
 
+        // filter the path by the inclusion entity types, which means it will traverse the path
+        // if and only if the entity types in this path contains the provided set
+        final Set<Integer> inclusionEntityTypes = supplyChainCmd.getInclusionEntityTypes();
+        if (!inclusionEntityTypes.isEmpty()) {
+            template.add("hasInclusionEntityTypes", true);
+            template.add("inclusionEntityTypes", entityTypesListToAQL(inclusionEntityTypes));
+        }
+
+        // filter the path by the exclusion entity types, which means it will not traverse the
+        // path if the path contains entities of any type within the provided set
+        final Set<Integer> exclusionEntityTypes = supplyChainCmd.getExclusionEntityTypes();
+        if (!exclusionEntityTypes.isEmpty()) {
+            template.add("hasExclusionEntityTypes", true);
+            template.add("exclusionEntityTypes", entityTypesListToAQL(exclusionEntityTypes));
+        }
+
         return template.render();
+    }
+
+    /**
+     * Convert the given set of entity types into the AQL string list representation.
+     *
+     * @param entityTypes the set of entity types to convert
+     * @return AQL string list representation of given set
+     */
+    private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
+        return "[" + entityTypes.stream()
+            .map(RepoObjectType::mapEntityType)
+            .map(entityType -> "\"" + entityType + "\"")
+            .collect(Collectors.joining(",")) + "]";
     }
 
     static String searchServiceEntitytQuery(final GraphCmd.SearchServiceEntity searchCmd) {

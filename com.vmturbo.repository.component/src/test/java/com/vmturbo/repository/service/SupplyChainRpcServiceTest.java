@@ -12,6 +12,8 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -31,7 +33,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-
+import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -53,6 +55,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 
 public class SupplyChainRpcServiceTest {
 
@@ -81,6 +85,57 @@ public class SupplyChainRpcServiceTest {
             .setEntityType("VirtualMachine")
             .build();
 
+    private final SupplyChainNode cloudVMNode1 = SupplyChainNode.newBuilder()
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(11L)
+                    .build())
+            .addConnectedProviderTypes(RepoEntityType.AVAILABILITY_ZONE.getValue())
+            .setEntityType(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .build();
+
+    private final SupplyChainNode cloudVMNode2 = SupplyChainNode.newBuilder()
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(12L)
+                    .build())
+            .addConnectedProviderTypes(RepoEntityType.AVAILABILITY_ZONE.getValue())
+            .setEntityType(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .build();
+
+    private final SupplyChainNode cloudVolumeNode = SupplyChainNode.newBuilder()
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(21L)
+                    .build())
+            .addConnectedConsumerTypes(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .addConnectedProviderTypes(RepoEntityType.AVAILABILITY_ZONE.getValue())
+            .setEntityType(RepoEntityType.VIRTUAL_VOLUME.getValue())
+            .build();
+
+    private final SupplyChainNode cloudZoneNode = SupplyChainNode.newBuilder()
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(31L)
+                    .build())
+            .addConnectedConsumerTypes(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .addConnectedConsumerTypes(RepoEntityType.VIRTUAL_VOLUME.getValue())
+            .setEntityType(RepoEntityType.AVAILABILITY_ZONE.getValue())
+            .build();
+
+    private final SupplyChainNode cloudRegionNode = SupplyChainNode.newBuilder()
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(41L)
+                    .build())
+            .addConnectedProviderTypes(RepoEntityType.AVAILABILITY_ZONE.getValue())
+            .setEntityType(RepoEntityType.REGION.getValue())
+            .build();
+
+    private final SupplyChainNode cloudAccountNode = SupplyChainNode.newBuilder()
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(51)
+                    .build())
+            .addConnectedProviderTypes(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .addConnectedProviderTypes(RepoEntityType.VIRTUAL_VOLUME.getValue())
+            .setEntityType(RepoEntityType.BUSINESS_ACCOUNT.getValue())
+            .build();
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -95,6 +150,21 @@ public class SupplyChainRpcServiceTest {
 
         Mockito.when(userSessionContext.getUserAccessScope())
                 .thenReturn(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE);
+
+        doReturn(Optional.of(RepoEntityType.VIRTUAL_MACHINE.getValue())).when(
+                supplyChainBackend).getRepoEntityType(5678L);
+        doReturn(Optional.of(RepoEntityType.VIRTUAL_MACHINE.getValue())).when(
+                supplyChainBackend).getRepoEntityType(91011L);
+        doReturn(Optional.of(RepoEntityType.VIRTUAL_MACHINE.getValue())).when(
+                supplyChainBackend).getRepoEntityType(11L);
+        doReturn(Optional.of(RepoEntityType.VIRTUAL_MACHINE.getValue())).when(
+                supplyChainBackend).getRepoEntityType(12L);
+        doReturn(Optional.of(RepoEntityType.AVAILABILITY_ZONE.getValue())).when(
+                supplyChainBackend).getRepoEntityType(31L);
+        doReturn(Optional.of(RepoEntityType.REGION.getValue())).when(
+                supplyChainBackend).getRepoEntityType(41L);
+        doReturn(Optional.of(RepoEntityType.BUSINESS_ACCOUNT.getValue())).when(
+                supplyChainBackend).getRepoEntityType(51L);
     }
 
     @Test
@@ -141,6 +211,59 @@ public class SupplyChainRpcServiceTest {
         assertThat(responseBySeedOid.size(), is(2));
         assertThat(responseBySeedOid.get(seed1.getSeedOid()).getSupplyChainNodesList(), contains(node1));
         assertThat(responseBySeedOid.get(seed2.getSeedOid()).getSupplyChainNodesList(), contains(node2));
+    }
+
+    /**
+     * Test the case that cloud supply chain starts from multiple VMs. Verify that it will query
+     * another supply chain based on the returned zone, and the final supply chain contains VM,
+     * Volume, Zone and Region. It also verifies that it only queries ArangoDB once for the zone,
+     * although these two VMs (11L and 12L) are connected to same Zone.
+     */
+    @Test
+    public void testGetMultiSourceSupplyChainForCloudVMs() throws Exception {
+        doReturn(Either.right(Stream.of(cloudVMNode1, cloudVolumeNode, cloudZoneNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("11"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        doReturn(Either.right(Stream.of(cloudVMNode2, cloudZoneNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("12"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        doReturn(Either.right(Stream.of(cloudZoneNode, cloudRegionNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllStartingEntityOid(Lists.newArrayList(11L, 12L))
+                        .build()));
+
+        final SupplyChainNode vmNode1And2combined = cloudVMNode1.toBuilder().putMembersByState(0,
+                MemberList.newBuilder()
+                        .addMemberOids(11L)
+                        .addMemberOids(12L)
+                        .build())
+                .build();
+
+        // verify that it only query ArangoDB once for the zone, although the supply chain for
+        // two starting vertices (11L and 12L) return same zone (31)
+        verify(graphDBService, times(1)).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+            eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+            eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
+            eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        assertEquals(4, nodes.size());
+        findAndCompareSupplyChainNode(nodes, vmNode1And2combined);
+        findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
+        findAndCompareSupplyChainNode(nodes, cloudZoneNode);
+        findAndCompareSupplyChainNode(nodes, cloudRegionNode);
     }
 
     @Test
@@ -198,7 +321,9 @@ public class SupplyChainRpcServiceTest {
     public void testGetSingleSourceSupplyChainSuccess() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
             .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()), eq("5678"),
-                eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                        eq(Collections.emptySet()),
+                        eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -215,7 +340,9 @@ public class SupplyChainRpcServiceTest {
     public void testGetSingleSourceSupplyChainFiltered() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
             .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
-                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -228,11 +355,172 @@ public class SupplyChainRpcServiceTest {
         compareSupplyChainNode(vmNode, nodes.get(0));
     }
 
+    /**
+     * Test the case that cloud supply chain starts from single VM. Verify that it will query
+     * another supply chain based on the returned zone, and the final supply chain contains VM,
+     * Volume, Zone and Region.
+     */
+    @Test
+    public void testGetSingleSourceSupplyChainForCloudVM() throws Exception {
+        doReturn(Either.right(Stream.of(cloudVMNode1, cloudVolumeNode, cloudZoneNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("11"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        doReturn(Either.right(Stream.of(cloudZoneNode, cloudRegionNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllStartingEntityOid(Lists.newArrayList(11L))
+                        .build()));
+
+        // verify that it requested another supply chain starting from zone to only traverse the
+        // path containing only region and zone
+        verify(graphDBService, times(1)).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+            eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+            eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
+            eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        assertEquals(4, nodes.size());
+        findAndCompareSupplyChainNode(nodes, cloudVMNode1);
+        findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
+        findAndCompareSupplyChainNode(nodes, cloudZoneNode);
+        findAndCompareSupplyChainNode(nodes, cloudRegionNode);
+    }
+
+    /**
+     * Test the case that cloud supply chain starts from single AvailabilityZone. Verify that it
+     * only requested once the complete supply chain starting from zone (without the limit to only
+     * traverse the path containing Region and Zone). Verify that the final supply chain contains
+     * expected entities: VM, Volume, Zone, Region. And verify that it didn't request another
+     * supply chain starting from zone to get Region like other cases (only traverse the path
+     * containing only Region and Zone).
+     */
+    @Test
+    public void testGetSingleSourceSupplyChainForCloudZone() throws Exception {
+        doReturn(Either.right(Stream.of(cloudVMNode1, cloudVolumeNode, cloudZoneNode, cloudRegionNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllStartingEntityOid(Lists.newArrayList(31L))
+                        .build()));
+
+        // verify that it only requested once the complete supply chain starting from zone
+        verify(graphDBService, times(1)).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+            eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+            eq(Collections.emptySet()),
+            eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        // verify that it didn't request another supply chain starting from zone
+        verify(graphDBService, times(0)).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+            eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+            eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
+            eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        assertEquals(4, nodes.size());
+        findAndCompareSupplyChainNode(nodes, cloudVMNode1);
+        findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
+        findAndCompareSupplyChainNode(nodes, cloudZoneNode);
+        findAndCompareSupplyChainNode(nodes, cloudRegionNode);
+    }
+
+    @Test
+    public void testGetSingleSourceSupplyChainForCloudRegion() throws Exception {
+        doReturn(Either.right(Stream.of(cloudVMNode1, cloudVolumeNode, cloudZoneNode, cloudRegionNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        doReturn(Either.right(Stream.of(cloudZoneNode, cloudRegionNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("41"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllStartingEntityOid(Lists.newArrayList(41L))
+                        .build()));
+
+        assertEquals(4, nodes.size());
+        findAndCompareSupplyChainNode(nodes, cloudVMNode1);
+        findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
+        findAndCompareSupplyChainNode(nodes, cloudZoneNode);
+        findAndCompareSupplyChainNode(nodes, cloudRegionNode);
+    }
+
+    @Test
+    public void testGetSingleSourceSupplyChainForAWSAccount() throws Exception {
+        // there is zone in returned supply chain nodes
+        doReturn(Either.right(Stream.of(cloudVMNode1, cloudVolumeNode, cloudZoneNode,
+                    cloudRegionNode, cloudAccountNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("51"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN));
+
+        doReturn(Either.right(Stream.of(cloudZoneNode, cloudRegionNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("31"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllStartingEntityOid(Lists.newArrayList(51L))
+                        .build()));
+
+        // check account node is removed
+        assertEquals(4, nodes.size());
+        findAndCompareSupplyChainNode(nodes, cloudVMNode1);
+        findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
+        findAndCompareSupplyChainNode(nodes, cloudZoneNode);
+        findAndCompareSupplyChainNode(nodes, cloudRegionNode);
+    }
+
+    @Test
+    public void testGetSingleSourceSupplyChainForAzureAccount() throws Exception {
+        // there is no zone in returned supply chain nodes
+        doReturn(Either.right(Stream.of(cloudVMNode1, cloudVolumeNode, cloudRegionNode, cloudAccountNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
+                eq("51"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllStartingEntityOid(Lists.newArrayList(51L))
+                        .build()));
+
+        // check account node is removed
+        assertEquals(3, nodes.size());
+        findAndCompareSupplyChainNode(nodes, cloudVMNode1);
+        findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
+        findAndCompareSupplyChainNode(nodes, cloudRegionNode);
+    }
+
     @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
         doReturn(Either.left("failed"))
             .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
-                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
             .hasCode(Code.INTERNAL)
@@ -282,10 +570,14 @@ public class SupplyChainRpcServiceTest {
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
                 .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
-                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
                 .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
-                eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -335,10 +627,14 @@ public class SupplyChainRpcServiceTest {
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
                 .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
-                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
                 .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
-                eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)));
+                eq("91011"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+                eq(Collections.emptySet()),
+                eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -387,6 +683,17 @@ public class SupplyChainRpcServiceTest {
             .setContextId(1234L)
             .setEnvironmentType(EnvironmentType.CLOUD)
             .build()));
+    }
+
+    /**
+     * Find the same type of supply chain node from the list and compare them.
+     */
+    private void findAndCompareSupplyChainNode(List<SupplyChainNode> list, SupplyChainNode node) {
+        Optional<SupplyChainNode> optionalSupplyChainNode = list.stream()
+                .filter(supplyChainNode -> supplyChainNode.getEntityType().equals(node.getEntityType()))
+                .findAny();
+        assertTrue(optionalSupplyChainNode.isPresent());
+        compareSupplyChainNode(node, optionalSupplyChainNode.get());
     }
 
     /**

@@ -124,8 +124,14 @@ public class SupplyChainService {
                     )));
         } else {
             return Mono.fromCallable(() -> {
+                // do not specify inclusionEntityTypes or exclusionEntityTypes, since this is used
+                // by Search API in UI, where we want all entities to be searchable.
+                // For example: we don't want to show BusinessAccount in supply chain, but we want
+                // it to be searchable in UI.
                 final Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                    Optional.of(contextID), envType, startId, Optional.of(userSessionContext.getUserAccessScope()));
+                        Optional.of(contextID), envType, startId,
+                        Optional.of(userSessionContext.getUserAccessScope()),
+                        Collections.emptySet(), Collections.emptySet());
 
                 final Either<String, Map<String, Set<Long>>> e = supplyChain
                     .map(nodeStream -> nodeStream.collect(Collectors.toMap(

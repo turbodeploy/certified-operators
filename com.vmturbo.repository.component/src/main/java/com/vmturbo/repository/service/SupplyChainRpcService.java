@@ -8,6 +8,7 @@ import static javaslang.Patterns.Right;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,12 +27,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
@@ -43,6 +48,7 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 
 /**
  * A gRPC service for retrieving supply chain information.
@@ -79,6 +85,13 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             EntityType.BUSINESS_ACCOUNT_VALUE,
             EntityType.CLOUD_SERVICE_VALUE
     );
+
+    // the entity types to ignore when traversing the topology to construct account supply chain,
+    // BUSINESS_ACCOUNT should be inclueded since it is the starting vertex
+    public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN =
+            IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN.stream()
+                    .filter(entityType -> entityType != EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
 
     public SupplyChainRpcService(@Nonnull final GraphDBService graphDBService,
                                  @Nonnull final SupplyChainService supplyChainService,
@@ -244,9 +257,32 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
                                            @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
 
-        startingVertexOids.stream()
-            .map(oid -> getSingleSourceSupplyChain(oid, contextId, envType))
-            .forEach(supplyChainMerger::addSingleSourceSupplyChain);
+        // multiple starting entities may traverse to same zones in supply chain, we don't want
+        // to query supply chain for same zone multiple times, use a cache to improve performance
+        final Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion = Maps.newHashMap();
+        final Map<Long, SingleSourceSupplyChain> zoneSupplyChainComplete = Maps.newHashMap();
+
+        for (Long oid : startingVertexOids) {
+            Optional<String> startingVertexEntityTypeOpt = getRepoEntityType(oid);
+            if (!startingVertexEntityTypeOpt.isPresent()) {
+                continue;
+            }
+            final String startingVertexEntityType = startingVertexEntityTypeOpt.get();
+            final SingleSourceSupplyChain singleSourceSupplyChain = getSingleSourceSupplyChain(oid,
+                contextId, envType, Collections.emptySet(), getExclusionEntityTypes(startingVertexEntityType));
+
+            // remove BusinessAccount from supply chain nodes, since we don't want to show it
+            if (RepoEntityType.BUSINESS_ACCOUNT.getValue().equals(startingVertexEntityType)) {
+                singleSourceSupplyChain.removeSupplyChainNodes(Sets.newHashSet(RepoEntityType.BUSINESS_ACCOUNT));
+            }
+
+            // add supply chain starting from original entity
+            supplyChainMerger.addSingleSourceSupplyChain(singleSourceSupplyChain);
+
+            // handle the special case for cloud if zone is returned in supply chain
+            getAndAddSupplyChainFromZone(singleSourceSupplyChain, supplyChainMerger,
+                startingVertexEntityType, contextId, envType, zoneSupplyChainComplete, zoneSupplyChainOnlyRegion);
+        }
 
         final MergedSupplyChain supplyChain = supplyChainMerger.merge();
         if (supplyChain.errors.isEmpty()) {
@@ -264,13 +300,87 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     }
 
     /**
+     * Handles the special case for cloud if zone is returned in supply chain. In current cloud
+     * topology, we can not traverse to region if not starting from zone. So if any zone is in the
+     * supply chain, we need to get another supply chain starting from zone and then merge onto
+     * existing one.
+     */
+    private void getAndAddSupplyChainFromZone(
+                    @Nonnull SingleSourceSupplyChain singleSourceSupplyChain,
+                    @Nonnull SupplyChainMerger supplyChainMerger,
+                    @Nonnull String startingVertexEntityType,
+                    @Nonnull Optional<Long> contextId,
+                    @Nonnull Optional<UIEnvironmentType> envType,
+                    @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainComplete,
+                    @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion) {
+        // collect all the availability zones' ids returned by the supply chain
+        final Set<Long> zoneIds = singleSourceSupplyChain.getSupplyChainNodes().stream()
+            .filter(supplyChainNode -> RepoEntityType.AVAILABILITY_ZONE.getValue().equals(
+                supplyChainNode.getEntityType()))
+            .flatMap(supplyChainNode -> RepositoryDTOUtil.getAllMemberOids(supplyChainNode).stream())
+            .collect(Collectors.toSet());
+
+        if (RepoEntityType.REGION.getValue().equals(startingVertexEntityType)) {
+            // if starting from region, we can only get all related zones, we need to
+            // traverse all paths starting from zones to find other entities, so we set
+            // inclusionEntityTypes to be empty
+            zoneIds.stream()
+                .map(zoneId -> zoneSupplyChainComplete.computeIfAbsent(zoneId,
+                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType,
+                        Collections.emptySet(),
+                        getExclusionEntityTypes(RepoEntityType.AVAILABILITY_ZONE.getValue()))))
+                .forEach(supplyChainMerger::addSingleSourceSupplyChain);
+        } else if (!RepoEntityType.AVAILABILITY_ZONE.getValue().equals(startingVertexEntityType)) {
+            // if starting from other entity types (not zone, since we can get all we need
+            // starting from zone), it can not traverse to regions due to current
+            // topology relationship, we need to traverse from zone and get the related
+            // region, but we don't want to traverse all paths, so we set inclusionEntityTypes
+            // to be ["AvailabilityZone", "Region"] to improve performance
+            zoneIds.stream()
+                .map(zoneId -> zoneSupplyChainOnlyRegion.computeIfAbsent(zoneId,
+                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType,
+                        Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
+                        getExclusionEntityTypes(RepoEntityType.AVAILABILITY_ZONE.getValue()))))
+                .forEach(supplyChainMerger::addSingleSourceSupplyChain);
+        }
+    }
+
+    /**
+     * Query ArangoDB and get the entity type for the given entity oid.
+     *
+     * @param oid oid of the entity to get entity type for
+     * @return entity type in the string value of {@link RepoEntityType}
+     */
+    public Optional<String> getRepoEntityType(@Nonnull Long oid) {
+        Either<String, Collection<ServiceEntityApiDTO>> result =
+            graphDBService.searchServiceEntityById(Long.toString(oid));
+        return Match(result).of(
+            Case(Right($()), entity -> entity.size() == 1
+                ? Optional.of(entity.iterator().next().getClassName())
+                : Optional.empty()),
+            Case(Left($()), err -> Optional.empty())
+        );
+    }
+
+    /**
+     * Get the exclusion entity types for the given starting entity type.
+     */
+    private Set<Integer> getExclusionEntityTypes(@Nonnull String startingVertexEntityType) {
+        return RepoEntityType.BUSINESS_ACCOUNT.getValue().equals(startingVertexEntityType)
+            ? IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN
+            : IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
+    }
+
+    /**
      * Get the supply chain local to a specific starting node by walking the graph topology beginning
      * with the starting node. The search is done within the topology corresponding to the given
      * topology context ID, which might be the Live Topology or a Plan Topology.
      */
     private SingleSourceSupplyChain getSingleSourceSupplyChain(@Nonnull final Long startingVertexOid,
                                      @Nonnull final Optional<Long> contextId,
-                                     @Nonnull final Optional<UIEnvironmentType> envType) {
+                                     @Nonnull final Optional<UIEnvironmentType> envType,
+                                     @Nonnull final Set<Integer> inclusionEntityTypes,
+                                     @Nonnull final Set<Integer> exclusionEntityTypes) {
         logger.debug("Getting a supply chain starting from {} in topology {}",
             startingVertexOid, contextId.map(Object::toString).orElse("DEFAULT"));
         final SingleSourceSupplyChain singleSourceSupplyChain = new SingleSourceSupplyChain();
@@ -278,7 +388,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
                 contextId, envType, startingVertexOid.toString(),
-                    Optional.of(userSessionContext.getUserAccessScope()));
+                    Optional.of(userSessionContext.getUserAccessScope()),
+                    inclusionEntityTypes, exclusionEntityTypes);
 
             Match(supplyChain).of(
                 Case(Right($()), v -> {
@@ -320,6 +431,41 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
          */
         List<SupplyChainNode> getSupplyChainNodes() {
             return supplyChainNodes;
+        }
+
+        /**
+         * Remove SupplyChainNodes for the given set of entity types. For example: we get supply
+         * chain starting from BusinessAccount, but we don't want to show BusinessAccount node in
+         * the supply chain, then we need to remove the BusinessAccount node and modify related nodes.
+         *
+         * @param repoEntityTypes the set of entity types {@link RepoEntityType} to remove SupplyChainNode for
+         */
+        void removeSupplyChainNodes(@Nonnull Set<RepoEntityType> repoEntityTypes) {
+            final Set<String> entityTypes = repoEntityTypes.stream()
+                .map(RepoEntityType::getValue)
+                .collect(Collectors.toSet());
+
+            final List<SupplyChainNode> newSupplyChainNodes = supplyChainNodes.stream()
+                    // e.g. remove BusinessAccount node
+                    .filter(supplyChainNode -> !entityTypes.contains(supplyChainNode.getEntityType()))
+                    .map(supplyChainNode -> {
+                        final SupplyChainNode.Builder nodeBuilder = supplyChainNode.toBuilder();
+                        // e.g. remove BusinessAccount from nodes providers list
+                        nodeBuilder.clearConnectedProviderTypes();
+                        nodeBuilder.addAllConnectedProviderTypes(
+                            supplyChainNode.getConnectedProviderTypesList().stream()
+                                .filter(type -> !entityTypes.contains(type))
+                                .collect(Collectors.toList()));
+                        // e.g. remove BusinessAccount from nodes consumers list
+                        nodeBuilder.clearConnectedConsumerTypes();
+                        nodeBuilder.addAllConnectedConsumerTypes(
+                            supplyChainNode.getConnectedConsumerTypesList().stream()
+                                .filter(type -> !entityTypes.contains(type))
+                                .collect(Collectors.toList()));
+                        return nodeBuilder.build();
+                    }).collect(Collectors.toList());
+            supplyChainNodes.clear();
+            supplyChainNodes.addAll(newSupplyChainNodes);
         }
 
         /**

@@ -8,7 +8,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.Multimap;
 
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -70,20 +69,29 @@ public abstract class GraphCmd {
         private final TopologyDatabase topologyDatabase;
         // the entity access scope represents the set of entities a user has access to.
         private final Optional<EntityAccessScope> entityAccessScope;
-
+        // the inclusion entity types in the path, which means it will traverse the path
+        // if and only if the entity types in this path contains the provided set
+        private final Set<Integer> inclusionEntityTypes;
+        // the exclusion entity types in the path, which means it will not traverse the
+        // path if the path contains entities of any type within the provided set
+        private final Set<Integer> exclusionEntityTypes;
 
         public GetSupplyChain(@Nonnull final String startingVertex,
                               @Nonnull final Optional<UIEnvironmentType> environmentType,
                               final TopologyDatabase topologyDatabase,
                               final String graphName,
                               final String vertexCollection,
-                              final Optional<EntityAccessScope> entityAccessScope) {
+                              final Optional<EntityAccessScope> entityAccessScope,
+                              final Set<Integer> inclusionEntityTypes,
+                              final Set<Integer> exclusionEntityTypes) {
             this.startingVertex = startingVertex;
             this.environmentType = environmentType;
             this.topologyDatabase = topologyDatabase;
             this.graphName = graphName;
             this.vertexCollection = vertexCollection;
             this.entityAccessScope = entityAccessScope;
+            this.inclusionEntityTypes = inclusionEntityTypes;
+            this.exclusionEntityTypes = exclusionEntityTypes;
         }
 
         public String getGraphName() {
@@ -109,6 +117,14 @@ public abstract class GraphCmd {
 
         public Optional<EntityAccessScope> getEntityAccessScope() {
             return entityAccessScope;
+        }
+
+        public Set<Integer> getInclusionEntityTypes() {
+            return inclusionEntityTypes;
+        }
+
+        public Set<Integer> getExclusionEntityTypes() {
+            return exclusionEntityTypes;
         }
 
         @Override
