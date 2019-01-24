@@ -4,6 +4,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -59,6 +62,14 @@ public class MutableFixedClock extends Clock {
         synchronized (clockLock) {
             curFixedClock = Clock.fixed(newInstant, getZone());
         }
+    }
+
+    public void addTime(final long amount, @Nonnull final TemporalUnit units) {
+        changeInstant(curFixedClock.instant().plus(amount, units));
+    }
+
+    public void removeTime(final long amount, @Nonnull final TemporalUnit units) {
+        changeInstant(curFixedClock.instant().minus(amount, units));
     }
 }
 

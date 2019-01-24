@@ -13,7 +13,7 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
 /**

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +28,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.St
 import com.vmturbo.action.orchestrator.stats.rollup.HourActionStatTable.HourlyReader;
 import com.vmturbo.action.orchestrator.stats.rollup.HourActionStatTable.HourlyWriter;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 public class HourActionStatTableTest {
 
@@ -51,8 +53,15 @@ public class HourActionStatTableTest {
 
     @Test
     public void testWriterIsPresent() {
-        assertTrue(hourActionStatTable.writer().isPresent());
-        assertTrue(hourActionStatTable.writer().get() instanceof HourlyWriter);
+        assertTrue(hourActionStatTable.writer() instanceof HourlyWriter);
+    }
+
+    @Test
+    public void testTrimTime() {
+        final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
+        when(retentionPeriods.hourlyRetentionHours()).thenReturn(1);
+        final LocalDateTime trimmedTime = hourActionStatTable.getTrimTime(retentionPeriods);
+        assertThat(trimmedTime, is(LocalDateTime.now(clock).minusHours(1).truncatedTo(ChronoUnit.HOURS)));
     }
 
     @Test
@@ -96,7 +105,7 @@ public class HourActionStatTableTest {
     @Test
     public void testWriterSummaryToRecord() {
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 1, 0);
-        final HourlyWriter writer = (HourlyWriter)hourActionStatTable.writer().get();
+        final HourlyWriter writer = (HourlyWriter)hourActionStatTable.writer();
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final ActionStatsByHourRecord record =
@@ -134,7 +143,7 @@ public class HourActionStatTableTest {
 
     @Test
     public void testWriterStatRecord() {
-        final HourlyWriter writer = (HourlyWriter)hourActionStatTable.writer().get();
+        final HourlyWriter writer = (HourlyWriter)hourActionStatTable.writer();
         final LocalDateTime time =
             LocalDateTime.ofEpochSecond(100000, 10000, ZoneOffset.UTC);
         final int numActionSnapshots = 10;
@@ -146,7 +155,7 @@ public class HourActionStatTableTest {
 
     @Test
     public void testReaderToGroupStatRoundTrip() {
-        final HourlyWriter writer = (HourlyWriter) hourActionStatTable.writer().get();
+        final HourlyWriter writer = (HourlyWriter) hourActionStatTable.writer();
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;

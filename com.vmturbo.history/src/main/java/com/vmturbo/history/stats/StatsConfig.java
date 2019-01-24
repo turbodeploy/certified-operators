@@ -11,19 +11,22 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.live.SystemLoadWriter;
-import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
@@ -33,20 +36,21 @@ import com.vmturbo.history.utils.SystemLoadHelper;
  * Spring configuration for Stats RPC service related objects.
  **/
 @Configuration
-@Import({HistoryDbConfig.class})
+@Import({HistoryDbConfig.class,
+    GroupClientConfig.class})
 public class StatsConfig {
 
     @Autowired
     private HistoryDbConfig historyDbConfig;
 
-    @Value("${numRetainedMinutes}")
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
+    @Value("${retention.numRetainedMinutes}")
     private int numRetainedMinutes;
 
-    @Value("${numRetainedHours}")
-    private int numRetainedHours;
-
-    @Value("${numRetainedDays}")
-    private int numRetainedDays;
+    @Value("${retention.updateRetentionIntervalSeconds}")
+    private int updateRetentionIntervalSeconds;
 
     @Value("${latestTableTimeWindowMin}")
     private int latestTableTimeWindowMin;
@@ -95,8 +99,15 @@ public class StatsConfig {
     }
 
     @Bean
+    public RetentionPeriodFetcher retentionPeriodFetcher() {
+        return new RetentionPeriodFetcher(Clock.systemUTC(), updateRetentionIntervalSeconds,
+            TimeUnit.SECONDS, numRetainedMinutes,
+            SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+    }
+
+    @Bean
     public HistoryTimeFrameCalculator timeFrameCalculator() {
-        return new HistoryTimeFrameCalculator(Clock.systemUTC(), numRetainedMinutes, numRetainedHours, numRetainedDays);
+        return new HistoryTimeFrameCalculator(Clock.systemUTC(), retentionPeriodFetcher());
     }
 
     @Bean

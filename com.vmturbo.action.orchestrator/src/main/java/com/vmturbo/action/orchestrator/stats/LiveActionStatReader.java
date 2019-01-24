@@ -32,10 +32,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats.ActionStatSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.GroupBy;
-import com.vmturbo.components.api.TimeFrameCalculator;
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.proactivesupport.DataMetricCounter;
-import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
  * Responsible for handling historical action stats queries for the "live" (or realtime)

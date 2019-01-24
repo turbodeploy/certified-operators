@@ -10,7 +10,9 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.api.TimeFrameCalculator;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.TimeFrame;
 
 /**
@@ -23,11 +25,8 @@ public class HistoryTimeFrameCalculator {
     private TimeFrameCalculator timeFrameCalculator;
 
     public HistoryTimeFrameCalculator(@Nonnull final Clock clock,
-                                      final int numRetainedMinutes,
-                                      final int numRetainedHours,
-                                      final int numRetainedDays) {
-        this.timeFrameCalculator = new TimeFrameCalculator(clock,
-            numRetainedMinutes, numRetainedHours, numRetainedDays);
+                                      @Nonnull final RetentionPeriodFetcher retentionPeriodFetcher) {
+        this.timeFrameCalculator = new TimeFrameCalculator(clock, retentionPeriodFetcher);
     }
 
     /**

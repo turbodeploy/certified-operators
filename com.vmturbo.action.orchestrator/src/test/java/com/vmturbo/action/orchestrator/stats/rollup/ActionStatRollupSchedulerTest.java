@@ -8,7 +8,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -128,27 +127,6 @@ public class ActionStatRollupSchedulerTest {
 
         // Should run the rollup twice.
         verify(rollup, timeout(1000).times(2)).run();
-    }
-
-    @Test
-    public void testScheduleRollupNoReSubmitSucceededRollup() {
-        final ActionStatRollup rollup = mock(ActionStatRollup.class);
-
-        when(rollupFactory.newRollup(any())).thenReturn(rollup);
-
-        final ActionStatRollupScheduler rollupScheduler =
-            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupFactory);
-
-        // Run to schedule the rollup.
-        rollupScheduler.scheduleRollups();
-        // The rollup completes after we "trim" the succeeded rollups, but before we schedule
-        // the new one. Completes with "true", which means succeeded.
-        when(rollup.completionStatus()).thenReturn(Optional.empty(), Optional.of(true));
-        // Schedule roll-up again. It shouldn't get re-submitted, because the first one succeeded.
-        rollupScheduler.scheduleRollups();
-
-        // Should run the rollup twice.
-        verify(rollup, timeout(1000).times(1)).run();
     }
 
     @Test

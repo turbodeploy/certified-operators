@@ -3,9 +3,9 @@ package com.vmturbo.action.orchestrator.stats.rollup;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.Month;
@@ -21,6 +21,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActi
 import com.vmturbo.action.orchestrator.stats.rollup.MonthActionStatTable.MonthlyReader;
 import com.vmturbo.action.orchestrator.stats.rollup.MonthActionStatTable.MonthlyWriter;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 public class MonthActionStatTableTest {
 
@@ -42,14 +43,24 @@ public class MonthActionStatTableTest {
 
     @Test
     public void testWriterIsPresent() {
-        assertTrue(monthActionStatTable.writer().isPresent());
-        assertTrue(monthActionStatTable.writer().get() instanceof MonthlyWriter);
+        assertTrue(monthActionStatTable.writer() instanceof MonthlyWriter);
+    }
+
+    @Test
+    public void testTrimTime() {
+        final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
+        when(retentionPeriods.monthlyRetentionMonths()).thenReturn(1);
+
+        final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 1, 1);
+        clock.changeInstant(time.toInstant(ZoneOffset.UTC));
+        final LocalDateTime trimmedTime = monthActionStatTable.getTrimTime(retentionPeriods);
+        assertThat(trimmedTime, is(LocalDateTime.of(2018, Month.AUGUST, 1, 0, 0)));
     }
 
     @Test
     public void testWriterSummaryToRecord() {
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
-        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer().get();
+        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer();
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
         final ActionStatsByMonthRecord record =
@@ -87,7 +98,7 @@ public class MonthActionStatTableTest {
 
     @Test
     public void testWriterStatRecord() {
-        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer().get();
+        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer();
         final LocalDateTime time =
             LocalDateTime.ofEpochSecond(100000, 10000, ZoneOffset.UTC);
         final int numActionSnapshots = 10;
@@ -99,7 +110,7 @@ public class MonthActionStatTableTest {
 
     @Test
     public void testReaderToGroupStatRoundTrip() {
-        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer().get();
+        final MonthlyWriter writer = (MonthlyWriter) monthActionStatTable.writer();
         final LocalDateTime time = LocalDateTime.of(2018, Month.SEPTEMBER, 1, 0, 0);
         final int mgmtSubgroupId = 1;
         final int actionGroupId = 2;
