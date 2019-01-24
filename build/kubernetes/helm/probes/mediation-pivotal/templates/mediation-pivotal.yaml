@@ -1,24 +1,10 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    zone: dmz
-    io.kompose.service: auth
-  name: {{ .Chart.Name }}
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   labels:
-    zone: dmz
-    io.kompose.service: auth
-  name: {{ .Chart.Name }}
+    zone: secure
+    io.kompose.service: mediation-pivotal
+  name: mediation-pivotal
 spec:
   replicas: 1
   strategy:
@@ -26,16 +12,18 @@ spec:
   template:
     metadata:
       labels:
-        zone: dmz
-        io.kompose.service: auth
+        zone: secure
+        io.kompose.service: mediation-pivotal
     spec:
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "image" . }}
+        image: {{ template "pivotal_image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: JAVA_OPTS
           value: {{ .Values.java.options }}
+        - name: LOG4J_CONTEXT_SELECTOR
+          value: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -43,20 +31,15 @@ spec:
         - name: clustermgr_retry_delay_sec
           value: "10"
         - name: component_type
-          value: auth
+          value: mediation-pivotal
         - name: consul_host
           value: consul
         - name: instance_id
-          value: auth-1
-        - name: kafkaServers
-          value: kafka:9092
+          value: mediation-pivotal-1
         readinessProbe:
           httpGet:
             port: 8080
             path: /health
-        ports:
-        - containerPort: 8080
-          name: auth-port
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
@@ -64,41 +47,32 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /home/turbonomic/data
-          name: auth
         - mountPath: /tmp
-          name: auth-tmpfs0
+          name: mediation-pivotal-tmpfs0
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
       volumes:
-      - name: auth
-        persistentVolumeClaim:
-          claimName: auth
       - emptyDir:
           medium: Memory
-        name: auth-tmpfs0
+        name: mediation-pivotal-tmpfs0
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    zone: dmz
-    io.kompose.service: auth
-  name: {{ .Chart.Name }}
+    zone: secure
+    io.kompose.service: mediation-pivotal
+  name: mediation-pivotal
 spec:
   ports:
-  - name: auth
+  - name: mediation-pivotal
     port: 8080
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
-  - name: auth-debug
+  - name: mediation-pivotal-debug
     port: 8000
   {{- end -}}
 {{- end }}
-  - name: "9001"
-    port: 9001
   selector:
-    io.kompose.service: auth
+    io.kompose.service: mediation-pivotal

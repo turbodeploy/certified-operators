@@ -38,9 +38,9 @@ dependencies:
     version: 0.1.0
 
 # Services dependencies
-#  - name: actionscript
-#    repository: file://../services/actionscript
-#    version: 0.1.0
+  - name: actionscript
+    repository: file://../services/actionscript
+    version: 0.1.0
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
@@ -118,6 +118,10 @@ dependencies:
     repository: file://../probes/mediation-azurevolumes
     version: 0.1.0
     condition: azurevolumes.enabled
+  - name: mediation-cloudfoundry
+    repository: file://../probes/mediation-cloudfoundry
+    version: 0.1.0
+    condition: cloudfoundry.enabled
   - name: mediation-compellent
     repository: file://../probes/mediation-compellent
     version: 0.1.0
@@ -154,6 +158,10 @@ dependencies:
     repository: file://../probes/mediation-openstack
     version: 0.1.0
     condition: openstack.enabled
+  - name: mediation-pivotal
+    repository: file://../probes/mediation-pivotal
+    version: 0.1.0
+    condition: pivotal.enabled
   - name: mediation-pure
     repository: file://../probes/mediation-pure
     version: 0.1.0
@@ -202,6 +210,10 @@ dependencies:
     repository: file://../probes/mediation-vplex
     version: 0.1.0
     condition: vplex.enabled
+  - name: mediation-wmi
+    repository: file://../probes/mediation-wmi
+    version: 0.1.0
+    condition: wmi.enabled
   - name: mediation-xtremio
     repository: file://../probes/mediation-xtremio
     version: 0.1.0
