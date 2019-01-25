@@ -25,11 +25,10 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStats
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
-import com.vmturbo.components.api.TimeFrameCalculator;
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
-import com.vmturbo.cost.component.reserved.instance.ProjectedRICoverageStore;
 
 /**
  * A rpc service for get reserved instance utilization and coverage stats.

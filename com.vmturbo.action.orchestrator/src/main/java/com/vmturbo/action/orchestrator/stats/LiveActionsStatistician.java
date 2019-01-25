@@ -37,6 +37,7 @@ import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -73,15 +74,18 @@ public class LiveActionsStatistician {
 
     private final ActionStatRollupScheduler actionStatRollupScheduler;
 
+    private final ActionStatCleanupScheduler actionStatCleanupScheduler;
+
     public LiveActionsStatistician(@Nonnull final DSLContext dsl,
-               final int batchSize,
-               @Nonnull final ActionGroupStore actionGroupStore,
-               @Nonnull final MgmtUnitSubgroupStore mgmtUnitSubgroupStore,
-               @Nonnull final SingleActionSnapshotFactory snapshotFactory,
-               @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
-               @Nonnull final Clock clock,
-               @Nonnull final ActionTranslator actionTranslator,
-               @Nonnull final ActionStatRollupScheduler rollupScheduler) {
+            final int batchSize,
+            @Nonnull final ActionGroupStore actionGroupStore,
+            @Nonnull final MgmtUnitSubgroupStore mgmtUnitSubgroupStore,
+            @Nonnull final SingleActionSnapshotFactory snapshotFactory,
+            @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
+            @Nonnull final Clock clock,
+            @Nonnull final ActionTranslator actionTranslator,
+            @Nonnull final ActionStatRollupScheduler rollupScheduler,
+            @Nonnull final ActionStatCleanupScheduler cleanupScheduler) {
         this.dslContext = Objects.requireNonNull(dsl);
         this.batchSize = batchSize;
         this.actionGroupStore = Objects.requireNonNull(actionGroupStore);
@@ -91,6 +95,7 @@ public class LiveActionsStatistician {
         this.aggregatorFactories = Objects.requireNonNull(aggregatorFactories);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.actionStatRollupScheduler = Objects.requireNonNull(rollupScheduler);
+        this.actionStatCleanupScheduler = Objects.requireNonNull(cleanupScheduler);
     }
 
     /**
@@ -255,7 +260,15 @@ public class LiveActionsStatistician {
             }
         }
 
-        actionStatRollupScheduler.scheduleRollups();
+        final int rollupsScheduled = actionStatRollupScheduler.scheduleRollups();
+        if (rollupsScheduled > 0) {
+            logger.info("Scheduled {} rollups.");
+        }
+
+        final int cleanupsScheduled = actionStatCleanupScheduler.scheduleCleanups();
+        if (cleanupsScheduled > 0) {
+            logger.info("Scheduled {} cleanups.");
+        }
     }
 
     /**

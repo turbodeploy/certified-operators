@@ -1,12 +1,14 @@
 package com.vmturbo.action.orchestrator.stats.rollup;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
  * An {@link ActionStatTable} for latest action stats. This is the table all stats initially go to.
@@ -66,13 +69,19 @@ public class LatestActionStatTable implements ActionStatTable {
      * {@inheritDoc}
      */
     @Override
-    public Optional<Writer> writer() {
-        // No writer for the latest table, because no tables roll over into it.
-        return Optional.empty();
+    public Writer writer() {
+        return new LatestWriter(dslContext, clock);
+    }
+
+    @Nonnull
+    @Override
+    public LocalDateTime getTrimTime(@Nonnull final RetentionPeriods retentionPeriods) {
+        return LATEST_TABLE_INFO.timeTruncateFn().apply(
+            LocalDateTime.now(clock).minusMinutes(retentionPeriods.latestRetentionMinutes()));
     }
 
     /**
-     * The {@link ActionStatTable.Reader} for the daily stats table.
+     * The {@link ActionStatTable.Reader} for the latest stats table.
      */
     @VisibleForTesting
     static class LatestReader extends BaseActionStatTableReader<ActionStatsLatestRecord, ActionSnapshotLatestRecord> {
@@ -126,6 +135,32 @@ public class LatestActionStatTable implements ActionStatTable {
                 .minInvestment(record.getTotalInvestment().doubleValue())
                 .maxInvestment(record.getTotalInvestment().doubleValue())
                 .build();
+        }
+    }
+
+    /**
+     * The {@link ActionStatTable.Writer} for the latest stats table.
+     *
+     * Note that the "abstract" method implementations shouldn't be called, since we never
+     * use this writer to insert stats into the latest table.
+     */
+    @VisibleForTesting
+    static class LatestWriter extends BaseActionStatTableWriter<ActionStatsLatestRecord, ActionSnapshotLatestRecord> {
+        protected LatestWriter(final DSLContext dslContext,
+                               final Clock clock) {
+            super(dslContext, clock, LATEST_TABLE_INFO);
+        }
+
+        @Nonnull
+        @Override
+        protected ActionStatsLatestRecord statRecord(final int mgmtUnitSubgroupId, final int actionGroupId, @Nonnull final LocalDateTime startTime, @Nonnull final RolledUpActionGroupStat rolledUpStat) {
+            throw new IllegalStateException("Unexpected call to create stat record for latest writer.");
+        }
+
+        @Nonnull
+        @Override
+        protected ActionSnapshotLatestRecord snapshotRecord(@Nonnull final LocalDateTime snapshotTime, final int totalNumActionSnapshots) {
+            throw new IllegalStateException("Unexpected call to create snapshot record for latest writer.");
         }
     }
 }

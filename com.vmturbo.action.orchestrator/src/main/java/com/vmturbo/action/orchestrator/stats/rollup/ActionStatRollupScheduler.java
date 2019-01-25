@@ -14,6 +14,7 @@ import javax.annotation.concurrent.GuardedBy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
+import org.jooq.exception.DataAccessException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -82,8 +83,10 @@ public class ActionStatRollupScheduler {
 
     /**
      * Schedule any possible roll-ups.
+     *
+     * @return The number of rollups scheduled by this call.
      */
-    public void scheduleRollups() {
+    public int scheduleRollups() {
         synchronized (scheduledRollupsLock) {
             // Remove completed rollups before we schedule new ones.
             // This means we will retry any failed rollups.
@@ -91,15 +94,24 @@ public class ActionStatRollupScheduler {
             if (scheduledRollups.values().removeIf(rollup -> rollup.completionStatus().isPresent())) {
                 logger.info("Trimmed {} completed rollups.", beforeSize - scheduledRollups.size());
             }
-            rollupDirections.forEach(rollupDirection -> {
-                final List<RollupReadyInfo> rollupReadyTimes =
-                    rollupDirection.fromTableReader().rollupReadyTimes();
+
+            int numQueued = 0;
+            for (final RollupDirection rollupDirection : rollupDirections) {
+                final List<RollupReadyInfo> rollupReadyTimes;
+                try {
+                    rollupReadyTimes = rollupDirection.fromTableReader().rollupReadyTimes();
+                } catch (DataAccessException e) {
+                    logger.error("Failed to get rollup-ready times for rollup {}. " +
+                        "Skipping this rollup. Error: {}", rollupDirection, e.getLocalizedMessage());
+                    continue;
+                }
 
                 logger.debug("{} time periods ready for rollup {}",
                     rollupReadyTimes.size(), rollupDirection);
 
-                rollupReadyTimes.forEach(time -> {
-                    time.managementUnits().forEach(mgmtUnitSubgroupId -> {
+
+                for (final RollupReadyInfo time : rollupReadyTimes) {
+                    for (final Integer mgmtUnitSubgroupId : time.managementUnits()) {
                         final ScheduledRollupInfo rollupInfo = ImmutableScheduledRollupInfo.builder()
                             .rollupDirection(rollupDirection)
                             .startTime(time.startTime())
@@ -115,16 +127,22 @@ public class ActionStatRollupScheduler {
                             final ActionStatRollup newRollup = rollupFactory.newRollup(rollupInfo);
                             scheduledRollups.put(rollupInfo, newRollup);
                             // Increment the number of queued rollups.
-                            NUM_ROLLUPS_QUEUED.increment();
+                            //
+                            // We track the number queued separately from the metric, because
+                            // the metric may be decremented at any time by one of the scheduled rollups
+                            // on a different thread.
+                            numQueued++;
+                            Metrics.NUM_ROLLUPS_QUEUED.increment();
                             executorService.submit(newRollup);
                         } else {
                             logger.trace("Skipping scheduling of rollup {} because {}",
                                 rollupInfo, existingStillRunning ?
                                     "it's still running." : "it already succeeded.");
                         }
-                    });
-                });
-            });
+                    };
+                }
+            }
+            return numQueued;
         }
     }
 
@@ -207,17 +225,19 @@ public class ActionStatRollupScheduler {
         ActionStatRollup newRollup(@Nonnull final ScheduledRollupInfo scheduledRollupInfo);
     }
 
-    static final DataMetricGauge NUM_ROLLUPS_QUEUED = DataMetricGauge.builder()
-        .withName("ao_num_stat_rollups_queued")
-        .withHelp("Number of action stat rollups currently queued.")
-        .build()
-        .register();
+    static class Metrics {
+        static final DataMetricGauge NUM_ROLLUPS_QUEUED = DataMetricGauge.builder()
+            .withName("ao_num_stat_rollups_queued")
+            .withHelp("Number of action stat rollups currently queued.")
+            .build()
+            .register();
 
-    static final DataMetricGauge NUM_ROLLUPS_RUNNING = DataMetricGauge.builder()
-        .withName("ao_num_stat_rollups_running")
-        .withHelp("Number of action stat rollups currently running.")
-        .build()
-        .register();
+        static final DataMetricGauge NUM_ROLLUPS_RUNNING = DataMetricGauge.builder()
+            .withName("ao_num_stat_rollups_running")
+            .withHelp("Number of action stat rollups currently running.")
+            .build()
+            .register();
+    }
 
     /**
      * Rolls records from one table to the other.
@@ -252,9 +272,9 @@ public class ActionStatRollupScheduler {
         @Override
         public void run() {
             // No longer queued.
-            NUM_ROLLUPS_QUEUED.decrement();
+            Metrics.NUM_ROLLUPS_QUEUED.decrement();
             // Running now.
-            NUM_ROLLUPS_RUNNING.increment();
+            Metrics.NUM_ROLLUPS_RUNNING.increment();
             try {
                 logger.debug("Starting rollup:{}", scheduledRollupInfo);
                 final RollupDirection rollupDirection = scheduledRollupInfo.rollupDirection();
@@ -271,7 +291,7 @@ public class ActionStatRollupScheduler {
                 completed.trySetValue(false);
             } finally {
                 // No longer running.
-                NUM_ROLLUPS_RUNNING.decrement();
+                Metrics.NUM_ROLLUPS_RUNNING.decrement();
             }
         }
 

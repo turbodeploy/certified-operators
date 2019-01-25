@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 
 import org.jooq.Table;
 
-import com.vmturbo.components.api.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
 /**

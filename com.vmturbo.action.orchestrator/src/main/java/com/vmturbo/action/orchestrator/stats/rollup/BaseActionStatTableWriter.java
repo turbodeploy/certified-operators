@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActi
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.TableInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.Writer;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
@@ -92,6 +93,34 @@ public abstract class BaseActionStatTableWriter<STAT_RECORD extends Record, SNAP
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void trim(@Nonnull final LocalDateTime trimToTime) {
+        try (DataMetricTimer timer = Metrics.CLEANUP_DURATION_HIST
+                .labels(tableInfo.shortTableName())
+                .startTimer()) {
+            final int numRowsDeleted = dslContext.deleteFrom(tableInfo.statTable())
+                .where(tableInfo.statTableSnapshotTime().lessThan(trimToTime))
+                .execute();
+
+            Metrics.NUM_ROWS_CLEANED_UP
+                .labels(tableInfo.shortTableName())
+                .observe((double)numRowsDeleted);
+
+            final int numSnapshotsDeleted = dslContext.deleteFrom(tableInfo.snapshotTable())
+                .where(tableInfo.snapshotTableSnapshotTime().lessThan(trimToTime))
+                .execute();
+
+            Metrics.NUM_SNAPSHOTS_CLEANED_UP
+                .labels(tableInfo.shortTableName())
+                .observe((double)numSnapshotsDeleted);
+
+            logger.info("Trimed {} stat rows and {} snapshot rows.", numRowsDeleted, numSnapshotsDeleted);
+        }
+    }
+
     private void doInsert(@Nonnull final DSLContext transaction,
                           final int mgmtUnitSubgroupId,
                           @Nonnull final RolledUpActionStats rolledUpStats) {
@@ -125,5 +154,43 @@ public abstract class BaseActionStatTableWriter<STAT_RECORD extends Record, SNAP
             .set(snapshotRecord)
             .onDuplicateKeyIgnore()
             .execute();
+    }
+
+    static class Metrics {
+
+        static final String TABLE_NAME_LABEL = "table";
+
+        static final DataMetricHistogram NUM_ROWS_CLEANED_UP = DataMetricHistogram.builder()
+            .withName("ao_stat_table_num_rows_cleaned_up")
+            .withHelp("The amount of rows in a particular cleanup operation (for a specific time range)")
+            // Since we schedule cleanups soon after a time falls out of range, we don't expect
+            // to be removing a lot of rows - roughly as much as can be accumulated in a single
+            // time unit. However, we keep some large buckets to be able to see if our assumptions
+            // hold in an actual customer's environment.
+            .withBuckets(500, 1000, 5000, 10_000, 50_000, 100_000, 1_000_000)
+            .withLabelNames(TABLE_NAME_LABEL)
+            .build()
+            .register();
+
+        static final DataMetricHistogram NUM_SNAPSHOTS_CLEANED_UP = DataMetricHistogram.builder()
+            .withName("ao_stat_table_num_snapshots_cleaned_up")
+            .withHelp("The amount of snapshots in a particular cleanup operation (for a specific time range)")
+            // Generally we should be doing the cleanups eagerly, so if the number of snapshots
+            // cleaned up is high it means we're falling behind!
+            .withBuckets(1.1, 2, 5, 10, 20)
+            .withLabelNames(TABLE_NAME_LABEL)
+            .build()
+            .register();
+
+        static final DataMetricHistogram CLEANUP_DURATION_HIST = DataMetricHistogram.builder()
+            .withName("ao_stat_table_cleanup_duration_seconds")
+            .withHelp("The duration of a particular cleanup operation, in seconds (for a specific time range).")
+            // Cleanup operations are not very time critical, so we don't care about the
+            // very low time ranges, but we expect them to finish relatively quickly.
+            // The high buckets are just to track how "bad" long-running cleanups are.
+            .withBuckets(5, 10, 30, 60, 300, 1800, 7200)
+            .withLabelNames(TABLE_NAME_LABEL)
+            .build()
+            .register();
     }
 }

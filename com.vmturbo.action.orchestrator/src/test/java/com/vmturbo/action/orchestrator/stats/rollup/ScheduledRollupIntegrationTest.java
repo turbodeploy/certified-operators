@@ -100,7 +100,7 @@ public class ScheduledRollupIntegrationTest {
         final ActionStatRollupScheduler scheduler = new ActionStatRollupScheduler(
             Collections.singletonList(ImmutableRollupDirection.builder()
                 .fromTableReader(latestTable.reader())
-                .toTableWriter(hourTable.writer().get())
+                .toTableWriter(hourTable.writer())
                 .description("latest to hour")
                 .build()), executorService);
 
@@ -351,7 +351,7 @@ public class ScheduledRollupIntegrationTest {
         final ActionStatRollupScheduler scheduler = new ActionStatRollupScheduler(
             Collections.singletonList(ImmutableRollupDirection.builder()
                 .fromTableReader(hourTable.reader())
-                .toTableWriter(dayTable.writer().get())
+                .toTableWriter(dayTable.writer())
                 .description("hour to day")
                 .build()), executorService);
 
@@ -626,7 +626,7 @@ public class ScheduledRollupIntegrationTest {
         final ActionStatRollupScheduler scheduler = new ActionStatRollupScheduler(
             Collections.singletonList(ImmutableRollupDirection.builder()
                 .fromTableReader(dayTable.reader())
-                .toTableWriter(monthTable.writer().get())
+                .toTableWriter(monthTable.writer())
                 .description("day to month")
                 .build()), executorService);
 

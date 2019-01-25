@@ -4,7 +4,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -17,6 +19,8 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 import com.vmturbo.history.db.TimeFrame;
 
 /**
@@ -72,8 +76,16 @@ public class StatsReaderTimeframeTest {
         final int NUM_RETAINED_DAYS=60;
 
         final Clock clock = Clock.systemUTC();
+        final RetentionPeriodFetcher retentionPeriodFetcher = mock(RetentionPeriodFetcher.class);
+
+        final RetentionPeriods retentionPeriods = mock(RetentionPeriods.class);
+        when(retentionPeriods.latestRetentionMinutes()).thenReturn(NUM_RETAINED_MINUTES);
+        when(retentionPeriods.hourlyRetentionHours()).thenReturn(NUM_RETAINED_HOURS);
+        when(retentionPeriods.dailyRetentionDays()).thenReturn(NUM_RETAINED_DAYS);
+        when(retentionPeriodFetcher.getRetentionPeriods()).thenReturn(retentionPeriods);
+
         final HistoryTimeFrameCalculator timeFrameCalculator =
-                new HistoryTimeFrameCalculator(clock, NUM_RETAINED_MINUTES, NUM_RETAINED_HOURS, NUM_RETAINED_DAYS);
+                new HistoryTimeFrameCalculator(clock, retentionPeriodFetcher);
 
         final long NOW = clock.millis();
 
