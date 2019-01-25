@@ -1,6 +1,7 @@
 package com.vmturbo.auth.api.authorization;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -122,7 +123,7 @@ public class UserSessionContextTest {
                 .build();
 
         populateUserSessionWithScope(Arrays.asList(1L));
-        when(userScopeService.getCurrentUserEntityAccessScopeMembers(any())).thenReturn(response);
+        doReturn(response).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
         EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
@@ -151,7 +152,7 @@ public class UserSessionContextTest {
                 .build();
 
         populateUserSessionWithScope(Arrays.asList(1L));
-        when(userScopeService.getCurrentUserEntityAccessScopeMembers(any())).thenReturn(response);
+        doReturn(response).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
         EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
@@ -188,7 +189,7 @@ public class UserSessionContextTest {
         int startTime = 1;
         // set the clock to startTime
         when(mockClock.instant()).thenReturn(Instant.ofEpochSecond(startTime));
-        when(userScopeService.getCurrentUserEntityAccessScopeMembers(any())).thenReturn(response);
+        doReturn(response).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
         EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
@@ -200,10 +201,9 @@ public class UserSessionContextTest {
                         .setArray(OidArray.newBuilder()
                                 .addAllOids(newOids)))
                 .build();
-        when(userScopeService.getCurrentUserEntityAccessScopeMembers(any()))
-                .thenReturn(EntityAccessScopeResponse.newBuilder()
-                    .setEntityAccessScopeContents(newContents)
-                .build());
+        doReturn(EntityAccessScopeResponse.newBuilder()
+            .setEntityAccessScopeContents(newContents)
+            .build()).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
 
         // advance the clock just shy of the expiration time
         when(mockClock.instant()).thenReturn(Instant.ofEpochSecond(startTime + cacheExpirationSecs - 1));
