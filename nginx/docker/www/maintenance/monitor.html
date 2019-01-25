@@ -180,37 +180,55 @@
         var loaded = false;
         var startTime;
         var failed = false;
-        function checkPort() {
+
+        // Interval for checking that we can reach the API component.
+        var apiCheckInterval = null;
+
+        // Interval for getting the status and updating the counter.
+        var statusUpdateInterval = null;
+
+        function doCheck() {
             if (loaded) {
                 return;
             }
 
-            var img = new Image();
-            img.onload = function () {
-                loaded = true;
-                success();
-            };
-            img.onerror = function () {
-                loaded = false;
-                failure();
-            };
-
-            img.src = window.location.origin + "/assets/img/logos/favicon-32x32.png";
-            setTimeout(function () {
-                checkPort();
-            }, 5000);
-
-            setTimeout(function (theImg) {
-                if (loaded) {
-                    return;
+            var httpReq = new XMLHttpRequest();
+            httpReq.onreadystatechange = function() {
+                // If the request completed, and the status is "success", return.
+                // We don't care what the response it - the fact that the call succeeded
+                // means we reached the API component and it's up.
+                if (httpReq.readyState == 4 && httpReq.status == 200) {
+                    success();
                 }
-                theImg = undefined;
-                loaded = false;
-                failure();
-            }(img), 1000);
+            }
+
+            // We need to use some API that does not require authentication.
+            // checkInit checks if the administrative user is initialized.
+            httpReq.open("GET", window.location.origin + "/api/v2/checkInit");
+            httpReq.send( null );
         }
 
+        // Begins the process of checking whether the API component is up.
+        function startApiCheck() {
+            if (apiCheckInterval == null) {
+                apiCheckInterval = setInterval(doCheck, 5000);
+            }
+
+            if (statusUpdateInterval == null) {
+                statusUpdateInterval = setInterval(getStatus, 1000);
+            }
+        }
+
+        // Called when we get a successful request through to the API component.
+        // We can assume it's ready to go.
         function success() {
+            loaded = true;
+            if (statusUpdateInterval !== null) {
+               clearInterval(statusUpdateInterval);
+            }
+            if (apiCheckInterval !== null) {
+               clearInterval(apiCheckInterval);
+            }
             setTimeout(function () {
                 successMsg();
             }, 10000);
@@ -231,10 +249,6 @@
             setTimeout(function () {
                 successMsg();
             }, 10000);
-        }
-
-        function failure() {
-            getStatus();
         }
 
         function startFading() {
@@ -258,7 +272,7 @@
             startTime = new Date();
             document.getElementById("time").innerHTML = getTimestamp();
             document.getElementById("message").innerHTML = "Initializing Turbonomic XL...";
-            checkPort();
+            startApiCheck();
         }
 
         function getStatus() {
