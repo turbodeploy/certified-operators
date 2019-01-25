@@ -468,6 +468,42 @@ public class ResizerTest {
     }
 
     /**
+     * Regression test for OM-40189: downward resize can exceed seller's capacity
+     *
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's CPU and MEM have capacities of 150 each, which exceeds PM's capacity.
+     * VM's CPU and MEM have maxQuantity of 120.
+     * The desired capacity is 25.85 - result of calling calculateDesiredCapacity.
+     * That capacity will be bumped to 120 because of the maxQuantity value.
+     * But in the end, target capacity of the resize will be 100, to bring it back
+     * in range of the PM capacities.
+     * */
+    @Test
+    public void testResizeDecisions_resizeDownExceedsSellerCapacity() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            150, 150, 70, 70, 20, 20, 0.65, 0.8,
+            RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(120));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(100, resize1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(100, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+
+    }
+
+    /**
      * Sets up topology with one PM, one VM placed on the PM, and one app placed on the VM.
      * @param pmCpuCapacity - The PM's CPU capacity
      * @param pmMemCapacity - The PM's Memory capacity

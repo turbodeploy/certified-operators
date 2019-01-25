@@ -158,91 +158,143 @@ public class Resizer {
 
         return actions;
     }
-
     /**
      * Given the desired effective capacity find the new effective capacity taking into
-     * consideration capacity increment. For resize up limit the increase to what the seller
-     * can provide. For resize down, limit the decrease to the maximum used (i.e.,
-     * max(maxQuantity, peakQuantity)).
+     * consideration capacity increment and rightsizing rate.
      *
-     * @param desiredCapacity The calculated new desired effective capacity.
-     * @param commoditySold The {@link CommoditySold commodity} sold to obtain peak usage,
-     *                      current capacity and capacity increment.
-     * @param rawMaterial The source of raw material of {@link CommoditySold commoditySold}.
+     * For a downward resize, the change is limited by observed use (considering both
+     * maxQuanity and peakQuantity).
+     *
+     * In all cases, the the new size is not permitted to exceed the capacity of the seller.
+     *
+     * @param desiredCapacity The calculated new desired effective capacity; may be greater or less than
+     *                        than current capacity.
+     * @param resizeCommodity The {@link CommoditySold commodity} being resized, to obtain peak usage,
+     *                        current capacity and capacity increment.
+     * @param rawMaterial     The source of raw material of {@link CommoditySold commoditySold}.
      * @param rateOfRightSize The user configured rateOfRightSize from {@link EconomySettings}.
      * @return The recommended new capacity.
      */
     private static double calculateEffectiveCapacity(double desiredCapacity,
-                                                     @NonNull CommoditySold commoditySold,
+                                                     @NonNull CommoditySold resizeCommodity,
                                                      CommoditySold rawMaterial,
                                                      float rateOfRightSize) {
         checkArgument(rateOfRightSize > 0, "Expected rateOfRightSize to be > 0", rateOfRightSize);
 
-        double maxQuantity = commoditySold.getMaxQuantity();
-        double peakQuantity = commoditySold.getPeakQuantity();
-        double capacityIncrement = commoditySold.getSettings().getCapacityIncrement() *
-                                        commoditySold.getSettings().getUtilizationUpperBound();
-        double currentCapacity = commoditySold.getEffectiveCapacity();
-        double newCapacity = currentCapacity;
-        double delta = desiredCapacity - currentCapacity;
+        double currentCapacity = resizeCommodity.getEffectiveCapacity();
+        double desiredAdjustment = desiredCapacity - currentCapacity;
+        double capacityIncrement = resizeCommodity.getSettings().getCapacityIncrement() * resizeCommodity.getSettings().getUtilizationUpperBound();
 
-        if (delta > 0) {
-            // limit the increase to what the seller can provide
-            double numIncrements = delta / capacityIncrement / rateOfRightSize;
-            int ceilNumIncrements = (int) Math.ceil(numIncrements);
-            double proposedIncrement = capacityIncrement * ceilNumIncrements;
-
-            // if we do not specify a raw material, then we impose no restriction on the value
-            // we resize to (regarding to what the seller can provide)
-            double remaining = rawMaterial == null ? Double.MAX_VALUE :
-                            commoditySold.getSettings().getUtilizationUpperBound() *
-                                (rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity());
-            if (remaining > 0) {
-                if (remaining < proposedIncrement) {
-                    int floorNumIncrements = (int) Math.floor(remaining / capacityIncrement);
-                    newCapacity += capacityIncrement * floorNumIncrements;
-                } else {
-                    newCapacity += proposedIncrement;
-                }
-                if (newCapacity > rawMaterial.getEffectiveCapacity()) {
-                    newCapacity = rawMaterial.getEffectiveCapacity();
-                }
-            }
+        double adjustment;
+        if (desiredCapacity > currentCapacity) {
+            adjustment = calculateResizeUpAmount(desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
         } else {
-            if (commoditySold.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
-                return currentCapacity;
-            }
+            // "amount" values are always non-negative, hence we negate the arg and the result for a downward resize
+            adjustment = -calculateResizeDownAmount(-desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
+        }
+        double newCapacity = currentCapacity + adjustment;
 
-            // limit the decrease to be above max usage
-            delta = -delta;
-            double maxCapacityDecrement = currentCapacity - Math.max(maxQuantity, peakQuantity);
-            if (maxCapacityDecrement < 0) {
-                return currentCapacity;
+        // Ensure that we don't exceed supplier capacity
+        if (rawMaterial != null && newCapacity > rawMaterial.getEffectiveCapacity()) {
+            newCapacity = rawMaterial.getEffectiveCapacity();
+        }
+        return newCapacity;
+    }
+
+    /**
+     * Compute the amount of increase for an upward resize.
+     *
+     * The desired amount is adjusted to conform to capacity increment and rightsizing rate.
+     *
+     * In addition, the amount is limited by available headroom in the seller.
+     *
+     * @param desiredAmount the desired capacity increase; must be non-negative
+     * @param resizeCommodity the {@link CommoditySold commodity} being resized.
+     * @param rawMaterial the source of raw material supplying the {@link CommoditySold commodity} being resized.
+     * @param capacityIncrement the capacity increment for the {@link CommoditySold commodity} being resized.
+     * @param rateOfRightSize the user configured rightsizing rate from {@link EconomySettings}.
+     * @return the recommended amount of increase for {@link CommoditySold commodity} being resized; always non-negative
+     * */
+    private static double calculateResizeUpAmount(double desiredAmount,
+                                                  @NonNull CommoditySold resizeCommodity,
+                                                  CommoditySold rawMaterial,
+                                                  double capacityIncrement,
+                                                  double rateOfRightSize) {
+
+        // compute increments sufficient for desired amount
+        int numIncrements = (int) Math.ceil(desiredAmount / (capacityIncrement * rateOfRightSize));
+
+        // make sure we don't exceed available headroom in seller
+        double headroom = rawMaterial == null ? Double.MAX_VALUE :
+            resizeCommodity.getSettings().getUtilizationUpperBound() *
+                (rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity());
+        if (headroom > 0) {
+            if (headroom < numIncrements * capacityIncrement) {
+                numIncrements = (int) Math.floor(headroom / capacityIncrement);
             }
-            if (maxCapacityDecrement < delta) {
-                delta = maxCapacityDecrement;
-            }
-            double numDecrements = delta / capacityIncrement / rateOfRightSize;
-            int floorNumDecrements = (int) Math.floor(numDecrements);
-            // if the rate_of_resize > 1, then the floorNumDecrements can be 0 even if
-            // delta > capacityIncrement. In this case we don't resize down
-            // which is undesirable (bug OM-34833). Set floorNumDecrements to 1 in this case.
-            if (delta >= capacityIncrement) {
-                floorNumDecrements = Math.max(1, floorNumDecrements);
-            }
-            double proposedCapacityDecrement = capacityIncrement * floorNumDecrements;
-            newCapacity -= proposedCapacityDecrement;
-            // do not fall below 1 unit of capacity increment
-            if (newCapacity < capacityIncrement) {
-                if (currentCapacity >= 2 * capacityIncrement) {
-                    newCapacity = capacityIncrement;
-                } else {
-                    return currentCapacity;
-                }
-            }
+            return numIncrements * capacityIncrement;
+        } else {
+            return 0.0;
+        }
+    }
+
+    /**
+     * Compute the amount of decrease for a downward resize.
+     * <p>
+     * The desired amount is adjusted to conform to capacity increment and rightsizing rate.
+     * <p>
+     * In addiiton, the following limits are placed on the resize amount:
+     *
+     * <ul>
+     * <li>The capacity is not allowed to drop below the commodity's maxQuantity or peakQuantity.</li>
+     * <li>The capacity is not allowed to change if there is no current or historical use data.</li>
+     * <li>The capacity is not allowed to drop below a single capacity increment amount.</li>
+     * </ul>
+     *
+     * @param desiredAmount     the desired capacity decrease; must be non-negative.
+     * @param resizeCommodity   the {@link CommoditySold commodity} being resized.
+     * @param rawMaterial       the source of raw material supplying the {@link CommoditySold commodity} being resized.
+     * @param capacityIncrement the capacity increment for the {@link CommoditySold commodity} being resized.
+     * @param rateOfRightSize   the user configured rightsizing rate from {@link EconomySettings}.
+     * @return the recommended amount of decrease for {@link CommoditySold commodity} being resized; always non-negative.
+     */
+    private static double calculateResizeDownAmount(double desiredAmount,
+                                                    @NonNull CommoditySold resizeCommodity,
+                                                    CommoditySold rawMaterial,
+                                                    double capacityIncrement,
+                                                    double rateOfRightSize) {
+        double currentCapacity = resizeCommodity.getEffectiveCapacity();
+        double maxQuantity = resizeCommodity.getMaxQuantity();
+        double peakQuantity = resizeCommodity.getPeakQuantity();
+
+        // don't permit downward resize if there's no usage data
+        if (resizeCommodity.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
+            return 0.0;
         }
 
-        return newCapacity;
+        // don't permit resize below historical use
+        double maxAmount = currentCapacity - Math.max(maxQuantity, peakQuantity);
+        if (maxAmount < 0) {
+            return 0.0;
+        } else if (maxAmount < desiredAmount) {
+            desiredAmount = maxAmount;
+        }
+
+        // compute # of increments that will keep capacity at or above desired level
+        int numDecrements = (int) Math.floor(desiredAmount / (capacityIncrement * rateOfRightSize));
+        // if resizing rate > 1, then we could compute zero increments even with resizing rate > 1.
+        // So here we just make sure our resize doesn't turn into a no-op in that case.
+        // See OM-34833 for more info.
+        if (desiredAmount >= capacityIncrement && numDecrements == 0) {
+            numDecrements = 1;
+        }
+        // Don't resize to a capacity less than the capacity increment
+        double amount = numDecrements * capacityIncrement;
+        if (currentCapacity - amount < capacityIncrement) {
+            amount = currentCapacity >= 2 * capacityIncrement ? currentCapacity - capacityIncrement : 0.0;
+        }
+
+        return amount;
     }
 
     /**
@@ -289,7 +341,7 @@ public class Resizer {
      * Checks the resize engagement criteria for a commodity.
      *
      * @param economy The {@link Economy}.
-     * @param commoditySold The {@link CommoditySold commodity} that is to be resized.
+     * @param resizeCommodity The {@link CommoditySold commodity} that is to be resized.
      * @param commodityIS The {@link IncomeStatement income statement} of the commodity sold.
      * @return Whether the commodity meets the resize engagement criterion.
      */
