@@ -626,6 +626,11 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
+    public List<GroupApiDTO> getGroupsInMarket(final String s) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
     public EntityStatsPaginationResponse getStatsByEntitiesInMarketQuery(final String marketUuid,
                                              final StatScopesApiInputDTO statScopesApiInputDTO,
                                              final EntityStatsPaginationRequest paginationRequest)
