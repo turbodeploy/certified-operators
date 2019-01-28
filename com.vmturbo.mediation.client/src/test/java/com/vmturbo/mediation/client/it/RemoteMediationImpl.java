@@ -1,14 +1,11 @@
 package com.vmturbo.mediation.client.it;
 
 import java.time.Clock;
-import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -18,18 +15,14 @@ import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
@@ -138,34 +131,6 @@ public class RemoteMediationImpl implements IRemoteMediation {
         } catch (CommunicationException | InterruptedException | ProbeException e) {
             throw new RuntimeException("Error performing action on target " + target, e);
         }
-    }
-
-    @Nonnull
-    @Override
-    public List<ActionErrorDTO> approveActions(@Nonnull SdkTarget target,
-            @Nonnull Collection<ActionExecutionDTO> actionItems) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
-    }
-
-    @Nonnull
-    @Override
-    public List<ActionErrorDTO> updateActionItemStates(@Nonnull SdkTarget target,
-            @Nonnull Collection<ActionResponse> actionItem) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
-    }
-
-    @Nonnull
-    @Override
-    public GetActionStateResponse getActionItemStates(@Nonnull SdkTarget target,
-            @Nonnull Collection<Long> actionOids) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
-    }
-
-    @Nonnull
-    @Override
-    public Collection<ActionErrorDTO> auditActions(@Nonnull SdkTarget target,
-            @Nonnull Collection<ActionEventDTO> actionEvents) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
     }
 
     private long getProbeId(SdkProbe probe) {
