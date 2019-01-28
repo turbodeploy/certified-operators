@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ImmutableSingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -127,50 +129,62 @@ public class ClusterActionAggregatorTest {
         .build();
 
     private static final MgmtUnitSubgroup CLUSTER_1_GLOBAL_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
-            .id(12345)
-            .key(ImmutableMgmtUnitSubgroupKey.builder()
-                .mgmtUnitId(CLUSTER_1.getId())
-                .build())
-            .build();
+        .id(12345)
+        .key(ImmutableMgmtUnitSubgroupKey.builder()
+            .mgmtUnitId(CLUSTER_1.getId())
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .environmentType(EnvironmentType.ON_PREM)
+            .build())
+        .build();
 
     private static final MgmtUnitSubgroup CLUSTER_2_GLOBAL_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
         .id(6789)
         .key(ImmutableMgmtUnitSubgroupKey.builder()
             .mgmtUnitId(CLUSTER_2.getId())
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .environmentType(EnvironmentType.ON_PREM)
             .build())
         .build();
 
     private static final MgmtUnitSubgroup CLUSTER_1_PM_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
-            .id(321)
-            .key(ImmutableMgmtUnitSubgroupKey.builder()
-                    .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .mgmtUnitId(CLUSTER_1.getId())
-                    .build())
-            .build();
+        .id(321)
+        .key(ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .mgmtUnitId(CLUSTER_1.getId())
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .environmentType(EnvironmentType.ON_PREM)
+            .build())
+        .build();
 
     private static final MgmtUnitSubgroup CLUSTER_2_PM_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
-            .id(432)
-            .key(ImmutableMgmtUnitSubgroupKey.builder()
-                    .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .mgmtUnitId(CLUSTER_2.getId())
-                    .build())
-            .build();
+        .id(432)
+        .key(ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .mgmtUnitId(CLUSTER_2.getId())
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .environmentType(EnvironmentType.ON_PREM)
+            .build())
+        .build();
 
     private static final MgmtUnitSubgroup CLUSTER_1_VM_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
-            .id(3210)
-            .key(ImmutableMgmtUnitSubgroupKey.builder()
-                    .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .mgmtUnitId(CLUSTER_1.getId())
-                    .build())
-            .build();
+        .id(3210)
+        .key(ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .mgmtUnitId(CLUSTER_1.getId())
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .environmentType(EnvironmentType.ON_PREM)
+            .build())
+        .build();
 
     private static final MgmtUnitSubgroup CLUSTER_2_VM_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
-            .id(4320)
-            .key(ImmutableMgmtUnitSubgroupKey.builder()
-                    .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .mgmtUnitId(CLUSTER_2.getId())
-                    .build())
-            .build();
+        .id(4320)
+        .key(ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .mgmtUnitId(CLUSTER_2.getId())
+            .environmentType(EnvironmentType.ON_PREM)
+            .build())
+        .build();
 
     private static final ActionGroupKey ACTION_GROUP_KEY = mock(ActionGroupKey.class);
 

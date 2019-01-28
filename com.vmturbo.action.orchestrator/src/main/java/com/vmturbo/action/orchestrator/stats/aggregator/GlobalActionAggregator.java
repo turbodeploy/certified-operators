@@ -46,10 +46,11 @@ public class GlobalActionAggregator extends ActionAggregator {
                 Multimaps.index(action.involvedEntities(), ActionEntity::getType);
         involvedEntitiesByType.asMap().forEach((entityType, entities) -> {
             final MgmtUnitSubgroupKey unitKey = ImmutableMgmtUnitSubgroupKey.builder()
-                    .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
-                    .environmentType(envType)
-                    .entityType(entityType)
-                    .build();
+                .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
+                .mgmtUnitType(getManagementUnitType())
+                .environmentType(envType)
+                .entityType(entityType)
+                .build();
             final ActionStat stat = getStat(unitKey, action.actionGroupKey());
             stat.recordAction(action.recommendation(), entities);
         });
@@ -60,6 +61,7 @@ public class GlobalActionAggregator extends ActionAggregator {
         final MgmtUnitSubgroupKey unitKey = ImmutableMgmtUnitSubgroupKey.builder()
                 .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
                 .environmentType(envType)
+                .mgmtUnitType(getManagementUnitType())
                 .build();
         final ActionStat stat = getStat(unitKey, action.actionGroupKey());
         stat.recordAction(action.recommendation(), involvedEntitiesByType.values());

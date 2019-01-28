@@ -2,8 +2,11 @@ package com.vmturbo.action.orchestrator.stats.groups;
 
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import org.immutables.value.Value;
 
+import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 
@@ -29,8 +32,14 @@ public interface MgmtUnitSubgroup {
     interface MgmtUnitSubgroupKey {
         long mgmtUnitId();
 
-        Optional<Integer> entityType();
+        ManagementUnitType mgmtUnitType();
 
-        Optional<EnvironmentType> environmentType();
+        EnvironmentType environmentType();
+
+        /**
+         * Unset if this {@link MgmtUnitSubgroup} represents "all" entities in the
+         * management unit.
+         */
+        Optional<Integer> entityType();
     }
 }

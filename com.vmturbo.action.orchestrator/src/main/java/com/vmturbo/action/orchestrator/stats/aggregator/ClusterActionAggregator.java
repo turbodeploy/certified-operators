@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -146,9 +147,12 @@ public class ClusterActionAggregator extends ActionAggregator {
                 // action plan. If it becomes a problem we can keep them saved somewhere -
                 // we only need 2 per cluster (one for PMs, and one for VMs).
                 final MgmtUnitSubgroupKey muKey = ImmutableMgmtUnitSubgroupKey.builder()
-                        .mgmtUnitId(clusterId)
-                        .entityType(entityType)
-                        .build();
+                    .mgmtUnitId(clusterId)
+                    .entityType(entityType)
+                    .mgmtUnitType(getManagementUnitType())
+                    // Clusters are always on prem.
+                    .environmentType(EnvironmentType.ON_PREM)
+                    .build();
                 final ActionStat stat = getStat(muKey, actionSnapshot.actionGroupKey());
                 stat.recordAction(actionSnapshot.recommendation(), entities);
             });
@@ -160,6 +164,9 @@ public class ClusterActionAggregator extends ActionAggregator {
             // because a single action may appear in a variable number of entity type records.
             final MgmtUnitSubgroupKey globalSubgroupKey = ImmutableMgmtUnitSubgroupKey.builder()
                 .mgmtUnitId(clusterId)
+                .mgmtUnitType(getManagementUnitType())
+                // Clusters are always on prem.
+                .environmentType(EnvironmentType.ON_PREM)
                 .build();
             final ActionStat stat = getStat(globalSubgroupKey, actionSnapshot.actionGroupKey());
             // Not using all entities involved in the snapshot, because some of them may be out

@@ -26,6 +26,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
+import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.MgmtUnitSubgroupFilter;
@@ -97,7 +98,8 @@ public class MgmtUnitSubgroupStore {
     @Nonnull
     private Optional<MgmtUnitSubgroup> recordToGroup(@Nonnull final MgmtUnitSubgroupRecord record) {
         final ImmutableMgmtUnitSubgroupKey.Builder keyBuilder = ImmutableMgmtUnitSubgroupKey.builder()
-            .mgmtUnitId(record.getMgmtUnitId());
+            .mgmtUnitId(record.getMgmtUnitId())
+            .mgmtUnitType(ManagementUnitType.forNumber(record.getMgmtUnitType()));
         if (record.getEntityType() != null && record.getEntityType() != UNSET_ENUM_VALUE) {
             keyBuilder.entityType(record.getEntityType());
         }
@@ -129,17 +131,14 @@ public class MgmtUnitSubgroupStore {
         // Leave record ID unset - database auto-increment takes care of ID assignment.
 
         record.setMgmtUnitId(key.mgmtUnitId());
+        record.setMgmtUnitType((short)key.mgmtUnitType().getNumber());
         if (key.entityType().isPresent()) {
             record.setEntityType(key.entityType().get().shortValue());
         } else {
             record.setEntityType(UNSET_ENUM_VALUE);
         }
 
-        if (key.environmentType().isPresent()) {
-            record.setEnvironmentType((short)key.environmentType().get().getNumber());
-        } else {
-            record.setEnvironmentType(UNSET_ENUM_VALUE);
-        }
+        record.setEnvironmentType((short)key.environmentType().getNumber());
         return record;
     }
 
@@ -191,7 +190,7 @@ public class MgmtUnitSubgroupStore {
 
         if (mgmtUnitSubgroupFilter.hasEnvironmentType()) {
             conditions.add(MGMT_UNIT_SUBGROUP.ENVIRONMENT_TYPE.eq(
-                (short) mgmtUnitSubgroupFilter.getEnvironmentType().getNumber()));
+                (short)mgmtUnitSubgroupFilter.getEnvironmentType().getNumber()));
         }
 
         logger.trace("Using the following conditions for the mgmt unit subgroup " +

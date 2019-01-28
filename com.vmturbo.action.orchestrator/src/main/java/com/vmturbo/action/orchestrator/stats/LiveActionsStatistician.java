@@ -262,12 +262,12 @@ public class LiveActionsStatistician {
 
         final int rollupsScheduled = actionStatRollupScheduler.scheduleRollups();
         if (rollupsScheduled > 0) {
-            logger.info("Scheduled {} rollups.");
+            logger.info("Scheduled {} rollups.", rollupsScheduled);
         }
 
         final int cleanupsScheduled = actionStatCleanupScheduler.scheduleCleanups();
         if (cleanupsScheduled > 0) {
-            logger.info("Scheduled {} cleanups.");
+            logger.info("Scheduled {} cleanups.", cleanupsScheduled);
         }
     }
 

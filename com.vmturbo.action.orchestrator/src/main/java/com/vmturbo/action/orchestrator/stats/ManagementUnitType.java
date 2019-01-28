@@ -35,7 +35,7 @@ public enum ManagementUnitType {
         return numericValue;
     }
 
-    ManagementUnitType forNumber(final int num) {
+    public static ManagementUnitType forNumber(final int num) {
         for (ManagementUnitType type : types) {
             if (num == type.numericValue) {
                 return type;

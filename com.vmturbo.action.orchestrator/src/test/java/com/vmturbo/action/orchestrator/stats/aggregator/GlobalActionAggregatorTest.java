@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ImmutableSingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
@@ -71,6 +72,7 @@ public class GlobalActionAggregatorTest {
                 .key(ImmutableMgmtUnitSubgroupKey.builder()
                     // No entity type.
                     .environmentType(EnvironmentType.ON_PREM)
+                    .mgmtUnitType(ManagementUnitType.GLOBAL)
                     .mgmtUnitId(0)
                     .build())
                 .build();
@@ -79,6 +81,7 @@ public class GlobalActionAggregatorTest {
             .key(ImmutableMgmtUnitSubgroupKey.builder()
                 .entityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .environmentType(EnvironmentType.ON_PREM)
+                .mgmtUnitType(ManagementUnitType.GLOBAL)
                 .mgmtUnitId(0)
                 .build())
             .build();
@@ -87,6 +90,7 @@ public class GlobalActionAggregatorTest {
             .key(ImmutableMgmtUnitSubgroupKey.builder()
                 .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .environmentType(EnvironmentType.ON_PREM)
+                .mgmtUnitType(ManagementUnitType.GLOBAL)
                 .mgmtUnitId(0)
                 .build())
             .build();

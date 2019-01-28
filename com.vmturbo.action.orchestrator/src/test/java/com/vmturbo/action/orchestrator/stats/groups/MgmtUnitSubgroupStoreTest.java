@@ -23,6 +23,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryResult;
@@ -63,10 +64,11 @@ public class MgmtUnitSubgroupStoreTest {
     @Test
     public void testUpsert() {
         final MgmtUnitSubgroupKey key = ImmutableMgmtUnitSubgroupKey.builder()
-                .entityType(1)
-                .environmentType(EnvironmentType.CLOUD)
-                .mgmtUnitId(123)
-                .build();
+            .entityType(1)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .mgmtUnitId(123)
+            .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         assertThat(subgroups.get(key).key(), is(key));
@@ -74,10 +76,12 @@ public class MgmtUnitSubgroupStoreTest {
     }
 
     @Test
-    public void testUpsetrUnsetOptionals() {
+    public void testUpsertUnsetOptionals() {
         final MgmtUnitSubgroupKey key = ImmutableMgmtUnitSubgroupKey.builder()
-                .mgmtUnitId(123)
-                .build();
+            .mgmtUnitId(123)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .environmentType(EnvironmentType.ON_PREM)
+            .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         assertThat(subgroups.get(key).key(), is(key));
@@ -87,17 +91,19 @@ public class MgmtUnitSubgroupStoreTest {
     @Test
     public void testUpsertRetainExisting() {
         final MgmtUnitSubgroupKey key1 = ImmutableMgmtUnitSubgroupKey.builder()
-                .entityType(1)
-                .environmentType(EnvironmentType.CLOUD)
-                .mgmtUnitId(123)
-                .build();
+            .entityType(1)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitId(123)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .build();
         mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key1));
 
         final MgmtUnitSubgroupKey key2 = ImmutableMgmtUnitSubgroupKey.builder()
-                .entityType(2)
-                .environmentType(EnvironmentType.ON_PREM)
-                .mgmtUnitId(432)
-                .build();
+            .entityType(2)
+            .environmentType(EnvironmentType.ON_PREM)
+            .mgmtUnitId(432)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .build();
         // Insert the same one again.
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key2));
@@ -109,10 +115,11 @@ public class MgmtUnitSubgroupStoreTest {
     @Test
     public void testUpsertDuplicate() {
         final MgmtUnitSubgroupKey key = ImmutableMgmtUnitSubgroupKey.builder()
-                .entityType(1)
-                .environmentType(EnvironmentType.CLOUD)
-                .mgmtUnitId(123)
-                .build();
+            .entityType(1)
+            .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .mgmtUnitId(123)
+            .build();
         mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         // Insert the same one again.
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
@@ -127,12 +134,14 @@ public class MgmtUnitSubgroupStoreTest {
         final long mu1Id = 123;
         final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(mu1Id)
             .build();
         final MgmtUnitSubgroupKey mu2 = ImmutableMgmtUnitSubgroupKey.builder()
             // Different entity type.
             .entityType(2)
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(mu1Id + 1)
             .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
@@ -154,12 +163,14 @@ public class MgmtUnitSubgroupStoreTest {
         final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
             .entityType(1)
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(mu1Id)
             .build();
         final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
             // Different entity type.
             .entityType(2)
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(mu1Id)
             .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
@@ -180,12 +191,14 @@ public class MgmtUnitSubgroupStoreTest {
         final long mu1Id = 123;
         final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(mu1Id)
             .build();
         final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
             // Different entity type.
             .entityType(2)
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(mu1Id)
             .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
@@ -208,12 +221,14 @@ public class MgmtUnitSubgroupStoreTest {
         final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
             .entityType(1)
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.GLOBAL)
             .mgmtUnitId(mu1Id)
             .build();
         final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
             .entityType(1)
             // Different environment type type.
             .environmentType(EnvironmentType.ON_PREM)
+            .mgmtUnitType(ManagementUnitType.GLOBAL)
             .mgmtUnitId(mu1Id)
             .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
@@ -231,19 +246,55 @@ public class MgmtUnitSubgroupStoreTest {
     }
 
     @Test
+    public void testQueryFilterClusterByEnvironmentType() {
+        final long mu1Id = 123;
+        final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
+            .entityType(1)
+            .mgmtUnitType(ManagementUnitType.CLUSTER)
+            .mgmtUnitId(mu1Id)
+            .environmentType(EnvironmentType.ON_PREM)
+            .build();
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
+            mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(mu1Key1));
+
+        final Optional<QueryResult> result =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(mu1Id)
+                // Check if we can find it by explicitly specifying the on-prem env type.
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .addEntityType(1)
+                .build());
+        assertTrue(result.isPresent());
+        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnitSubgroups(), containsInAnyOrder(subgroups.get(mu1Key1).id()));
+
+        final Optional<QueryResult> result2 =
+            mgmtUnitSubgroupStore.query(MgmtUnitSubgroupFilter.newBuilder()
+                .setMgmtUnitId(mu1Id)
+                // Check if we can find it without explicitly specifying an env type.
+                .addEntityType(1)
+                .build());
+        // Should be the same result.
+        assertThat(result2, is(result));
+    }
+
+    @Test
     public void testQueryMarket() {
         final long mu1Id = GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
         final MgmtUnitSubgroupKey mu1Key1 = ImmutableMgmtUnitSubgroupKey.builder()
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.GLOBAL)
             .mgmtUnitId(mu1Id)
             .build();
         final MgmtUnitSubgroupKey mu1Key2 = ImmutableMgmtUnitSubgroupKey.builder()
             // Different env type.
             .environmentType(EnvironmentType.ON_PREM)
+            .mgmtUnitType(ManagementUnitType.GLOBAL)
             .mgmtUnitId(mu1Id)
             .build();
         final MgmtUnitSubgroupKey mu2 = ImmutableMgmtUnitSubgroupKey.builder()
             .environmentType(EnvironmentType.CLOUD)
+            .mgmtUnitType(ManagementUnitType.GLOBAL)
             .mgmtUnitId(123)
             .build();
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
