@@ -516,9 +516,6 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO inputDto) throws Exception {
-        final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, getMemberIds(uuid));
-
         try {
             // TODO : We need to support cloud stats for all scopes e.g. Stats for a group of 2 AWS VM entities.
             final boolean specialCloudStatsQuery =
@@ -531,47 +528,59 @@ public class GroupsService implements IGroupsService {
             // Handle cloud stats
             if (specialCloudStatsQuery) {
                 GetActionCategoryStatsResponse response =
-                        actionOrchestratorRpc.getActionCategoryStats(
-                                GetActionCategoryStatsRequest.newBuilder()
-                                        .setTopologyContextId(realtimeTopologyContextId)
-                                        .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                        .addEntityType(EntityType.DATABASE_VALUE)
-                                        .addEntityType(EntityType.DATABASE_SERVER_VALUE)
-                                        .build());
+                    actionOrchestratorRpc.getActionCategoryStats(
+                        GetActionCategoryStatsRequest.newBuilder()
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                            .addEntityType(EntityType.DATABASE_VALUE)
+                            .addEntityType(EntityType.DATABASE_SERVER_VALUE)
+                            .build());
                 List<StatSnapshotApiDTO> statSnapshotApiDTOS =
-                        ActionCountsMapper.convertActionCategoryStatsToApiStatSnapshot(response.getActionStatsByCategoryList());
-                if (inputDto.getStartTime()!=null && inputDto.getEndTime()!=null) {
+                    ActionCountsMapper.convertActionCategoryStatsToApiStatSnapshot(response.getActionStatsByCategoryList());
+                if (inputDto.getStartTime() != null && inputDto.getEndTime() != null) {
                     // If the request is for ProjectedActions, set all numEntities to zero.
                     // This hack is needed because UI expects it in this format.
                     statSnapshotApiDTOS.stream()
-                            .flatMap(dto -> dto.getStatistics().stream())
-                            .filter(dto -> dto.getName() == StringConstants.NUM_ENTITIES)
-                            .forEach(statApiDTO -> {
-                                final StatValueApiDTO valueDto = new StatValueApiDTO();
-                                float statValue = 0;
-                                valueDto.setAvg(statValue);
-                                valueDto.setMax(statValue);
-                                valueDto.setMin(statValue);
-                                valueDto.setTotal(statValue);
-                                statApiDTO.setValues(valueDto);
-                            });
+                        .flatMap(dto -> dto.getStatistics().stream())
+                        .filter(dto -> dto.getName() == StringConstants.NUM_ENTITIES)
+                        .forEach(statApiDTO -> {
+                            final StatValueApiDTO valueDto = new StatValueApiDTO();
+                            float statValue = 0;
+                            valueDto.setAvg(statValue);
+                            valueDto.setMax(statValue);
+                            valueDto.setMin(statValue);
+                            valueDto.setTotal(statValue);
+                            statApiDTO.setValues(valueDto);
+                        });
                 }
                 return statSnapshotApiDTOS;
-            } else if (historicalQuery) {
-                // (roman, Jan 16 2019): We only support historical action stats for clusters, so
-                // all other groups will not return anything.
-                final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
-                return actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
-                    .scope(apiScopeId)
-                    .actionInput(inputDto)
-                    .build());
             } else {
+                final List<StatSnapshotApiDTO> results = new ArrayList<>();
+                if (historicalQuery) {
+                    // (roman, Jan 16 2019): We only support historical action stats for clusters, so
+                    // all other groups will not return anything.
+                    final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
+                    results.addAll(actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
+                        .scope(apiScopeId)
+                        .actionInput(inputDto)
+                        .build()));
+                }
+                // Get the most recent stats.
+                //
+                // We do this after the historical queries, so that the live actions get appended
+                // to the end of the historical list.
+                //
+                // TODO (roman, Jan 28 2019) OM-42500: Migrate to a single "live" action stats endpoint,
+                // and move the "live" call to be part of ActionStatsQueryExecutor.
+                final ActionQueryFilter filter =
+                    actionSpecMapper.createLiveActionFilter(inputDto, getMemberIds(uuid));
                 final GetActionCountsResponse response =
                     actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)
                         .setFilter(filter)
                         .build());
-                return ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList());
+                results.addAll(ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList()));
+                return results;
             }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {

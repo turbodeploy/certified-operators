@@ -586,29 +586,40 @@ public class MarketsService implements IMarketsService {
             actionApiInputDTO.getStartTime() != null &&
                 actionApiInputDTO.getEndTime() != null;
         try {
+            final List<StatSnapshotApiDTO> results = new ArrayList<>();
             if (historicalQuery) {
                 if (!userScope.containsAll()) {
                     logger.warn("Scoped user (scope: {}) requested historical action stats." +
                         "Returning empty.", userScope.toString());
-                    return Collections.emptyList();
+                } else {
+                    results.addAll(actionStatsQueryExecutor.retrieveActionStats(
+                        ImmutableActionStatsQuery.builder()
+                            .scope(apiId)
+                            .actionInput(actionApiInputDTO)
+                            .build()));
                 }
+            }
 
-                return actionStatsQueryExecutor.retrieveActionStats(
-                    ImmutableActionStatsQuery.builder()
-                        .scope(apiId)
-                        .actionInput(actionApiInputDTO)
-                        .build());
-            } else {
+            // Add the most recent stats.
+            //
+            // We do this after the historical queries, so that the live actions get appended
+            // to the end of the historical list.
+            //
+            // TODO (roman, Jan 28 2019) OM-42500: Migrate to a single "live" action stats endpoint,
+            // and move the "live" call to be part of ActionStatsQueryExecutor.
+            {
                 final ActionQueryFilter filter =
-                    actionSpecMapper.createActionFilter(actionApiInputDTO, includedOids);
+                    actionSpecMapper.createLiveActionFilter(actionApiInputDTO, includedOids);
                 // if UI doesn't provide start and end date, will call ActionRpcService#getActionCounts
                 final GetActionCountsResponse actionCountsResponse =
                     actionRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
                         .setTopologyContextId(apiId.oid())
                         .setFilter(filter)
                         .build());
-                return ActionCountsMapper.countsByTypeToApi(actionCountsResponse.getCountsByTypeList());
+                results.addAll(ActionCountsMapper.countsByTypeToApi(
+                    actionCountsResponse.getCountsByTypeList()));
             }
+            return results;
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();

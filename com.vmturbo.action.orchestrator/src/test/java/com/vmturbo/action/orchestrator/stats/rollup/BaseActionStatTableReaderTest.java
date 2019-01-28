@@ -71,7 +71,7 @@ public class BaseActionStatTableReaderTest {
 
     private static final int ACTION_GROUP_ID = 1123;
 
-    private Clock clock = new MutableFixedClock(1_000_000);
+    private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
     private BaseActionStatTableReader<ActionStatsLatestRecord, ActionSnapshotLatestRecord> baseReader;
 
@@ -117,6 +117,8 @@ public class BaseActionStatTableReaderTest {
 
     @Test
     public void testReaderRollupReadyTimes() {
+        final LocalDateTime curTime = RollupTestUtils.time(13, 00);
+        clock.changeInstant(curTime.toInstant(ZoneOffset.UTC));
 
         final LocalDateTime time = RollupTestUtils.time(12, 30);
         final LocalDateTime time1 = RollupTestUtils.time(12, 45);
@@ -124,20 +126,30 @@ public class BaseActionStatTableReaderTest {
         rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup1, ACTION_GROUP_ID, time);
         rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup1, ACTION_GROUP_ID, time1);
 
-        final LocalDateTime time2 = RollupTestUtils.time(13, 0);
+        // The 12:00 time should be ready for rollup, because it's now past 12:59.
+        final List<RollupReadyInfo> rollupReadyInfo = baseReader.rollupReadyTimes();
+        assertThat(rollupReadyInfo.size(), is(1));
+        assertThat(rollupReadyInfo.get(0), is(ImmutableRollupReadyInfo.builder()
+                .addManagementUnits(mgmtSubgroup1)
+                .startTime(RollupTestUtils.time(12, 0))
+                .build()));
+    }
+
+    @Test
+    public void testReaderRollupReadyTimesCurHourExcluded() {
+        final LocalDateTime curTime = RollupTestUtils.time(13, 30);
+        clock.changeInstant(curTime.toInstant(ZoneOffset.UTC));
+
+        final LocalDateTime time2 = RollupTestUtils.time(13, 2);
         final int mgmtSubgroup2 = 2;
         final int mgmtSubgroup3 = 3;
         rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup2, ACTION_GROUP_ID, time2);
         rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup3, ACTION_GROUP_ID, time2);
 
         final List<RollupReadyInfo> rollupReadyInfo = baseReader.rollupReadyTimes();
-        // The latest hour does not get included, because it's still not ready for rollup
-        // until there is a snapshot AFTER it.
-        assertThat(rollupReadyInfo.size(), is(1));
-        assertThat(rollupReadyInfo.get(0), is(ImmutableRollupReadyInfo.builder()
-                .addManagementUnits(mgmtSubgroup1)
-                .startTime(RollupTestUtils.time(12, 0))
-                .build()));
+        // The latest time does not get included, because it's still not ready for rollup,
+        // since it's in the "current" hour.
+        assertThat(rollupReadyInfo.size(), is(0));
     }
 
     @Test
@@ -147,12 +159,6 @@ public class BaseActionStatTableReaderTest {
         final int mgmtSubgroup1 = 1;
         rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup1, ACTION_GROUP_ID, time);
         rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup1, ACTION_GROUP_ID, time1);
-
-        final LocalDateTime time2 = RollupTestUtils.time(13, 0);
-        final int mgmtSubgroup2 = 2;
-        final int mgmtSubgroup3 = 3;
-        rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup2, ACTION_GROUP_ID, time2);
-        rollupTestUtils.insertMgmtUnitStatRecord(mgmtSubgroup3, ACTION_GROUP_ID, time2);
 
         // Insert hourly snapshot for the time
         rollupTestUtils.insertHourlySnapshotOnly(time);

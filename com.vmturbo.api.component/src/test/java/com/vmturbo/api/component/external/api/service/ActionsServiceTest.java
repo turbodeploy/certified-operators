@@ -181,7 +181,7 @@ public class ActionsServiceTest {
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(serviceEntityMap);
 
-        when(actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(entityIds)))
+        when(actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(entityIds)))
             .thenReturn(filter);
 
         when(groupExpander.expandUuid("1")).thenReturn(Sets.newHashSet(1L));
@@ -256,9 +256,9 @@ public class ActionsServiceTest {
             .setInvolvedEntities(InvolvedEntities.newBuilder()
                 .addOids(1L))
             .build();
-        when(actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(Sets.newHashSet(1L))))
+        when(actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(Sets.newHashSet(1L))))
             .thenReturn(filter);
-        when(actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(Sets.newHashSet(2L))))
+        when(actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(Sets.newHashSet(2L))))
         .thenReturn(filter);
 
         // Make VM (uuid : 1) return its own uuid via group expander.

@@ -765,6 +765,28 @@ public class ActionSpecMapperTest {
     }
 
     @Test
+    public void testCreateLiveActionFilterDates() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setStartTime(DateTimeUtil.toString(1_000_000));
+        inputDto.setEndTime(DateTimeUtil.toString(2_000_000));
+
+        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty());
+        assertThat(filter.getStartDate(), is(1_000_000L));
+        assertThat(filter.getEndDate(), is(2_000_000L));
+    }
+
+    @Test
+    public void testCreateLiveActionFilterIgnoresDates() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setStartTime(DateTimeUtil.toString(1_000_000));
+        inputDto.setEndTime(DateTimeUtil.toString(1_000_000));
+
+        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
+        assertFalse(filter.hasStartDate());
+        assertFalse(filter.hasEndDate());
+    }
+
+    @Test
     public void testCreateActionFilterWithInvolvedEntities() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         final Set<Long> oids = Sets.newHashSet(1L, 2L, 3L);

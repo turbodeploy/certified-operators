@@ -116,7 +116,11 @@ public class ScheduledRollupIntegrationTest {
 
         final LocalDateTime firstTime = RollupTestUtils.time(1, 10);
         final LocalDateTime secondTime = firstTime.plusMinutes(10);
+
+        // Set the clock time to the next hour. We only roll up snapshots when we're out of
+        // the last time period.
         final LocalDateTime nextHourTime = firstTime.plusHours(1);
+        clock.changeInstant(nextHourTime.toInstant(ZoneOffset.UTC));
 
         // Insert snapshot and stat records into the latest database.
         // Two snapshots to be rolled up.
@@ -144,12 +148,6 @@ public class ScheduledRollupIntegrationTest {
             final ActionSnapshotLatestRecord secondSnapshotRecord = firstSnapshotRecord.copy();
             secondSnapshotRecord.setActionSnapshotTime(secondTime);
             secondSnapshotRecord.store();
-
-            // Insert record for a snapshot for the following hour. We only roll up snapshots
-            // when a snapshot for the next time unit (hour, in this case) is available.
-            final ActionSnapshotLatestRecord nextHourRecord = firstSnapshotRecord.copy();
-            nextHourRecord.setActionSnapshotTime(nextHourTime);
-            nextHourRecord.store();
 
             final ActionStatsLatestRecord m1A1FirstRecord = dsl.newRecord(Tables.ACTION_STATS_LATEST);
             m1A1FirstRecord.setActionSnapshotTime(firstTime);
@@ -219,7 +217,7 @@ public class ScheduledRollupIntegrationTest {
         assertThat(snapshotHourRecords.get(0).getHourTime(),
             is(firstTime.truncatedTo(ChronoUnit.HOURS)));
         assertThat(snapshotHourRecords.get(0).getHourRollupTime(),
-            is(CLOCK_TIME));
+            is(LocalDateTime.now(clock)));
         assertThat(snapshotHourRecords.get(0).getNumActionSnapshots(), is(2));
 
         final Map<Integer, Map<Integer, ActionStatsByHourRecord>> hourStatsByMgmtUnitAndActionGroup =
@@ -367,7 +365,11 @@ public class ScheduledRollupIntegrationTest {
 
         final LocalDateTime firstTime = LocalDateTime.of(2018, 9, 7, 1, 0);
         final LocalDateTime secondTime = firstTime.plusHours(2);
+
+        // Set the clock time to the next day. We only roll up snapshots when we're out of
+        // the last time period.
         final LocalDateTime nextDayTime = firstTime.plusDays(1);
+        clock.changeInstant(nextDayTime.toInstant(ZoneOffset.UTC));
 
         // Insert snapshot and stat records into the latest database.
         // Two snapshots to be rolled up.
@@ -394,13 +396,6 @@ public class ScheduledRollupIntegrationTest {
             secondSnapshotRecord.setHourTime(secondTime);
             firstSnapshotRecord.setNumActionSnapshots(2);
             secondSnapshotRecord.store();
-
-            // Insert record for a snapshot for the following hour. We only roll up snapshots
-            // when a snapshot for the next time unit (hour, in this case) is available.
-            final ActionSnapshotHourRecord nextHourRecord = firstSnapshotRecord.copy();
-            nextHourRecord.setHourTime(nextDayTime);
-            nextHourRecord.setNumActionSnapshots(1);
-            nextHourRecord.store();
 
             final ActionStatsByHourRecord m1A1FirstRecord = dsl.newRecord(Tables.ACTION_STATS_BY_HOUR);
             m1A1FirstRecord.setHourTime(firstTime);
@@ -492,7 +487,7 @@ public class ScheduledRollupIntegrationTest {
         assertThat(snapshotDayRecords.get(0).getDayTime(),
             is(firstTime.truncatedTo(ChronoUnit.DAYS)));
         assertThat(snapshotDayRecords.get(0).getDayRollupTime(),
-            is(CLOCK_TIME));
+            is(LocalDateTime.now(clock)));
         // Two snapshots, each representing 2 rolled up snapshots.
         assertThat(snapshotDayRecords.get(0).getNumActionSnapshots(), is(4));
 
@@ -644,7 +639,11 @@ public class ScheduledRollupIntegrationTest {
         final LocalDateTime rollupMonthTime =
             LocalDateTime.of(firstTime.getYear(), firstTime.getMonth(), 1, 0, 0);
         final LocalDateTime secondTime = firstTime.plusDays(2);
+
         final LocalDateTime nextMonthTime = firstTime.plusMonths(1);
+        // Set the clock time to the next month. We only roll up snapshots when we're out of
+        // the last time period.
+        clock.changeInstant(nextMonthTime.toInstant(ZoneOffset.UTC));
 
         // Insert snapshot and stat records into the latest database.
         // Two snapshots to be rolled up.
@@ -673,13 +672,6 @@ public class ScheduledRollupIntegrationTest {
             secondSnapshotRecord.setDayTime(secondTime);
             secondSnapshotRecord.setNumActionSnapshots(2);
             secondSnapshotRecord.store();
-
-            // Insert record for a snapshot for the following hour. We only roll up snapshots
-            // when a snapshot for the next time unit (hour, in this case) is available.
-            final ActionSnapshotDayRecord nextDayRecord = firstSnapshotRecord.copy();
-            nextDayRecord.setDayTime(nextMonthTime);
-            nextDayRecord.setNumActionSnapshots(1);
-            nextDayRecord.store();
 
             final ActionStatsByDayRecord m1A1FirstRecord = dsl.newRecord(Tables.ACTION_STATS_BY_DAY);
             m1A1FirstRecord.setDayTime(firstTime);
@@ -771,7 +763,7 @@ public class ScheduledRollupIntegrationTest {
         assertThat(snapshotMonthRecords.get(0).getMonthTime(),
             is(rollupMonthTime));
         assertThat(snapshotMonthRecords.get(0).getMonthRollupTime(),
-            is(CLOCK_TIME));
+            is(LocalDateTime.now(clock)));
         // Two snapshots, each representing 2 rolled up snapshots.
         assertThat(snapshotMonthRecords.get(0).getNumActionSnapshots(), is(4));
 

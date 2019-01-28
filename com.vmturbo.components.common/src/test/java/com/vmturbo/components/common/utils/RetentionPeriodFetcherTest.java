@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -60,8 +61,8 @@ public class RetentionPeriodFetcherTest {
     public void testInitialKeepDefaultsWhenSettingsUnavailable() {
         // The first "get" call always triggers a remote call. Return an error, so we know
         // we'll be returning whatever the "initial" values are.
-        when(settingBackend.getMultipleGlobalSettingsError(any()))
-            .thenReturn(Optional.of(Status.UNAVAILABLE.asException()));
+        doReturn(Optional.of(Status.UNAVAILABLE.asException()))
+            .when(settingBackend).getMultipleGlobalSettingsError(any());
 
         final RetentionPeriods retentionPeriods = retentionPeriodFetcher.getRetentionPeriods();
 
@@ -82,11 +83,11 @@ public class RetentionPeriodFetcherTest {
         final int hours = 12;
         final int days = 14;
         final int months = 4;
-        when(settingBackend.getMultipleGlobalSettings(any()))
-            .thenReturn(Arrays.asList(
-                retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)));
+        doReturn(Arrays.asList(
+            retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)))
+                .when(settingBackend).getMultipleGlobalSettings(any());
 
         final RetentionPeriods retentionPeriods = retentionPeriodFetcher.getRetentionPeriods();
         assertThat(retentionPeriods.latestRetentionMinutes(), is(NUM_RETAINED_MINS));
@@ -110,10 +111,10 @@ public class RetentionPeriodFetcherTest {
         final int hours = 12;
         final int days = 14;
         // Suppose that for whatever reason the server doesn't return a "months" default.
-        when(settingBackend.getMultipleGlobalSettings(any()))
-            .thenReturn(Arrays.asList(
-                retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days)));
+        doReturn(Arrays.asList(
+            retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days)))
+                .when(settingBackend).getMultipleGlobalSettings(any());
 
         final RetentionPeriods retentionPeriods = retentionPeriodFetcher.getRetentionPeriods();
         assertThat(retentionPeriods.latestRetentionMinutes(), is(NUM_RETAINED_MINS));
@@ -129,11 +130,11 @@ public class RetentionPeriodFetcherTest {
         final int hours = 12;
         final int days = 14;
         final int months = 4;
-        when(settingBackend.getMultipleGlobalSettings(any()))
-            .thenReturn(Arrays.asList(
-                retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)));
+        doReturn(Arrays.asList(
+            retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)))
+                .when(settingBackend).getMultipleGlobalSettings(any());
 
         // Initial call
         retentionPeriodFetcher.getRetentionPeriods();
@@ -152,11 +153,11 @@ public class RetentionPeriodFetcherTest {
         final int hours = 12;
         final int days = 14;
         final int months = 4;
-        when(settingBackend.getMultipleGlobalSettings(any()))
-            .thenReturn(Arrays.asList(
-                retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)));
+        doReturn(Arrays.asList(
+            retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)))
+                .when(settingBackend).getMultipleGlobalSettings(any());
 
         // Initial call
         retentionPeriodFetcher.getRetentionPeriods();
@@ -175,11 +176,11 @@ public class RetentionPeriodFetcherTest {
         final int hours = 12;
         final int days = 14;
         final int months = 4;
-        when(settingBackend.getMultipleGlobalSettings(any()))
-            .thenReturn(Arrays.asList(
-                retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
-                retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)));
+        doReturn(Arrays.asList(
+            retentionSetting(GlobalSettingSpecs.StatsRetentionHours, hours),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionDays, days),
+            retentionSetting(GlobalSettingSpecs.StatsRetentionMonths, months)))
+                .when(settingBackend).getMultipleGlobalSettings(any());
 
         // Initial call
         retentionPeriodFetcher.getRetentionPeriods();

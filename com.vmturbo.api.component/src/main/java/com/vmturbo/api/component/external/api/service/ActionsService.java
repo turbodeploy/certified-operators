@@ -194,7 +194,7 @@ public class ActionsService implements IActionsService {
     public List<EntityStatsApiDTO> getActionStatsByUuidsQuery(ActionScopesApiInputDTO actionScopesApiInputDTO)
             throws Exception {
         if (actionScopesApiInputDTO.getScopes() == null) {
-            return  new ArrayList<>();
+            return Collections.emptyList();
         }
 
         final boolean historicalQuery =
@@ -203,6 +203,7 @@ public class ActionsService implements IActionsService {
 
         try {
             final List<EntityStatsApiDTO> resultStats = new ArrayList<>();
+
             if (historicalQuery) {
                 // In the historical case we only support queries for "management units" -
                 // e.g. clusters, business accounts, or the whole market.
@@ -234,47 +235,51 @@ public class ActionsService implements IActionsService {
                     entityStatsApiDTO.setUuid(scope.uuid());
                     resultStats.add(entityStatsApiDTO);
                 }
-            } else {
-                // Retrieve counts from the "live" actions - i.e. the actions currently
-                // in memory in the action orchestrator.
-                final Set<Long> entityIds = new HashSet<>();
-                actionScopesApiInputDTO.getScopes().forEach(uuid -> {
-                    Set<Long> groupMembers = groupExpander.expandUuid(uuid);
-                    if (StringUtils.isNumeric(uuid) && groupMembers.contains(Long.valueOf(uuid))) {
-                        // Add to entity id set only if it is not a group.
-                        entityIds.add(Long.valueOf(uuid));
-                    } else if (UuidMapper.isRealtimeMarket(uuid)) {
-                        resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
-                            actionScopesApiInputDTO, Optional.empty()));
-                    } else {
-                        resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
-                            actionScopesApiInputDTO, Optional.of(groupMembers)));
-                    }
-                });
+            }
 
-                // Handle request if scope uuid belongs to service entity.
-                if (!CollectionUtils.isEmpty(entityIds)) {
-                    final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
-                    for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
-                        repositoryApi.getServiceEntitiesById(
-                            ServiceEntitiesRequest.newBuilder(entityIds).build())
-                            .entrySet()) {
-                        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-                        ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
-                            -> new UnknownObjectException(
-                            "ServiceEntity Not Found for oid: " + entry.getKey()));
-                        entityStatsApiDTO.setUuid(serviceEntity.getUuid());
-                        entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
-                        entityStatsApiDTO.setClassName(serviceEntity.getClassName());
-                        entityStatsApiDTO.setStats(new ArrayList<>());
-                        entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
-                    }
-
-                    getActionCountStatsByUuid(actionScopesApiInputDTO.getActionInput(), entityIds,
-                        entityStatsMap);
-                    // Combine results from group and entities.
-                    resultStats.addAll(entityStatsMap.values());
+            // Retrieve counts from the "live" actions - i.e. the actions currently
+            // in memory in the action orchestrator.
+            // We do this after the historical queries, so that the live actions get appended
+            // to the end of the list.
+            // TODO (roman, Jan 28 2019) OM-42500: Migrate to a single "live" action stats endpoint,
+            // and move the "live" call to be part of ActionStatsQueryExecutor.
+            final Set<Long> entityIds = new HashSet<>();
+            actionScopesApiInputDTO.getScopes().forEach(uuid -> {
+                Set<Long> groupMembers = groupExpander.expandUuid(uuid);
+                if (StringUtils.isNumeric(uuid) && groupMembers.contains(Long.valueOf(uuid))) {
+                    // Add to entity id set only if it is not a group.
+                    entityIds.add(Long.valueOf(uuid));
+                } else if (UuidMapper.isRealtimeMarket(uuid)) {
+                    resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
+                        actionScopesApiInputDTO, Optional.empty()));
+                } else {
+                    resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
+                        actionScopesApiInputDTO, Optional.of(groupMembers)));
                 }
+            });
+
+            // Handle request if scope uuid belongs to service entity.
+            if (!CollectionUtils.isEmpty(entityIds)) {
+                final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
+                for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
+                    repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(entityIds).build())
+                        .entrySet()) {
+                    final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                    ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
+                        -> new UnknownObjectException(
+                        "ServiceEntity Not Found for oid: " + entry.getKey()));
+                    entityStatsApiDTO.setUuid(serviceEntity.getUuid());
+                    entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
+                    entityStatsApiDTO.setClassName(serviceEntity.getClassName());
+                    entityStatsApiDTO.setStats(new ArrayList<>());
+                    entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
+                }
+
+                getActionCountStatsByUuid(actionScopesApiInputDTO.getActionInput(), entityIds,
+                    entityStatsMap);
+                // Combine results from group and entities.
+                resultStats.addAll(entityStatsMap.values());
             }
             return resultStats;
         }  catch (StatusRuntimeException e) {
@@ -330,7 +335,7 @@ public class ActionsService implements IActionsService {
                                            @Nonnull final Set<Long> entityIds,
                                            @Nonnull Map<Long, EntityStatsApiDTO> entityStatsMap) {
         final ActionQueryFilter filter =
-            actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(entityIds));
+            actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(entityIds));
         final GetActionCountsByEntityResponse response =
             actionOrchestratorRpc.getActionCountsByEntity(GetActionCountsByEntityRequest.newBuilder()
                 .setTopologyContextId(realtimeTopologyContextId)
@@ -359,7 +364,7 @@ public class ActionsService implements IActionsService {
     @Nonnull
     private List<StatSnapshotApiDTO> getActionCountStatsForEntities(ActionApiInputDTO inputDto, Optional<Set<Long>> entityIds) {
         final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, entityIds);
+                actionSpecMapper.createLiveActionFilter(inputDto, entityIds);
         final GetActionCountsResponse response =
                 actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
                     .setTopologyContextId(realtimeTopologyContextId)

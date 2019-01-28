@@ -288,22 +288,20 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
             return Collections.emptyList();
         }
 
-        LocalDateTime latestTruncatedTime = LocalDateTime.MIN;
         final Map<LocalDateTime, List<LocalDateTime>> snapshotsByTruncatedTime = new HashMap<>();
         for (LocalDateTime snapshotTime : allSnapshotTimes) {
             final LocalDateTime truncatedTime = toTable.timeTruncateFn().apply(snapshotTime);
             final List<LocalDateTime> daySnapshots =
                 snapshotsByTruncatedTime.computeIfAbsent(truncatedTime, k -> new ArrayList<>());
             daySnapshots.add(snapshotTime);
-            if (truncatedTime.isAfter(latestTruncatedTime)) {
-                latestTruncatedTime = truncatedTime;
-            }
         }
 
         // Remove the most recent time unit - we don't know if we'll get more snapshots before
         // this time unit is over. e.g. if rolling up the hour, and it's currently 16:45,
         // 16:00 is not ready for roll-up yet because we may get another snapshot.
-        snapshotsByTruncatedTime.remove(latestTruncatedTime);
+        final LocalDateTime curTruncatedTime =
+            toTable.timeTruncateFn().apply(LocalDateTime.now(clock));
+        snapshotsByTruncatedTime.remove(curTruncatedTime);
 
         // Remove hours that have already been rolled up.
         final Set<LocalDateTime> alreadyRolledUp =

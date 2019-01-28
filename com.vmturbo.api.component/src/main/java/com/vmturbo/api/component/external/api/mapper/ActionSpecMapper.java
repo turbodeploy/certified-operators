@@ -1037,6 +1037,23 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Similar to {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional)}, but
+     * ignores the start/end date in the request - the returned query will only request the current
+     * "live" actions.
+     *
+     * @param inputDto See {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional)}.
+     * @param involvedEntities See {@link ActionSpecMapper#createActionFilter(ActionApiInputDTO, Optional)}.
+ * @return The {@link ActionQueryFilter} instance.
+     */
+    public ActionQueryFilter createLiveActionFilter(@Nullable final ActionApiInputDTO inputDto,
+                                                    @Nonnull final Optional<Set<Long>> involvedEntities) {
+        return createActionFilterBuilder(inputDto, involvedEntities)
+            .clearStartDate()
+            .clearEndDate()
+            .build();
+    }
+
+    /**
      * Creates an {@link ActionQueryFilter} instance based on a given {@link ActionApiInputDTO}
      * and an oid collection of involved entities.
      *
@@ -1044,11 +1061,15 @@ public class ActionSpecMapper {
      * @param involvedEntities The oid collection of involved entities.
      * @return The {@link ActionQueryFilter} instance.
      */
-    public ActionQueryFilter createActionFilter(
-                            @Nullable final ActionApiInputDTO inputDto,
-                            @Nonnull final Optional<Set<Long>> involvedEntities) {
+    public ActionQueryFilter createActionFilter(@Nullable final ActionApiInputDTO inputDto,
+                                                @Nonnull final Optional<Set<Long>> involvedEntities) {
+        return createActionFilterBuilder(inputDto, involvedEntities).build();
+    }
+
+    private ActionQueryFilter.Builder createActionFilterBuilder(@Nullable final ActionApiInputDTO inputDto,
+                                                                @Nonnull final Optional<Set<Long>> involvedEntities) {
         ActionQueryFilter.Builder queryBuilder = ActionQueryFilter.newBuilder()
-                .setVisible(true);
+            .setVisible(true);
         if (inputDto != null) {
             // TODO (roman, Dec 28 2016): This is only implementing a small subset of
             // query options. Need to do another pass, including handling
@@ -1056,10 +1077,10 @@ public class ActionSpecMapper {
             // dealing with decisions/ActionModes, etc.
             if (inputDto.getActionStateList() != null) {
                 inputDto.getActionStateList().stream()
-                        .map(this::mapApiStateToXl)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .forEach(queryBuilder::addStates);
+                    .map(this::mapApiStateToXl)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(queryBuilder::addStates);
             } else {
                 // TODO: (DavidBlinn, 3/15/2018): The UI request for "Pending Actions" does not
                 // include any action states in its filter even though it wants to exclude executed
@@ -1070,16 +1091,16 @@ public class ActionSpecMapper {
             // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
             if (inputDto.getActionModeList() != null) {
                 inputDto.getActionModeList().stream()
-                        .map(this::mapApiModeToXl)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .forEach(queryBuilder::addModes);
+                    .map(this::mapApiModeToXl)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(queryBuilder::addModes);
             }
 
             if (CollectionUtils.isNotEmpty(inputDto.getActionTypeList())) {
                 inputDto.getActionTypeList().stream()
-                        .map(ActionTypeMapper::fromApi)
-                        .forEach(queryBuilder::addAllTypes);
+                    .map(ActionTypeMapper::fromApi)
+                    .forEach(queryBuilder::addAllTypes);
             }
 
             if (CollectionUtils.isNotEmpty(inputDto.getRiskSubCategoryList())) {
@@ -1095,11 +1116,11 @@ public class ActionSpecMapper {
 
             // pass in start and end time
             if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
-                queryBuilder.setStartDate(Long.parseLong(inputDto.getStartTime()));
+                queryBuilder.setStartDate(DateTimeUtil.parseTime(inputDto.getStartTime()));
             }
 
             if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
-                queryBuilder.setEndDate(Long.parseLong(inputDto.getEndTime()));
+                queryBuilder.setEndDate(DateTimeUtil.parseTime(inputDto.getEndTime()));
             }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
@@ -1107,10 +1128,10 @@ public class ActionSpecMapper {
         }
         involvedEntities.ifPresent(entities -> queryBuilder.setInvolvedEntities(
             ActionQueryFilter.InvolvedEntities.newBuilder()
-                                              .addAllOids(entities)
-                                              .build()));
+                .addAllOids(entities)
+                .build()));
 
-        return queryBuilder.build();
+        return queryBuilder;
     }
 
     @Nonnull
