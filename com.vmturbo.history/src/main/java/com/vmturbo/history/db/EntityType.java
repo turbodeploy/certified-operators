@@ -99,7 +99,7 @@ import com.vmturbo.components.common.utils.StringConstants;
 
 public enum EntityType {
     CLUSTER
-            (0, "Cluster",          "cluster", null, null, CLUSTER_STATS_BY_DAY,  CLUSTER_STATS_BY_MONTH),
+            (0, "Cluster", "cluster", null, null, CLUSTER_STATS_BY_DAY,  CLUSTER_STATS_BY_MONTH),
 
     //DataCenter stats are stored in the PM stats tables
     DATA_CENTER (
@@ -159,8 +159,7 @@ public enum EntityType {
     LOGICAL_POOL
             (18, "LogicalPool",        "lp",  LP_STATS_LATEST, LP_STATS_BY_HOUR, LP_STATS_BY_DAY, LP_STATS_BY_MONTH),
 
-    SPEND_APP(19, "Application", "app_spend", null, APP_SPEND_BY_HOUR, APP_SPEND_BY_DAY,
-                    APP_SPEND_BY_MONTH),
+    SPEND_APP(19, "Application", "app_spend", null, APP_SPEND_BY_HOUR, APP_SPEND_BY_DAY, APP_SPEND_BY_MONTH),
 
     BUSINESS_APPLICATION
             (20, "BusinessApplication",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
@@ -172,7 +171,13 @@ public enum EntityType {
             (22, "LoadBalancer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
 
     DATABASE_SERVER
-            (23, "DatabaseServer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH)
+            (23, "DatabaseServer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+
+    VIRTUAL_APPLICATION
+            (24, "VirtualApplication",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH),
+
+    APPLICATION_SERVER
+            (25, "ApplicationServer",      "app",  APP_STATS_LATEST, APP_STATS_BY_HOUR, APP_STATS_BY_DAY, APP_STATS_BY_MONTH)
     ;
 
     private final int value;
@@ -262,10 +267,10 @@ public enum EntityType {
             .put(StringConstants.DATA_CENTER, PHYSICAL_MACHINE) // DC's are intentionally mapped to PM's
             .put(StringConstants.PHYSICAL_MACHINE, PHYSICAL_MACHINE)
             .put(StringConstants.STORAGE, STORAGE)
-            .put(StringConstants.APPSRV, APPLICATION)
+            .put(StringConstants.APPSRV, APPLICATION_SERVER)
             .put(StringConstants.DATABASE_SERVER, DATABASE_SERVER)
             .put(StringConstants.APPLICATION, APPLICATION)
-            .put(StringConstants.VIRTUAL_APPLICATION, APPLICATION) //TODO: do vApps need a table?
+            .put(StringConstants.VIRTUAL_APPLICATION, VIRTUAL_APPLICATION)
             .put(StringConstants.CHASSIS, CHASSIS)
             .put(StringConstants.DISK_ARRAY, DISK_ARRAY)
             .put(StringConstants.IO_MODULE, IO_MODULE)

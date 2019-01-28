@@ -5,7 +5,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -28,13 +27,15 @@ public class RepoObjectType {
         DATACENTER("DataCenter"),
         DISKARRAY("DiskArray"),
         VIRTUAL_DATACENTER("VirtualDataCenter"),
+        BUSINESS_APPLICATION("BusinessApplication"),
+        APPLICATION_SERVER("ApplicationServer"),
         APPLICATION("Application"),
         VIRTUAL_APPLICATION("VirtualApplication"),
         CONTAINER("Container"),
         CONTAINER_POD("ContainerPod"),
         VPOD("VPod"),
         DPOD("DPod"),
-        STORAGECONTROLLER("StorageController"),
+        STORAGE_CONTROLLER("StorageController"),
         IOMODULE("IOModule"),
         INTERNET("Internet"),
         SWITCH("Switch"),
@@ -97,11 +98,13 @@ public class RepoObjectType {
             .put(EntityType.DISK_ARRAY,             RepoEntityType.DISKARRAY)
             .put(EntityType.DATACENTER,             RepoEntityType.DATACENTER)
             .put(EntityType.VIRTUAL_DATACENTER,     RepoEntityType.VIRTUAL_DATACENTER)
+            .put(EntityType.BUSINESS_APPLICATION,   RepoEntityType.BUSINESS_APPLICATION)
+            .put(EntityType.APPLICATION_SERVER,     RepoEntityType.APPLICATION_SERVER)
             .put(EntityType.APPLICATION,            RepoEntityType.APPLICATION)
             .put(EntityType.VIRTUAL_APPLICATION,    RepoEntityType.VIRTUAL_APPLICATION)
             .put(EntityType.CONTAINER,              RepoEntityType.CONTAINER)
             .put(EntityType.CONTAINER_POD,          RepoEntityType.CONTAINER_POD)
-            .put(EntityType.STORAGE_CONTROLLER,     RepoEntityType.STORAGECONTROLLER)
+            .put(EntityType.STORAGE_CONTROLLER,     RepoEntityType.STORAGE_CONTROLLER)
             .put(EntityType.IO_MODULE,              RepoEntityType.IOMODULE)
             .put(EntityType.INTERNET,               RepoEntityType.INTERNET)
             .put(EntityType.SWITCH,                 RepoEntityType.SWITCH)

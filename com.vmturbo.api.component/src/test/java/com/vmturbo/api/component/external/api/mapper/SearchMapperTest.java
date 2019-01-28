@@ -110,8 +110,8 @@ public class SearchMapperTest {
     @Test
     public void testSearchAllTypes() {
         ImmutableList<String> EXPECTED_TYPES = ImmutableList.of(
-            "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray",
-            "DataCenter", "VirtualDataCenter", "Application", "VirtualApplication",
+            "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray", "DataCenter", "VirtualDataCenter",
+            "BusinessApplication", "ApplicationServer", "Application", "VirtualApplication",
             "Container", "ContainerPod", "StorageController", "IOModule", "Switch", "Chassis",
             "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
             "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",

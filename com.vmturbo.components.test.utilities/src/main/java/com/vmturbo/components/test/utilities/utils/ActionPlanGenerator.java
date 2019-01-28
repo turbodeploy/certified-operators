@@ -218,6 +218,8 @@ public class ActionPlanGenerator {
             EntityType.PHYSICAL_MACHINE,
             EntityType.VIRTUAL_MACHINE,
             EntityType.VIRTUAL_DATACENTER,
+            EntityType.BUSINESS_APPLICATION,
+            EntityType.APPLICATION_SERVER,
             EntityType.APPLICATION,
             EntityType.VIRTUAL_APPLICATION,
             EntityType.CHASSIS,

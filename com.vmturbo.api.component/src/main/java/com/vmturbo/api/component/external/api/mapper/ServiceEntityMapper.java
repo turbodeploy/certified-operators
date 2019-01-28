@@ -22,6 +22,8 @@ public class ServiceEntityMapper {
         DATACENTER("DataCenter"),
         DISKARRAY("DiskArray"),
         VIRTUAL_DATACENTER("VirtualDataCenter"),
+        BUSINESS_APPLICATION("BusinessApplication"),
+        APPLICATION_SERVER("ApplicationServer"),
         APPLICATION("Application"),
         VIRTUAL_APPLICATION("VirtualApplication"),
         CONTAINER("Container"),
@@ -90,6 +92,8 @@ public class ServiceEntityMapper {
             .put(EntityType.DISK_ARRAY.getNumber(),             UIEntityType.DISKARRAY)
             .put(EntityType.DATACENTER.getNumber(),             UIEntityType.DATACENTER)
             .put(EntityType.VIRTUAL_DATACENTER.getNumber(),     UIEntityType.VIRTUAL_DATACENTER)
+            .put(EntityType.BUSINESS_APPLICATION.getNumber(),   UIEntityType.BUSINESS_APPLICATION)
+            .put(EntityType.APPLICATION_SERVER.getNumber(),     UIEntityType.APPLICATION_SERVER)
             .put(EntityType.APPLICATION.getNumber(),            UIEntityType.APPLICATION)
             .put(EntityType.VIRTUAL_APPLICATION.getNumber(),    UIEntityType.VIRTUAL_APPLICATION)
             .put(EntityType.CONTAINER.getNumber(),              UIEntityType.CONTAINER)

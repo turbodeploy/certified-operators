@@ -3,6 +3,8 @@ package com.vmturbo.history.utils;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.vmturbo.history.db.EntityType.APPLICATION;
+import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
+import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
 import static com.vmturbo.history.db.EntityType.CHASSIS;
 import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
 import static com.vmturbo.history.db.EntityType.IO_MODULE;
@@ -119,6 +121,8 @@ public class HistoryStatsUtils {
     public static final ImmutableMap<CommonDTO.EntityDTO.EntityType, EntityType>
             SDK_ENTITY_TYPE_TO_ENTITY_TYPE =
             new ImmutableMap.Builder<CommonDTO.EntityDTO.EntityType, EntityType>()
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
@@ -151,6 +155,8 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.DATACENTER, EntityType.DATACENTER)
                     .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
                     .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, BUSINESS_APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_SERVER, APPLICATION_SERVER)
                     .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
