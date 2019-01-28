@@ -100,10 +100,10 @@ message TraderSettingsTO {
     optional bool provider_must_clone = 11;
 
     // The quote factor of the trader
-    optional float quote_factor = 12 [default = 0.75];
+    optional float quote_factor = 12 [default = 0.68];
 
     // The move cost factor for a trader to move.
-    optional float move_cost_factor = 13 [default = 0.005];
+    optional float move_cost_factor = 13 [default = 0.05];
 
     // Whether a trader is controllable or not.
     optional bool controllable = 14;

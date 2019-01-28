@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -47,6 +48,7 @@ public class PlacementIntegrationTest {
 
     private final TraderSettingsTO shoptogetherTrueTO =
         TraderSettingsTO.newBuilder().setIsShopTogether(true)
+            .setMoveCostFactor(0.005f)
             .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                 .setSumOfCommodity(SumOfCommodity
                     .newBuilder().build())
@@ -54,6 +56,7 @@ public class PlacementIntegrationTest {
             .build();
     private final TraderSettingsTO shoptogetherFalseTO =
         TraderSettingsTO.newBuilder().setIsShopTogether(false)
+            .setMoveCostFactor(0.005f)
             .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                 .setSumOfCommodity(SumOfCommodity
                     .newBuilder().build())
