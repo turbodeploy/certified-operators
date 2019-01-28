@@ -1,7 +1,7 @@
-FROM ubuntu:18.04
+FROM alpine
 MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y iputils-ping iproute2 nmap tcpdump lsof telnet \
-sysstat strace iptraf vim mc openssh-client openssl iftop traceroute whowatch && \
+RUN apk update && apk add --no-cache iputils iproute2 nmap tcpdump lsof \
+sysstat strace vim openssh-client openssl iftop tcptraceroute && \
 mkdir /root/.ssh
 
 ADD readme.txt /README.txt
