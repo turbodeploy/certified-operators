@@ -22,9 +22,9 @@ XL_COMPONENTS="auth topology-processor market repository plan-orchestrator actio
         mediation-vmax mediation-vmm mediation-hpe3par mediation-pure mediation-oneview api"
 # list of "support" containers to start
 BASE_IMAGES="nginx rsyslog consul clustermgr db arangodb"
-# how many docker images to start, XL components and nginx
-# the dependent base images are started automatically due to the dependencies.
-N_IMAGES=$(($(echo ${XL_COMPONENTS} | wc -w) + 1))
+# how many docker images to start, totalled between base server images and XL components
+N_IMAGES=$(($(echo ${XL_COMPONENTS} | wc -w) + $(echo ${BASE_IMAGES} | wc -w)))
+
 
 # log a message; also write it to the one-line file read by the status monitor webpage
 function log_message() {
@@ -33,20 +33,28 @@ function log_message() {
     echo $@ > /tmp/status/load_status
 }
 
-function get_component_ip_address() {
-    local component_name="$1"
-    local ipaddress=`docker inspect docker_"${component_name}"_1 | grep '"IPAddress": "[0-9]+*' | awk '{print $NF}' | tr -d '",'`
-    echo $ipaddress
-}
-
 # Start the XL component and verify that it has started up successfully
 function start_and_verify_xl_component() {
     component="$1"
+    message="$2"
     start_xl_component ${component}
     # Now wait until it's started correctly
+    # grep logs for non-native 3rd party xl components
     echo "Waiting for $component to be READY"
+    if [[ "$component" =~ ^(rsyslog||consul||clustermgr||db||arangodb||rsyslog)$ ]];
+    then
+        while true
+        do
+            /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml logs rsyslog 2>&1 | grep "$component" | grep -q "${message}"
+            if [[ $? == 0 ]]; then
+                return
+            fi
+            sleep 5
+        done
+    fi
+
     # For XL native components, we query the /state REST endpoint
-    ipaddress=$(get_component_ip_address $component)
+    ipaddress=`docker inspect docker_"${component}"_1 | grep '"IPAddress": "[0-9]+*' | awk '{print $NF}' | tr -d '",'`
     while true
     do
         state=`curl -sS --stderr /tmp/vmtctl_stderr.out http://$ipaddress:8080/state | tr -d '"'`
@@ -155,11 +163,21 @@ function start_xl() {
     # Start the remaining XL components. It is assumed that "api" is last on the list so that
     # API component starts last. Thus when we connect, all other components are already running.
     log_message "Starting XL components"
+    JAVA_MSG="Component transition from MIGRATING to RUNNING"
+    start_and_verify_xl_component rsyslog "rsyslogd"
+    start_and_verify_xl_component consul "New leader elected"
+    # docker-compose removes trailing decimals from the component name so the check will fail
+    # instead, we rely on the docker-compose dependencies to start both zookeeper and kafka
+#	start_xl_component zoo1 "binding to port"
+#	start_xl_component kafka1 "Startup complete."
+    start_and_verify_xl_component clustermgr "Server.*: Started"
+    start_and_verify_xl_component db "port: 3306"
+    start_and_verify_xl_component arangodb "ready for business"
 
     # start all components; the API component should be last so other components are all "ready"
     #    when the UI comes up
     for component in ${XL_COMPONENTS}; do
-        start_and_verify_xl_component ${component}
+        start_and_verify_xl_component ${component} "${JAVA_MSG}"
     done
 
     log_message "System was successfully started."
