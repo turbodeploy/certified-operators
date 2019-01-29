@@ -63,7 +63,7 @@ public class NotificationService implements INotificationService {
     }
 
     @Override
-    NotificationPaginationResponse getNotifications(String startTime, String endTime, String category, NotificationPaginationRequest request) throws Exception {
+    public NotificationPaginationResponse getNotifications(String startTime, String endTime, String category, NotificationPaginationRequest request) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
