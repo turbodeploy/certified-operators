@@ -583,10 +583,14 @@ public class CostFunctionFactory {
         double availableCoupons =
                         couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
 
-        // Get the cost of the template matched with the vm
-        double singleVmTemplateCost = QuoteFunctionFactory
+        // Get the cost of the template matched with the vm. If this buyer represents a
+        // consistent scaling group, the template cost will be for all members of the
+        // group (the cost will be multiplied by the group factor)
+        double templateCostForBuyer = QuoteFunctionFactory
                 .computeCost(buyer, matchingTP, false, economy)
                 .getQuoteValue();
+        double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
+
         double discountedCost = 0;
         if (availableCoupons > 0) {
             if (couponCommSoldByTp.getCapacity() != 0) {
