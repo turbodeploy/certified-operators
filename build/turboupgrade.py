@@ -18,7 +18,6 @@ import re
 import shutil
 import subprocess
 import sys
-import telnetlib
 import time
 
 from itertools import izip_longest
@@ -38,15 +37,6 @@ UPGRADE_STATUS_FILE="/tmp/status/load_status"
 FREE_SPACE_THRESHOLD_PCT = 10 # If space is below this, exit upgrade
 
 CONTAINER_STOP_TIMEOUT_SECS = 30
-COMPONENT_PORTS = {
-    "db" : 3306,
-    "arangodb" : 8529,
-    "consul" : 8500,
-    "clustermgr" : 8080,
-    "rsyslog" : 2514,
-    "kafka1" : 9092,
-    "zoo1" : 2181
-}
 
 # Create logger. Add console and syslog handlers
 LOGGER = logging.getLogger('upgrade')
@@ -210,40 +200,19 @@ def exec_docker_compose_cmd(exit_on_error, cmd, *args):
             "Return code:%s Error:%s"%(cmd, ex.returncode, ex.output))
         sys.exit(1)
 
+def wait_until_log_msg(component):
+    # TODO:(karthikt) - For now, just grep the log messages.
+    #  Should use a better mechanism than grepping.
+    service_pttrn = {
+        "db" : "port: 3306",
+        "arangodb" : "ready for business",
+        "consul" : "New leader elected",
+        "clustermgr" : r"Server.*: Started",
+        "rsyslog" : "rsyslogd",
+        #"kafka1" : "Startup complete"
+        #"zoo1" : "binding to port"
+    }
 
-def get_container_ip(component):
-    ret, container_id = exec_docker_compose_cmd(True, "ps", "-q", component)
-    ret, container_json = exec_cmd(True, "docker", "inspect", container_id.strip())
-    container_info = json.loads(container_json)
-    # TODO:(karthikt) - This relies on docker networking details. This
-    # has to be changed when we move to kubernetes. Or implement an approach
-    # which is not dependent on the container networking details.
-    ip = (container_info[0].get("NetworkSettings")
-          .get("Networks")
-          .get("docker_default")
-          .get("IPAddress"))
-    return ip
-
-def check_connectivity(ip, port):
-    """
-    Return true if we can telnet to the ip:port else return false.
-    """
-    try:
-        conn = telnetlib.Telnet(ip, port)
-    except Exception as e:
-        LOGGER.error("Trouble connecting to ip:port %s:%s"%(ip, port))
-        return False
-    finally:
-        conn.close()
-        return True
-
-def wait_until_connection_ready(component):
-    ip = get_container_ip(component)
-    while not check_connectivity(ip, COMPONENT_PORTS.get(component)):
-        # wait indefinitely
-        continue
-
-def wait_until_log_msg(component, service_pttrn):
     wait_secs = 5
     while True:
         ret, out = exec_docker_compose_cmd(False, "logs", "--tail=1000",
@@ -264,10 +233,19 @@ def wait_until_component_ready(component):
         time.sleep(wait_secs)
         return
     elif component in ["arangodb", "db", "consul", "clustermgr", "rsyslog"]:
-        wait_until_connection_ready(component)
+        wait_until_log_msg(component)
         return
 
-    ip = get_container_ip(component)
+    ret, container_id = exec_docker_compose_cmd(True, "ps", "-q", component)
+    ret, container_json = exec_cmd(True, "docker", "inspect", container_id.strip())
+    container_info = json.loads(container_json)
+    # TODO:(karthikt) - This relies on docker networking details. This
+    # has to be changed when we move to kubernetes. Or implement an approach
+    # which is not dependent on the container networking details.
+    ip = (container_info[0].get("NetworkSettings")
+          .get("Networks")
+          .get("docker_default")
+          .get("IPAddress"))
     port = 8080
     wait_secs = 5
     while True:
