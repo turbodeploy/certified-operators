@@ -23,8 +23,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.pagination.NotificationPaginationRequest;
-import com.vmturbo.api.pagination.NotificationPaginationRequest.NotificationPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.INotificationService;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -60,11 +58,6 @@ public class NotificationService implements INotificationService {
         UrlsHelp.setNotificationHelp(logEntryApiDTO);
         notificationList.add(logEntryApiDTO);
         return notificationList;
-    }
-
-    @Override
-    NotificationPaginationResponse getNotifications(@Nullable String startTime, @Nullable String endTime, @Nullable String category, NotificationPaginationRequest request) throws Exception {
-        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
