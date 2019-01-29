@@ -61,6 +61,11 @@ public class NotificationService implements INotificationService {
     }
 
     @Override
+    NotificationPaginationResponse getNotifications(String startTime, String endTime, String category, NotificationPaginationRequest request) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
     public LogEntryApiDTO getNotificationByUuid(String uuid) throws Exception {
         Preconditions.checkArgument(!StringUtils.isEmpty(uuid));
 
