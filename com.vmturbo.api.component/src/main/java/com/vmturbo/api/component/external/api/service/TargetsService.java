@@ -1,8 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -45,7 +44,6 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.communication.CommunicationException;
@@ -149,8 +147,6 @@ public class TargetsService implements ITargetsService {
     private static final Set<String> TARGET_ADDRESS_KEYS = Sets.newHashSet("address", "nameOrAddress");
 
     static final String TARGET = "Target";
-
-    private static final ZoneOffset ZONE_OFFSET = OffsetDateTime.now().getOffset();
 
     private final Logger logger = LogManager.getLogger();
 
@@ -777,13 +773,10 @@ public class TargetsService implements ITargetsService {
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
 
         if (targetInfo.getLastValidationTime() != null) {
-            // UI requires Offset date time. E.g.: 2019-01-28T20:31:04.302Z
-            // Assume API component is on the same timezone as topology processor (for now)
-            final long epoch = targetInfo
-                    .getLastValidationTime()
-                    .toInstant(ZONE_OFFSET)
-                    .toEpochMilli();
-            targetApiDTO.setLastValidated(DateTimeUtil.toString(epoch));
+            // We are relying on the UI to convert the time according
+            // to the offset.
+            targetApiDTO.setLastValidated(
+                DateTimeFormatter.ISO_DATE_TIME.format(targetInfo.getLastValidationTime()));
         }
 
         // gather the other info for this target, based on the related probe
