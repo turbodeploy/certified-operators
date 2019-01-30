@@ -90,8 +90,12 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     @Override
     public @NonNull Deactivate rollback() {
         super.rollback();
-        checkArgument(!getTarget().getState().isActive());
-        getTarget().changeState(TraderState.ACTIVE);
+        Trader trader = getTarget();
+        checkArgument(!trader.getState().isActive());
+        if (logger.isTraceEnabled() || trader.isDebugEnabled()) {
+            logger.info("Rolling back deactivate for {" + trader.getDebugInfoNeverUseInCode() + "}");
+        }
+        trader.changeState(TraderState.ACTIVE);
         List<ShoppingList> slsBetweenGuaranteedBuyersAndSuspendedTrader =
                 GuaranteedBuyerHelper.getSlsWithGuaranteedBuyers(removedShoppingLists);
         Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
@@ -99,7 +103,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                         slsBetweenGuaranteedBuyersAndSuspendedTrader);
         GuaranteedBuyerHelper.addNewSlAndAdjustExistingSls(getEconomy(),
                 slsBetweenGuaranteedBuyersAndSuspendedTrader, slsSponsoredByGuaranteedBuyer,
-                getTarget(), true);
+                trader, true);
         removedShoppingLists.clear();
         return this;
     }
