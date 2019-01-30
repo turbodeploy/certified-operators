@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,6 +16,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionCollapse;
+import com.vmturbo.platform.analysis.actions.ActionType;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -201,10 +204,22 @@ public final class Ede {
 
         if (logger.isTraceEnabled()) {
             logger.trace("PSL Actions: ");
-            for(Action action : preferentialActions){
-                logger.trace("PSL Action: " +
-                        ((Move) action).getDestination().toString() + " for the VM: " + ((Move) action).getTarget().toString());
-            }
+            preferentialActions.stream()
+                .flatMap(action -> {
+                    if (action.getType() == ActionType.MOVE) {
+                        return Stream.of(action);
+                    } else if (action.getType() == ActionType.COMPOUND_MOVE) {
+                        return ((CompoundMove) action).getConstituentMoves().stream();
+                    }
+                    return Stream.empty();
+                })
+                .forEach(action -> {
+                    Move moveAction = (Move) action;
+                    logger.trace("PSL Action: Destination is " +
+                                    moveAction.getDestination() +
+                                    " for the VM: " +
+                                    moveAction.getTarget());
+                });
         }
 
         actions.addAll(preferentialActions);
