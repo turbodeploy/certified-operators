@@ -356,7 +356,15 @@ public class GroupMapper {
     @Nonnull
     private GroupApiDTO createClusterApiDto(@Nonnull final ClusterInfo clusterInfo) {
         final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setClassName(CLUSTER);
+        if (clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE) {
+            outputDTO.setClassName(CLUSTER);
+        } else if (clusterInfo.getClusterType() == ClusterInfo.Type.STORAGE) {
+            outputDTO.setClassName(STORAGE_CLUSTER);
+        } else {
+            logger.error("Unexpected cluster type: {}. Defaulting to \"CLUSTER\" (compute)",
+                clusterInfo.getClusterType());
+            outputDTO.setClassName(CLUSTER);
+        }
         // Not clear if there should be a difference between these.
         outputDTO.setEntitiesCount(clusterInfo.getMembers().getStaticMemberOidsCount());
         outputDTO.setMembersCount(clusterInfo.getMembers().getStaticMemberOidsCount());

@@ -790,7 +790,7 @@ public class GroupMapperTest {
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(computeCluster);
         assertEquals("7", dto.getUuid());
-        assertEquals(GroupMapper.CLUSTER, dto.getClassName());
+        assertEquals(GroupMapper.STORAGE_CLUSTER, dto.getClassName());
         assertEquals(true, dto.getIsStatic());
         assertEquals(1, dto.getMembersCount().intValue());
         assertEquals(1, dto.getEntitiesCount().intValue());
