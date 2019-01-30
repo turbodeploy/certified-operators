@@ -8,21 +8,14 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
 
 import com.google.protobuf.Empty;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.auth.component.licensing.store.LicenseKVStore;
 import com.vmturbo.auth.component.store.LicenseLocalStoreTest;
@@ -32,11 +25,9 @@ import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.kvstore.MapKeyValueStore;
-import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseDeserializer;
 
 /**
@@ -180,51 +171,6 @@ public class LicenseManagerServiceTest {
         // the license should have two issues -- the date and feature sets are invalid.
         assertEquals("This license has issuez.",2,returnedLicense.getErrorReasonCount());
         assertFalse("This license is not so valid.", returnedLicense.getIsValid());
-    }
-
-    @Test
-    public void testUpgradeExpiredLicense() throws IOException {
-        String email = "somebody@mail.com";
-        List<String> originalFeatures = Arrays.asList("Feature");
-        // put an expired license in the license store
-        Instant yesterday = Instant.now().minus(1, ChronoUnit.DAYS);
-        ILicense expiredLicense = LicenseTestUtils.createLicense(
-                Date.from(yesterday), "somebody@mail.com", originalFeatures, 1);
-        licenseKVStore.storeLicense(LicenseDTOUtils.iLicenseToLicenseDTO(expiredLicense));
-
-        // verify that you can't upgrade to another expired license
-        ILicense anotherExpiredLicense = LicenseTestUtils.createLicense(
-                Date.from(yesterday), "somebody@mail.com", originalFeatures, 1);
-        Assert.assertFalse(licenseManagerService.validateLicense(anotherExpiredLicense).isValid());
-
-        // verify that adding a non-expired license with the same feature set would be fine
-        Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
-        ILicense newLicenseSameFeatures = LicenseTestUtils.createLicense(
-                Date.from(tomorrow), "somebody@mail.com", originalFeatures, 1);
-        Assert.assertTrue(licenseManagerService.validateLicense(newLicenseSameFeatures).isValid());
-
-        // verify that adding a non-expired license with different feature set would be fine too.
-        // this would have broken in OM-42491
-        ILicense newLicenseNewFeatures = LicenseTestUtils.createLicense(
-                Date.from(tomorrow), "somebody@mail.com", Arrays.asList("NewFeature1", "NewFeature2"), 1);
-        Assert.assertTrue(licenseManagerService.validateLicense(newLicenseNewFeatures).isValid());
-
-        // store the non-expired license with different features, and verify that the old features
-        // are no longer available but the new ones are.
-        AddLicensesResponse response = clientStub.addLicenses(AddLicensesRequest.newBuilder()
-                .addLicenseDTO(LicenseDTOUtils.iLicenseToLicenseDTO(newLicenseNewFeatures))
-                .build());
-        boolean allSaved = response.getLicenseDTOList().stream().allMatch(LicenseDTO::getIsValid);
-        Assert.assertTrue(allSaved);
-
-        // create a license summary out of all the licenses we have now
-        License combinedLicense = LicenseDTOUtils.combineLicenses(licenseManagerService.getLicenses());
-        LicenseSummary licenseSummary = LicenseDTOUtils.licenseToLicenseSummary(combinedLicense, false);
-        // verify old features no longer available
-        Assert.assertFalse(licenseSummary.getFeatureList().contains("Feature"));
-        // verify new features ARE avaialble
-        Assert.assertTrue(licenseSummary.getFeatureList().containsAll(Arrays.asList("NewFeature1","NewFeature2")));
-
     }
 
     // TODO: When we support authorization in this service (OM-35910), add test validating Admin role

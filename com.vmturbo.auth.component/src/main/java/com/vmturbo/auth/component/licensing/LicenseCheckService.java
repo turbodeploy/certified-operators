@@ -249,7 +249,13 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         }
 
         // we have licenses -- convert them to model licenses, validate them, and merge them together.
-        License aggregateLicense = LicenseDTOUtils.combineLicenses(licenseDTOs);
+        License aggregateLicense = new License();
+        for (LicenseDTO licenseDTO : licenseDTOs) {
+            License license = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
+            license.setErrorReasons(LicenseDTOUtils.validateXLLicense(license));
+
+            aggregateLicense.combine(license); // merge subsequent licenses into the first one
+        }
 
         // get the workload count
         boolean isOverLimit = populateWorkloadCount(aggregateLicense);
