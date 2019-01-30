@@ -284,7 +284,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
      * @param licenseApiDTO the license to validate
      * @return the license w/validation errors populated.
      */
-    private ILicense validateLicense(ILicense licenseApiDTO) throws IOException {
+    protected ILicense validateLicense(ILicense licenseApiDTO) throws IOException {
         // run the standard validations and set the error reasons on the licenseApiDTO object we
         // are going to be returning. This how the caller gets per-license validation errors.
         LicenseDTOUtils.validateXLLicense(licenseApiDTO)
@@ -292,8 +292,11 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
 
         // check for duplicate license keys and compatibility
         String newLicenseKey = licenseApiDTO.getLicenseKey();
-        Collection<LicenseDTO> existingLicenses = licenseStore.getLicenses();
-        boolean alreadyExists = existingLicenses.stream()
+        // we're filtering out expired licenses for the purposes of validating new licenses.
+        Collection<LicenseDTO> activeLicenses = licenseStore.getLicenses().stream()
+                .filter(license -> LicenseUtil.isNotExpired(license.getExpirationDate()))
+                .collect(Collectors.toList());
+        boolean alreadyExists = activeLicenses.stream()
                 .anyMatch(license -> license.getLicenseKey().equals(newLicenseKey));
         if (alreadyExists) {
             // duplicate license error
@@ -302,10 +305,10 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
 
         // if we have existing licenses, run some other checks to make sure the incoming license is
         // compatible with the other licenses in the system.
-        if (existingLicenses.size() > 0) {
+        if (activeLicenses.size() > 0) {
             // verify that CWOM/Workload license type matches our existing licenses.
             boolean isExternalLicense = StringUtils.isNotBlank(licenseApiDTO.getExternalLicenseKey());
-            boolean sameLicenseType = existingLicenses.stream()
+            boolean sameLicenseType = activeLicenses.stream()
                     .anyMatch(license -> (license.hasExternalLicenseKey() == isExternalLicense));
             if (!sameLicenseType) {
                 licenseApiDTO.addErrorReason(ErrorReason.INVALID_LICENSE_TYPE_CWOM_ONLY);
@@ -316,7 +319,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             // we are merging all existing license features here, but technically this shouldn't be
             // necessary, since we are marking licenses with non-matching feature sets as invalid.
             // So all added licenses should have the same feature sets.
-            List<String> existingFeatures = existingLicenses.stream()
+            List<String> existingFeatures = activeLicenses.stream()
                     .map(LicenseDTO::getFeaturesList)
                     .flatMap(List::stream)
                     .distinct()
