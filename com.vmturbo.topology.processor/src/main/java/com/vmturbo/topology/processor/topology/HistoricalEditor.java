@@ -295,8 +295,12 @@ public class HistoricalEditor {
                         if (histSoldInfo.getMatched() == true) {
                             float usedHistWeight = histSeInfo.getUsedHistoryWeight();
                             float peakHistWeight = histSeInfo.getPeakHistoryWeight();
-                            used = usedHistWeight * histSoldInfo.getHistoricalUsed() + (1 - usedHistWeight) * used;
-                            peak = peakHistWeight * histSoldInfo.getHistoricalPeak() + (1 - peakHistWeight) * peak;
+                            if (histSoldInfo.getHistoricalUsed() > 0) {
+                                used = usedHistWeight * histSoldInfo.getHistoricalUsed() + (1 - usedHistWeight) * used;
+                            }
+                            if (histSoldInfo.getHistoricalPeak() > 0) {
+                                peak = peakHistWeight * histSoldInfo.getHistoricalPeak() + (1 - peakHistWeight) * peak;
+                            }
                             logger.trace("Entity={}, Sold commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
                                     topoCommSold.getCommodityType().getType(), histSoldInfo.getHistoricalUsed(), histSoldInfo.getHistoricalPeak());
                             logger.trace("Entity={}, Sold commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
@@ -440,8 +444,12 @@ public class HistoricalEditor {
                         commBoughtFound = true;
                         float usedHistWeight = histSeInfo.getUsedHistoryWeight();
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
-                        usedQuantity = usedHistWeight * histBoughtInfo.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
-                        peakQuantity = peakHistWeight * histBoughtInfo.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
+                        if (histBoughtInfo.getHistoricalUsed() > 0) {
+                            usedQuantity = usedHistWeight * histBoughtInfo.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
+                        }
+                        if (histBoughtInfo.getHistoricalPeak() > 0) {
+                            peakQuantity = peakHistWeight * histBoughtInfo.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
+                        }
                         logger.trace("Entity={}, Bought commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
                                 topoCommBought.getCommodityType().getType(), histBoughtInfo.getHistoricalUsed(), histBoughtInfo.getHistoricalPeak());
                         logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
@@ -488,8 +496,12 @@ public class HistoricalEditor {
                         HistoricalCommodityInfo previousComm = histBoughtInfoList.get(indexMatching);
                         float usedHistWeight = histSeInfo.getUsedHistoryWeight();
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
-                        usedQuantity = usedHistWeight * previousComm.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
-                        peakQuantity = peakHistWeight * previousComm.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
+                        if (previousComm.getHistoricalUsed() > 0) {
+                            usedQuantity = usedHistWeight * previousComm.getHistoricalUsed() + (1 - usedHistWeight) * usedQuantity;
+                        }
+                        if (previousComm.getHistoricalPeak() > 0) {
+                            peakQuantity = peakHistWeight * previousComm.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
+                        }
                         logger.trace("Entity={}, Bought commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
                                 topoCommBought.getCommodityType().getType(), previousComm.getHistoricalUsed(), previousComm.getHistoricalPeak());
                         logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
