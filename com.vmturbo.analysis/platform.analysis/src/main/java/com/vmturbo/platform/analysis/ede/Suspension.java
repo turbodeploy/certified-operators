@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,14 +81,12 @@ public class Suspension {
         // suspend entities that are not sellers in any market
         for (Trader seller : economy.getTraders()) {
             if (seller.getSettings().isSuspendable() && seller.getState().isActive()
-                    && !sellerHasNonDaemonCustomers(seller)
-                    // Check whether the seller is not a seller to any non-daemons in any market.
-                    // If the seller is only selling to daemons, it can suspend.
-                    && !economy.getMarketsAsSeller(seller).stream()
-                        .anyMatch(m -> m.getBuyers().stream()
-                            .anyMatch(sl -> !sl.getBuyer().getSettings().isDaemon()))) {
-                if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
-                    logger.info("Suspending " + seller.getDebugInfoNeverUseInCode()
+                && seller.getCustomers().isEmpty()
+                && economy.getMarketsAsSeller(seller).isEmpty()) {
+                boolean isDebugTrader = seller.isDebugEnabled();
+                String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Suspending " + sellerDebugInfo
                             + " as it is not a seller in any market.");
                 }
                 suspendTrader(economy, null, seller, allActions);
@@ -130,7 +127,7 @@ public class Suspension {
                 for (Trader seller : suspensionCandidates) {
                     boolean isDebugTrader = seller.isDebugEnabled();
                     String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
-                    if (!sellerHasNonDaemonCustomers(seller)) {
+                    if (seller.getCustomers().isEmpty()) {
                         if (logger.isTraceEnabled() || isDebugTrader) {
                             logger.info("Suspending " + sellerDebugInfo
                                 + " as there are no customers.");
@@ -209,7 +206,7 @@ public class Suspension {
         }
 
         List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
-        customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
+        customersOfSuspCandidate.addAll(trader.getCustomers());
 
         // Need to get this before doing the suspend, or the list will be empty.
         List<ShoppingList> guaranteedBuyerSls = GuaranteedBuyerHelper
@@ -241,11 +238,11 @@ public class Suspension {
         // Rollback actions if the trader still has customers.  If all of the customers are
         // guaranteed buyers, it's still okay to proceed with the suspend.
 
-        if (makeNonDaemonCustomerStream(trader)
+        if (trader.getCustomers().stream()
                 .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
             if (logger.isTraceEnabled() || isDebugTrader) {
                 logger.info("{" + traderDebugInfo + "} will not be suspended"
-                        + " because it still has customers.");
+                        + " because of " + trader.getCustomers().size() + " customer(s).");
             }
             return rollBackSuspends(suspendActions);
         }
@@ -350,11 +347,11 @@ public class Suspension {
             List<Market> marketsAsSeller = economy.getMarketsAsSeller(trader);
             // being the sole provider means the seller is the only active seller in a market
             // and it has some customers which are not the shoppinglists from guaranteed buyers
-            if (marketsAsSeller.stream()
-                    .anyMatch((m) -> m.getActiveSellersAvailableForPlacement()
+            if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellersAvailableForPlacement()
                             .size() == 1 && m.getBuyers().stream().anyMatch(
-                                        sl -> !sl.getBuyer().getSettings().isGuaranteedBuyer() &&
-                                                !sl.getBuyer().getSettings().isDaemon()))) {
+                                                        sl -> !sl.getBuyer()
+                                                                        .getSettings()
+                                                                        .isGuaranteedBuyer()))) {
                     soleProviders.add(trader);
             }
             if (trader.getSettings().isGuaranteedBuyer()) {
@@ -432,27 +429,5 @@ public class Suspension {
 
     public static void setSuspensionsThrottlingConfig(SuspensionsThrottlingConfig suspensionsThrottligConfig) {
         suspensionsThrottlingConfig = suspensionsThrottligConfig;
-    }
-
-    private static Stream<ShoppingList> makeNonDaemonCustomerStream(Trader seller) {
-        return seller.getCustomers().stream().filter(sl -> !sl.getBuyer().getSettings().isDaemon());
-    }
-
-    /**
-     * Get list of customers of seller that are not daemons
-     * @param seller to check
-     * @return list of sellers that are not daemons that are customers of the seller
-     */
-    private static List<ShoppingList> getNonDaemonCustomers(Trader seller) {
-        return makeNonDaemonCustomerStream(seller).collect(Collectors.toList());
-    }
-
-    /**
-     * Return whether the seller has any customers that are not daemons
-     * @param seller to check
-     * @return true if the seller has at least one customer that is not a daemon
-     */
-    private static boolean sellerHasNonDaemonCustomers(Trader seller) {
-        return makeNonDaemonCustomerStream(seller).findFirst().isPresent();
     }
 }

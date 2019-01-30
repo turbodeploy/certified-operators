@@ -110,9 +110,6 @@ message TraderSettingsTO {
 
     // Whether actions on a trader can be simulated or not during shoptogether phase
     optional bool canSimulateAction = 15;
-
-    // Whether the trader is a daemon
-    optional bool daemon = 16 [default = false];
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
