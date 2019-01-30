@@ -1,5 +1,6 @@
 package com.vmturbo.auth.component.licensing;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -150,13 +151,37 @@ public class LicenseDTOUtils {
     }
 
     /**
+     * Given a collection of {@link LicenseDTO}s, combine them into a single "aggregate" license using
+     * the ILicense.combine() method.
+     *
+     * The aggregate license contains the total licensed workload count for all of the source licenses,
+     * as well as the union of all of their features. Inactive or invalid licenses are skipped, and
+     * do not contribute to the aggregate information.
+     *
+     * @param licenseDTOs
+     * @return
+     */
+    static public License combineLicenses(Collection<LicenseDTO> licenseDTOs) {
+        // we have licenses -- convert them to model licenses, validate them, and merge them together.
+        License aggregateLicense = new License();
+        for (LicenseDTO licenseDTO : licenseDTOs) {
+            License license = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
+            license.setErrorReasons(LicenseDTOUtils.validateXLLicense(license));
+
+            aggregateLicense.combine(license); // merge subsequent licenses into the first one
+        }
+
+        return aggregateLicense;
+    }
+
+    /**
      * Convert a {@link License } to a {@link LicenseSummary} object.
      *
      * @param aggregateLicense The source aggregate license object.
      * @param isOverLimit true, if the workload count is over the license limit.
      * @return A shiny new LicenseSummary.
      */
-    static public LicenseSummary licenseToLicenseSummary(License aggregateLicense, boolean isOverLimit) {
+    static public LicenseSummary licenseToLicenseSummary(ILicense aggregateLicense, boolean isOverLimit) {
         LicenseSummary.Builder summaryBuilder = LicenseSummary.newBuilder();
 
         if (StringUtils.isNotBlank(aggregateLicense.getExpirationDate())) {
