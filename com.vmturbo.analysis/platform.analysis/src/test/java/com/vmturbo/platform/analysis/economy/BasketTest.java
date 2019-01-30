@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
+import java.util.Iterator;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,6 +43,9 @@ public class BasketTest {
         assertEquals(basket.size(), i);
     }
 
+    // CommSpecs will be sorted when creating a new basket.
+    // CommSpecs are sorted by type, then by qualityLowerBound, then by qualityUpperBound.
+    // So this test passes (even if output is shown as different order for test case {{B,A}, {A,B}}).
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestIterator() {
         return new CommoditySpecification[][][]{
@@ -64,6 +68,38 @@ public class BasketTest {
     public final void testConstructors(CommoditySpecification[] input, CommoditySpecification[] output) {
         assertEquals(0,new Basket(Arrays.asList(input)).compareTo(new Basket(input)));
         assertEquals(0,new Basket(Arrays.asList(input)).compareTo(new Basket(output)));
+    }
+
+    @Test
+    @Parameters()
+    @TestCaseName("Test #{index}: Basket({0}).reverseIterator() == {1}")
+    public final void testReverseIterator(CommoditySpecification[] input, CommoditySpecification[] output) {
+        final Basket basket = new Basket(input);
+        assertEquals(output.length, basket.size());
+
+        int i = 0;
+        Iterator<CommoditySpecification> reverseIterator = basket.reverseIterator();
+        while (reverseIterator.hasNext()) {
+            CommoditySpecification specification = reverseIterator.next();
+            assertEquals(output[i++], specification);
+        }
+        assertEquals(basket.size(), i);
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestReverseIterator() {
+        return new CommoditySpecification[][][]{
+            {{}, {}},
+            {{A}, {A}},
+            {{B}, {B}},
+            {{A,A}, {A}},
+            {{A,B}, {B,A}},
+            {{B,A}, {B,A}},
+            {{C1,C2}, {C1}},
+            {{C2,C1}, {C2}},
+            {{A,B,C1}, {C1,B,A}},
+            {{A,B,C1,C2}, {C1,B,A}}
+        };
     }
 
     @Test
@@ -395,6 +431,30 @@ public class BasketTest {
 
         assertNotEquals(b1, b2);
         assertNotEquals(b2, b1);
+    }
+
+    @Test
+    public void testUnequalTypeAreUnequal() {
+        Basket b = new Basket(A);
+
+        assertNotEquals(b, A);
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: ({0}.hashCode() == {1}.hashCode()) == {2}")
+    public void testHashCode(Basket left, Basket right, boolean output) {
+        assertEquals(output, left.equals(right));
+        assertEquals(output, right.equals(left));
+        assertEquals(output, left.hashCode() == right.hashCode());
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestHashCode() {
+        return new Object[][] {
+            {new Basket(A), new Basket(A), true},
+            {new Basket(A), new Basket(B), false}
+        };
     }
 
 } // end class BasketTest
