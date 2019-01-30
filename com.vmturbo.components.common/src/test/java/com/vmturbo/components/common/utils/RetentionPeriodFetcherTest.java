@@ -186,8 +186,8 @@ public class RetentionPeriodFetcherTest {
         retentionPeriodFetcher.getRetentionPeriods();
 
         // Next RPC should return error.
-        when(settingBackend.getMultipleGlobalSettingsError(any()))
-            .thenReturn(Optional.of(Status.UNAVAILABLE.asException()));
+        doReturn(Optional.of(Status.UNAVAILABLE.asException()))
+            .when(settingBackend).getMultipleGlobalSettingsError(any());
         // Make sure enough time passed.
         clock.addTime(UPDATE_RETENTION_S + 1, ChronoUnit.SECONDS);
 
