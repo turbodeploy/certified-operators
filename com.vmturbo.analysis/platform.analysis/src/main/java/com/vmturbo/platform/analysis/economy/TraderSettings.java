@@ -76,6 +76,11 @@ public interface TraderSettings {
     boolean isProviderMustClone();
 
     /**
+     * Whether the associated {@link Trader} is a daemon.
+     */
+    boolean isDaemon();
+
+    /**
      * Whether the associated {@link Trader} can simulate an action
      */
     boolean isCanSimulateAction();
@@ -246,6 +251,18 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setProviderMustClone(boolean providerMustClone);
+
+    /**
+     * Sets the value of the <b>isDaemon</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param daemon the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setDaemon(boolean daemon);
 
     /**
      * Sets the value of the <b>quote factor</b> field.

@@ -42,6 +42,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     // default quote function is sum of commodity
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
     private BalanceAccount balanceAccount_;
+    private boolean isDaemon_ = false;
 
     // Constructors
 
@@ -130,6 +131,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Pure
     public boolean isProviderMustClone(@ReadOnly TraderWithSettings this) {
         return isProviderMustClone_;
+    }
+
+    @Override
+    @Pure
+    public boolean isDaemon(@ReadOnly TraderWithSettings this) {
+        return isDaemon_;
     }
 
     public boolean isCanSimulateAction() {
@@ -228,6 +235,13 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderSettings setProviderMustClone(boolean isProviderMustClone) {
         isProviderMustClone_ = isProviderMustClone;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderSettings setDaemon(boolean isDaemon) {
+        isDaemon_ = isDaemon;
         return this;
     }
 
