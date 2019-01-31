@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -183,26 +184,18 @@ public class PlacementResults {
     private QuoteTracker quoteTrackerForMarketWithNoSupplier(@Nonnull final ShoppingList shoppingList,
                                                              @Nonnull final Market market,
                                                              @Nonnull final ActiveSellerLookup activeSellerLookup) {
-        // Find the commodity or commodities in the market basket that no seller is selling.
-        final List<CommoditySpecification> unsoldCommodities = new ArrayList<>();
-        for (CommoditySpecification commSpec : market.getBasket()) {
-            if (!activeSellerLookup.hasActiveSellers(commSpec)) {
-                unsoldCommodities.add(commSpec);
-            }
-        }
 
-        // TODO: This only handles the case when a market has no sellers because no one is selling some
-        // individual commodity X. If the market has no sellers due to a specific combination of goods
-        // no one is selling (ie a shopper wants to buy X and Y, some trader is selling X but not Y,
-        // and another trader is selling Y but not X, that will NOT be captured here. Hopefully the
-        // more common case is that no trader is selling the commodity.
+        // We currently can't tell what commodity or combination of commodities caused the market
+        // to have no sellers. Therefore, the quote tracker will track all the commodities in this
+        // market's basket. These can be used for comparison with baskets sold by specific sellers
+        // that we expect that would be valid providers. (ie a trader A wants to buy X and Y, we
+        // expect trader B to sell X and Y commodities. However, it only sells X)
         final QuoteTracker quoteTracker = new QuoteTracker(shoppingList);
-        unsoldCommodities.forEach(unsoldCommodity -> {
+        market.getBasket().forEach(unsoldCommodity -> {
             final CommodityQuote quote = new CommodityQuote(null);
             quote.addCostToQuote(Double.POSITIVE_INFINITY, 0, unsoldCommodity);
             quoteTracker.trackQuote(quote);
         });
-
         return quoteTracker;
     }
 }

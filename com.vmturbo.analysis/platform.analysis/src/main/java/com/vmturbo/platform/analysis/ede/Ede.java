@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -180,6 +181,8 @@ public final class Ede {
             actions.addAll(getReplayActions().getActions());
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
         }
+
+        logBasketSoldOfTradersWithDebugEnabled(economy.getTraders());
 
         if (logger.isTraceEnabled()) {
             logger.trace("PSL relinquished VMs:");
@@ -426,6 +429,16 @@ public final class Ede {
      public ReplayActions getReplayActions() {
          return replayActions_;
      }
+
+    /**
+     * Log basket sold of traders for which debug has been enabled from advanced tab.
+     */
+    private void logBasketSoldOfTradersWithDebugEnabled(@NonNull final
+                                                        List<@NonNull @ReadOnly Trader> traders) {
+        traders.stream().filter(trader -> trader.isDebugEnabled()).forEach(trader ->
+                logger.debug("Basket sold by {}:\n{}", trader.getDebugInfoNeverUseInCode(),
+                        trader.getBasketSold().toDebugString()));
+    }
 
     /**
      * Log messages to describe why traders could not be placed.
