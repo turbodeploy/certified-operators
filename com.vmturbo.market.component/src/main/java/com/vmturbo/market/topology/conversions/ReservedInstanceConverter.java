@@ -79,13 +79,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                     .setIsEligibleForResizeDown(false)
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setRiskBased(RiskBased.newBuilder()
-                                    .setCloudCost(
-                                            CostDTO.newBuilder().setCbtpResourceBundle(
-                                                    CbtpCostDTO.newBuilder().setCouponBaseType(
-                                                            com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.COUPON_VALUE)
-                                                            .setDiscountPercentage(1)
-                                                    .build())
-                                            .build())
+                                    .setCloudCost(costDTOCreator.createCbtpCostDTO())
                                     .build()))
                     .setQuoteFactor(1)
                     .build();

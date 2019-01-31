@@ -26,6 +26,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
@@ -150,6 +151,7 @@ public class CostDTOCreator {
         return CostDTO.newBuilder()
                 .setComputeTierCost(computeTierDTOBuilder
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .setCouponBaseType(CommodityDTO.CommodityType.COUPON_VALUE)
                         .build())
                 .build();
     }
@@ -234,8 +236,22 @@ public class CostDTOCreator {
         return CostDTO.newBuilder()
                 .setComputeTierCost(dbTierDTOBuilder
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .setCouponBaseType(CommodityDTO.CommodityType.COUPON_VALUE)
                         .build())
                 .build();
+    }
+
+    /**
+     * Create the CBTP cost dto
+     *
+     * @return the CBTP cost DTO
+     */
+    public CostDTO createCbtpCostDTO() {
+        return CostDTO.newBuilder().setCbtpResourceBundle(
+                CbtpCostDTO.newBuilder().setCouponBaseType(
+                        com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.COUPON_VALUE)
+                        .setDiscountPercentage(1)
+                        .build()).build();
     }
 
     /**
