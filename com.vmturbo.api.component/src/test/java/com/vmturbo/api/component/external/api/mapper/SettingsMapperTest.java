@@ -184,17 +184,17 @@ public class SettingsMapperTest {
         final SettingApiDTO settingApiDTO = mgr.getSettings().get(0);
         assertEquals("move", settingApiDTO.getUuid());
         assertEquals("Move", settingApiDTO.getDisplayName());
-        assertEquals("MANUAL", settingApiDTO.getDefaultValue());
+        assertEquals("Manual", settingApiDTO.getDefaultValue());
 
         assertThat(settingApiDTO.getEntityType(), is("VirtualMachine"));
         assertEquals(InputValueType.STRING, settingApiDTO.getValueType());
 
         assertEquals(2, settingApiDTO.getOptions().size());
         // The order is important
-        assertEquals("DISABLED", settingApiDTO.getOptions().get(0).getLabel());
-        assertEquals("DISABLED", settingApiDTO.getOptions().get(0).getValue());
-        assertEquals("MANUAL", settingApiDTO.getOptions().get(1).getLabel());
-        assertEquals("MANUAL", settingApiDTO.getOptions().get(1).getValue());
+        assertEquals("Disabled", settingApiDTO.getOptions().get(0).getLabel());
+        assertEquals("Disabled", settingApiDTO.getOptions().get(0).getValue());
+        assertEquals("Manual", settingApiDTO.getOptions().get(1).getLabel());
+        assertEquals("Manual", settingApiDTO.getOptions().get(1).getValue());
 
         //verify style info
         assertThat(settingApiDTO.getRange().getStep(), is(5.0));
@@ -424,6 +424,28 @@ public class SettingsMapperTest {
                 .get();
         assertThat(dto.getDefaultValue(), is("BOO!"));
         assertThat(dto.getValue(), is("goat"));
+        assertThat(dto.getValueType(), is(InputValueType.STRING));
+    }
+
+    @Test
+    public void testSpecMapperEnum() {
+        final DefaultSettingSpecMapper specMapper = new DefaultSettingSpecMapper();
+        final SettingSpec stringSpec = SettingSpec.newBuilder(settingSpec1)
+            .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .setDefault("FOO")
+                .addEnumValues("BAR")
+                .addEnumValues("CAR"))
+            .build();
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName(settingSpec1.getName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue("CAR"))
+            .build();
+        final SettingApiDTO dto = specMapper.settingSpecToApi(Optional.of(stringSpec), Optional.of(setting))
+            .getSettingForEntityType(settingSpec1EntityType)
+            .get();
+        assertThat(dto.getDefaultValue(), is("Foo"));
+        assertThat(dto.getValue(), is("Car"));
         assertThat(dto.getValueType(), is(InputValueType.STRING));
     }
 

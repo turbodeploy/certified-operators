@@ -380,6 +380,20 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Convert a string from "Mixed Spaces" to "UPPER_UNDERSCORE" format. e.g.:
+     *
+     *     I Am A Constant ==> I_AM_A_CONSTANT
+     *
+     * This is the inverse of {@link ActionDTOUtil#upperUnderScoreToMixedSpaces(String)}.
+     * @param input
+     * @return
+     */
+    @Nonnull
+    public static String mixedSpacesToUpperUnderScore(@Nonnull final String input) {
+        return input.replace(" ", "_").toUpperCase();
+    }
+
+    /**
      * Create a translation chunk using the given properties.
      *
      * @param entityOid
