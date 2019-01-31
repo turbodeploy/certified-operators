@@ -755,21 +755,6 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapReadyRecommendMode() throws InterruptedException, UnknownObjectException, UnsupportedActionException, ExecutionException {
-        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
-            // The action is in READY state, and in RECOMMEND mode.
-            .setActionState(ActionState.READY)
-            .setActionMode(ActionMode.RECOMMEND)
-            .build();
-        final ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        // This special case should get mapped to the RECOMMENDED state.
-        // This will make it non-selectable in the UI!
-        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
-    }
-
-
-    @Test
     public void testCreateActionFilterNoInvolvedEntities() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         final Optional<Set<Long>> involvedEntities = Optional.empty();

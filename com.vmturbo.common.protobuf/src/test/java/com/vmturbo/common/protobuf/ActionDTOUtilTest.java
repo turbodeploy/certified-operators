@@ -85,24 +85,18 @@ public class ActionDTOUtilTest {
     public void testCaseConverterUpperHyphen() {
         assertThat(ActionDTOUtil.upperUnderScoreToMixedSpaces("THIS_IS_A_CONSTANT"),
             is("This Is A Constant"));
-        assertThat(ActionDTOUtil.mixedSpacesToUpperUnderScore("This Is A Constant"),
-            is("THIS_IS_A_CONSTANT"));
     }
 
     @Test
     public void testCaseConverterUpperNoHyphen() {
         assertThat(ActionDTOUtil.upperUnderScoreToMixedSpaces("NOUNDERSCORES"),
             is("Nounderscores"));
-        assertThat(ActionDTOUtil.mixedSpacesToUpperUnderScore("Nounderscores"),
-            is("NOUNDERSCORES"));
     }
 
     @Test
     public void testCaseConverterSpacesAndUnderscores() {
         assertThat(ActionDTOUtil.upperUnderScoreToMixedSpaces("HAS_SPACES_AND_UNDERSCORES"),
             is("Has Spaces And Underscores"));
-        assertThat(ActionDTOUtil.mixedSpacesToUpperUnderScore("Has Spaces And Underscores"),
-            is("HAS_SPACES_AND_UNDERSCORES"));
     }
 
     @Test

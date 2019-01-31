@@ -331,19 +331,11 @@ public class ActionSpecMapper {
         // actionMode is direct translation
         final ActionDTO.ActionMode actionMode = actionSpec.getActionMode();
         actionApiDTO.setActionMode(ActionMode.valueOf(actionMode.name()));
-
+        
         // For plan action, set the state to successes, so it will not be selectable
         // TODO (Gary, Jan 17 2019): handle case when realtimeTopologyContextId is changed (if needed)
         if (topologyContextId == realtimeTopologyContextId) {
-            if (actionSpec.getActionState() == ActionDTO.ActionState.READY &&
-                    actionSpec.getActionMode() == ActionDTO.ActionMode.RECOMMEND) {
-                // The UI uses action states to determine whether to show an action as "executable"
-                // or not. So "ready" actions that we want to be non-executable (due to action
-                // mode) must have the "RECOMMENDED" state when they're returned to the UI.
-                actionApiDTO.setActionState(ActionState.RECOMMENDED);
-            } else {
-                actionApiDTO.setActionState(mapXlActionStateToApi(actionSpec.getActionState()));
-            }
+            actionApiDTO.setActionState(mapXlActionStateToApi(actionSpec.getActionState()));
         } else {
             // In classic all the plan actions have "Succeeded" state; in XL all the plan actions
             // have default state (ready). Set the state to "Succeeded" here to make it Not selectable
