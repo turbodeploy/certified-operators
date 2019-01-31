@@ -201,7 +201,7 @@ public class FunctionalOperatorUtil {
                                 totalAllocatedCoupons = Math.min(requestedCoupons, availableCoupons);
                                 discountCoefficient = totalAllocatedCoupons / requestedCoupons;
                                 // normalize total allocated coupons for a single buyer
-                                buyer.setQuantity(boughtIndex, totalAllocatedCoupons / groupFactor);
+                                buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                                                 * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                             }

@@ -266,6 +266,7 @@ public class CostFunctionTest {
                         .setBaseType(0)
                         .setType(0)));
         costBundleBuilder.setLicenseCommodityBaseType(3);
+        costBundleBuilder.setCouponBaseType(68);
         CostDTO tpCostDto = CostDTO.newBuilder().setComputeTierCost(costBundleBuilder.addCostTupleList(CostTuple.newBuilder()
                 .setLicenseCommodityType(-1)
                 .setPrice(0.0341)

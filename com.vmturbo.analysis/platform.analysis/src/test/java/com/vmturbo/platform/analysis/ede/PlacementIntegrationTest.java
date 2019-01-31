@@ -86,6 +86,7 @@ public class PlacementIntegrationTest {
         .setPriceFunction(constantPriceTO).setUpdateFunction(ufTO).build();
 
     private static final int LICENSE_ID = 7654;
+    private static final int COUPON_ID = 7656;
 
     @Test
     public void testPlacementDecisions() {
@@ -188,7 +189,7 @@ public class PlacementIntegrationTest {
     private static final int PM_TYPE = 88888;
 
     private final ComputeTierCostDTO.Builder costBundleBuilder = ComputeTierCostDTO.newBuilder()
-        .setLicenseCommodityBaseType(LICENSE_ID);
+        .setLicenseCommodityBaseType(LICENSE_ID).setCouponBaseType(COUPON_ID);
     private final CostDTO costDTO = CostDTO.newBuilder()
             .setComputeTierCost(costBundleBuilder.addCostTupleList(CostTuple.newBuilder()
                     .setPrice(100.0).build()))

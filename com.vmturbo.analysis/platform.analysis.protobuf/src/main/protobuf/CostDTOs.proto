@@ -33,6 +33,7 @@ message CostDTO {
         repeated CostTuple cost_tuple_list = 1; // a list of cost tuple info
         repeated ComputeResourceDependency compute_resource_depedency = 2;// a list of dependency constraint
         optional int32 license_commodity_base_type = 3; // the base type of license commodity
+        required int32 couponBaseType = 4;
     }
 
     message CostTuple {

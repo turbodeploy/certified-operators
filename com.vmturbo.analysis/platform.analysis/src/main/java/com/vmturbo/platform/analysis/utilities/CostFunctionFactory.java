@@ -369,7 +369,7 @@ public class CostFunctionFactory {
      *         If some commodity does not fit, returns the boughtIndex of the first commodity in that shopping list's
      *         basket that cannot fit within the seller.
      */
-    private static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller) {
+    private static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller, int couponCommodityBaseType) {
         // check if the commodities bought comply with capacity limitation on seller
         int boughtIndex = 0;
         Basket basket = sl.getBasket();
@@ -380,6 +380,12 @@ public class CostFunctionFactory {
         for (int soldIndex = 0; boughtIndex < basket.size();
                         boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
+
+            // TODO Make this a list if we have more commodities to skip
+            // Skip the coupon commodity
+            if (basketCommSpec.getBaseType() == couponCommodityBaseType) {
+                continue;
+            }
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
             // basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
             while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(soldIndex))) {
@@ -674,8 +680,9 @@ public class CostFunctionFactory {
                     return calculateComputeCostQuote(seller, buyer, costDTO, costMap);
                 }
 
+                int couponCommodityBaseType = costDTO.getCouponBaseType();
                 final MutableQuote capacityQuote =
-                        insufficientCommodityWithinSellerCapacityQuote(buyer, seller);
+                        insufficientCommodityWithinSellerCapacityQuote(buyer, seller, couponCommodityBaseType);
                 if (capacityQuote.isInfinite()) {
                     return capacityQuote;
                 }
@@ -722,8 +729,9 @@ public class CostFunctionFactory {
                     return CommodityQuote.zero(seller);
                 }
 
+                int couponCommodityBaseType = cbtpResourceBundle.getCouponBaseType();
                 final MutableQuote quote =
-                    insufficientCommodityWithinSellerCapacityQuote(buyer, seller);
+                    insufficientCommodityWithinSellerCapacityQuote(buyer, seller,  couponCommodityBaseType);
                 if (quote.isInfinite()) {
                     return quote;
                 }

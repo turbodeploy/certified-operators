@@ -59,6 +59,7 @@ public class TestUtils {
     private static int commSpecCounter;
 
     public static final int LICENSE_COMM_BASE_TYPE = 0;
+    public static final int COUPON_COMM_BASE_TYPE = 64;
     public static final int LINUX_COMM_TYPE = 100;
     public static final int WINDOWS_COMM_TYPE = 200;
 
@@ -478,6 +479,7 @@ public class TestUtils {
         CostDTO costDTO = CostDTO.newBuilder().setComputeTierCost(
                 ComputeTierCostDTO.newBuilder()
                         .setLicenseCommodityBaseType(LICENSE_COMM_BASE_TYPE)
+                        .setCouponBaseType(COUPON_COMM_BASE_TYPE)
                         .addCostTupleList(CostTuple.newBuilder()
                                 .setLicenseCommodityType(LINUX_COMM_TYPE)
                                 .setBusinessAccountId(1)
