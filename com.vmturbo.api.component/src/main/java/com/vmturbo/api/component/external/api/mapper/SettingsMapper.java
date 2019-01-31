@@ -49,6 +49,7 @@ import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -107,7 +108,7 @@ public class SettingsMapper {
                 .setValue(val)))
             .put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE,
                 (val, builder) -> builder.setEnumSettingValue(EnumSettingValue.newBuilder()
-                .setValue(val)))
+                .setValue(ActionDTOUtil.mixedSpacesToUpperUnderScore(val))))
             .build();
 
     private static final Map<ValueCase, ApiSettingValueInjector> API_SETTING_VALUE_INJECTORS =
@@ -125,7 +126,7 @@ public class SettingsMapper {
                 apiDTO.setValueType(InputValueType.STRING);
             })
             .put(ValueCase.ENUM_SETTING_VALUE, (setting, apiDTO) -> {
-                apiDTO.setValue(setting.getEnumSettingValue().getValue());
+                apiDTO.setValue(ActionDTOUtil.upperUnderScoreToMixedSpaces(setting.getEnumSettingValue().getValue()));
                 apiDTO.setValueType(InputValueType.STRING);
             })
             .build();
@@ -1189,12 +1190,16 @@ public class SettingsMapper {
                     // Enum is basically a string with predefined allowable values.
                     dtoSkeleton.setValueType(InputValueType.STRING);
                     final EnumSettingValueType enumType = settingSpec.getEnumSettingValueType();
-                    dtoSkeleton.setDefaultValue(enumType.getDefault());
+                    final String displayDefault =
+                        ActionDTOUtil.upperUnderScoreToMixedSpaces(enumType.getDefault());
+                    dtoSkeleton.setDefaultValue(displayDefault);
                     dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
                             .map(enumValue -> {
                                 final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
-                                enumOption.setLabel(enumValue);
-                                enumOption.setValue(enumValue);
+                                final String displayEnum =
+                                    ActionDTOUtil.upperUnderScoreToMixedSpaces(enumValue);
+                                enumOption.setLabel(displayEnum);
+                                enumOption.setValue(displayEnum);
                                 return enumOption;
                             })
                             .collect(Collectors.toList()));
