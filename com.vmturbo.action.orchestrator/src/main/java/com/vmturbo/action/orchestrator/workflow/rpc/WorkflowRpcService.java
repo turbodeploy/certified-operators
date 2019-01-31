@@ -60,7 +60,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
     public void fetchWorkflows(FetchWorkflowsRequest request,
                                StreamObserver<FetchWorkflowsResponse> responseObserver) {
         try {
-            // filter on the OrchestratorType - currently: UCSD, or 'null'
+            // filter on the OrchestratorType - currently: UCSD, ACTION_SCRIPT or 'null'
             WorkflowDTO.OrchestratorType orchestratorTypeFilter = request.hasOrchestratorType() ?
                     request.getOrchestratorType() :
                     null;

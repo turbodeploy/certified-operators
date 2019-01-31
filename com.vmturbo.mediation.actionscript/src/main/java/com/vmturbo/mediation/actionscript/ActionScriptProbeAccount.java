@@ -22,15 +22,15 @@ public class ActionScriptProbeAccount {
 
     private final static String DEFAULT_PORT = "22";
 
-    @AccountValue(targetId = true, displayName = "Name", constraint = MANDATORY,
+    @AccountValue(targetId = true, displayName = "Name or Address", constraint = MANDATORY,
         description = "IP or FQDNS for the Script Execution Server")
-    final String name;
+    final String nameOrAddress;
 
     @AccountValue(displayName = "Port", constraint = OPTIONAL, defaultValue = DEFAULT_PORT,
         description = "Port to use for the Script Execution Server")
     final String port;
 
-    @AccountValue(displayName = "Userid",
+    @AccountValue(displayName = "User ID",
         description = "Userid to use to execute command on the Script Execution Server")
     final String userid;
 
@@ -46,7 +46,7 @@ public class ActionScriptProbeAccount {
      * Default, no-args constructor is required by the vmturbo-sdk-plugin during the build process.
      */
     public ActionScriptProbeAccount() {
-        name = null;
+        nameOrAddress = null;
         port = null;
         userid = null;
         privateKeyString = null;
@@ -57,44 +57,44 @@ public class ActionScriptProbeAccount {
      * Account values for the ActionScript probe. As the ActionScript probe will be automatically
      * created, and hidden, there are no authentication values required for this probe.
      *
-     * @param name IP or FQDN for the server on which to discover the scripts
+     * @param nameOrAddress IP or FQDN for the server on which to discover the scripts
      * @param userid to use to access the ActionScript server
      * @param privateKeyString SSH private key corresponding to the {@code userid}
      * @param scriptPath filesystem path to the directory containing the scripts on the ActionScript
      *                   server
      */
-    public ActionScriptProbeAccount(@Nonnull String name,
+    public ActionScriptProbeAccount(@Nonnull String nameOrAddress,
                                     @Nonnull String userid,
                                     @Nonnull String privateKeyString,
                                     @Nonnull String scriptPath) {
-        this(name, userid, privateKeyString, scriptPath, DEFAULT_PORT);
+        this(nameOrAddress, userid, privateKeyString, scriptPath, DEFAULT_PORT);
     }
 
     /**
      * Account values for the ActionScript probe. As the ActionScript probe will be automatically
      * created, and hidden, there are no authentication values required for this probe.
      *
-     * @param name IP or FQDN for the server on which to discover the scripts
+     * @param nameOrAddress IP or FQDN for the server on which to discover the scripts
      * @param userid to use to access the ActionScript server
      * @param privateKeyString SSH private key corresponding to the {@code userid}
      * @param scriptPath filesystem path to the directory containing the scripts on the ActionScript
      *                   server
      * @param port to use to access the ActionScript server
      */
-    public ActionScriptProbeAccount(@Nonnull String name,
+    public ActionScriptProbeAccount(@Nonnull String nameOrAddress,
                                     @Nonnull String userid,
                                     @Nonnull String privateKeyString,
                                     @Nonnull String scriptPath,
                                     @Nonnull String port) {
-        this.name = name;
+        this.nameOrAddress = nameOrAddress;
         this.userid = userid;
         this.privateKeyString = privateKeyString;
         this.scriptPath = scriptPath;
         this.port = port;
     }
 
-    public String getName() {
-        return name;
+    public String getNameOrAddress() {
+        return nameOrAddress;
     }
 
     public String getPort() {
@@ -120,7 +120,7 @@ public class ActionScriptProbeAccount {
     public Map<String, Object> getFieldMap() {
         final HashMap<String, Object> fieldMap = new HashMap<>();
 
-        fieldMap.put("name", name);
+        fieldMap.put("nameOrAddress", nameOrAddress);
         fieldMap.put("port", port);
         fieldMap.put("userid", userid);
         fieldMap.put("privateKey", privateKeyString);
@@ -135,7 +135,7 @@ public class ActionScriptProbeAccount {
             return false;
         }
         final ActionScriptProbeAccount other = (ActionScriptProbeAccount)obj;
-        return Objects.equal(this.name, other.name) &&
+        return Objects.equal(this.nameOrAddress, other.nameOrAddress) &&
             Objects.equal(this.port, other.port) &&
             Objects.equal(this.userid, other.userid) &&
             Objects.equal(this.privateKeyString, other.privateKeyString) &&
@@ -144,7 +144,7 @@ public class ActionScriptProbeAccount {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(this.name,
+        return Objects.hashCode(this.nameOrAddress,
             this.port,
             this.userid,
             this.privateKeyString,
@@ -154,7 +154,7 @@ public class ActionScriptProbeAccount {
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-            .add("name", name)
+            .add("nameOrAddress", nameOrAddress)
             .add("port", port)
             .add("userid", userid)
             .add("scriptPath", scriptPath)

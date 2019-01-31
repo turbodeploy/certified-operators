@@ -72,7 +72,10 @@ message StoreDiscoveredWorkflowsRequest {
 // Copied from com.vmturbo.api.enums.OrchestratorType - but the enum value AWS_Service_Catalog("AWS")
 // is under "negotiation", so it is omitted here.
 enum OrchestratorType {
+    // Cisco UCS Director
     UCSD = 1;
+    // Turbonomic ActionScript
+    ACTION_SCRIPT = 2;
 }
 // The response to a request to store discovered workflows
 message StoreDiscoveredWorkflowsResponse { }

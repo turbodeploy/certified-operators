@@ -249,14 +249,24 @@ public enum EntitySettingSpecs {
             numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true),
 
     /**
-     * Automation Policy for the Suspend Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a suspend action is generated and executed.
+     * Automation Policy for the Activate Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a resize action is generated and executed.
      */
-    SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
+    ActivateActionWorkflow("activateActionWorkflow", "Activate Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
             string(), true),
+
+    /**
+     * Automation Policy for the Move Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a resize action is generated and executed.
+     */
+    MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
+        string(), true),
 
     /**
      * Automation Policy for the Provision Workflow. The value is the name of an
@@ -265,8 +275,9 @@ public enum EntitySettingSpecs {
     ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
+            EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
             string(), true),
+
     /**
      * Automation Policy for the Resize Workflow. The value is the name of an
      * Orchestration workflow to invoke when a resize action is generated and executed.
@@ -274,7 +285,17 @@ public enum EntitySettingSpecs {
     ResizeActionWorkflow("resizeActionWorkflow", "Resize Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
+            string(), true),
+
+    /**
+     * Automation Policy for the Suspend Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a suspend action is generated and executed.
+     */
+    SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
+            Collections.singletonList("automation"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
             string(), true),
 
     /**
@@ -337,13 +358,19 @@ public enum EntitySettingSpecs {
     /**
      * This Action Script action is added as a temporary work-around for a bug in the UI.
      * The UI processes workflows as part of the 'actionScript' case - so at least one
-     * 'actionScript' must be included.
+     * 'actionScript' must be included, and it must include all EntityTypes that workflows
+     * may apply to.
+     * Note: ActionScripts are implemented as Workflows in XL, so this policy has nothing
+     * to do with actual ActionScripts--those are covered in the workflow policies above!
      * TODO: remove this as part of fix OM-38669
      */
     ProvisionActionScript("provisionActionScript", "Provision",
             Collections.singletonList("actionScript"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE, EntityType.DISK_ARRAY),
+            EnumSet.of(EntityType.DISK_ARRAY,
+                EntityType.PHYSICAL_MACHINE,
+                EntityType.STORAGE,
+                EntityType.VIRTUAL_MACHINE),
             string(), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =

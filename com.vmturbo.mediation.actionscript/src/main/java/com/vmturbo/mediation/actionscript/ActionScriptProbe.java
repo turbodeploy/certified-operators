@@ -68,7 +68,7 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
     @Nonnull
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull ActionScriptProbeAccount accountValues) {
-        final String targetName = accountValues.getName();
+        final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning discovery of ActionScript target {}", targetName);
         final DiscoveryResponse response =
                 actionScriptPathValidator.discoverActionScripts(accountValues);
@@ -101,7 +101,7 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
     @Override
     public ValidationResponse validateTarget(@Nonnull ActionScriptProbeAccount accountValues) {
         // Check to see that the filesystem folder for the ActionScripts exists and is usable.
-        final String targetName = accountValues.getName();
+        final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning validation of ActionScript target {} ", targetName);
         final ValidationResponse response =
                 actionScriptPathValidator.validateActionScriptPath(accountValues);

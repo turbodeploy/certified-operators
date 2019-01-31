@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ActivateActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.MoveActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ProvisionActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendActionWorkflow;
@@ -28,7 +30,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A utility class to capture the logic to calculate an {@link ActionMode} for an action,
@@ -47,8 +48,10 @@ public class ActionModeCalculator {
      */
     private static final Map<ActionTypeCase, EntitySettingSpecs> WORKFLOW_ACTION_TYPE_MAP =
             new ImmutableMap.Builder<ActionTypeCase, EntitySettingSpecs>()
-                    .put(ActionTypeCase.PROVISION, ProvisionActionWorkflow)
+                    .put(ActionTypeCase.ACTIVATE, ActivateActionWorkflow)
                     .put(ActionTypeCase.DEACTIVATE, SuspendActionWorkflow)
+                    .put(ActionTypeCase.MOVE, MoveActionWorkflow)
+                    .put(ActionTypeCase.PROVISION, ProvisionActionWorkflow)
                     .put(ActionTypeCase.RESIZE, ResizeActionWorkflow)
                     .build();
 
@@ -60,9 +63,11 @@ public class ActionModeCalculator {
      */
     private static final Map<EntitySettingSpecs, EntitySettingSpecs> WORKFLOW_ACTION_BASE_MAP =
             new ImmutableMap.Builder<EntitySettingSpecs, EntitySettingSpecs>()
+                    .put(ActivateActionWorkflow, EntitySettingSpecs.Activate)
+                    .put(MoveActionWorkflow, EntitySettingSpecs.Move)
                     .put(ProvisionActionWorkflow, EntitySettingSpecs.Provision)
-                    .put(SuspendActionWorkflow, EntitySettingSpecs.Suspend)
                     .put(ResizeActionWorkflow, EntitySettingSpecs.Resize)
+                    .put(SuspendActionWorkflow, EntitySettingSpecs.Suspend)
                     .build();
 
     /**

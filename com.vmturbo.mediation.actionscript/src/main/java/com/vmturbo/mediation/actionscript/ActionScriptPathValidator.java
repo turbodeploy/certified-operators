@@ -121,7 +121,7 @@ public class ActionScriptPathValidator {
     private <T> T executeRemoteCommand(@Nonnull final ActionScriptProbeAccount accountValues,
                                        @Nonnull final RemoteCommand<? extends T> remoteCommand)
             throws KeyValidationException, RemoteExecutionException {
-        final String host = accountValues.getName();
+        final String host = accountValues.getNameOrAddress();
         final String userid = accountValues.getUserid();
         final int port = Integer.valueOf(accountValues.getPort());
         final String privateKeyString = accountValues.getPrivateKeyString();
@@ -182,7 +182,7 @@ public class ActionScriptPathValidator {
                     logger.debug("Found script {}", filename);
                     discoveryResponseBuilder.addNonMarketEntityDTO(
                             NonMarketEntityDTO.newBuilder()
-                                    .setId(generateWorkflowID(accountValues.name, filename))
+                                    .setId(generateWorkflowID(accountValues.nameOrAddress, filename))
                                     .setDisplayName(filename)
                                     .setDescription(dirEntry.getLongFilename())
                                     // TODO: Detect entity type (via naming convention, etc.)
