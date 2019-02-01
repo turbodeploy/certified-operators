@@ -13,6 +13,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
@@ -23,7 +25,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -84,6 +85,14 @@ public interface AnalysisFactory {
          */
         private final float alleviatePressureQuoteFactor;
 
+        /**
+         * The quote factor for all analysis runs that are NOT alleviate pressure plans.
+         * See {@link AnalysisConfig}.
+         */
+        private final float standardQuoteFactor;
+
+        private final float liveMarketMoveCostFactor;
+
         private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
         public DefaultAnalysisFactory(@Nonnull final GroupServiceBlockingStub groupServiceClient,
@@ -94,7 +103,14 @@ public interface AnalysisFactory {
                   @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final Clock clock,
                   final float alleviatePressureQuoteFactor,
+                  final float standardQuoteFactor,
+                  final float liveMarketMoveCostFactor,
                   final boolean suspensionThrottlingPerCluster) {
+            Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
+            Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
+            Preconditions.checkArgument(standardQuoteFactor >= 0f);
+            Preconditions.checkArgument(standardQuoteFactor <= 1.0f);
+
             this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
             this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
             this.priceTableFactory = Objects.requireNonNull(marketPriceTableFactory);
@@ -102,6 +118,8 @@ public interface AnalysisFactory {
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
+            this.standardQuoteFactor = standardQuoteFactor;
+            this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.cloudCostDataProvider = cloudCostDataProvider;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
@@ -117,10 +135,9 @@ public interface AnalysisFactory {
                                     @Nonnull final AnalysisConfigCustomizer configCustomizer) {
             final Map<String, Setting> globalSettings = retrieveSettings();
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
-                    alleviatePressureQuoteFactor : AnalysisUtil.QUOTE_FACTOR;
+                    alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(quoteFactor,
-                    this.suspensionsThrottlingConfig,
-                    globalSettings);
+                liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupServiceClient, clock,
@@ -163,13 +180,36 @@ public interface AnalysisFactory {
      */
     class AnalysisConfig {
         /**
-         * The quote factor controls the aggressiveness with which the market suggests moves.
+         * The quote factor is a factor that multiplicatively adjusts the aggressiveness
+         * with which the market suggests moves.
          *
          * It's a number between 0 and 1, so that Move actions are only generated if
          * best-quote < quote-factor * current-quote. That means that if we only want Moves that
          * result in at least 25% improvement we should use a quote-factor of 0.75.
+         *
+         * Increasing the value increases market aggressiveness. That is, the closer this value
+         * is to 1, the more frequently the market will recommend moves. This value has a larger
+         * effect at higher utilization values than the move-cost-factor and lower effect
+         * at lower utilization. See comments on
+         * https://vmturbo.atlassian.net/browse/OM-35316 for additional details.
          */
         private final float quoteFactor;
+
+        /**
+         * The move cost factor that additively controls the aggressiveness with which
+         * the market recommends moves. Plan markets will use a different move cost factor
+         * from this one (currently hard-coded to 0).
+         *
+         * Move actions are only generated if:
+         * best-quote - move-cost-factor < quote-factor * current-quote.
+         *
+         * Decreasing the value increases market aggressiveness. That is, the closer this value
+         * is to 0, the more frequently the market will recommend moves. This value has a larger
+         * effect at lower utilization values than the quote-factor and lower effect
+         * at higher utilization. See comments on
+         * https://vmturbo.atlassian.net/browse/OM-35316 for additional details.
+         */
+        private final float liveMarketMoveCostFactor;
 
         private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
@@ -195,9 +235,10 @@ public interface AnalysisFactory {
         private final float rightsizeUpperWatermark;
 
         /**
-         * Use {@link AnalysisConfig#newBuilder(float, SuspensionsThrottlingConfig, Map)}.
+         * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}
          */
         private AnalysisConfig(final float quoteFactor,
+                              final float liveMarketMoveCostFactor,
                               final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                               final Map<String, Setting> globalSettingsMap,
                               final boolean includeVDC,
@@ -205,6 +246,7 @@ public interface AnalysisFactory {
                               final float rightsizeLowerWatermark,
                               final float rightsizeUpperWatermark) {
             this.quoteFactor = quoteFactor;
+            this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
             this.globalSettingsMap = globalSettingsMap;
             this.includeVDC = includeVDC;
@@ -215,6 +257,10 @@ public interface AnalysisFactory {
 
         public float getQuoteFactor() {
             return quoteFactor;
+        }
+
+        public float getLiveMarketMoveCostFactor() {
+            return liveMarketMoveCostFactor;
         }
 
         @Nonnull
@@ -258,18 +304,22 @@ public interface AnalysisFactory {
          * accept that interface instead of the builder class.
          *
          * @param quoteFactor See {@link AnalysisConfig#quoteFactor}
+         * @param liveMarketMoveCostFactor See {@link AnalysisConfig#liveMarketMoveCostFactor}
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
          * @return The builder, which can be further customized.
          */
-        public static Builder newBuilder(final float quoteFactor,
-                 @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
+        public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
+                                         @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                  @Nonnull final Map<String, Setting> globalSettings) {
-            return new Builder(quoteFactor, suspensionsThrottlingConfig, globalSettings);
+            return new Builder(quoteFactor, liveMarketMoveCostFactor,
+                suspensionsThrottlingConfig, globalSettings);
         }
 
         public static class Builder {
             private final float quoteFactor;
+
+            private final float liveMarketMoveCostFactor;
 
             private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
@@ -284,9 +334,11 @@ public interface AnalysisFactory {
             private float rightsizeUpperWatermark;
 
             private Builder(final float quoteFactor,
+                            final float liveMarketMoveCostFactor,
                             final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                             @Nonnull final Map<String, Setting> globalSettings) {
                 this.quoteFactor = quoteFactor;
+                this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
                 this.globalSettings = globalSettings;
             }
@@ -342,7 +394,8 @@ public interface AnalysisFactory {
 
             @Nonnull
             public AnalysisConfig build() {
-                return new AnalysisConfig(quoteFactor, suspensionsThrottlingConfig, globalSettings,
+                return new AnalysisConfig(quoteFactor, liveMarketMoveCostFactor,
+                    suspensionsThrottlingConfig, globalSettings,
                     includeVDC, maxPlacementsOverride, rightsizeLowerWatermark,
                     rightsizeUpperWatermark);
             }

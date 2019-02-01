@@ -124,7 +124,8 @@ public class ScopedTopologyTest {
         IdentityGenerator.initPrefix(ID_GENERATOR_PREFIX);
         TopologyDTO.TopologyInfo topoogyInfo = TopologyDTO.TopologyInfo.getDefaultInstance();
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+            Collections.emptyMap())
                 .setIncludeVDC(INCLUDE_VDC)
                 .build();
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -277,7 +278,8 @@ public class ScopedTopologyTest {
 
         // Act
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap());
+            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+            Collections.emptyMap());
         when(analysisFactory.newAnalysis(eq(topologyInfo), eq(topologyDTOs), any()))
             .thenAnswer(invocation -> {
                 AnalysisConfigCustomizer configCustomizer =

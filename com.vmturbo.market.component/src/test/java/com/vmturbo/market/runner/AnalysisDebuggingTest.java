@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceCont
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -236,7 +237,8 @@ public class AnalysisDebuggingTest {
     @Nonnull
     private Analysis analysisFromInput(@Nonnull final AnalysisInput analysisInput) {
         AnalysisConfig.Builder analysisConfig = AnalysisConfig.newBuilder(analysisInput.getQuoteFactor(),
-                    analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
+            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
                     analysisInput.getSettingsMap())
                 .setIncludeVDC(analysisInput.getIncludeVdc())
                 .setRightsizeLowerWatermark(analysisInput.getRightSizeLowerWatermark())

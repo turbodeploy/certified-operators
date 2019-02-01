@@ -189,10 +189,10 @@ public class TopologyConverter {
     private final TopologyInfo topologyInfo;
 
     private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
+    private float liveMarketMoveCostFactor = AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR;
     private boolean isAlleviatePressurePlan = false;
 
     // Add a cost of moving from source to destination.
-    public static final float MOVE_COST_FACTOR = 0.005f;
     public static final float PLAN_MOVE_COST_FACTOR = 0.0f;
     public static final float CLOUD_QUOTE_FACTOR = 1;
 
@@ -227,15 +227,17 @@ public class TopologyConverter {
      * @param topologyInfo Information about the topology.
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param quoteFactor to be used by move recommendations.
+     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
+                             final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull final CloudCostData cloudCostData) {
-        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketPriceTable, null,
-                cloudCostData);
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, liveMarketMoveCostFactor,
+            marketPriceTable, null, cloudCostData);
     }
 
     /**
@@ -244,6 +246,7 @@ public class TopologyConverter {
      * @param topologyInfo Information about the topology.
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param quoteFactor to be used by move recommendations.
+     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable
      * @param commodityConverter
      * @param cloudCostData
@@ -251,12 +254,14 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
+                             final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              CommodityConverter commodityConverter,
                              final CloudCostData cloudCostData) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
-        this.quoteFactor  = quoteFactor;
+        this.quoteFactor = quoteFactor;
+        this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
         this.commodityConverter = commodityConverter != null ?
                 commodityConverter : new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
@@ -272,11 +277,13 @@ public class TopologyConverter {
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
+                             final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull CommodityConverter commodityConverter) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
-        this.quoteFactor  = quoteFactor;
+        this.quoteFactor = quoteFactor;
+        this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
         this.commodityConverter = commodityConverter;
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
@@ -1134,7 +1141,7 @@ public class TopologyConverter {
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
                     .setQuoteFactor(isEntityFromCloud ? CLOUD_QUOTE_FACTOR :quoteFactor)
-                    .setMoveCostFactor((isPlan() || isEntityFromCloud) ? PLAN_MOVE_COST_FACTOR : MOVE_COST_FACTOR);
+                    .setMoveCostFactor((isPlan() || isEntityFromCloud) ? PLAN_MOVE_COST_FACTOR : liveMarketMoveCostFactor);
             if (cloudEntityToBusinessAccount.get(topologyDTO) != null) {
                 settingsBuilder.setBalanceAccount(createBalanceAccountDTO(topologyDTO));
             }

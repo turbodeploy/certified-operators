@@ -201,6 +201,7 @@ public class Analysis {
                 this.originalCloudTopology, this.topologyCostCalculator.getCloudCostData());
         this.converter = new TopologyConverter(topologyInfo,
                 analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
+                analysisConfig.getLiveMarketMoveCostFactor(),
                 this.marketPriceTable, null, this.topologyCostCalculator.getCloudCostData());
     }
 

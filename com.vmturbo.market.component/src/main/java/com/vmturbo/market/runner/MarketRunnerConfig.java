@@ -74,8 +74,15 @@ public class MarketRunnerConfig {
     @Value("${alleviatePressureQuoteFactor}")
     private float alleviatePressureQuoteFactor;
 
+    @Value("${standardQuoteFactor}")
+    private float standardQuoteFactor;
+
     @Value("${suspensionThrottlingPerCluster}")
     private boolean suspensionThrottlingPerCluster;
+
+    // The plan market and cloud entity move cost factor is currently always 0
+    @Value("${liveMarketMoveCostFactor}")
+    private float liveMarketMoveCostFactor;
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
@@ -113,6 +120,8 @@ public class MarketRunnerConfig {
                 marketCloudCostDataProvider(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
+                standardQuoteFactor,
+                liveMarketMoveCostFactor,
                 suspensionThrottlingPerCluster);
     }
 

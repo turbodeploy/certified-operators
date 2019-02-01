@@ -87,7 +87,7 @@ public class AnalysisTest {
     private static final Instant END_INSTANT = Instant.EPOCH.plus(100, ChronoUnit.MINUTES);
 
     private static final float QUOTE_FACTOR = 0.77f;
-
+    private static final float MOVE_COST_FACTOR = 0.05f;
 
     private final Clock mockClock = mock(Clock.class);
 
@@ -116,7 +116,7 @@ public class AnalysisTest {
      */
     @Test
     public void testConstructor() {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT,
                     getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
@@ -148,7 +148,7 @@ public class AnalysisTest {
      */
     @Test
     public void testExecute() {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT,
                     getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
@@ -182,7 +182,7 @@ public class AnalysisTest {
     @Test
     public void testFailedAnalysis() {
         Set<TopologyEntityDTO> set = Sets.newHashSet(buyer());
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT,
                     // RateOfResize negative to throw exception
                     getRateOfResizeSettingMap(-1))
@@ -231,7 +231,7 @@ public class AnalysisTest {
      */
     @Test
     public void testTwoExecutes() {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.DEFAULT,
                 getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
@@ -257,7 +257,7 @@ public class AnalysisTest {
 
     @Test
     public void testActionPlanTimestamps() {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.DEFAULT,
                 getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
@@ -338,7 +338,7 @@ public class AnalysisTest {
         Set<TopologyEntityDTO> topologySet = new HashSet<>();
         topologySet.add(dsEntity1);
         topologySet.add(dsEntity2);
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                 .setIncludeVDC(false)
                 .setRightsizeLowerWatermark(0.3f)
