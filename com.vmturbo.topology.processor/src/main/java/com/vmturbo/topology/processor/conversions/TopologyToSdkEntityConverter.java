@@ -223,6 +223,10 @@ public class TopologyToSdkEntityConverter {
 
         // Copy the peak setting, if present
         if (commoditySoldDTO.hasPeak()) {
+            if (commoditySoldDTO.getPeak() < 0) {
+                logger.error("Peak quantity = {} for commodity type {}", commoditySoldDTO.getPeak(), commoditySoldDTO.getCommodityType());
+            }
+
             builder.setPeak(commoditySoldDTO.getPeak());
         }
 

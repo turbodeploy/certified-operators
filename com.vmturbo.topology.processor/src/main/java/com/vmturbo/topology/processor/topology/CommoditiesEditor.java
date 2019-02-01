@@ -205,6 +205,12 @@ public class CommoditiesEditor {
                 .findFirst();
         if (commoditySold.isPresent()) {
             commoditySold.get().setUsed(used);
+
+            if (peak < 0) {
+                logger.error("Peak quantity = {} for commodity type {} of topology entity {}",
+                        peak, commoditySold.get().getCommodityType(), vm.getDisplayName());
+            }
+
             commoditySold.get().setPeak(peak);
         // Otherwise, handle commodity bought by VM
         } else if (providerIdsByCommodityType.containsKey(commType.getNumber())) {
@@ -241,8 +247,12 @@ public class CommoditiesEditor {
                     if (commSoldByProvider.isPresent()) {
                         CommoditySoldDTO.Builder commSold = commSoldByProvider.get();
                         // Subtract current value and add fetched value from database.
-                        commSold.setPeak(Math.max(commSold.getPeak() - commodityBought.getPeak(), 0)
-                                        + peak);
+                        float newPeak = (float) (Math.max(commSold.getPeak() - commodityBought.getPeak(), 0) + peak);
+                        if (newPeak < 0) {
+                            logger.error("Peak quantity = {} for commodity type {} of topology entity {}"
+                                    , newPeak, commSold.getCommodityType(), provider.getDisplayName());
+                        }
+                        commSold.setPeak(newPeak);
                         commSold.setUsed(Math.max(commSold.getUsed() - commodityBought.getUsed(), 0)
                                         + used);
                     }

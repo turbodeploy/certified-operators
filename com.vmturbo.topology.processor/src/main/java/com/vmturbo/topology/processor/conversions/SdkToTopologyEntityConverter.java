@@ -473,6 +473,11 @@ public class SdkToTopologyEntityConverter {
 
     private static TopologyDTO.CommoditySoldDTO.Builder newCommoditySoldDTOBuilder(
         @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
+
+        if (commDTO.getPeak() < 0) {
+            logger.error("Peak quantity = {} for commodity type {}", commDTO.getPeak(), commDTO.getCommodityType());
+        }
+
         final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))

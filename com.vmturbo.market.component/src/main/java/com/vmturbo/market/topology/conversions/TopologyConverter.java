@@ -1063,11 +1063,21 @@ public class TopologyConverter {
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
             @Nonnull final CommodityBoughtTO commBoughtTO, final TopologyEntityDTO originalEntity) {
 
+        float peak = commBoughtTO.getPeakQuantity();
+        if (peak < 0) {
+            logger.error("Peak is negative: {} for commodity type {}", peak,
+                    commodityConverter.getCommodityName(commBoughtTO.getSpecification().getType()));
+            logger.trace("The entity with negative peak is {}", originalEntity);
+            peak = 0;
+        }
+
+        final float peakQuantity = peak; // It must be final
+
         return commodityConverter.economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
                     .setUsed(reverseScaleCommBought(commType, commBoughtTO.getQuantity(), originalEntity))
                     .setCommodityType(commType)
-                    .setPeak(commBoughtTO.getPeakQuantity())
+                    .setPeak(peakQuantity)
                     .build());
     }
 
@@ -1630,13 +1640,26 @@ public class TopologyConverter {
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
             @Nonnull final CommoditySoldTO commSoldTO,
             @Nullable final TopologyEntityDTO originalEntity) {
+
+        float peak = commSoldTO.getPeakQuantity();
+        if (peak < 0) {
+            logger.error("Peak is negative: {} for commodity type {}", peak,
+                    commodityConverter.getCommodityName(commSoldTO.getSpecification().getType()));
+            if (originalEntity != null) {
+                logger.trace("The entity with negative peak is {}", originalEntity);
+            }
+            peak = 0;
+        }
+
+        final float peakQuantity = peak; // It must be final
+
         return commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification())
                 .map(commType -> CommoditySoldDTO.newBuilder()
                         .setCapacity(reverseScaleCommSold(commType, commSoldTO.getCapacity(),
                                 originalEntity))
                         .setUsed(reverseScaleCommSold(commType, commSoldTO.getQuantity(),
                                 originalEntity))
-                        .setPeak(commSoldTO.getPeakQuantity())
+                        .setPeak(peakQuantity)
                         .setMaxQuantity(commSoldTO.getMaxQuantity())
                         .setIsResizeable(commSoldTO.getSettings().getResizable())
                         .setEffectiveCapacityPercentage(
@@ -1693,7 +1716,18 @@ public class TopologyConverter {
                                 matchingCommodity.getScalingFactor(),
                                 valueToReverseScale / matchingCommodity.getScalingFactor());
                     }
-                    return valueToReverseScale / matchingCommodity.getScalingFactor();
+                    // Creating valToReverseScale because valueToReverseScale has to be final
+                    float valToReverseScale;
+                    if (valueToReverseScale < 0) {
+                        logger.error("Value is negative: {} for commodity type {}", valueToReverseScale, commType);
+                        if (originalEntity != null) {
+                            logger.trace("The entity with negative value is {}", originalEntity);
+                        }
+                        valToReverseScale = 0;
+                    } else {
+                        valToReverseScale = valueToReverseScale;
+                    }
+                    return valToReverseScale / matchingCommodity.getScalingFactor();
                 })
                 // either we didn't find the matching commodity, or the matching commodity had
                 // no 'scalingFactor', or the 'scalingFactor' was zero (and hence we could not divide)
