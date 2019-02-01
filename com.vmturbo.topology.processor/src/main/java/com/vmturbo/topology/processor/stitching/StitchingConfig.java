@@ -60,6 +60,9 @@ public class StitchingConfig {
     @Value("${diskIopsCapacityVseriesLun}")
     private double diskIopsCapacityVseriesLun;
 
+    @Value("${arrayIopsCapacityFactor}")
+    private double arrayIopsCapacityFactor;
+
     @Value("${hybridDiskIopsFactor}")
     private double hybridDiskIopsFactor;
 
@@ -127,7 +130,7 @@ public class StitchingConfig {
     public DiskCapacityCalculator diskPropertyCalculator() {
         return new DiskCapacityCalculator(diskIopsCapacitySsd, diskIopsCapacity7200Rpm,
             diskIopsCapacity10kRpm, diskIopsCapacity15kRpm, diskIopsCapacityVseriesLun,
-            hybridDiskIopsFactor, flashAvailableDiskIopsFactor);
+            arrayIopsCapacityFactor, hybridDiskIopsFactor, flashAvailableDiskIopsFactor);
     }
 
     @Bean

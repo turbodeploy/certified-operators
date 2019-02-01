@@ -17,13 +17,19 @@ public class DiskCapacityCalculationTest {
      * This base capacity is multiplied by the above factors if the flags are set;
      * therefore for test purposes the above flags have values chosen to be huge and distinguishable.
      */
-    private final DiskCapacityCalculator calculator = new DiskCapacityCalculator(1, 1, 1, 1, 1,
+    private final DiskCapacityCalculator calculator = new DiskCapacityCalculator(1, 1, 1, 1, 1, 1,
         HYBRID_FACTOR, FLASH_FACTOR);
 
     @Test
     public void testNonMatchingString() {
         assertEquals(0, calculator.calculateCapacity(""), 1e-5);
         assertEquals(0, calculator.calculateCapacity("badstringbadstring"), 1e-5);
+    }
+
+    @Test
+    public void testNumIopsSupported() {
+        final String propString = makePropertyStringSegment(IopsItemNames.NUM_IOPS_SUPPORTED.name(), 225000);
+        assertEquals(225000, calculator.calculateCapacity(propString), 1e-5);
     }
 
     @Test
