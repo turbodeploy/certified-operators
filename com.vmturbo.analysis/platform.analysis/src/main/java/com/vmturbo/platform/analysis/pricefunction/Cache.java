@@ -172,4 +172,43 @@ class Cache {
         }
         return pf;
     }
+
+    /**
+     * Consider current bought utilization instead of passed projected sold.
+     * Return infinite when it exceeds capacity.
+     * Prefer smaller excess capacity.
+     *
+     * @param weight multiplicator for the price
+     * @return price function
+     */
+    public static synchronized PriceFunction
+                    createSquaredReciprocalBoughtUtilizationPriceFunction(double weight) {
+        String key = "SRBU-" + weight;
+        PriceFunction pf = pfMap.get(key);
+        if (pf == null) {
+            pf = (u, sl, seller, commSold, e) -> {
+                // if shopping list is passed, disregard u
+                // fetch the bought commodity by specification and consider it's utilization
+                double util = u;
+                if (sl != null && commSold.getCapacity() > 0) {
+                    int soldIndex = seller.getCommoditiesSold().indexOf(commSold);
+                    if (soldIndex >= 0) {
+                        int boughtIndex = sl.getBasket().indexOf(seller.getBasketSold().get(soldIndex));
+                        if (boughtIndex >= 0) {
+                            util = sl.getQuantity(boughtIndex) / commSold.getCapacity();
+                        }
+                    }
+                }
+                if (isInvalid(util)) {
+                    return Double.POSITIVE_INFINITY;
+                } else if (util == 0) {
+                    return MAX_UNIT_PRICE;
+                } else {
+                    return Math.min(weight / util / util, MAX_UNIT_PRICE);
+                }
+            };
+            pfMap.put(key, pf);
+        }
+        return pf;
+    }
 }

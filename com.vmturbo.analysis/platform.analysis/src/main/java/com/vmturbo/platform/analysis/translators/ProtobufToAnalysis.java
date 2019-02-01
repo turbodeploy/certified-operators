@@ -87,6 +87,10 @@ public final class ProtobufToAnalysis {
                                 input.getStandardWeighted().getWeight());
             case EXTERNAL_PRICE_FUNCTION:
                 return PriceFunction.Cache.createExternalPriceFunction();
+            case SQUARED_RECIPROCAL_BOUGHT:
+                return PriceFunction.Cache
+                                .createSquaredReciprocalBoughtUtilizationPriceFunction(input
+                                                .getSquaredReciprocalBought().getWeight());
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
