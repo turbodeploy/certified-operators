@@ -65,7 +65,6 @@ public class DiskCapacityCalculator {
                                   final double diskIopsCapacity10kRpm,
                                   final double diskIopsCapacity15kRpm,
                                   final double diskIopsCapacityVseriesLun,
-                                  final double arrayIopsCapacityFactor,
                                   final double hybridDiskIopsFactor,
                                   final double flashAvailableDiskIopsFactor) {
         if (hybridDiskIopsFactor > 0) {
@@ -83,14 +82,13 @@ public class DiskCapacityCalculator {
             this.flashAvailableDiskIopsFactor = 1;
         }
 
-        diskTypeMap = ImmutableMap.<IopsItemNames, Double>builder()
-            .put(IopsItemNames.NUM_10K_DISKS, diskIopsCapacity10kRpm)
-            .put(IopsItemNames.NUM_15K_DISKS, diskIopsCapacity15kRpm)
-            .put(IopsItemNames.NUM_7200_DISKS, diskIopsCapacity7200Rpm)
-            .put(IopsItemNames.NUM_SSD, diskIopsCapacitySsd)
-            .put(IopsItemNames.NUM_VSERIES_DISKS, diskIopsCapacityVseriesLun)
-            .put(IopsItemNames.NUM_IOPS_SUPPORTED, arrayIopsCapacityFactor)
-            .build();
+        diskTypeMap = ImmutableMap.of(
+            IopsItemNames.NUM_10K_DISKS, diskIopsCapacity10kRpm,
+            IopsItemNames.NUM_15K_DISKS, diskIopsCapacity15kRpm,
+            IopsItemNames.NUM_7200_DISKS, diskIopsCapacity7200Rpm,
+            IopsItemNames.NUM_SSD, diskIopsCapacitySsd,
+            IopsItemNames.NUM_VSERIES_DISKS, diskIopsCapacityVseriesLun
+        );
     }
 
     /**
