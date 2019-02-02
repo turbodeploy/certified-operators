@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -26,14 +27,17 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 
 import io.grpc.Channel;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -78,7 +82,7 @@ public class DiscoveredGroupUploader {
      */
     static String VC_FOLDER_KEYWORD = "Folder";
 
-    private final DiscoveredGroupServiceBlockingStub uploadStub;
+    private final GroupServiceStub groupServiceStub;
 
     private final DiscoveredGroupInterpreter discoveredGroupInterpreter;
 
@@ -97,20 +101,19 @@ public class DiscoveredGroupUploader {
         HashMultimap.create();
 
     @VisibleForTesting
-    DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
+    DiscoveredGroupUploader(@Nonnull final GroupServiceStub groupServiceStub,
                             @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter,
                             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
-        this.uploadStub =
-            DiscoveredGroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
+        this.groupServiceStub = Objects.requireNonNull(groupServiceStub);
         this.discoveredGroupInterpreter = Objects.requireNonNull(discoveredGroupInterpreter);
         this.discoveredClusterConstraintCache = discoveredClusterConstraintCache;
     }
 
     public DiscoveredGroupUploader(
-            @Nonnull final Channel groupChannel,
+            @Nonnull final GroupServiceStub groupServiceStub,
             @Nonnull final EntityStore entityStore,
             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
-        this(groupChannel, new DiscoveredGroupInterpreter(entityStore), discoveredClusterConstraintCache);
+        this(groupServiceStub, new DiscoveredGroupInterpreter(entityStore), discoveredClusterConstraintCache);
     }
 
     /**
@@ -262,11 +265,11 @@ public class DiscoveredGroupUploader {
      * @param input topology entities indexed by oid
      */
     public void uploadDiscoveredGroups(@Nonnull Map<Long, TopologyEntity.Builder> input) {
-        final List<StoreDiscoveredGroupsRequest> requests = new ArrayList<>();
+        final List<DiscoveredGroupsPoliciesSettings> requests = new ArrayList<>();
 
         // Create requests in a synchronized block to guard against changes to discovered groups/settings/policies
         // while an upload is in progress so that the data structures for each type cannot be made to be
-        // out of synch with each other.
+        // out of sync with each other.
         synchronized (latestGroupByTarget) {
 
             // create a fresh copy of the groups that we are going to upload
@@ -285,8 +288,8 @@ public class DiscoveredGroupUploader {
 
             // create the upload requests
             groupsToUploadByTarget.forEach((targetId, groups) -> {
-                final StoreDiscoveredGroupsRequest.Builder req =
-                    StoreDiscoveredGroupsRequest.newBuilder()
+                final DiscoveredGroupsPoliciesSettings.Builder req =
+                    DiscoveredGroupsPoliciesSettings.newBuilder()
                         .setTargetId(targetId);
                 groups.forEach(interpretedDto -> {
                     interpretedDto.getDtoAsCluster().ifPresent(req::addDiscoveredCluster);
@@ -305,9 +308,49 @@ public class DiscoveredGroupUploader {
             });
         }
 
-        // Upload the groups/policies/settings.
-        // TODO: (DavidBlinn 1/29/18) upload these as a gRPC stream rather than in multiple requests.
-        requests.forEach(uploadStub::storeDiscoveredGroups);
+        // Upload the groups/policies/settings to group component.
+        final CountDownLatch finishLatch = new CountDownLatch(1);
+        StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
+                new StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse>() {
+            @Override
+            public void onNext(StoreDiscoveredGroupsPoliciesSettingsResponse response) {
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                Status status = Status.fromThrowable(t);
+                logger.error("Error uploading discovered groups, settings and policies due to: {}", status);
+                finishLatch.countDown();
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.debug("Finished uploading the discovered groups, settings and policies");
+                finishLatch.countDown();
+            }
+
+        };
+
+        StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
+                groupServiceStub.storeDiscoveredGroupsPoliciesSettings(responseObserver);
+        for (DiscoveredGroupsPoliciesSettings record : requests) {
+            try {
+                requestObserver.onNext(record);
+            } catch (RuntimeException e) {
+                logger.error("Error uploading groups");
+                requestObserver.onError(e);
+                throw e;
+            }
+        }
+
+        requestObserver.onCompleted();
+        try {
+            // block until we get a response or an exception occurs.
+            finishLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();  // set interrupt flag
+            logger.error("Interrupted while waiting for response", e);
+        }
     }
 
     /**

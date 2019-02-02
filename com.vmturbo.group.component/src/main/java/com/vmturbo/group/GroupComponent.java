@@ -87,7 +87,6 @@ public class GroupComponent extends BaseVmtComponent {
         return Optional.of(builder
             .addService(ServerInterceptors.intercept(rpcConfig.policyService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.groupService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(rpcConfig.discoveredCollectionsRpcService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.settingService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.settingPolicyService(), monitoringInterceptor))
             .build());

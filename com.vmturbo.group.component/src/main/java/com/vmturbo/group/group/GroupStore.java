@@ -84,12 +84,16 @@ public class GroupStore implements Diagnosable {
 
     private final PolicyStore policyStore;
 
-    public GroupStore(final DSLContext dslContext,
-                      final PolicyStore policyStore,
-                      final IdentityProvider identityProvider) {
+    private final EntityToClusterMapping entityToClusterMapping;
+
+    public GroupStore(@Nonnull final DSLContext dslContext,
+                      @Nonnull final PolicyStore policyStore,
+                      @Nonnull final IdentityProvider identityProvider,
+                      @Nonnull final EntityToClusterMapping entityToClusterMapping) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.policyStore = Objects.requireNonNull(policyStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.entityToClusterMapping = Objects.requireNonNull(entityToClusterMapping);
     }
 
     /**

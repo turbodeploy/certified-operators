@@ -89,10 +89,13 @@ public class GroupStoreTest {
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
 
+    private EntityToClusterMapping entityToClusterMapping = mock(EntityToClusterMapping.class);
+
     @Before
     public void setup() {
         final DSLContext dslContext = dbConfig.prepareDatabase();
-        groupStore = new GroupStore(dslContext, policyStore, identityProvider);
+        groupStore = new GroupStore(dslContext, policyStore,
+                identityProvider, entityToClusterMapping);
     }
 
     @Test
@@ -338,7 +341,8 @@ public class GroupStoreTest {
         // Drop everything in groups.
         dbConfig.dsl().deleteFrom(Tables.GROUPING).execute();
 
-        final GroupStore newGroupStore = new GroupStore(dbConfig.dsl(), policyStore, identityProvider);
+        final GroupStore newGroupStore =new GroupStore(dbConfig.dsl(), policyStore,
+                identityProvider, entityToClusterMapping);
         newGroupStore.restoreDiags(diags);
 
         final Group group = newGroupStore.get(GROUP_ID).get();

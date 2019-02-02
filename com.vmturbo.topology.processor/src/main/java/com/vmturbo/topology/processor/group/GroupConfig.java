@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -60,9 +61,22 @@ public class GroupConfig {
         return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
+    /**
+     *
+     * @return Blocking Group Service client.
+     */
     @Bean
-    public GroupServiceBlockingStub groupServiceClient() {
+    public GroupServiceBlockingStub groupServiceBlockingStub() {
         return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    /**
+     *
+     * @return Async Group Service client.
+     */
+    @Bean
+    public GroupServiceStub groupServiceStub() {
+        return GroupServiceGrpc.newStub(groupClientConfig.groupChannel());
     }
 
     @Bean
@@ -77,7 +91,7 @@ public class GroupConfig {
 
     @Bean
     public PolicyManager policyManager() {
-        return new PolicyManager(policyRpcService(), groupServiceClient(), new PolicyFactory(),
+        return new PolicyManager(policyRpcService(), groupServiceBlockingStub(), new PolicyFactory(),
                 initialPlacementPolicyFactory(), planConfig.reservationServiceBlockingStub());
     }
 
@@ -89,19 +103,19 @@ public class GroupConfig {
     @Bean
     public EntitySettingsResolver settingsManager() {
         return new EntitySettingsResolver(settingPolicyServiceClient(),
-                    groupServiceClient(),
+                    groupServiceBlockingStub(),
                     settingServiceClient());
     }
 
     @Bean
     public DiscoveredGroupUploader discoveredGroupUploader() {
-        return new DiscoveredGroupUploader(groupClientConfig.groupChannel(),
+        return new DiscoveredGroupUploader(groupServiceStub(),
                 entityConfig.entityStore(), discoveredClusterConstraintCache());
     }
 
     @Bean
     public ReservationPolicyFactory initialPlacementPolicyFactory() {
-        return new ReservationPolicyFactory(groupServiceClient());
+        return new ReservationPolicyFactory(groupServiceBlockingStub());
     }
 
     @Bean

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -7,6 +8,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -14,7 +16,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -23,10 +28,9 @@ import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequ
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
@@ -42,7 +46,6 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -56,16 +59,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 
 /**
  * Service entrypoints to query supply chain values.
@@ -92,7 +96,37 @@ public class EntitiesService implements IEntitiesService {
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
+    private final GroupServiceBlockingStub groupServiceClient;
+
     private final EntityAspectMapper entityAspectMapper;
+
+    // Entity types which are not part of Host or Storage Cluster.
+    private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
+            ImmutableSet.of(
+                    UIEntityType.CHASSIS.getValue(),
+                    UIEntityType.DATACENTER.getValue(),
+                    UIEntityType.DISKARRAY.getValue(),
+                    UIEntityType.LOGICALPOOL.getValue(),
+                    UIEntityType.STORAGECONTROLLER.getValue());
+
+    /**
+     * When traversing the entities in a supply chain in the UI, the breadcrumb is
+     * used to navigate back to a Cluster an entity belongs to.
+     * The UI breadcrumb path is of the form:
+     * DataCenterName|ChassisName/ClusterName/EntityName
+     * For Cloud, we use Region in-place of Cluster and the path is of the form:
+     * RegionName/EntityName
+     * Entity types missing in the map are given the highest value(lowest precedence).
+     * This map defines the precedence to be used while sorting the result to
+     * create the correct breadcrumb path.
+     */
+    private static final Map<String, Integer> BREADCRUMB_ENTITY_PRECEDENCE_MAP =
+            ImmutableMap.of(
+                    UIEntityType.REGION.getValue(), 1,
+                    UIEntityType.AVAILABILITY_ZONE.getValue(), 2,
+                    UIEntityType.DATACENTER.getValue(), 2,
+                    UIEntityType.CHASSIS.getValue(), 2,
+                    ConstraintType.CLUSTER.toString(), 3);
 
     public EntitiesService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                            @Nonnull final ActionSpecMapper actionSpecMapper,
@@ -101,6 +135,7 @@ public class EntitiesService implements IEntitiesService {
                            @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
                            @Nonnull final PaginationMapper paginationMapper,
                            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+                           @Nonnull final GroupServiceBlockingStub groupServiceClient,
                            @Nonnull final EntityAspectMapper entityAspectMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -109,6 +144,7 @@ public class EntitiesService implements IEntitiesService {
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
     }
 
@@ -233,34 +269,85 @@ public class EntitiesService implements IEntitiesService {
             // TODO: Get all groups which the service entity is member of
             throw ApiUtils.notImplementedInXL();
         }
-        final List<String> entityTypes = Lists.newArrayList(
-                ServiceEntityMapper.toUIEntityType(EntityType.DATACENTER_VALUE),
-                ServiceEntityMapper.toUIEntityType(EntityType.CHASSIS_VALUE));
+
+        // Steps:
+        // Get the supply chain for this entity.
+        // If this entity is above the host in the supply-chain, then get the host it is connected to.
+        // From the hostId, get the Cluster that the host belongs to.
+        // If entity is Storage Device, check if it belongs to a Storage Cluster.
+        // For entities below the host(e.g DC/Chassis/Storage etc..), there is no cluster
+        // to fetch. So just return the entity.
+
+        // We get the entire supply chain for the entity instead of only the entities which we are
+        // interested in(BREADCRUMB_ENTITY_PRECEDENCE_MAP + host + storage + entityType of uuid). This
+        // is because we don't know the entity type of the supplied uuid. If the entity is something
+        // like DataCenter etc, the SupplyChain request will pull in lot of unnecessary entities which
+        // may cause memory issue. It can be optimized by first querying the entityType for the uuid,
+        // and then getting only the interested entities in the supply chain. So the trade-off is between
+        // 2 rpc calls(latency) vs memory consumption. For now, we will have one single call as its simpler.
+        // If the memory usage of pulling in the entire supply chain of the entity is deemed high, then
+        // we can change it to the 2 rpc call approach.
         final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
                 .topologyContextId(realtimeTopologyContextId)
                 .addSeedUuids(Lists.newArrayList(uuid))
-                .entityTypes(entityTypes)
                 .includeHealthSummary(false)
                 .entityDetailType(EntityDetailType.entity)
                 .fetch();
-        final Set<Long> entityIds = supplyChain.getSeMap().entrySet().stream()
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().entrySet().stream()
                 .map(Entry::getValue)
-                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().keySet().stream())
-                .map(Long::valueOf)
-                .collect(Collectors.toSet());
+                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
+                .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
 
-        if (entityIds.isEmpty()) {
-            return Collections.emptyList();
+        // extract the entities which we are interested in
+        List<BaseApiDTO> result = serviceEntityMap.values()
+                .stream()
+                .filter(serviceEntityApiDTO ->
+                        BREADCRUMB_ENTITY_PRECEDENCE_MAP.keySet().contains(serviceEntityApiDTO.getClassName())
+                        || serviceEntityApiDTO.getUuid().equals(uuid))
+                .collect(Collectors.toList());
+
+        long entityOid = Long.valueOf(uuid);
+        long oidToQuery = 0;
+        // If the entity is of type STORAGE, get its oid. Else find the oid of the Host the entity is
+        // connected to. For entities below the host such as DC, Chassis etc, the oidToQuery will be
+        // set to 0.
+        if (serviceEntityMap.get(entityOid).getClassName().equals(UIEntityType.STORAGE.getValue())) {
+            oidToQuery = entityOid;
+        }  else if (!NON_CLUSTER_ENTITY_TYPES.contains(serviceEntityMap.get(entityOid).getClassName())) {
+            for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
+                ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
+                if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue())) {
+                    oidToQuery = Long.valueOf(serviceEntityApiDTO.getUuid());
+                }
+            }
         }
 
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-                repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(entityIds)
-                                .build())
-                        .entrySet().stream()
-                        .filter(entry -> entry.getValue().isPresent())
-                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
-        return Lists.newArrayList(serviceEntityMap.values());
+        // fetch the hostId/storageId -> ClusterName from Group component.
+        if (oidToQuery != 0) {
+            GetClusterForEntityResponse response =
+                    groupServiceClient.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
+                            .setEntityId(oidToQuery)
+                            .build());
+            if (response.hasClusterInfo()) {
+                ClusterInfo cluster = response.getClusterInfo();
+                final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+                serviceEntityApiDTO.setDisplayName(cluster.getDisplayName());
+                serviceEntityApiDTO.setUuid(Long.toString(response.getClusterId()));
+                serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
+                // Insert the clusterRecord before the Entity record.
+                result.add(serviceEntityApiDTO);
+            }
+        }
+        // the UI breadcrumb path is of the form:
+        // DataCenterName|ChassisName/ClusterName/EntityName
+        // For Cloud, we use Region in-place of Cluster and the path is of the form:
+        // AvailabilityZone/RegionName/EntityName
+        // Sort the result to create the correct path.
+        result.sort((dto1, dto2) ->
+                BREADCRUMB_ENTITY_PRECEDENCE_MAP.getOrDefault(dto1.getClassName(), Integer.MAX_VALUE)
+                        .compareTo(BREADCRUMB_ENTITY_PRECEDENCE_MAP.getOrDefault(dto2.getClassName(),
+                                Integer.MAX_VALUE)));
+        return result;
     }
 
     @Override
@@ -389,6 +476,7 @@ public class EntitiesService implements IEntitiesService {
         }
         return entities.get(0);
     }
+
 }
 
 

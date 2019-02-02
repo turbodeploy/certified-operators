@@ -5,9 +5,13 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,12 +21,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
@@ -31,6 +44,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
@@ -40,6 +54,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
@@ -54,14 +69,25 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
+import com.vmturbo.group.group.EntityToClusterMapping;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
+import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
+import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @SuppressWarnings("unchecked")
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(
+        loader = AnnotationConfigContextLoader.class,
+        classes = {TestSQLDatabaseConfig.class}
+)
+@TestPropertySource(properties = {"originalSchemaName=group_component"})
 public class GroupRpcServiceTest {
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
@@ -74,13 +100,27 @@ public class GroupRpcServiceTest {
 
     private GroupRpcService groupRpcService;
 
+    @Autowired
+    private TestSQLDatabaseConfig dbConfig;
+
+    private PolicyStore policyStore = mock(PolicyStore.class);
+
+    private SettingStore settingStore = mock(SettingStore.class);
+
+    private EntityToClusterMapping entityToClusterMapping = mock(EntityToClusterMapping.class);
+
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
+
+    @Captor
+    private ArgumentCaptor<StatusException> exceptionCaptor;
 
     @Before
     public void setUp() throws Exception {
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        groupRpcService = new GroupRpcService(groupStore, temporaryGroupCache, searchServiceRpc);
+        groupRpcService = new GroupRpcService(groupStore, temporaryGroupCache,
+                searchServiceRpc, entityToClusterMapping,
+                dbConfig.dsl(), policyStore, settingStore);
         when(temporaryGroupCache.get(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.delete(anyLong())).thenReturn(Optional.empty());
     }
@@ -676,6 +716,47 @@ public class GroupRpcServiceTest {
 
         verify(observer).onNext(any(UpdateClusterHeadroomTemplateResponse.class));
         verify(observer).onCompleted();
+    }
+
+
+    @Test
+    public void testNoTargetId() {
+        StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
+                (StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse>) mock(StreamObserver.class);
+        StreamObserver<DiscoveredGroupsPoliciesSettings>  requestObserver =
+                spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.getDefaultInstance());
+        requestObserver.onCompleted();
+
+        verify(responseObserver, times(1)).onError(any(IllegalArgumentException.class));
+    }
+
+    @Test
+    public void testUpdateClusters() {
+        final HealthStatus status = mock(HealthStatus.class);
+        when(status.isHealthy()).thenReturn(true);
+
+        StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
+                (StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse>) mock(StreamObserver.class);
+        StreamObserver<DiscoveredGroupsPoliciesSettings>  requestObserver =
+                spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
+
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder().setTargetId(10L)
+                    .addDiscoveredGroup(GroupInfo.getDefaultInstance())
+                    .addDiscoveredCluster(ClusterInfo.getDefaultInstance())
+                    .build());
+        requestObserver.onCompleted();
+
+        verify(responseObserver).onCompleted();
+        verify(responseObserver).onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
+        verify(groupStore).updateTargetGroups(isA(DSLContext.class), eq(10L),
+                eq(Collections.singletonList(GroupInfo.getDefaultInstance())),
+                eq(Collections.singletonList(ClusterInfo.getDefaultInstance())));
+
+        verify(policyStore).updateTargetPolicies(isA(DSLContext.class),
+                eq(10L), eq(Collections.emptyList()), anyMap());
+        verify(settingStore).updateTargetSettingPolicies(isA(DSLContext.class),
+                eq(10L), eq(Collections.emptyList()), anyMap());
     }
 
     private void givenSearchHanderWillReturn(final List<Long> oids) {

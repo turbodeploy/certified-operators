@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.util.LinkedList;
 import java.util.List;
@@ -12,6 +13,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -151,8 +155,16 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
             } catch (RuntimeException e) {
                 if (!required()) {
                     status = Status.failed("Runtime Error: " + e.getLocalizedMessage());
-                    LOGGER.warn("Non-required pipeline stage {} failed with runtime Error: {}",
-                            getClass().getSimpleName(), e.getMessage(), e);
+                    String stageName = getClass().getSimpleName();
+                    if (e instanceof StatusRuntimeException) {
+                        // we don't want to print the entire stack trace when it is a grpc exception
+                        // as it will pollute the logs with unnecessary details.
+                        LOGGER.warn("Non-required pipeline stage {} failed with grpcError: {}",
+                                    stageName, e.getMessage());
+                    } else {
+                        LOGGER.warn("Non-required pipeline stage {} failed with runtime Error: {}",
+                                stageName, e.getMessage(), e);
+                    }
                 } else {
                     throw new PipelineStageException(e);
                 }

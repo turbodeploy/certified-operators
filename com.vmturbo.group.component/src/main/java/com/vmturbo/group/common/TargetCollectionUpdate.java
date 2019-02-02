@@ -61,7 +61,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
     protected final long targetId;
 
-    // A mapping from entity name to entity oid
+    // A mapping from CollectionName to CollectionId
     protected BiMap<String, Long> oidMap = HashBiMap.create();
 
     /**

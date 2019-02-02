@@ -156,6 +156,17 @@ public class RepoObjectType {
                                            : EntityState.UNKNOWN.getNumber();
     }
 
+
+    /**
+     * Maps the entity type used in UI to the integer used in TopologyEntityDTO.
+     *
+     * @param repoType The type String used in UI
+     * @return the TopologyEntityDTO entity type enum string for the given type string
+     */
+    public static String toTopologyEntityTypeString(String repoType) {
+        return EntityType.forNumber(toTopologyEntityType(repoType)).name();
+    }
+
     public enum RepoCommodityType {
         MEM("Mem"),
         VMEM("VMem"),

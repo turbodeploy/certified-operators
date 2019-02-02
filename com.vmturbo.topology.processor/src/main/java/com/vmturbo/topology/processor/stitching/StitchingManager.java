@@ -17,6 +17,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -279,8 +282,13 @@ public class StitchingManager {
                 entities, resultBuilder);
             results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
         } catch (RuntimeException e) {
-            logger.error("Unable to apply pre-stitching operation " +
-                preStitchingOperation.getClass().getSimpleName() + " due to exception: ", e);
+            if (e instanceof StatusRuntimeException) {
+                logger.error("Unable to apply pre-stitching operation: {} due to grpc error: {}",
+                        preStitchingOperation.getClass().getSimpleName(), e.getMessage());
+            } else {
+                logger.error("Unable to apply pre-stitching operation: {} due to exception:",
+                        preStitchingOperation.getClass().getSimpleName(), e);
+            }
             stitchingJournal.recordOperationException("Unable to apply pre-stitching operation " +
                 preStitchingOperation.getClass().getSimpleName() + " due to exception: ", e);
         } finally {
@@ -310,8 +318,13 @@ public class StitchingManager {
                 entities, settingsCollection, resultBuilder);
             results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
         } catch (RuntimeException e) {
-            logger.error("Unable to apply post-stitching operation " +
-                postStitchingOperation.getClass().getSimpleName() + " due to exception: ", e);
+            if (e instanceof StatusRuntimeException) {
+                logger.error("Unable to apply post-stitching operation: {} due to grpc error: {}",
+                        postStitchingOperation.getClass().getSimpleName(), e.getMessage());
+            } else {
+                logger.error("Unable to apply post-stitching operation: {} due to exception: ",
+                        postStitchingOperation.getClass().getSimpleName(), e);
+            }
             stitchingJournal.recordOperationException("Unable to apply post-stitching operation " +
                 postStitchingOperation.getClass().getSimpleName() + " due to exception: ", e);
         } finally {

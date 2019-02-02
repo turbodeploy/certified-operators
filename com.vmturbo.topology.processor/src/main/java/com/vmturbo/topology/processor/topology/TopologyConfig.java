@@ -1,8 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -131,7 +130,7 @@ public class TopologyConfig {
                 templateConfig.templateConverterFactory(),
                 // we don't use groupResolver cache here because we want
                 // up-to-date results.
-                groupConfig.groupServiceClient());
+                groupConfig.groupServiceBlockingStub());
     }
 
     @Bean
@@ -164,7 +163,7 @@ public class TopologyConfig {
                 topologyEditor(),
                 repositoryConfig.repository(),
                 groupConfig.topologyFilterFactory(),
-                groupConfig.groupServiceClient(),
+                groupConfig.groupServiceBlockingStub(),
                 reservationConfig.reservationManager(),
                 discoveredSettingPolicyScanner(),
                 stitchingGroupFixer(),

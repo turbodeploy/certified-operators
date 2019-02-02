@@ -19,6 +19,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -78,6 +80,11 @@ public class RepositoryClientConfig {
     @Bean
     public RepositoryClient repositoryClient() {
         return new RepositoryClient(repositoryChannel());
+    }
+
+    @Bean
+    public SearchServiceBlockingStub searchServiceClient() {
+        return SearchServiceGrpc.newBlockingStub(repositoryChannel());
     }
 
     @Nonnull

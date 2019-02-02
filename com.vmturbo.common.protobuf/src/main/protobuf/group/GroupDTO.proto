@@ -303,8 +303,9 @@ message GetMembersResponse {
     }
 }
 
-message StoreDiscoveredGroupsRequest {
-    // The ID of the target that discovered the groups.
+message DiscoveredGroupsPoliciesSettings {
+
+    // The ID of the target that discovered the groups/policies/settings.
     //
     // ALL old groups and clusters associated with this target ID
     // will either be updated (if they are re-discovered) or deleted .
@@ -333,7 +334,7 @@ message StoreDiscoveredGroupsRequest {
     repeated DiscoveredSettingPolicyInfo discovered_setting_policies = 5;
 }
 
-message StoreDiscoveredGroupsResponse {}
+message StoreDiscoveredGroupsPoliciesSettingsResponse {}
 
 
 // A filter on the name of a group (or cluster).
@@ -373,6 +374,18 @@ message UpdateClusterHeadroomTemplateResponse {
     optional Group updated_group = 1;
 }
 
+message GetClusterForEntityRequest {
+    optional int64 entity_id = 1;
+}
+
+message GetClusterForEntityResponse {
+
+    optional int64 cluster_id = 1;
+
+    optional ClusterInfo cluster_info = 2;
+
+}
+
 // A service responsible for group operations.
 service GroupService {
     // Create a group
@@ -404,21 +417,10 @@ service GroupService {
     // Get the members of a group
     rpc GetMembers(GetMembersRequest) returns (GetMembersResponse);
 
+    // Get the cluster the entity belongs to.
+    rpc GetClusterForEntity(GetClusterForEntityRequest) returns (GetClusterForEntityResponse);
+
+    // Stores groups, clusters, settings and policies discovered in the customer's topology.
+    rpc StoreDiscoveredGroupsPoliciesSettings(stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
 }
 
-// This service provides the interface to store all group and policy related information
-// (i.e. groups, clusters, policies) discovered in the customer's topology.
-// It should provide an atomic RPC to store updated information from a discovery.
-//
-// TODO (roman, July 27): If this becomes the single entry point for "uploading" discovered
-// groups and policies, we probably need a better name.
-service DiscoveredGroupService {
-    // Stores groups and clusters discovered in the customer's topology.
-    //
-    // Only the Topology Processor should use this method to record the groups
-    // that it discovered.
-    //
-    // Each call to this method is atomic - either all groups will be added, overriding
-    // existing groups, or none of them will be.
-    rpc StoreDiscoveredGroups(StoreDiscoveredGroupsRequest) returns (StoreDiscoveredGroupsResponse);
-}

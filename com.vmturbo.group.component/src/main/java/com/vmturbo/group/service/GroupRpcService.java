@@ -1,7 +1,10 @@
 package com.vmturbo.group.service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -9,19 +12,26 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -33,6 +43,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -47,11 +58,14 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
+import com.vmturbo.group.group.EntityToClusterMapping;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
+import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
+import com.vmturbo.group.setting.SettingStore;
 
 public class GroupRpcService extends GroupServiceImplBase {
 
@@ -63,12 +77,28 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
-    public GroupRpcService(final GroupStore groupStore,
-                           final TemporaryGroupCache tempGroupCache,
-                           final SearchServiceBlockingStub searchServiceRpc) {
+    private final EntityToClusterMapping entityToClusterMapping;
+
+    private final DSLContext dslContext;
+
+    private final PolicyStore policyStore;
+
+    private final SettingStore settingStore;
+
+    public GroupRpcService(@Nonnull final GroupStore groupStore,
+                           @Nonnull final TemporaryGroupCache tempGroupCache,
+                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+                           @Nonnull final EntityToClusterMapping entityToClusterMapping,
+                           @Nonnull final DSLContext dslContext,
+                           @Nonnull final PolicyStore policyStore,
+                           @Nonnull final SettingStore settingStore) {
         this.groupStore = Objects.requireNonNull(groupStore);
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.entityToClusterMapping = Objects.requireNonNull(entityToClusterMapping);
+        this.dslContext = Objects.requireNonNull(dslContext);
+        this.policyStore = Objects.requireNonNull(policyStore);
+        this.settingStore = Objects.requireNonNull(settingStore);
     }
 
     @Override
@@ -399,6 +429,118 @@ public class GroupRpcService extends GroupServiceImplBase {
             logger.error(errMsg);
             responseObserver.onError(Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
         }
+    }
+
+
+    /**
+     *  {@inheritDoc}
+     * @param request
+     * @param responseObserver
+     */
+    @Override
+    public void getClusterForEntity(final GroupDTO.GetClusterForEntityRequest request,
+                           final StreamObserver<GroupDTO.GetClusterForEntityResponse> responseObserver) {
+
+        if (!request.hasEntityId()) {
+            final String errMsg = "EntityID is missing for the getClusterForEntity request";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            return;
+        }
+
+        GetClusterForEntityResponse.Builder response = GetClusterForEntityResponse.newBuilder();
+        long clusterId = entityToClusterMapping.getClusterForEntity(request.getEntityId());
+        if (clusterId > 0) {
+            Optional<Group> group = groupStore.get(clusterId);
+            if (group.isPresent() && group.get().hasCluster()){
+                response.setClusterId(clusterId);
+                response.setClusterInfo(group.get().getCluster());
+            }
+        }
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     */
+    @Override
+    public StreamObserver<DiscoveredGroupsPoliciesSettings> storeDiscoveredGroupsPoliciesSettings(
+            final StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver) {
+
+        return new StreamObserver<DiscoveredGroupsPoliciesSettings>() {
+
+            final Map<String, Long> allGroupsMap = new HashMap<>();
+            final List<ClusterInfo> allClusterInfos = new ArrayList<>();
+
+            @Override
+            public void onNext(final DiscoveredGroupsPoliciesSettings record) {
+                try {
+                    if (!record.hasTargetId()) {
+                        responseObserver.onError(Status.INVALID_ARGUMENT
+                                .withDescription("Request must have a target ID.").asException());
+                        return;
+                    }
+                    final Map<String, Long> groupsMap = new HashMap<>();
+                    // Update everything in a single transaction.
+                    dslContext.transaction(configuration -> {
+                        final DSLContext transactionContext = DSL.using(configuration);
+                        groupsMap.putAll(groupStore.updateTargetGroups(transactionContext,
+                                record.getTargetId(),
+                                record.getDiscoveredGroupList(),
+                                record.getDiscoveredClusterList()));
+                        policyStore.updateTargetPolicies(transactionContext,
+                                record.getTargetId(),
+                                record.getDiscoveredPolicyInfosList(), groupsMap);
+                        settingStore.updateTargetSettingPolicies(transactionContext,
+                                record.getTargetId(),
+                                record.getDiscoveredSettingPoliciesList(), groupsMap);
+
+                    });
+                    // successfully updated the DB. Now add it to the records that needs to
+                    // be added to the index.
+                    allGroupsMap.putAll(groupsMap);
+                    allClusterInfos.addAll(record.getDiscoveredClusterList());
+
+                } catch (DataAccessException e) {
+                    logger.error("Failed to store discovered collections due to a database query error.", e);
+                    responseObserver.onError(Status.INTERNAL
+                            .withDescription(e.getLocalizedMessage()).asException());
+                }
+            }
+
+            @Override
+            public void onError(final Throwable t) {
+                logger.error("Error uploading discovered non-entities for target {}", t);
+            }
+
+            @Override
+            public void onCompleted() {
+                // Update the entityId -> clusterId Index
+                // The index clears its state during every update.
+                // That's why we add to the index here for all successfully updated records.
+                entityToClusterMapping.updateEntityClusterMapping(createClusterIdToClusterInfoMapping());
+                responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
+                responseObserver.onCompleted();
+            }
+
+            private Map<Long, ClusterInfo> createClusterIdToClusterInfoMapping() {
+                Map<Long, ClusterInfo> clusterIdToClusterInfoMap = new HashMap<>();
+                allClusterInfos.stream()
+                        .forEach(clusterInfo -> {
+                            String clusterName = GroupProtoUtil.discoveredIdFromName(clusterInfo);
+                            long clusterId = allGroupsMap.getOrDefault(clusterName, 0L);
+                            if (clusterId == 0L) {
+                                // Skip this cluster as we couldn't find the clusterId.
+                                logger.warn("Can't get clusterId for cluster {}", clusterInfo);
+                                return;
+                            }
+                            clusterIdToClusterInfoMap.put(clusterId, clusterInfo);
+                        });
+                return clusterIdToClusterInfoMap;
+            }
+        };
     }
 
     /**

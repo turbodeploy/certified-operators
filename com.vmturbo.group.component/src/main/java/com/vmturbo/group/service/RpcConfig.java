@@ -10,10 +10,8 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredGroupServiceController;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
 import com.vmturbo.group.IdentityProviderConfig;
@@ -71,27 +69,17 @@ public class RpcConfig {
     public GroupRpcService groupService() {
         return new GroupRpcService(groupConfig.groupStore(),
                 groupConfig.temporaryGroupCache(),
-                SearchServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+                repositoryClientConfig.searchServiceClient(),
+                groupConfig.entityToClusterMapping(),
+                databaseConfig.dsl(),
+                policyConfig.policyStore(),
+                settingConfig.settingStore());
     }
 
     @Bean
     public GroupServiceController groupServiceController(final GroupRpcService groupRpcService) {
         return new GroupServiceController(groupRpcService);
     }
-
-    @Bean
-    public DiscoveredGroupsRpcService discoveredCollectionsRpcService() {
-        return new DiscoveredGroupsRpcService(databaseConfig.dsl(),
-                groupConfig.groupStore(),
-                policyConfig.policyStore(),
-                settingConfig.settingStore());
-    }
-
-    @Bean
-    public DiscoveredGroupServiceController discoveredCollectionsServiceController() {
-        return new DiscoveredGroupServiceController(discoveredCollectionsRpcService());
-    }
-
 
     @Bean
     public SettingRpcService settingService() {

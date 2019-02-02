@@ -209,6 +209,7 @@ public class ServiceConfig {
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.searchServiceBlockingStub(),
+                communicationConfig.groupRpcService(),
                 mapperConfig.entityAspectMapper()
         );
     }

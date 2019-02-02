@@ -93,7 +93,8 @@ public class HistoricalEditor {
         this.executorService = executorService;
         historicalInfo = new HistoricalInfo();
 
-        final DataMetricTimer loadDurationTimer = HISTORICAL_USED_AND_PEAK_VALUES_LOAD_TIME_SUMMARY.startTimer();
+        final DataMetricTimer loadDurationTimer =
+            HISTORICAL_USED_AND_PEAK_VALUES_LOAD_TIME_SUMMARY.startTimer();
         HistoricalInfoRecord record = historicalUtilizationDatabase.getInfo();
         double loadTime = loadDurationTimer.observe();
         logger.info("Historical used and peak values were loaded from the database in {} seconds", loadTime);

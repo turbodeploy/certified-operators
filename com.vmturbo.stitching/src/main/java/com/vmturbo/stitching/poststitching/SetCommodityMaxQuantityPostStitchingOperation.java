@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
@@ -224,7 +225,12 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 entityCommodityToMaxQuantitiesMap.size(),
                 loadTime);
         } catch (StatusRuntimeException e) {
-            logger.error("Failed initializing max value map", e);
+            if (Status.fromThrowable(e.getCause()).getCode() == Status.Code.UNAVAILABLE) {
+                logger.error("Failed initializing max value map as history component is unavailable");
+            }
+            else {
+                logger.error("Failed initializing max value map", e);
+            }
             return false;
         }
 

@@ -38,9 +38,15 @@ public class GroupConfig {
     }
 
     @Bean
+    public EntityToClusterMapping entityToClusterMapping() {
+        return new EntityToClusterMapping();
+    }
+
+    @Bean
     public GroupStore groupStore() {
         return new GroupStore(databaseConfig.dsl(),
                 policyConfig.policyStore(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(),
+                entityToClusterMapping());
     }
 }

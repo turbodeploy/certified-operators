@@ -388,8 +388,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     public SearchRpcService searchRpcService() throws InterruptedException, CommunicationException,
             URISyntaxException {
         return new SearchRpcService(supplyChainService(),
-                                 topologyManager(),
-                                 searchHandler(),
+                topologyManager(),
+                searchHandler(),
                 repositorySearchPaginationDefaultLimit,
                 repositorySearchPaginationMaxLimit);
     }

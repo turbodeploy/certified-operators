@@ -63,7 +63,6 @@ public class SearchRpcService extends SearchServiceImplBase {
     private final int defaultPaginationLimit;
     private final int maxPaginationLimit;
 
-
     public SearchRpcService(final SupplyChainService supplyChainService,
                             final TopologyLifecycleManager lifecycleManager,
                             final SearchHandler searchHandler,
