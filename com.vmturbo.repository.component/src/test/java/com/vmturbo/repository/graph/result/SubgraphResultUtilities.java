@@ -15,7 +15,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.EdgeCollectionResult;

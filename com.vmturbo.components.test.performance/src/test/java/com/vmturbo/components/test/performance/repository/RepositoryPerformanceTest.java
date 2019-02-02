@@ -10,7 +10,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -26,8 +25,8 @@ import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -161,14 +160,14 @@ public class RepositoryPerformanceTest {
     private void getSupplyChain(@Nonnull final Optional<Long> startingEntityOid,
                                 final long contextId,
                                 @Nonnull final String message) {
-        final SupplyChainRequest.Builder supplyChainRequest = SupplyChainRequest.newBuilder()
+        final GetSupplyChainRequest.Builder supplyChainRequest = GetSupplyChainRequest.newBuilder()
             .setContextId(contextId);
         startingEntityOid.ifPresent(supplyChainRequest::addStartingEntityOid);
 
-        final Iterable<SupplyChainNode> supplyChain =
-            () -> supplyChainService.getSupplyChain(supplyChainRequest.build());
+        final SupplyChain supplyChain =
+            supplyChainService.getSupplyChain(supplyChainRequest.build()).getSupplyChain();
 
-        logger.info(message + StreamSupport.stream(supplyChain.spliterator(), false)
+        logger.info(message + supplyChain.getSupplyChainNodesList().stream()
             .map(supplyChainNode -> RepositoryDTOUtil.getMemberCount(supplyChainNode) + " " + supplyChainNode.getEntityType())
             .collect(Collectors.joining("\n")));
     }

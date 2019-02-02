@@ -14,8 +14,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -30,7 +30,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -53,11 +52,12 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -67,7 +67,7 @@ import com.vmturbo.components.common.mapping.UIEnvironmentType;
  */
 public class SupplyChainFetcherFactory {
 
-    private final SupplyChainServiceStub supplyChainRpcService;
+    private final SupplyChainServiceBlockingStub supplyChainRpcService;
 
     private final EntitySeverityServiceBlockingStub severityRpcService;
 
@@ -75,27 +75,22 @@ public class SupplyChainFetcherFactory {
 
     private final GroupExpander groupExpander;
 
-    private final Duration supplyChainFetcherTimeoutSeconds;
-
     private final long realtimeTopologyContextId;
 
     public SupplyChainFetcherFactory(@Nonnull final Channel supplyChainChannel,
                                      @Nonnull final Channel entitySeverityChannel,
                                      @Nonnull final RepositoryApi repositoryApi,
                                      @Nonnull final GroupExpander groupExpander,
-                                     @Nonnull final Duration supplyChainFetcherTimeoutSeconds,
                                      final long realtimeTopologyContextId) {
         Objects.requireNonNull(supplyChainChannel);
         Objects.requireNonNull(entitySeverityChannel);
 
-        // create a non-blocking stub to query the supply chain from the Repository component
-        this.supplyChainRpcService = SupplyChainServiceGrpc.newStub(supplyChainChannel)
+        this.supplyChainRpcService = SupplyChainServiceGrpc.newBlockingStub(supplyChainChannel)
                 .withInterceptors(new JwtClientInterceptor());
 
         this.severityRpcService = EntitySeverityServiceGrpc.newBlockingStub(entitySeverityChannel);
         this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
-        this.supplyChainFetcherTimeoutSeconds = supplyChainFetcherTimeoutSeconds;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -140,8 +135,7 @@ public class SupplyChainFetcherFactory {
                         entityTypes,
                         environmentType,
                         supplyChainRpcService,
-                        groupExpander,
-                        supplyChainFetcherTimeoutSeconds).fetch();
+                        groupExpander).fetch();
             } catch (InterruptedException|ExecutionException|TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
@@ -195,8 +189,7 @@ public class SupplyChainFetcherFactory {
             try {
                 final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId, seedUuids, entityTypes,
                     environmentType, entityDetailType, includeHealthSummary,
-                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
-                    supplyChainFetcherTimeoutSeconds).fetch();
+                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander).fetch();
                 return dto;
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -309,36 +302,32 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Internal Class to handle a single SupplyChain fetch operation. Processes the stream of
-     * {@link SupplyChainNode} values returned from the SupplyChain RpcService.
+     * Internal Class to handle a single SupplyChain fetch operation. Processes the {@link SupplyChain}
+     * returned from the supply chain RPC service, and hands the nodes off to sub-classes for
+     * processing.
      */
-    private abstract static class SupplychainFetcher<T> implements StreamObserver<SupplyChainNode> {
+    private abstract static class SupplychainFetcher<T> {
 
         protected final Logger logger = LogManager.getLogger(getClass());
 
         private final long topologyContextId;
 
-        private final Set<String> seedUuids;
+        protected final Set<String> seedUuids;
 
         private final Set<String> entityTypes;
 
         private final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType;
 
-        private final SupplyChainServiceStub supplyChainRpcService;
+        private final SupplyChainServiceBlockingStub supplyChainRpcService;
 
         private final GroupExpander groupExpander;
-
-        private final CompletableFuture<T> resultReadyFuture;
-
-        private final Duration supplyChainFetcherTimeoutSeconds;
 
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
                                    @Nullable final EnvironmentType environmentType,
-                                   @Nonnull SupplyChainServiceStub supplyChainRpcService,
-                                   @Nonnull GroupExpander groupExpander,
-                                   @Nonnull Duration supplyChainFetcherTimeoutSeconds) {
+                                   @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
+                                   @Nonnull GroupExpander groupExpander) {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
@@ -354,35 +343,9 @@ public class SupplyChainFetcherFactory {
 
             this.supplyChainRpcService = supplyChainRpcService;
             this.groupExpander = groupExpander;
-
-            this.supplyChainFetcherTimeoutSeconds = supplyChainFetcherTimeoutSeconds;
-
-            // initialize a future for waiting on the severity calculation
-            this.resultReadyFuture = new CompletableFuture<>();
-
         }
 
-        /**
-         * This method will be called every time a new {@link SupplyChainNode} is returned
-         * from the repository. The implementing subclass is responsible for processing the
-         * {@link SupplyChainNode}.
-         *
-         * @param node The {@link SupplyChainNode}.
-         */
-        @Override
-        public abstract void onNext(final SupplyChainNode node);
-
-        /**
-         * This method will be called IFF all {@link SupplyChainNode}s are retrieved.
-         * It's analogous to the {@link StreamObserver#onCompleted()} method, except it has
-         * a return type.
-         *
-         * The implementing subclass is responsible for assembling all the {@link SupplyChainNode}s
-         * it has received into the final return type.
-         *
-         * @return The result of this fetching operation.
-         */
-        protected abstract T getResult();
+        public abstract T processSupplyChain(final List<SupplyChainNode> supplyChainNodes);
 
         /**
          * Fetch the requested supply chain in a blocking fashion, waiting at most the duration
@@ -392,7 +355,7 @@ public class SupplyChainFetcherFactory {
          */
         final T fetch() throws InterruptedException, ExecutionException, TimeoutException {
 
-            final SupplyChainRequest.Builder requestBuilder = SupplyChainRequest.newBuilder();
+            final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
 
             // if list of seed uuids has limited scope,then expand it; if global scope, don't expand
             if (UuidMapper.hasLimitedScope(seedUuids)) {
@@ -417,14 +380,13 @@ public class SupplyChainFetcherFactory {
                                 GroupProtoUtil.getEntityType(group.get()));
 
                         if (groupType.equals(desiredEntityType)) {
-                            onNext(SupplyChainNode.newBuilder()
-                                    .setEntityType(groupType)
-                                    .putMembersByState(EntityState.POWERED_ON_VALUE,
-                                            MemberList.newBuilder()
-                                                .addAllMemberOids(groupExpander.expandUuid(groupUuid))
-                                                .build())
-                                    .build());
-                            return getResult();
+                            return processSupplyChain(Collections.singletonList(SupplyChainNode.newBuilder()
+                                .setEntityType(groupType)
+                                .putMembersByState(EntityState.POWERED_ON_VALUE,
+                                    MemberList.newBuilder()
+                                        .addAllMemberOids(groupExpander.expandUuid(groupUuid))
+                                        .build())
+                                .build()));
                         }
                     }
                 }
@@ -436,7 +398,7 @@ public class SupplyChainFetcherFactory {
                         .collect(Collectors.toSet());
                 // empty expanded list?  If so, return immediately
                 if (expandedUuids.isEmpty()) {
-                    return getResult();
+                    return processSupplyChain(Collections.emptyList());
                 }
                 // otherwise add the expanded list of seed uuids to the request
                 requestBuilder.addAllStartingEntityOid(expandedUuids.stream()
@@ -451,24 +413,16 @@ public class SupplyChainFetcherFactory {
 
             environmentType.ifPresent(requestBuilder::setEnvironmentType);
 
-            SupplyChainRequest request = requestBuilder.build();
+            GetSupplyChainRequest request = requestBuilder.build();
 
-            supplyChainRpcService.getSupplyChain(request, this);
-
-            return resultReadyFuture.get(supplyChainFetcherTimeoutSeconds.getSeconds(),
-                    TimeUnit.SECONDS);
-        }
-
-
-        @Override
-        public final void onError(Throwable throwable) {
-            logger.error("Error fetching supply chain: ", throwable);
-            resultReadyFuture.completeExceptionally(throwable);
-        }
-
-        @Override
-        public final void onCompleted() {
-            resultReadyFuture.complete(getResult());
+            final GetSupplyChainResponse response = supplyChainRpcService.getSupplyChain(request);
+            if (!response.getSupplyChain().getMissingStartingEntitiesList().isEmpty()) {
+                logger.warn("{} of {} seed entities were not found for the supply chain: {}.",
+                    response.getSupplyChain().getMissingStartingEntitiesCount(),
+                    CollectionUtils.size(seedUuids),
+                    response.getSupplyChain().getMissingStartingEntitiesList());
+            }
+            return processSupplyChain(response.getSupplyChain().getSupplyChainNodesList());
         }
 
         protected long getTopologyContextId() {
@@ -482,8 +436,6 @@ public class SupplyChainFetcherFactory {
                     .add("seedUuids", seedUuids)
                     .add("entityTypes", entityTypes)
                     .add("environmentType", environmentType)
-                    .add("supplyChainFetcherTimeoutSeconds", supplyChainFetcherTimeoutSeconds)
-                    .add("resultReadyFuture", resultReadyFuture)
                     .toString();
         }
 
@@ -499,30 +451,21 @@ public class SupplyChainFetcherFactory {
      */
     private static class SupplychainNodeFetcher extends SupplychainFetcher<Map<String, SupplyChainNode>> {
 
-        private final Map<String, SupplyChainNode> nodesByEntityType =
-                Collections.synchronizedMap(new HashMap<>());
-
         private SupplychainNodeFetcher(final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
                                        @Nullable final Set<String> entityTypes,
                                        @Nullable final EnvironmentType environmentType,
-                                       @Nonnull final SupplyChainServiceStub supplyChainRpcService,
-                                       @Nonnull final GroupExpander groupExpander,
-                                       @Nonnull final Duration supplyChainFetcherTimeoutSeconds) {
+                                       @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
+                                       @Nonnull final GroupExpander groupExpander) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
-                    groupExpander, supplyChainFetcherTimeoutSeconds);
+                    groupExpander);
         }
 
-        @Override
-        protected Map<String, SupplyChainNode> getResult() {
-            // Since getResult() only gets called after all the calls to onNext(), we don't
-            // need to make a copy of the map.
-            return Collections.unmodifiableMap(nodesByEntityType);
-        }
-
-        @Override
-        public void onNext(final SupplyChainNode supplyChainNode) {
-            nodesByEntityType.put(supplyChainNode.getEntityType(), supplyChainNode);
+        @Nonnull
+        public Map<String, SupplyChainNode> processSupplyChain(
+                @Nonnull final List<SupplyChainNode> supplyChainNodes) {
+            return supplyChainNodes.stream()
+                .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
         }
     }
 
@@ -546,8 +489,6 @@ public class SupplyChainFetcherFactory {
 
         private final Boolean includeHealthSummary;
 
-        private final SupplychainApiDTO resultApiDTO;
-
         private final RepositoryApi repositoryApi;
 
         private boolean actionOrchestratorAvailable;
@@ -558,21 +499,16 @@ public class SupplyChainFetcherFactory {
                                          @Nullable final EnvironmentType environmentType,
                                          @Nullable final EntityDetailType entityDetailType,
                                          final boolean includeHealthSummary,
-                                         @Nonnull final SupplyChainServiceStub supplyChainRpcService,
+                                         @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                          @Nonnull final EntitySeverityServiceBlockingStub severityRpcService,
                                          @Nonnull final RepositoryApi repositoryApi,
-                                         @Nonnull final GroupExpander groupExpander,
-                                         @Nonnull final Duration supplyChainFetcherTimeoutSeconds) {
+                                         @Nonnull final GroupExpander groupExpander) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
-                    groupExpander, supplyChainFetcherTimeoutSeconds);
+                    groupExpander);
             this.entityDetailType = entityDetailType;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
-
-            // prepare the "answer" DTO
-            resultApiDTO = new SupplychainApiDTO();
-            resultApiDTO.setSeMap(new HashMap<>());
 
             actionOrchestratorAvailable = true;
         }
@@ -587,55 +523,62 @@ public class SupplyChainFetcherFactory {
          * {@link EntitySeverityServiceGrpc}) vs. the individual ServiceEntities.
          */
         @Override
-        public void onNext(SupplyChainNode supplyChainNode) {
-            final Set<Long> memberOidsList = RepositoryDTOUtil.getAllMemberOids(supplyChainNode);
+        public SupplychainApiDTO processSupplyChain(@Nonnull final List<SupplyChainNode> supplyChainNodes) {
+            final SupplychainApiDTO resultApiDTO = new SupplychainApiDTO();
+            resultApiDTO.setSeMap(new HashMap<>());
 
-            // fetch service entities, if requested
-            final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
-            if (entityDetailType != null) {
-                // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
-                // optional is empty if the OID was not found; include severities
-                Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
+            for (SupplyChainNode supplyChainNode : supplyChainNodes) {
+                final Set<Long> memberOidsList = RepositoryDTOUtil.getAllMemberOids(supplyChainNode);
+
+                // fetch service entities, if requested
+                final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
+                if (entityDetailType != null) {
+                    // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
+                    // optional is empty if the OID was not found; include severities
+                    Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
                         repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
-                                memberOidsList).build());
+                            memberOidsList).build());
 
-                // ignore the unknown OIDs for now...perhaps should complain in the future
-                serviceEntityApiDTOS.putAll(serviceEntitiesFromRepository.entrySet().stream()
+                    // ignore the unknown OIDs for now...perhaps should complain in the future
+                    serviceEntityApiDTOS.putAll(serviceEntitiesFromRepository.entrySet().stream()
                         .filter(entry -> entry.getValue().isPresent())
                         .collect(Collectors.toMap(entry -> Long.toString(entry.getKey()),
-                                entry -> entry.getValue().get())));
-            }
+                            entry -> entry.getValue().get())));
+                }
 
-            final Map<Severity, Long> severities = new HashMap<>();
-            if (includeHealthSummary || entityDetailType != null) {
-                // fetch severities, either to include in a health summary or to decorate SE's
-                try {
-                    logger.debug("Collecting severities for {}", supplyChainNode.getEntityType());
+                final Map<Severity, Long> severities = new HashMap<>();
+                if (includeHealthSummary || entityDetailType != null) {
+                    // fetch severities, either to include in a health summary or to decorate SE's
+                    try {
+                        logger.debug("Collecting severities for {}", supplyChainNode.getEntityType());
 
-                    // If we have already determined the AO is unavailable, avoid lots of other calls to the AO that
-                    // will likely almost certainly fail and delay the response to the client.
-                    if (actionOrchestratorAvailable) {
-                        final MultiEntityRequest severityRequest = MultiEntityRequest.newBuilder()
+                        // If we have already determined the AO is unavailable, avoid lots of other calls to the AO that
+                        // will likely almost certainly fail and delay the response to the client.
+                        if (actionOrchestratorAvailable) {
+                            final MultiEntityRequest severityRequest = MultiEntityRequest.newBuilder()
                                 .setTopologyContextId(getTopologyContextId())
                                 .addAllEntityIds(memberOidsList)
                                 .build();
-                        if (entityDetailType != null) {
-                            fetchEntitySeverities(severityRequest, serviceEntityApiDTOS, severities);
-                        } else {
-                            fetchSeverityCounts(severityRequest, severities);
+                            if (entityDetailType != null) {
+                                fetchEntitySeverities(severityRequest, serviceEntityApiDTOS, severities);
+                            } else {
+                                fetchSeverityCounts(severityRequest, severities);
+                            }
+                        }
+                    } catch (RuntimeException e) {
+                        logger.error("Error when fetching severities: ", e);
+                        if (e.getCause() != null && (e.getCause() instanceof NoRouteToHostException)) {
+                            actionOrchestratorAvailable = false;
                         }
                     }
-                } catch (RuntimeException e) {
-                    logger.error("Error when fetching severities: ", e);
-                    if (e.getCause() != null && (e.getCause() instanceof NoRouteToHostException)) {
-                        actionOrchestratorAvailable = false;
-                    }
                 }
+
+                // add the results from this {@link SupplyChainNode} to the aggregate
+                // {@link SupplychainApiDTO} result
+                compileSupplyChainNode(supplyChainNode, severities, serviceEntityApiDTOS, resultApiDTO);
             }
 
-            // add the results from this {@link SupplyChainNode} to the aggregate
-            // {@link SupplychainApiDTO} result
-            compileSupplyChainNode(supplyChainNode, severities, serviceEntityApiDTOS);
+            return resultApiDTO;
         }
 
         private void fetchSeverityCounts(@Nonnull final MultiEntityRequest severityCountRequest,
@@ -696,7 +639,8 @@ public class SupplyChainFetcherFactory {
         private synchronized void compileSupplyChainNode(
                 @Nonnull final SupplyChainNode node,
                 @Nonnull final Map<Severity, Long> severityMap,
-                @Nonnull Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS) {
+                @Nonnull final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS,
+                @Nonnull final SupplychainApiDTO resultApiDTO) {
             logger.debug("Compiling results for {}", node.getEntityType());
 
             // This is thread-safe because we're doing it in a synchronized method.
@@ -741,16 +685,10 @@ public class SupplyChainFetcherFactory {
         }
 
         @Override
-        protected synchronized SupplychainApiDTO getResult() {
-            return resultApiDTO;
-        }
-
-        @Override
         public String toString() {
             return super.toString() + "\n" + MoreObjects.toStringHelper(this)
                     .add("entityDetailType", entityDetailType)
                     .add("includeHealthSummary", includeHealthSummary)
-                    .add("resultApiDTO", resultApiDTO)
                     .add("actionOrchestratorAvailable", actionOrchestratorAvailable)
                     .toString();
         }

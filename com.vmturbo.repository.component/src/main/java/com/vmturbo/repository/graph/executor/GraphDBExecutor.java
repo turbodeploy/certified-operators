@@ -27,6 +27,7 @@ public interface GraphDBExecutor {
      *
      * @param supplyChain A command that contains information needed to compute a supply chain.
      * @return {@link SupplyChainSubgraph} containing the results of executing the command.
+     *         If the start ID is not found, return a {@link Throwable} with a {@link java.util.NoSuchElementException}.
      */
     Try<SupplyChainSubgraph> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChain);
 

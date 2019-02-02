@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,9 +23,9 @@ import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
@@ -268,19 +267,25 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
         // now, use the set of entities to make a supply chain request.
         // TODO: add entity type filter for shared users
-        SupplyChainRequest supplyChainRequest = SupplyChainRequest.newBuilder()
+        final GetSupplyChainRequest supplyChainRequest = GetSupplyChainRequest.newBuilder()
                 .addAllStartingEntityOid(scopeGroupEntityOids)
                 .build();
 
         Set<Long> accessibleEntities = new HashSet<>();
         // this is a streaming response
-        Iterator<SupplyChainNode> iterator = supplyChainServiceStub.getSupplyChain(supplyChainRequest);
-        while (iterator.hasNext()) {
-            SupplyChainNode node = iterator.next();
-            node.getMembersByStateMap().values().stream()
-                    .map(MemberList::getMemberOidsList)
-                    .forEach(accessibleEntities::addAll);
+        final SupplyChain response = supplyChainServiceStub.getSupplyChain(supplyChainRequest)
+            .getSupplyChain();
+        final int missingEntitiesCnt = response.getMissingStartingEntitiesCount();
+        if (missingEntitiesCnt > 0) {
+            logger.warn("Related entities for {} (of {}) scope members were not found. Missing members: {}",
+                missingEntitiesCnt, scopeGroupEntityOids.size(),
+                response.getMissingStartingEntitiesList());
         }
+
+        response.getSupplyChainNodesList().stream()
+            .flatMap(node -> node.getMembersByStateMap().values().stream())
+            .map(MemberList::getMemberOidsList)
+            .forEach(accessibleEntities::addAll);
 
         // convert the set to a primitive array, which we will both cache and send back to the caller
         OidArray.Builder accessibleOidArrayBuilder = OidArray.newBuilder();

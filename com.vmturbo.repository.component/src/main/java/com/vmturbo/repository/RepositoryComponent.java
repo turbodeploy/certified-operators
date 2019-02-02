@@ -44,7 +44,7 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
-import com.vmturbo.common.protobuf.repository.SupplyChainREST.SupplyChainServiceController;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainServiceController;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;

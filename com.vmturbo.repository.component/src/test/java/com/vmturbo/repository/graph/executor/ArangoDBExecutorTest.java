@@ -42,7 +42,7 @@ import com.arangodb.model.AqlQueryOptions;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;

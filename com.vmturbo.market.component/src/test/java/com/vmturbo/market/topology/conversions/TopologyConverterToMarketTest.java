@@ -376,7 +376,7 @@ public class TopologyConverterToMarketTest {
     private Set<TraderTO> convertToMarketTO(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
                                          @Nonnull final TopologyInfo topologyInfo) {
 
-        return new TopologyConverter(topologyInfo, true, 0.75f, marketPriceTable, ccd)
+        return new TopologyConverter(topologyInfo, true, AnalysisUtil.QUOTE_FACTOR, marketPriceTable, ccd)
             .convertToMarket(topology.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
@@ -523,7 +523,7 @@ public class TopologyConverterToMarketTest {
             is(((70.0f - (20.0f / 2.0f)) / 100.0f)));
         assertThat(trader.getSettings().getMaxDesiredUtilization(),
             is(((70.0f + (20.0f / 2.0f)) / 100.0f)));
-        assertEquals(trader.getSettings().getQuoteFactor(), AnalysisUtil.QUOTE_FACTOR, 0.0);
+        assertEquals(trader.getSettings().getQuoteFactor(), AnalysisUtil.QUOTE_FACTOR, 0.0001);
 
         final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
             .setEntityType(1)

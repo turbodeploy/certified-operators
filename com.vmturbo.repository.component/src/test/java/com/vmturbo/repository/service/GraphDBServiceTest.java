@@ -19,7 +19,7 @@ import org.mockito.Mockito;
 import javaslang.control.Either;
 import javaslang.control.Try;
 
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;

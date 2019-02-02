@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -24,6 +26,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+
+import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ImmutableSingleActionSnapshot;
@@ -47,12 +51,13 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
-import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -208,6 +213,9 @@ public class ClusterActionAggregatorTest {
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 
+        // The supply chain request returns nothing. Not realistic, but suppose that the PM's
+        // have no VM's on them.
+
         clusterActionAggregator.start();
 
         verify(groupServiceMole).getGroups(expectedRequest);
@@ -238,6 +246,118 @@ public class ClusterActionAggregatorTest {
 
         final ActionStatsLatestRecord cluster2Record =
                 recordsByMgtmtUnitSubgroup.get(CLUSTER_2_PM_SUBGROUP.id());
+        assertThat(cluster2Record.getTotalEntityCount(), is(1));
+        assertThat(cluster2Record.getTotalActionCount(), is(2));
+
+        final ActionStatsLatestRecord cluster1GlobalRecord =
+            recordsByMgtmtUnitSubgroup.get(CLUSTER_1_GLOBAL_SUBGROUP.id());
+        assertThat(cluster1GlobalRecord.getTotalEntityCount(), is(2));
+        assertThat(cluster1GlobalRecord.getTotalActionCount(), is(1));
+
+        final ActionStatsLatestRecord cluster2GlobalRecord =
+            recordsByMgtmtUnitSubgroup.get(CLUSTER_2_GLOBAL_SUBGROUP.id());
+        assertThat(cluster2GlobalRecord.getTotalEntityCount(), is(1));
+        assertThat(cluster2GlobalRecord.getTotalActionCount(), is(2));
+    }
+
+    @Test
+    public void testAggregateClusterSupplyChainMissingEntities() {
+        final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
+        final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+            .setTypeFilter(Type.CLUSTER)
+            .build();
+        when(groupServiceMole.getGroups(expectedRequest))
+            .thenReturn(Arrays.asList(CLUSTER_1));
+
+        // The supply chain request returns nothing. Not realistic, but suppose that the PM's
+        // have no VM's on them.
+        doReturn(Collections.singletonList(GetMultiSupplyChainsResponse.newBuilder()
+            .setSupplyChain(SupplyChain.newBuilder()
+                .addMissingStartingEntities(7))
+            .build())).when(supplyChainServiceMole).getMultiSupplyChains(any());
+
+        clusterActionAggregator.start();
+
+        verify(groupServiceMole).getGroups(expectedRequest);
+
+        // Shouldn't need to verify action aggregation - the missing entities are handled purely
+        // in the "start" method.
+    }
+
+    /**
+     * Test when a single supply chain (in the multi-supply chain results) returns an error.
+     */
+    @Test
+    public void testAggregateClusterSupplyChainError() {
+        final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
+        final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+            .setTypeFilter(Type.CLUSTER)
+            .build();
+        when(groupServiceMole.getGroups(expectedRequest))
+            .thenReturn(Arrays.asList(CLUSTER_1));
+
+        // The supply chain request returns nothing. Not realistic, but suppose that the PM's
+        // have no VM's on them.
+        doReturn(Collections.singletonList(GetMultiSupplyChainsResponse.newBuilder()
+            .setError("my bad")
+            .build())).when(supplyChainServiceMole).getMultiSupplyChains(any());
+
+        clusterActionAggregator.start();
+
+        verify(groupServiceMole).getGroups(expectedRequest);
+
+        // Shouldn't need to verify action aggregation - the errors are handled purely
+        // in the "start" method.
+    }
+
+    /**
+     * Test when the entire multi-supply-chain call returns an error.
+     */
+    @Test
+    public void testAggregateClusterSupplyChainFailure() {
+        final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
+        final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+            .setTypeFilter(Type.CLUSTER)
+            .build();
+        when(groupServiceMole.getGroups(expectedRequest))
+            .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
+
+        // The supply chain request throws an exception.
+        doReturn(Optional.of(Status.UNAVAILABLE.asException()))
+            .when(supplyChainServiceMole).getMultiSupplyChainsError(any());
+
+        clusterActionAggregator.start();
+
+        // We aggregate just the PM stats.
+
+        verify(groupServiceMole).getGroups(expectedRequest);
+
+        // Process an action snapshot involving both PMs in cluster 1.
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2));
+
+        // Process two action snapshots involving the PM in cluster 2.
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM));
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM));
+
+        final Map<Integer, ActionStatsLatestRecord> recordsByMgtmtUnitSubgroup =
+            clusterActionAggregator.createRecords(ImmutableMap.of(
+                CLUSTER_1_PM_SUBGROUP.key(), CLUSTER_1_PM_SUBGROUP,
+                CLUSTER_2_PM_SUBGROUP.key(), CLUSTER_2_PM_SUBGROUP,
+                CLUSTER_1_GLOBAL_SUBGROUP.key(), CLUSTER_1_GLOBAL_SUBGROUP,
+                CLUSTER_2_GLOBAL_SUBGROUP.key(), CLUSTER_2_GLOBAL_SUBGROUP),
+                ImmutableMap.of(ACTION_GROUP_KEY, ACTION_GROUP))
+                .collect(Collectors.toMap(ActionStatsLatestRecord::getMgmtUnitSubgroupId, Function.identity()));
+        assertThat(recordsByMgtmtUnitSubgroup.keySet(),
+            containsInAnyOrder(CLUSTER_1_PM_SUBGROUP.id(), CLUSTER_2_PM_SUBGROUP.id(),
+                CLUSTER_1_GLOBAL_SUBGROUP.id(), CLUSTER_2_GLOBAL_SUBGROUP.id()));
+
+        final ActionStatsLatestRecord cluster1Record =
+            recordsByMgtmtUnitSubgroup.get(CLUSTER_1_PM_SUBGROUP.id());
+        assertThat(cluster1Record.getTotalEntityCount(), is(2));
+        assertThat(cluster1Record.getTotalActionCount(), is(1));
+
+        final ActionStatsLatestRecord cluster2Record =
+            recordsByMgtmtUnitSubgroup.get(CLUSTER_2_PM_SUBGROUP.id());
         assertThat(cluster2Record.getTotalEntityCount(), is(1));
         assertThat(cluster2Record.getTotalActionCount(), is(2));
 
@@ -284,7 +404,7 @@ public class ClusterActionAggregatorTest {
         when(groupServiceMole.getGroups(expectedRequest))
                 .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 
-        final MultiSupplyChainsRequest expectedSupplyChainRequest = MultiSupplyChainsRequest.newBuilder()
+        final GetMultiSupplyChainsRequest expectedSupplyChainRequest = GetMultiSupplyChainsRequest.newBuilder()
                 .addSeeds(SupplyChainSeed.newBuilder()
                         .setSeedOid(CLUSTER_1.getId())
                         .addEntityTypesToInclude("VirtualMachine")
@@ -297,24 +417,26 @@ public class ClusterActionAggregatorTest {
                 .build();
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
             .thenReturn(Arrays.asList(
-                MultiSupplyChainsResponse.newBuilder()
+                GetMultiSupplyChainsResponse.newBuilder()
                     .setSeedOid(CLUSTER_1.getId())
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
                             .setEntityType("VirtualMachine")
                             .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
-                                    MemberList.newBuilder()
-                                        .addMemberOids(CLUSTER_1_VM_1.getId())
-                                        .addMemberOids(CLUSTER_1_VM_2.getId())
-                                        .build())))
+                                MemberList.newBuilder()
+                                    .addMemberOids(CLUSTER_1_VM_1.getId())
+                                    .addMemberOids(CLUSTER_1_VM_2.getId())
+                                    .build()))))
                     .build(),
-                MultiSupplyChainsResponse.newBuilder()
+                GetMultiSupplyChainsResponse.newBuilder()
                     .setSeedOid(CLUSTER_2.getId())
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
                         .setEntityType("VirtualMachine")
                         .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
                             MemberList.newBuilder()
                                 .addMemberOids(CLUSTER_2_VM.getId())
-                                .build())))
+                                .build()))))
                     .build()));
 
         clusterActionAggregator.start();
@@ -323,10 +445,10 @@ public class ClusterActionAggregatorTest {
 
         // Because the seeds get added in random order (iterating hashmap), and there are no
         // order-insensitive protobuf comparators, capture the request and check it's contents.
-        ArgumentCaptor<MultiSupplyChainsRequest> supplyChainRequestCaptor =
-                ArgumentCaptor.forClass(MultiSupplyChainsRequest.class);
+        ArgumentCaptor<GetMultiSupplyChainsRequest> supplyChainRequestCaptor =
+                ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
         verify(supplyChainServiceMole).getMultiSupplyChains(supplyChainRequestCaptor.capture());
-        final MultiSupplyChainsRequest gotRequest = supplyChainRequestCaptor.getValue();
+        final GetMultiSupplyChainsRequest gotRequest = supplyChainRequestCaptor.getValue();
         assertThat(gotRequest.getSeedsList(),
                 containsInAnyOrder(expectedSupplyChainRequest.getSeedsList().toArray()));
 

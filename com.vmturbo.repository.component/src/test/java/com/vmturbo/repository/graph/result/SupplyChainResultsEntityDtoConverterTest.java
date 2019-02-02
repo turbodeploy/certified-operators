@@ -23,7 +23,7 @@ import com.google.common.collect.Multimap;
 import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEntityState;
 
 @RunWith(MockitoJUnitRunner.class)

@@ -1,17 +1,20 @@
 package com.vmturbo.topology.processor.api;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,6 +24,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
@@ -95,7 +100,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final TopologyAccumulator listener1 = Mockito.spy(new TopologyAccumulator(2));
         final TopologyAccumulator listener2 = Mockito.spy(new TopologyAccumulator(1));
         getTopologyProcessor().addLiveTopologyListener(listener1);
-        final Set<TopologyEntityDTO> entities = ImmutableSet.of(topology1, topology2);
+        final List<TopologyEntityDTO> entities = ImmutableList.of(topology1, topology2);
 
         final ArgumentCaptor<TopologyInfo> topologyInfoCaptor1 = ArgumentCaptor.forClass(TopologyInfo.class);
 
@@ -117,8 +122,9 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
                         .onTopologyNotification(topologyInfoCaptor2.capture(), Mockito.any());
         listener1.await();
         listener2.await();
-        Assert.assertEquals(entities, listener1.result);
-        Assert.assertEquals(entities, listener2.result);
+        assertThat(listener1.result, containsInAnyOrder(entities.toArray()));
+        assertThat(listener2.result, containsInAnyOrder(entities.toArray()));
+
         Assert.assertEquals(topologyTwoId, topologyInfoCaptor2.getValue().getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoCaptor2.getValue().getTopologyContextId());
     }
@@ -140,7 +146,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         getTopologyProcessor().addLiveTopologyListener(failingListener);
         getTopologyProcessor().addLiveTopologyListener(goodListener);
-        final Set<TopologyEntityDTO> entities = Collections.singleton(topology);
+        final List<TopologyEntityDTO> entities = Collections.singletonList(topology);
 
         sendEntities(0L, 0L, entities);
         sendEntities(0L, 1L, entities);
@@ -150,7 +156,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         Mockito.verify(goodListener, Mockito.timeout(TIMEOUT_MS).times(2))
                 .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
         goodListener.await();
-        Assert.assertEquals(entities, goodListener.result);
+        assertThat(goodListener.result, containsInAnyOrder(entities.toArray()));
     }
 
     /**
@@ -548,6 +554,11 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
     private class TopologyAccumulator implements EntitiesListener {
 
         private final CountDownLatch latch;
+
+        /**
+         * In this test, having a set is important because we sometimes send the same entities
+         * multiple times (for convenience).
+         */
         private final Set<TopologyEntityDTO> result = new HashSet<>();
 
         public TopologyAccumulator(int expectedInvocations) {

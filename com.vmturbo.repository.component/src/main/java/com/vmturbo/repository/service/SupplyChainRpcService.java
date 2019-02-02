@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -37,12 +38,14 @@ import javaslang.control.Either;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -102,7 +105,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     }
 
     /**
-     * Fetch supply chain information as determined by the given {@link SupplyChainRequest}.
+     * Fetch supply chain information as determined by the given {@link GetSupplyChainRequest}.
      * The request may be to calculate either the supply chain for an individual ServiceEntity OID,
      * a merged supply chain derived from a starting list of ServiceEntityOIDs, or
      * a request for supply chain information for the entire topology.
@@ -124,8 +127,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      *                         returned
      */
     @Override
-    public void getSupplyChain(SupplyChainRequest request,
-                               StreamObserver<SupplyChainNode> responseObserver) {
+    public void getSupplyChain(GetSupplyChainRequest request,
+                               StreamObserver<GetSupplyChainResponse> responseObserver) {
         final Optional<Long> contextId = request.hasContextId() ?
             Optional.of(request.getContextId()) : Optional.empty();
 
@@ -143,55 +146,55 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     }
 
     @Override
-    public void getMultiSupplyChains(MultiSupplyChainsRequest request,
-                                     StreamObserver<MultiSupplyChainsResponse> responseObserver) {
+    public void getMultiSupplyChains(GetMultiSupplyChainsRequest request,
+                                     StreamObserver<GetMultiSupplyChainsResponse> responseObserver) {
         final Optional<Long> contextId = request.hasContextId() ?
                 Optional.of(request.getContextId()) : Optional.empty();
-        final SetOnce<Throwable> error = new SetOnce<>();
         // For now we essentially call the individual supply chain RPC multiple times.
         // In the future we can try to optimize this.
         for (SupplyChainSeed supplyChainSeed : request.getSeedsList()) {
-            final SupplyChainRequest supplyChainRequest =
+            final GetSupplyChainRequest supplyChainRequest =
                     supplyChainSeedToRequest(contextId, supplyChainSeed);
 
-            getSupplyChain(supplyChainRequest, new StreamObserver<SupplyChainNode>() {
-                private final List<SupplyChainNode> nodes = new ArrayList<>();
+            getSupplyChain(supplyChainRequest, new StreamObserver<GetSupplyChainResponse>() {
+                private final SetOnce<GetSupplyChainResponse> response = new SetOnce<>();
 
                 @Override
-                public void onNext(final SupplyChainNode supplyChainNode) {
-                    nodes.add(supplyChainNode);
+                public void onNext(final GetSupplyChainResponse response) {
+                    this.response.trySetValue(response);
                 }
 
                 @Override
                 public void onError(final Throwable throwable) {
-                    error.trySetValue(throwable);
+                    logger.error("Encountered error for supply chain seed {}. Error: {}",
+                        supplyChainSeed, throwable.getMessage());
+                    responseObserver.onNext(GetMultiSupplyChainsResponse.newBuilder()
+                        .setSeedOid(supplyChainSeed.getSeedOid())
+                        .setError(throwable.getMessage())
+                        .build());
                 }
 
                 @Override
                 public void onCompleted() {
-                    responseObserver.onNext(MultiSupplyChainsResponse.newBuilder()
-                            .setSeedOid(supplyChainSeed.getSeedOid())
-                            .addAllSupplyChainNodes(nodes)
-                            .build());
+                    final GetMultiSupplyChainsResponse.Builder builder = GetMultiSupplyChainsResponse.newBuilder()
+                        .setSeedOid(supplyChainSeed.getSeedOid());
+
+                    response.getValue()
+                        .map(GetSupplyChainResponse::getSupplyChain)
+                        .ifPresent(builder::setSupplyChain);
+
+                    responseObserver.onNext(builder.build());
                 }
             });
-
-            if (error.getValue().isPresent()) {
-                break;
-            }
         }
 
-        if (error.getValue().isPresent()) {
-            responseObserver.onError(error.getValue().get());
-        } else {
-            responseObserver.onCompleted();
-        }
+        responseObserver.onCompleted();
     }
 
     @Nonnull
-    private SupplyChainRequest supplyChainSeedToRequest(final Optional<Long> contextId,
+    private GetSupplyChainRequest supplyChainSeedToRequest(final Optional<Long> contextId,
                                                         @Nonnull final SupplyChainSeed supplyChainSeed) {
-        SupplyChainRequest.Builder reqBuilder = SupplyChainRequest.newBuilder();
+        GetSupplyChainRequest.Builder reqBuilder = GetSupplyChainRequest.newBuilder();
         if (supplyChainSeed.hasEnvironmentType()) {
             reqBuilder.setEnvironmentType(supplyChainSeed.getEnvironmentType());
         }
@@ -216,16 +219,22 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
                                                         @Nonnull final Optional<UIEnvironmentType> environmentType,
                                                         @Nonnull final Optional<Long> contextId,
-                                                        @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
+                                                        @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             supplyChainService.getGlobalSupplyChain(contextId, environmentType,
                     IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN)
                 .subscribe(supplyChainNodes -> {
+                    final GetSupplyChainResponse.Builder respBuilder =
+                        GetSupplyChainResponse.newBuilder();
+                    final SupplyChain.Builder supplyChainBuilder = SupplyChain.newBuilder();
                     supplyChainNodes.values().stream()
-                            // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
-                            .filter(supplyChainNode -> CollectionUtils.isEmpty(entityTypesToIncludeList)
-                                    || entityTypesToIncludeList.contains(supplyChainNode.getEntityType()))
-                            .forEach(responseObserver::onNext);
+                        // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
+                        .filter(supplyChainNode -> CollectionUtils.isEmpty(entityTypesToIncludeList)
+                                || entityTypesToIncludeList.contains(supplyChainNode.getEntityType()))
+                        .forEach(supplyChainBuilder::addSupplyChainNodes);
+                    respBuilder.setSupplyChain(supplyChainBuilder);
+
+                    responseObserver.onNext(respBuilder.build());
                     responseObserver.onCompleted();
                 }, error -> responseObserver.onError(Status.INTERNAL.withDescription(
                     error.getMessage()).asException()));
@@ -251,10 +260,10 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
-                                           @Nullable final List<String> entityTypesToIncludeList,
+                                           @Nonnull final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
                                            @Nonnull final Optional<UIEnvironmentType> envType,
-                                           @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
+                                           @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
 
         // multiple starting entities may traverse to same zones in supply chain, we don't want
@@ -285,12 +294,10 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         }
 
         final MergedSupplyChain supplyChain = supplyChainMerger.merge();
-        if (supplyChain.errors.isEmpty()) {
-            supplyChain.getSupplyChainNodes().stream()
-                    // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
-                    .filter(supplyChainNode -> CollectionUtils.isEmpty(entityTypesToIncludeList)
-                            || entityTypesToIncludeList.contains(supplyChainNode.getEntityType()))
-                    .forEach(responseObserver::onNext);
+        if (supplyChain.getErrors().isEmpty()) {
+            responseObserver.onNext(GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(supplyChain.getSupplyChain(entityTypesToIncludeList))
+                .build());
             responseObserver.onCompleted();
         } else {
             responseObserver.onError(Status.INTERNAL.withDescription(
@@ -383,10 +390,10 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
                                      @Nonnull final Set<Integer> exclusionEntityTypes) {
         logger.debug("Getting a supply chain starting from {} in topology {}",
             startingVertexOid, contextId.map(Object::toString).orElse("DEFAULT"));
-        final SingleSourceSupplyChain singleSourceSupplyChain = new SingleSourceSupplyChain();
+        final SingleSourceSupplyChain singleSourceSupplyChain = new SingleSourceSupplyChain(startingVertexOid);
 
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
-            Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
+            Either<Throwable, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
                 contextId, envType, startingVertexOid.toString(),
                     Optional.of(userSessionContext.getUserAccessScope()),
                     inclusionEntityTypes, exclusionEntityTypes);
@@ -413,7 +420,12 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     private static class SingleSourceSupplyChain {
 
         private final List<SupplyChainNode> supplyChainNodes = new ArrayList<>();
-        private Optional<String> error = Optional.empty();
+        private final Long startingVertexOid;
+        private final SetOnce<Throwable> error = new SetOnce<>();
+
+        public SingleSourceSupplyChain(final Long startingVertexOid) {
+            this.startingVertexOid = startingVertexOid;
+        }
 
         /**
          * Remember a {@link SupplyChainNode} for later.
@@ -473,8 +485,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
          *
          * @param error a String describing the error that has occurred
          */
-        void setError(@Nonnull final String error) {
-            this.error = Optional.of(error);
+        void setError(@Nonnull final Throwable error) {
+            this.error.trySetValue(error);
         }
 
         /**
@@ -482,8 +494,13 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
          *
          * @return the error message that has been saved, or Optional.empty() if none
          */
-        public Optional<String> getError() {
-            return error;
+        public Optional<Throwable> getError() {
+            return error.getValue();
+        }
+
+        @Nonnull
+        public Long getStartingVertexOid() {
+            return startingVertexOid;
         }
     }
 
@@ -493,16 +510,28 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      */
     private static class MergedSupplyChain {
         private final Collection<SupplyChainNode> supplyChainNodes;
+        private final Set<Long> notFoundIds;
         private final List<String> errors;
 
         MergedSupplyChain(@Nonnull final Collection<SupplyChainNode> supplyChainNodes,
-                                 @Nonnull final List<String> errors) {
+                          @Nonnull final Set<Long> notFoundIds,
+                          @Nonnull final List<String> errors) {
             this.supplyChainNodes = supplyChainNodes;
+            this.notFoundIds = notFoundIds;
             this.errors = errors;
         }
 
-        Collection<SupplyChainNode> getSupplyChainNodes() {
-            return supplyChainNodes;
+        @Nonnull
+        public SupplyChain getSupplyChain(@Nonnull final List<String> entityTypesToIncludeList) {
+            final SupplyChain.Builder retBuilder = SupplyChain.newBuilder()
+                .addAllMissingStartingEntities(notFoundIds);
+
+            supplyChainNodes.stream()
+                // It's okay to use contains on a list here, because the list will be small.
+                .filter(node -> entityTypesToIncludeList.isEmpty() || entityTypesToIncludeList.contains(node.getEntityType()))
+                .forEach(retBuilder::addSupplyChainNodes);
+
+            return retBuilder.build();
         }
 
         public List<String> getErrors() {
@@ -629,10 +658,15 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         MergedSupplyChain merge() {
             final Map<String, MergedSupplyChainNode> nodesByType = new HashMap<>();
             final List<String> errors = new ArrayList<>();
+            final Set<Long> notFound = new HashSet<>();
 
             supplyChains.forEach(supplyChain -> {
                 if (supplyChain.getError().isPresent()) {
-                    errors.add(supplyChain.getError().get());
+                    if (supplyChain.getError().get() instanceof NoSuchElementException) {
+                        notFound.add(supplyChain.getStartingVertexOid());
+                    } else {
+                        errors.add(supplyChain.getError().get().getMessage());
+                    }
                 } else {
                     supplyChain.getSupplyChainNodes().forEach(node -> mergeNode(nodesByType, node));
                 }
@@ -640,7 +674,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
 
             return new MergedSupplyChain(nodesByType.values().stream()
                     .map(MergedSupplyChainNode::toSupplyChainNode)
-                    .collect(Collectors.toList()), errors);
+                    .collect(Collectors.toList()), notFound, errors);
         }
 
         /**

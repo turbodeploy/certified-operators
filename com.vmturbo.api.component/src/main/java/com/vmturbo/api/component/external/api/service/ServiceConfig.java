@@ -86,9 +86,6 @@ public class ServiceConfig {
     @Value("${initialPlacementTimeoutSeconds}")
     private  Long initialPlacementTimeoutSeconds;
 
-    @Value("${supplyChainFetcherTimeoutSeconds}")
-    private Long supplyChainFetcherTimeoutSeconds;
-
     @Value("${liveStatsRetrievalWindowSeconds}")
     private long liveStatsRetrievalWindowSeconds;
 

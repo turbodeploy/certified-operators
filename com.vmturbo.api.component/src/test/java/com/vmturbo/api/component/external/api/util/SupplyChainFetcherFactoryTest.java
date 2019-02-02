@@ -48,10 +48,12 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsRespon
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.mapping.UIEntityState;
@@ -80,8 +82,6 @@ public class SupplyChainFetcherFactoryTest {
     @Before
     public void setup() throws IOException {
 
-        Duration timeoutDuration = Duration.ofMinutes(1);
-
         // set up the mockseverity RPC
         EntitySeverityServiceBlockingStub entitySeverityRpc =
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -91,7 +91,7 @@ public class SupplyChainFetcherFactoryTest {
 
         // set up the ActionsService under test
         supplyChainFetcherFactory = new SupplyChainFetcherFactory(grpcServer.getChannel(), grpcServer.getChannel(),
-                repositoryApiBackend, groupExpander, timeoutDuration, 7);
+                repositoryApiBackend, groupExpander, 7);
     }
 
     /**
@@ -137,7 +137,10 @@ public class SupplyChainFetcherFactoryTest {
             .build();
 
         when(supplyChainServiceBackend.getSupplyChain(any()))
-                .thenReturn(Arrays.asList(vms));
+            .thenReturn(GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(vms))
+                .build());
 
         final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
@@ -162,10 +165,13 @@ public class SupplyChainFetcherFactoryTest {
                 .setEntityType(VM)
                 .addMemberOids(1L)
                 .build();
-        when(supplyChainServiceBackend.getSupplyChain(SupplyChainRequest.newBuilder()
+        when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
                 .addEntityTypesToInclude(VM)
                 .build()))
-            .thenReturn(Collections.singletonList(vms));
+            .thenReturn(GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(vms))
+                .build());
         final Map<String, SupplyChainNode> nodes = supplyChainFetcherFactory.newNodeFetcher()
                 .entityTypes(Collections.singletonList(VM))
                 .fetch();
@@ -195,7 +201,11 @@ public class SupplyChainFetcherFactoryTest {
                     .build())
             .build();
         when(supplyChainServiceBackend.getSupplyChain(any()))
-                .thenReturn(Arrays.asList(vms, hosts));
+                .thenReturn(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(vms)
+                        .addSupplyChainNodes(hosts))
+                    .build());
 
         when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
                 .setTopologyContextId(LIVE_TOPOLOGY_ID)

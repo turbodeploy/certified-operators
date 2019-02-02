@@ -1,12 +1,12 @@
 package com.vmturbo.auth.component.userscope;
 
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import com.google.common.collect.ImmutableList;
 
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -19,8 +19,9 @@ import org.mockito.Mockito;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.google.common.collect.ImmutableList;
+
 import io.grpc.stub.StreamObserver;
-import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
 
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
@@ -28,22 +29,22 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
-import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.AllOids;
-import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.OidArray;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -53,11 +54,20 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class UserScopeServiceTest {
 
-    private static List<Long> TEST_SUPPLY_CHAIN_OIDS = Arrays.asList(10L, 11L, 12L);
+    private static final long GROUP_ID = 1;
 
-    private GroupServiceImplBase groupService = new TestGroupService();
+    private static final List<Long> TEST_SUPPLY_CHAIN_OIDS = Arrays.asList(10L, 11L, 12L);
 
-    private TestSupplyChainService supplyChainService = new TestSupplyChainService();
+    private static final SupplyChain TEST_SUPPLY_CHAIN = SupplyChain.newBuilder()
+        .addSupplyChainNodes(SupplyChainNode.newBuilder()
+            .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
+                .addAllMemberOids(TEST_SUPPLY_CHAIN_OIDS)
+                .build()))
+        .build();
+
+    private GroupServiceMole groupService = spy(new GroupServiceMole());
+
+    private SupplyChainServiceMole supplyChainService = spy(new SupplyChainServiceMole());
 
     @Rule
     public GrpcTestServer mockServer = GrpcTestServer.newServer(groupService, supplyChainService);
@@ -78,6 +88,23 @@ public class UserScopeServiceTest {
 
     @Before
     public void setup() throws Exception {
+
+        final long memberId = 2;
+
+        doReturn(GetMembersResponse.newBuilder()
+            .setMembers(Members.newBuilder()
+                .addIds(memberId))
+            .build())
+                .when(groupService).getMembers(GetMembersRequest.newBuilder()
+                    .setId(GROUP_ID)
+                    .setExpectPresent(false)
+                    .build());
+
+        doReturn(GetSupplyChainResponse.newBuilder()
+            .setSupplyChain(TEST_SUPPLY_CHAIN)
+            .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
+                .addStartingEntityOid(memberId)
+                .build());
 
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());
         supplyChainServiceClient = SupplyChainServiceGrpc.newBlockingStub(mockServer.getChannel());
@@ -227,44 +254,4 @@ public class UserScopeServiceTest {
 
         verifyFullAccess(response.getEntityAccessScopeContents());
     }
-
-    // we are going to create some services that return test data
-    private static class TestGroupService extends GroupServiceImplBase {
-
-        @Override
-        public void getMembers(final GetMembersRequest request, final StreamObserver<GetMembersResponse> responseObserver) {
-            long groupId = request.getId();
-            if (groupId == 1) {
-                responseObserver.onNext(GetMembersResponse.newBuilder()
-                        .setMembers(Members.newBuilder()
-                                .addIds(2L))
-                        .build());
-
-            } else {
-                // default -- no members
-                responseObserver.onNext(GetMembersResponse.getDefaultInstance());
-            }
-            responseObserver.onCompleted();
-        }
-    }
-
-    private static class TestSupplyChainService extends SupplyChainServiceImplBase {
-
-        private Map<Integer, MemberList> testSupplyChainMap = Collections.singletonMap(
-                EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
-                        .addAllMemberOids(TEST_SUPPLY_CHAIN_OIDS)
-                        .build()
-        );
-
-        @Override
-        public void getSupplyChain(final SupplyChainRequest request, final StreamObserver<SupplyChainNode> responseObserver) {
-            if (request.getStartingEntityOid(0) == 2L) {
-                responseObserver.onNext(SupplyChainNode.newBuilder()
-                        .putAllMembersByState(testSupplyChainMap)
-                        .build());
-            }
-            responseObserver.onCompleted();
-        }
-    }
-
 }

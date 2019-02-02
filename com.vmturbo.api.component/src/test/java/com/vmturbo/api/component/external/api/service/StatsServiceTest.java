@@ -104,9 +104,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -794,8 +794,8 @@ public class StatsServiceTest {
         when(fetcherBuilder.entityTypes(anyList())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.addSeedUuid(anyString())).thenReturn(fetcherBuilder);
         // set up supply chain result for DC 7
-        Map<String, SupplyChain.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
-                PHYSICAL_MACHINE.getValue(), SupplyChain.SupplyChainNode.newBuilder()
+        Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
+                PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                             .addAllMemberOids(oids)
                             .build())
@@ -850,8 +850,8 @@ public class StatsServiceTest {
         when(fetcherBuilder.entityTypes(anyList())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.addSeedUuid(anyString())).thenReturn(fetcherBuilder);
         // first req, for DC 7, return PMs 101 and 102 for supply chain
-        Map<String, SupplyChain.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
-                PHYSICAL_MACHINE.getValue(), SupplyChain.SupplyChainNode.newBuilder()
+        Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
+                PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                                 .addMemberOids(101L)
                                 .addMemberOids(102L)
@@ -859,8 +859,8 @@ public class StatsServiceTest {
                         .build()
         );
         // second call, for DC8, return PMs 103 and 104.
-        Map<String, SupplyChain.SupplyChainNode> supplyChainNodeMap2 = ImmutableMap.of(
-                PHYSICAL_MACHINE.getValue(), SupplyChain.SupplyChainNode.newBuilder()
+        Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap2 = ImmutableMap.of(
+                PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                                 .addMemberOids(103L)
                                 .addMemberOids(104L)

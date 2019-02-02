@@ -23,7 +23,7 @@ import reactor.core.publisher.Mono;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
@@ -128,12 +128,12 @@ public class SupplyChainService {
                 // by Search API in UI, where we want all entities to be searchable.
                 // For example: we don't want to show BusinessAccount in supply chain, but we want
                 // it to be searchable in UI.
-                final Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
+                final Either<Throwable, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
                         Optional.of(contextID), envType, startId,
                         Optional.of(userSessionContext.getUserAccessScope()),
                         Collections.emptySet(), Collections.emptySet());
 
-                final Either<String, Map<String, Set<Long>>> e = supplyChain
+                final Either<Throwable, Map<String, Set<Long>>> e = supplyChain
                     .map(nodeStream -> nodeStream.collect(Collectors.toMap(
                         SupplyChainNode::getEntityType, RepositoryDTOUtil::getAllMemberOids)));
 

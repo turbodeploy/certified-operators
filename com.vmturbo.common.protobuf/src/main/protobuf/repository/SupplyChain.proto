@@ -3,30 +3,9 @@ syntax = "proto2";
 package repository;
 
 option java_package = "com.vmturbo.common.protobuf.repository";
+option java_outer_classname = "SupplyChainProto";
 
 import "common/EnvironmentTypeEnum.proto";
-
-// Request the supply chain. A supply chain request may optionally specify a contextId and
-// startingVertexId.
-message SupplyChainRequest {
-    // The ID of the topology context whose supply chains are being requested.
-    // If no context is supplied, returns the supply chain for the current live context.
-    optional int64 context_id = 1;
-
-    // The OIDs of the vertices to start from when constructing the supply chain.
-    // The supply chains from each individual OID are merged into a single result.
-    // If no starting vertex is specified, the global supply chain is retrieved.
-    repeated int64 starting_entity_oid = 2;
-
-    // The list of entity types to include in the resultant supplychain. If this
-    // list is empty, then no filtering is done and SupplyChainNodes pertaining
-    // to any entity type are included.
-    repeated string entity_types_to_include = 3;
-
-    // Only include entities in a particular environment type in the supply chain.
-    // If not set, return all entities regardless of environment type.
-    optional .common.EnvironmentType environment_type = 4;
-}
 
 // The response to a supply chain request consists of a series of supply chain nodes
 // that express graph of connections in the supply chain.
@@ -61,6 +40,46 @@ message SupplyChainNode {
     repeated int64 __member_oids = 5 [deprecated = true];
 }
 
+// A description of a supply chain returned by the service.
+message SupplyChain {
+    // A list of supply chain nodes.
+    // There will only be one node for every entity type in the returned supply chain.
+    repeated SupplyChainNode supply_chain_nodes = 1;
+
+    // The entities specified in the request that were not found - and whose supply chains
+    // are therefore not included in the returned supply chain.
+    repeated int64 missing_starting_entities = 10;
+}
+
+// Request the supply chain. A supply chain request may optionally specify a contextId and
+// startingVertexId.
+message GetSupplyChainRequest {
+    // The ID of the topology context whose supply chains are being requested.
+    // If no context is supplied, returns the supply chain for the current live context.
+    optional int64 context_id = 1;
+
+    // The OIDs of the vertices to start from when constructing the supply chain.
+    // The supply chains from each individual OID are merged into a single result.
+    // If no starting vertex is specified, the global supply chain is retrieved.
+    repeated int64 starting_entity_oid = 2;
+
+    // The list of entity types to include in the resultant supplychain. If this
+    // list is empty, then no filtering is done and SupplyChainNodes pertaining
+    // to any entity type are included.
+    repeated string entity_types_to_include = 3;
+
+    // Only include entities in a particular environment type in the supply chain.
+    // If not set, return all entities regardless of environment type.
+    optional .common.EnvironmentType environment_type = 4;
+}
+
+// The response to a "GetSupplyChain" request.
+message GetSupplyChainResponse {
+    // The supply chain.
+    // Should be set in a successful request.
+    optional SupplyChain supply_chain = 1;
+}
+
 // A supply chain seed defines the starting point of a supply chain query,
 // and provides ways to limit the entities considered to be part of the
 // supply chain.
@@ -84,7 +103,7 @@ message SupplyChainSeed {
     optional .common.EnvironmentType environment_type = 4;
 }
 
-message MultiSupplyChainsRequest {
+message GetMultiSupplyChainsRequest {
     // The ID of the topology context whose supply chains are being requested.
     // If no context is supplied, returns the supply chain for the current live context.
     optional int64 context_id = 1;
@@ -93,28 +112,36 @@ message MultiSupplyChainsRequest {
     repeated SupplyChainSeed seeds = 2;
 }
 
-// The response to a MultiSupplyChainsRequest.
+// The response to a GetMultiSupplyChainsRequest.
 // There is one response for every seed in the request.
-message MultiSupplyChainsResponse {
-
+message GetMultiSupplyChainsResponse {
     // The OID of the SupplyChainSeed this response pertains to.
     optional int64 seed_oid = 1;
 
-    // The supply chain for the SupplyChainSeed in the request.
-    repeated SupplyChainNode supply_chain_nodes = 2;
+    // The supply chain for this seed.
+    // May be unset (empty) if there was an error retrieving the supply chain.
+    //
+    // Note - Missing starting entities in the seed do not constitute an error. If some of those
+    // entities are missing, there will be a partial supply chain, and the missing entities
+    // will be listed in SupplyChain.missing_starting_entities.
+    optional SupplyChain supply_chain = 2;
+
+    // If the supply chain for this seed could not be retrieved, this is a description
+    // of the error/reason. We use this instead of the regular error mechanism because
+    // the failure for a single seed should not fail the entire call.
+    optional string error = 10;
 }
 
 // A service for fetching information about supply chains.
 // The supply chain is a concept that expresses the links between entities in a topology.
 service SupplyChainService {
     // Retrieve the supply chain.
-    // The response streams back each node in the supply chain graph.
-    rpc GetSupplyChain(SupplyChainRequest) returns (stream SupplyChainNode);
+    rpc GetSupplyChain(GetSupplyChainRequest) returns (GetSupplyChainResponse);
 
     // Retrieve multiple supply chains in one call.
     // This is equivalent to calling GetSupplyChain multiple times, but it provides an easier way
     // to do it from the client's perspective and allows for optimizations on the server.
     //
     // The response streams back each supply chain once it's computed.
-    rpc GetMultiSupplyChains(MultiSupplyChainsRequest) returns (stream MultiSupplyChainsResponse);
+    rpc GetMultiSupplyChains(GetMultiSupplyChainsRequest) returns (stream GetMultiSupplyChainsResponse);
 }

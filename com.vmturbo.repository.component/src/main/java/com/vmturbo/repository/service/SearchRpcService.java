@@ -82,7 +82,7 @@ public class SearchRpcService extends SearchServiceImplBase {
 
     @Override
     public void countEntities(final CountEntitiesRequest request, final StreamObserver<EntityCountResponse> responseObserver) {
-        logger.debug("Counting entity OIDs with search request: {}", request);
+        logger.trace("Counting entity OIDs with search request: {}", request);
 
         // Return empty result if current topology doesn't exist.
         Optional<TopologyDatabase> realtimeDb = lifecycleManager.getRealtimeDatabase();
@@ -117,7 +117,7 @@ public class SearchRpcService extends SearchServiceImplBase {
                 // count up the # of entities in the response.
                 entityCount += result.get().size();
             }
-            logger.info("countEntities found {} entities.", entityCount);
+            logger.trace("countEntities for request {} found {} entities.", request, entityCount);
             responseObserver.onNext(EntityCountResponse.newBuilder()
                     .setEntityCount(entityCount)
                     .build());

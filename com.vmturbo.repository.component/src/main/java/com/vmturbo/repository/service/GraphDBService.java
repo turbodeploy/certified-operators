@@ -25,7 +25,7 @@ import javaslang.control.Try;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -75,9 +75,10 @@ public class GraphDBService {
      * @param contextID The name of the database to create the supply chain from.
      *                   If <code>empty</code>, use the real-time database.
      * @param startId The identifier of the starting service entity.
-     * @return Either a String describing an error, or a stream of {@link SupplyChainNode}s.
+     * @return Either a {@link Throwable} describing an error, or a stream of {@link SupplyChainNode}s.
+     *         If the start ID is not found, the {@link Throwable} will be a {@link java.util.NoSuchElementException}.
      */
-    public Either<String, java.util.stream.Stream<SupplyChainNode>> getSupplyChain(
+    public Either<Throwable, java.util.stream.Stream<SupplyChainNode>> getSupplyChain(
             final Optional<Long> contextID,
             final Optional<UIEnvironmentType> envType,
             final String startId,
@@ -109,12 +110,12 @@ public class GraphDBService {
             final Option<Long> contextIDToUse =
                     Option.ofOptional(targetTopologyId.map(TopologyID::getContextId));
 
-            final Option<Either<String, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
+            final Option<Either<Throwable, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
                 contextIDToUse.map(cid ->
                     Match(supplyChainResults).of(
                         Case(Success($()), v -> timedValue(() -> Either.right(v.toSupplyChainNodes().stream()),
                             SINGLE_SOURCE_SUPPLY_CHAIN_CONVERSION_DURATION_SUMMARY)),
-                        Case(Failure($()), exc -> Either.left(exc.getMessage()))
+                        Case(Failure($()), exc -> Either.left(exc))
                     ));
 
             return supplyChainResult.getOrElse(Either.right(java.util.stream.Stream.empty()));

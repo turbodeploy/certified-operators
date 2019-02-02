@@ -134,9 +134,6 @@ public class CommunicationConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
-    @Value("${supplyChainFetcherTimeoutSeconds}")
-    private Long supplyChainFetcherTimeoutSeconds;
-
     @Autowired
     private ApiWebsocketConfig websocketConfig;
 
@@ -358,7 +355,6 @@ public class CommunicationConfig {
                 actionOrchestratorChannel(),
                 repositoryApi(),
                 groupExpander(),
-                Duration.ofSeconds(supplyChainFetcherTimeoutSeconds),
                 realtimeTopologyContextId);
     }
 

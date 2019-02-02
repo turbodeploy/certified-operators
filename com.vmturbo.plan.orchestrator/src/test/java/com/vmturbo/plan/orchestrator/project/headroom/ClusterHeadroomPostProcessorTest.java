@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;

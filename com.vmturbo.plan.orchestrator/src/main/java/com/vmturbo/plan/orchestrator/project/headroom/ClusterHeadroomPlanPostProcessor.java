@@ -1,7 +1,6 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,8 +10,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -22,6 +21,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -40,8 +40,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequ
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
@@ -52,7 +52,6 @@ import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -392,15 +391,22 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         List<Long> memberIds = response.getMembers().getIdsList();
 
         // Use the supply chain service to get all VM nodes that belong to the physical machines
-        Iterator<SupplyChainNode> supplyChainNodeIterator = supplyChainRpcService.getSupplyChain(
-                SupplyChainRequest.newBuilder()
+        final SupplyChain clusterSupplyChain = supplyChainRpcService.getSupplyChain(
+                GetSupplyChainRequest.newBuilder()
                         .addAllStartingEntityOid(memberIds)
                         .addEntityTypesToInclude("VirtualMachine")
-                        .build());
+                        .build()).getSupplyChain();
 
-        Iterable<SupplyChainNode> iterable = () -> supplyChainNodeIterator;
-        Stream<SupplyChainNode> nodeStream = StreamSupport.stream(iterable.spliterator(), false);
-        return nodeStream.map(RepositoryDTOUtil::getMemberCount).reduce(0, Integer::sum);
+        final int missingEntitiesCnt = clusterSupplyChain.getMissingStartingEntitiesCount();
+        if (missingEntitiesCnt > 0) {
+            logger.warn("Related entities for {} (of {}) cluster members not found. Missing members: {}",
+                missingEntitiesCnt, memberIds.size(),
+                clusterSupplyChain.getMissingStartingEntitiesList());
+        }
+
+        return clusterSupplyChain.getSupplyChainNodesList().stream()
+            .map(RepositoryDTOUtil::getMemberCount)
+            .reduce(0, Integer::sum);
     }
 
     /**

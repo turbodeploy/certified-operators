@@ -33,7 +33,7 @@ import com.vmturbo.auth.api.authorization.scoping.ArrayOidSet;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd.GetGlobalSupplyChain;

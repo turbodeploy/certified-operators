@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 
 import io.grpc.Channel;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.action.orchestrator.stats.ActionStat;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
@@ -27,10 +28,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -93,7 +96,7 @@ public class ClusterActionAggregator extends ActionAggregator {
                 return;
             }
 
-            final MultiSupplyChainsRequest.Builder requestBuilder = MultiSupplyChainsRequest.newBuilder();
+            final GetMultiSupplyChainsRequest.Builder requestBuilder = GetMultiSupplyChainsRequest.newBuilder();
             entitiesInCluster.asMap().forEach((clusterId, clusterEntities) -> {
                 // For clusters we don't expect any hy
                 requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
@@ -102,15 +105,37 @@ public class ClusterActionAggregator extends ActionAggregator {
                     .addAllEntityTypesToInclude(EXPANDED_SCOPE_ENTITY_TYPES));
             });
 
-            supplyChainService.getMultiSupplyChains(requestBuilder.build())
-                .forEachRemaining(supplyChainResponse -> {
-                    final long clusterId = supplyChainResponse.getSeedOid();
-                    supplyChainResponse.getSupplyChainNodesList().stream()
-                        .filter(node -> EXPANDED_SCOPE_ENTITY_TYPES.contains(node.getEntityType()))
-                        .flatMap(vmNode -> vmNode.getMembersByStateMap().values().stream())
-                        .flatMap(memberList -> memberList.getMemberOidsList().stream())
-                        .forEach(memberId -> clustersOfEntity.put(memberId, clusterId));
-                });
+            try {
+                supplyChainService.getMultiSupplyChains(requestBuilder.build())
+                    .forEachRemaining(supplyChainResponse -> {
+                        final long clusterId = supplyChainResponse.getSeedOid();
+                        if (supplyChainResponse.hasError()) {
+                            logger.error("Limited action stats will be aggregated for the" +
+                                    " cluster {}. Failed to retireve supply chain due to error: {}",
+                                clusterId, supplyChainResponse.getError());
+                        }
+                        final SupplyChain supplyChain = supplyChainResponse.getSupplyChain();
+                        final int missingEntitiesCount = supplyChain.getMissingStartingEntitiesCount();
+                        if (missingEntitiesCount > 0) {
+                            Metrics.MISSING_CLUSTER_ENTITIES_COUNTER.increment(
+                                (double)missingEntitiesCount);
+                            logger.warn("Supply chains of {} cluster members of cluster {} not found." +
+                                    " Missing members: {}", missingEntitiesCount,
+                                clusterId, supplyChain.getMissingStartingEntitiesList());
+                        }
+
+                        supplyChain.getSupplyChainNodesList().stream()
+                            .filter(node -> EXPANDED_SCOPE_ENTITY_TYPES.contains(node.getEntityType()))
+                            .flatMap(vmNode -> vmNode.getMembersByStateMap().values().stream())
+                            .flatMap(memberList -> memberList.getMemberOidsList().stream())
+                            .forEach(memberId -> clustersOfEntity.put(memberId, clusterId));
+                    });
+            } catch (StatusRuntimeException e) {
+                // We can proceed - we just won't have stats for any "related" entities in the
+                // cluster.
+                logger.error("Failed to retrieve supply chains of clusters. Will only " +
+                    "aggregate stats for hosts in the clusters. Error: {}", e.getMessage());
+            }
 
             logger.info("Got {} clusters, and {} entities in scope.",
                     entitiesInCluster.keySet().size(), clustersOfEntity.keySet().size());
@@ -190,6 +215,12 @@ public class ClusterActionAggregator extends ActionAggregator {
         private static final DataMetricSummary CLUSTER_AGGREGATOR_INIT_TIME = DataMetricSummary.builder()
             .withName("ao_action_cluster_agg_init_seconds")
             .withHelp("Information about how long it took to initialize the cluster aggregator.")
+            .build()
+            .register();
+
+        private static final DataMetricCounter MISSING_CLUSTER_ENTITIES_COUNTER = DataMetricCounter.builder()
+            .withName("ao_action_cluster_agg_missing_supply_chain_entities_count")
+            .withHelp("Count of cluster members with missing supply chains (because they're not in the repository).")
             .build()
             .register();
 

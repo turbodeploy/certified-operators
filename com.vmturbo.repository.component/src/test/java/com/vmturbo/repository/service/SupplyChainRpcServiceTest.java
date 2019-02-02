@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -34,9 +35,9 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import io.grpc.Status;
 import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 import reactor.core.publisher.Mono;
@@ -44,12 +45,14 @@ import reactor.core.publisher.Mono;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChain.MultiSupplyChainsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -188,29 +191,35 @@ public class SupplyChainRpcServiceTest {
         // Right now the multi-supply-chains request just calls the regular supply chains request.
         // Override the behaviour to return the nodes we want.
         doAnswer(invocation -> {
-            final SupplyChainRequest request = invocation.getArgumentAt(0, SupplyChainRequest.class);
-            final StreamObserver<SupplyChainNode> nodeObserver =
+            final GetSupplyChainRequest request = invocation.getArgumentAt(0, GetSupplyChainRequest.class);
+            final StreamObserver<GetSupplyChainResponse> nodeObserver =
                     invocation.getArgumentAt(1, StreamObserver.class);
             if (request.getStartingEntityOidList().equals(seed1.getStartingEntityOidList())) {
-                nodeObserver.onNext(node1);
+                nodeObserver.onNext(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(node1))
+                    .build());
                 nodeObserver.onCompleted();;
             } else if (request.getStartingEntityOidList().equals(seed2.getStartingEntityOidList())) {
-                nodeObserver.onNext(node2);
+                nodeObserver.onNext(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(node2))
+                    .build());
                 nodeObserver.onCompleted();;
             }
             return null;
         }).when(supplyChainBackend).getSupplyChain(any(), any());
 
 
-        final Map<Long, MultiSupplyChainsResponse> responseBySeedOid = new HashMap<>();
-        supplyChainStub.getMultiSupplyChains(MultiSupplyChainsRequest.newBuilder()
+        final Map<Long, GetMultiSupplyChainsResponse> responseBySeedOid = new HashMap<>();
+        supplyChainStub.getMultiSupplyChains(GetMultiSupplyChainsRequest.newBuilder()
                 .setContextId(contextId)
                 .addSeeds(seed1)
                 .addSeeds(seed2)
                 .build()).forEachRemaining(resp -> responseBySeedOid.put(resp.getSeedOid(), resp));
         assertThat(responseBySeedOid.size(), is(2));
-        assertThat(responseBySeedOid.get(seed1.getSeedOid()).getSupplyChainNodesList(), contains(node1));
-        assertThat(responseBySeedOid.get(seed2.getSeedOid()).getSupplyChainNodesList(), contains(node2));
+        assertThat(responseBySeedOid.get(seed1.getSeedOid()).getSupplyChain().getSupplyChainNodesList(), contains(node1));
+        assertThat(responseBySeedOid.get(seed2.getSeedOid()).getSupplyChain().getSupplyChainNodesList(), contains(node2));
     }
 
     /**
@@ -239,11 +248,11 @@ public class SupplyChainRpcServiceTest {
                 eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+        final GetSupplyChainResponse response =
+                supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
                         .setContextId(1234L)
                         .addAllStartingEntityOid(Lists.newArrayList(11L, 12L))
-                        .build()));
+                        .build());
 
         final SupplyChainNode vmNode1And2combined = cloudVMNode1.toBuilder().putMembersByState(0,
                 MemberList.newBuilder()
@@ -259,6 +268,7 @@ public class SupplyChainRpcServiceTest {
             eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
             eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(4, nodes.size());
         findAndCompareSupplyChainNode(nodes, vmNode1And2combined);
         findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
@@ -277,44 +287,42 @@ public class SupplyChainRpcServiceTest {
                 .setSeedOid(2L)
                 .addStartingEntityOid(2L)
                 .build();
-        final SupplyChainNode node2 = SupplyChainNode.newBuilder()
-                .setEntityType("bar")
-                .build();
+        final SupplyChain sc2 = SupplyChain.newBuilder()
+            .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                .setEntityType("bar"))
+            .build();
 
-        final String errorDescription = "one two three";
+        final Throwable error = Status.INVALID_ARGUMENT.withDescription("one two three").asException();
 
         // Right now the multi-supply-chains request just calls the regular supply chains request.
         // Override the behaviour to return the nodes we want.
         doAnswer(invocation -> {
-            final SupplyChainRequest request = invocation.getArgumentAt(0, SupplyChainRequest.class);
-            final StreamObserver<SupplyChainNode> nodeObserver =
+            final GetSupplyChainRequest request = invocation.getArgumentAt(0, GetSupplyChainRequest.class);
+            final StreamObserver<GetSupplyChainResponse> nodeObserver =
                     invocation.getArgumentAt(1, StreamObserver.class);
             // The first seed will result in an error, and the second seed will work fine.
             // But we shouldn't make it to the second seed - we should error out as soon as we
             // encounter an error!
             if (request.getStartingEntityOidList().equals(seed1.getStartingEntityOidList())) {
-                nodeObserver.onError(Status.INVALID_ARGUMENT.withDescription(errorDescription).asException());
+                nodeObserver.onError(error);
             } else if (request.getStartingEntityOidList().equals(seed2.getStartingEntityOidList())) {
-                nodeObserver.onNext(node2);
+                nodeObserver.onNext(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(sc2)
+                    .build());
                 nodeObserver.onCompleted();;
             }
             return null;
         }).when(supplyChainBackend).getSupplyChain(any(), any());
 
-        final Map<Long, MultiSupplyChainsResponse> responseBySeedOid = new HashMap<>();
-        try {
-            supplyChainStub.getMultiSupplyChains(MultiSupplyChainsRequest.newBuilder()
-                    .setContextId(contextId)
-                    .addSeeds(seed1)
-                    .addSeeds(seed2)
-                    .build()).forEachRemaining(resp -> responseBySeedOid.put(resp.getSeedOid(), resp));
-        } catch (StatusRuntimeException e) {
-            // We shouldn't have gotten ANY responses.
-            assertThat(responseBySeedOid.size(), is(0));
-            assertTrue(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains(errorDescription)
-                .matches(e));
-        }
+        final Map<Long, GetMultiSupplyChainsResponse> responseBySeedOid = new HashMap<>();
+        supplyChainStub.getMultiSupplyChains(GetMultiSupplyChainsRequest.newBuilder()
+            .setContextId(contextId)
+            .addSeeds(seed1)
+            .addSeeds(seed2)
+            .build()).forEachRemaining(resp -> responseBySeedOid.put(resp.getSeedOid(), resp));
+
+        assertThat(responseBySeedOid.get(seed1.getSeedOid()).getError(), is(error.getMessage()));
+        assertThat(responseBySeedOid.get(seed2.getSeedOid()).getSupplyChain(), is(sc2));
     }
 
     @Test
@@ -325,12 +333,13 @@ public class SupplyChainRpcServiceTest {
                         eq(Collections.emptySet()),
                         eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-            supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
                 .addAllStartingEntityOid(Lists.newArrayList(5678L))
-                .build()));
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(2, nodes.size());
         compareSupplyChainNode(pmNode, nodes.get(0));
         compareSupplyChainNode(vmNode, nodes.get(1));
@@ -344,13 +353,14 @@ public class SupplyChainRpcServiceTest {
                 eq(Collections.emptySet()),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-            supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
                 .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
                 .addAllStartingEntityOid(Lists.newArrayList(5678L))
-                .build()));
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(1, nodes.size());
         compareSupplyChainNode(vmNode, nodes.get(0));
     }
@@ -374,11 +384,11 @@ public class SupplyChainRpcServiceTest {
                 eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .addAllStartingEntityOid(Lists.newArrayList(11L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .addAllStartingEntityOid(Lists.newArrayList(11L))
+                .build());
 
         // verify that it requested another supply chain starting from zone to only traverse the
         // path containing only region and zone
@@ -387,6 +397,7 @@ public class SupplyChainRpcServiceTest {
             eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
             eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(4, nodes.size());
         findAndCompareSupplyChainNode(nodes, cloudVMNode1);
         findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
@@ -410,11 +421,11 @@ public class SupplyChainRpcServiceTest {
                 eq(Collections.emptySet()),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .addAllStartingEntityOid(Lists.newArrayList(31L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .addAllStartingEntityOid(Lists.newArrayList(31L))
+                .build());
 
         // verify that it only requested once the complete supply chain starting from zone
         verify(graphDBService, times(1)).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.empty()),
@@ -428,6 +439,7 @@ public class SupplyChainRpcServiceTest {
             eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
             eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(4, nodes.size());
         findAndCompareSupplyChainNode(nodes, cloudVMNode1);
         findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
@@ -449,12 +461,13 @@ public class SupplyChainRpcServiceTest {
                 eq(Collections.emptySet()),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .addAllStartingEntityOid(Lists.newArrayList(41L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .addAllStartingEntityOid(Lists.newArrayList(41L))
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(4, nodes.size());
         findAndCompareSupplyChainNode(nodes, cloudVMNode1);
         findAndCompareSupplyChainNode(nodes, cloudVolumeNode);
@@ -478,12 +491,13 @@ public class SupplyChainRpcServiceTest {
                 eq(Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE)),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .addAllStartingEntityOid(Lists.newArrayList(51L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .addAllStartingEntityOid(Lists.newArrayList(51L))
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         // check account node is removed
         assertEquals(4, nodes.size());
         findAndCompareSupplyChainNode(nodes, cloudVMNode1);
@@ -501,12 +515,13 @@ public class SupplyChainRpcServiceTest {
                 eq(Collections.emptySet()),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .addAllStartingEntityOid(Lists.newArrayList(51L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .addAllStartingEntityOid(Lists.newArrayList(51L))
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         // check account node is removed
         assertEquals(3, nodes.size());
         findAndCompareSupplyChainNode(nodes, cloudVMNode1);
@@ -516,7 +531,7 @@ public class SupplyChainRpcServiceTest {
 
     @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
-        doReturn(Either.left("failed"))
+        doReturn(Either.left(new IllegalStateException("failed")))
             .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
                 eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
                 eq(Collections.emptySet()),
@@ -527,11 +542,28 @@ public class SupplyChainRpcServiceTest {
             .descriptionContains("failed"));
 
         // Force evaluation of the stream
-        Lists.newArrayList(supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+        supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
             .setContextId(1234L)
             .setEnvironmentType(EnvironmentType.CLOUD)
             .addAllStartingEntityOid(Lists.newArrayList(5678L))
-            .build()));
+            .build());
+    }
+
+    @Test
+    public void testGetSingleSourceSupplyChainNotFound() throws Exception {
+        doReturn(Either.left(new NoSuchElementException("foo")))
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq(Optional.of(UIEnvironmentType.CLOUD)),
+            eq("5678"), eq(Optional.of(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE)),
+            eq(Collections.emptySet()),
+            eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
+
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
+            .setContextId(1234L)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .addAllStartingEntityOid(Lists.newArrayList(5678L))
+            .build());
+
+        assertThat(response.getSupplyChain().getMissingStartingEntitiesList(), contains(5678L));
     }
 
     @Test
@@ -579,13 +611,14 @@ public class SupplyChainRpcServiceTest {
                 eq(Collections.emptySet()),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .setEnvironmentType(EnvironmentType.CLOUD)
-                        .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(2, nodes.size());
         compareSupplyChainNode(pmMergedNode, nodes.get(0));
         compareSupplyChainNode(vmMergedNode, nodes.get(1));
@@ -636,14 +669,15 @@ public class SupplyChainRpcServiceTest {
                 eq(Collections.emptySet()),
                 eq(SupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .setEnvironmentType(EnvironmentType.CLOUD)
-                        .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
-                        .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
-                        .build()));
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
+                .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
+                .build());
 
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertEquals(1, nodes.size());
         compareSupplyChainNode(pmMergedNode, nodes.get(0));
     }
@@ -659,11 +693,12 @@ public class SupplyChainRpcServiceTest {
             .thenReturn(Mono.just(inputNodes));
 
         // Force evaluation of the stream
-        final List<SupplyChainNode> nodes = Lists.newArrayList(
-            supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+        final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
+            GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
                 .setEnvironmentType(EnvironmentType.CLOUD)
-                .build()));
+                .build());
+        final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertThat(nodes, containsInAnyOrder(pmNode, vmNode));
     }
 
@@ -679,7 +714,7 @@ public class SupplyChainRpcServiceTest {
             .anyDescription());
 
         // Force evaluation of the stream
-        Lists.newArrayList(supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+        Lists.newArrayList(supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
             .setContextId(1234L)
             .setEnvironmentType(EnvironmentType.CLOUD)
             .build()));

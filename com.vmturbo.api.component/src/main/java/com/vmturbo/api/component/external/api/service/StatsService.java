@@ -104,7 +104,7 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -157,7 +157,7 @@ public class StatsService implements IStatsService {
 
     /**
      *
-     * Current UI only shows up RI_DISCOUNT. But soon, it will be removed in classic. Instead 
+     * Current UI only shows up RI_DISCOUNT. But soon, it will be removed in classic. Instead
      * RI_COMPUTE cost will be shown in the UI.  Until then, we will map the RI_COMPUTE
      * to the riDiscount request call from the UI.
      * Once it is fixed in classic, we would have to change this value.
