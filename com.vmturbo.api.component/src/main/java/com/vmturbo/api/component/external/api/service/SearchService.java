@@ -9,6 +9,7 @@ import static com.vmturbo.api.component.external.api.mapper.GroupMapper.TAGS;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -237,8 +238,16 @@ public class SearchService implements ISearchService {
                 final Collection<GroupApiDTO> groups = groupsService.getGroups();
                 result = populateSeverity(groups);
             } else if (types.contains(CLUSTER)) {
-                final Collection<GroupApiDTO> groups = groupsService.getComputeClusters(
-                    Lists.newArrayList());
+                // As of today (Feb 2019), the scopes object could only have one id (PM oid).
+                // If there is PM oid, we want to retrieve the Cluster that the PM belonged to.
+                // TODO (Gary, Feb 4, 2019), add a new gRPC service for multiple PM oids when needed.
+                final Collection<GroupApiDTO> groups = CollectionUtils.isEmpty(scopes) ?
+                        groupsService.getComputeClusters(Collections.emptyList()) :
+                        scopes.stream()
+                                .map(scope -> groupsService.getComputeCluster(Long.valueOf(scope)))
+                                .filter(Optional::isPresent)
+                                .map(Optional::get)
+                                .collect(Collectors.toList());
                 result = populateSeverity(groups);
             } else if (types.contains(GroupMapper.STORAGE_CLUSTER)) {
                 final Collection<GroupApiDTO> groups = groupsService.getStorageClusters(

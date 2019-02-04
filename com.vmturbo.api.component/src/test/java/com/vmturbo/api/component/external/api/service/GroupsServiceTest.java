@@ -53,9 +53,12 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -78,6 +81,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class GroupsServiceTest {
 
@@ -462,4 +466,34 @@ public class GroupsServiceTest {
         expectedException.expectMessage("Group with UUID 1 does not exist");
         groupsService.editGroup("1", groupApiDTO);
     }
+
+    @Test
+    public void testGetComputerCluster() throws UnknownObjectException {
+        // Arrange
+        final String name = "name";
+
+        final GroupApiDTO groupApiDtoMock = new GroupApiDTO();
+        groupApiDtoMock.setDisplayName(name);
+        groupApiDtoMock.setClassName(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name());
+        final ClusterInfo clusterInfo = ClusterInfo.newBuilder().setDisplayName(name)
+                .build();
+        when(groupMapper.createClusterApiDto(eq(clusterInfo))).thenReturn(groupApiDtoMock);
+        when(groupServiceSpy.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
+                .setEntityId(1L)
+                .build()))
+                .thenReturn(GetClusterForEntityResponse.newBuilder()
+                        .setClusterId(2L)
+                        .setClusterInfo(clusterInfo).build());
+
+        // Act
+        final Optional<GroupApiDTO> groupApiDTOptional = groupsService.getComputeCluster(1L);
+
+        // Assert
+        assertTrue(groupApiDTOptional.isPresent());
+        final GroupApiDTO groupApiDTO = groupApiDTOptional.get();
+        assertEquals(name, groupApiDTO.getDisplayName());
+        assertEquals(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name(), groupApiDTO.getClassName());
+        assertEquals("2", groupApiDTO.getUuid());
+    }
+
 }

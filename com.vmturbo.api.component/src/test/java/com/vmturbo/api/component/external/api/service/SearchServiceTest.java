@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -80,6 +81,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
@@ -236,6 +238,33 @@ public class SearchServiceTest {
         assertThat(results.size(), is(4));
         assertThat(results.stream().map(BaseApiDTO::getUuid).collect(Collectors.toList()),
                 containsInAnyOrder("1", "2", "3", "4"));
+    }
+
+    /**
+     * Test scoped to a PM;  search result returns the Cluster the PM belongs to .
+     * https://IP/vmturbo/rest/search?disable_hateoas=true&q=&scopes=283218897841408&types=Cluster
+     */
+    @Test
+    public void testSearchWithPMInScopes() throws Exception {
+
+        // Arrange
+        final String PM_OID = "283218897841408";
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setDisplayName("display name");
+        groupApiDTO.setUuid("00000");
+        groupApiDTO.setClassName(ConstraintType.CLUSTER.name());
+
+        List<String> scopes = Lists.newArrayList(PM_OID);
+        List<String> types = Lists.newArrayList("Cluster");
+
+        when(groupsService.getComputeCluster(Long.valueOf(PM_OID))).thenReturn(Optional.of(groupApiDTO));
+
+        // Act
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
+                null, null, null);
+
+        // Assert
+        assertThat(results, hasItems(groupApiDTO));
     }
 
     @Test

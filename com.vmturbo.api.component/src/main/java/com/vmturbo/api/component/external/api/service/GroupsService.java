@@ -86,6 +86,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -111,6 +113,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
  * Service implementation of Groups functionality.
@@ -848,6 +851,24 @@ public class GroupsService implements IGroupsService {
                         .setTypeFilter(ClusterInfo.Type.COMPUTE)
                         .build())
                 .build());
+    }
+
+    /**
+     * Fetch the computer cluster the entity belongs to.
+     * @param entityId the entity ID.
+     * @return {@link GroupApiDTO} has the computer cluster information if found.
+     */
+    Optional<GroupApiDTO> getComputeCluster(long entityId) {
+        final GetClusterForEntityResponse response =
+                groupServiceRpc.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
+                        .setEntityId(entityId)
+                        .build());
+        if (response.hasClusterInfo()) {
+            final GroupApiDTO groupApiDTO = groupMapper.createClusterApiDto(response.getClusterInfo());
+            groupApiDTO.setUuid(Long.toString(response.getClusterId()));
+            return Optional.of(groupApiDTO);
+        }
+        return Optional.empty();
     }
 
     /**

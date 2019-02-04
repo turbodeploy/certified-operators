@@ -354,7 +354,7 @@ public class GroupMapper {
     }
 
     @Nonnull
-    private GroupApiDTO createClusterApiDto(@Nonnull final ClusterInfo clusterInfo) {
+    public GroupApiDTO createClusterApiDto(@Nonnull final ClusterInfo clusterInfo) {
         final GroupApiDTO outputDTO = new GroupApiDTO();
         if (clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE) {
             outputDTO.setClassName(CLUSTER);
