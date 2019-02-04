@@ -653,6 +653,7 @@
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
+                <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>

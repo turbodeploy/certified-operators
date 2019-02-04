@@ -1,0 +1,175 @@
+[
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "f95dc1cebb69ffdc5e6d6760fb683ed7e3b6c360",
+    "displayName": "VCD-redundant-VDC",
+    "commoditiesSold": [
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::f95dc1cebb69ffdc5e6d6760fb683ed7e3b6c360",
+        "used": 31.0,
+        "capacity": 33722.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_ALLOCATION",
+        "key": "VirtualDataCenter::f95dc1cebb69ffdc5e6d6760fb683ed7e3b6c360",
+        "used": 2986361.0,
+        "capacity": 5374708.0,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::f95dc1cebb69ffdc5e6d6760fb683ed7e3b6c360",
+        "used": 1327104.0,
+        "capacity": 5.479424E7,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "https://vcenter-vcd51.eng.vmturbo.com/api/admin/extension/providervdc/3a3fabf7-c706-4499-95fd-981b6e865fd2"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtualDatacenterData": {
+      "vdcTypeProps": {
+        "role": "PRODUCER",
+        "supportsNesting": false,
+        "nestedConsumer": false
+      }
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "f71ea19f50cf35b9b3156c494b8013015f49a4c0",
+    "displayName": "VCD-ConsumerVDC-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::f71ea19f50cf35b9b3156c494b8013015f49a4c0",
+        "used": 0.0,
+        "capacity": 5242880.0,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "STORAGE_ALLOCATION",
+        "key": "VirtualDataCenter::f71ea19f50cf35b9b3156c494b8013015f49a4c0",
+        "used": 0.0,
+        "capacity": 986373.0,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::f71ea19f50cf35b9b3156c494b8013015f49a4c0",
+        "used": 0.0,
+        "capacity": 6710.0,
+        "active": true,
+        "resizable": true
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+            "used": 0.0,
+            "reservation": 6710.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "STORAGE_ALLOCATION",
+            "key": "VirtualDataCenter::49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+            "used": 0.0,
+            "reservation": 5242880.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "https://vcenter-vcd51.eng.vmturbo.com/api/vdc/be582934-5b37-4af6-82e3-dd3c71c50bba"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "replacesEntityId": [
+      "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+      "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014"
+    ],
+    "virtualDatacenterData": {
+      "vdcAllocationModel": "RESERVATION_POOL"
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+    "displayName": "VCD-ProducerVDC-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+        "used": 31.0,
+        "capacity": 33722.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_ALLOCATION",
+        "key": "VirtualDataCenter::49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+        "used": 2986361.0,
+        "capacity": 5374708.0,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::49361b84f9a34ea0c23320cdf815a1f68e43a20b",
+        "used": 1327104.0,
+        "capacity": 5.479424E7,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "https://vcenter-vcd51.eng.vmturbo.com/api/admin/extension/providervdc/3a3fabf7-c706-4499-95fd-981b6e865fd2"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "replacesEntityId": [
+      "fd89688c27bc19b631e983cce131703dac8cd1aa",
+      "4335299fd93fc262828bdeba1a7df0254099651d"
+    ],
+    "virtualDatacenterData": {
+      "vdcTypeProps": {
+        "role": "PRODUCER",
+        "supportsNesting": false,
+        "nestedConsumer": false
+      }
+    }
+  }
+]

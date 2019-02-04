@@ -69,7 +69,7 @@ public class DerivedTargetParser {
                     try {
                         targetStore.createTarget(targetSpec);
                     } catch (DuplicateTargetException e) {
-                        logger.warn("Derived target {} has already exists, next steps will be skipped.",
+                        logger.debug("Derived target {} already exists, parsing will be skipped.",
                                 targetName);
                     }
                 }

@@ -1,5 +1,7 @@
 package com.vmturbo.stitching;
 
+import static com.vmturbo.platform.sdk.common.util.SDKProbeType.*;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -10,10 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.compute.VMStitchingOperation;
+import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
-import com.vmturbo.stitching.storage.StorageStitchingOperation;
+import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
+import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
 
 /**
  * A library of stitching operations. Maps probe type and category to operations that to be used for
@@ -45,6 +48,10 @@ public class StitchingOperationLibrary {
             case HYPERVISOR:
                 return Collections.emptyList();
             case CLOUD_MANAGEMENT:
+                if (probeType.equals(VCD.getProbeType())) {
+                    return Arrays.asList(new VcdVMStitchingOperation(),
+                            new ElasticVDCStitchingOperation());
+                }
                 return Collections.emptyList();
             case LOAD_BALANCER:
                 return Collections.emptyList();
@@ -57,7 +64,7 @@ public class StitchingOperationLibrary {
             case DATABASE_SERVER:
                 return Collections.emptyList();
             case CLOUD_NATIVE:
-                return Collections.singletonList(new VMStitchingOperation());
+                return Collections.singletonList(new IaasVMStitchingOperation());
             case STORAGE_BROWSING:
                 return Collections.emptyList();
             case ORCHESTRATOR:
@@ -65,7 +72,7 @@ public class StitchingOperationLibrary {
             case HYPERCONVERGED:
                 return Collections.emptyList();
             case PAAS:
-                return Collections.singletonList(new VMStitchingOperation());
+                return Collections.singletonList(new IaasVMStitchingOperation());
             case GUEST_OS_PROCESSES:
                 return Collections.emptyList();
             case CUSTOM:

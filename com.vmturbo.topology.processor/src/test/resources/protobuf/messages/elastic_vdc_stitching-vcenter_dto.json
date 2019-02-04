@@ -1,0 +1,1269 @@
+[
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+    "displayName": "VC-PM-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_PROVISIONED",
+        "capacity": 1.6776692E7,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "PhysicalMachine::Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+        "used": 5577717.333333333,
+        "capacity": 1.6776692E7,
+        "peak": 5581812.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "IO_THROUGHPUT",
+        "used": 54.63333333333333,
+        "capacity": 1408000.0,
+        "peak": 873.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "NET_THROUGHPUT",
+        "used": 4370.433333333333,
+        "capacity": 384000.0,
+        "peak": 10995.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "PhysicalMachine::Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+        "used": 506.8666666666667,
+        "capacity": 10400.0,
+        "peak": 666.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "Q4_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "SWAPPING",
+        "used": 0.0,
+        "capacity": 5000000.0,
+        "active": false,
+        "resizable": true
+      },
+      {
+        "commodityType": "Q2_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "CPU_PROVISIONED",
+        "capacity": 10400.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM",
+        "used": 5577717.333333333,
+        "capacity": 1.6776692E7,
+        "peak": 5581812.0,
+        "active": true,
+        "resizable": false,
+        "utilizationThresholdPct": 100.0
+      },
+      {
+        "commodityType": "HOST_LUN_ACCESS",
+        "used": 23.0,
+        "capacity": 256.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU",
+        "used": 506.8666666666667,
+        "capacity": 10400.0,
+        "peak": 666.0,
+        "active": true,
+        "resizable": false,
+        "utilizationThresholdPct": 100.0
+      },
+      {
+        "commodityType": "Q1_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "BALLOONING",
+        "used": 0.0,
+        "capacity": 1.6776692E7,
+        "active": false,
+        "resizable": true
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-341"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "cpuModel",
+        "value": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "model",
+        "value": "VMware Virtual Platform"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vendor",
+        "value": "VMware, Inc."
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "timezone",
+        "value": "UTC"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "AssetTag",
+        "value": " No Asset Tag"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "ServiceTag",
+        "value": "VMware-42 38 a9 ea 0c 49 31 dd-7a 7e 87 fd ab 53 c9 74"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "availableForPlacement": true
+    },
+    "maintenance": false,
+    "physicalMachineData": {
+      "pmState": {
+        "failover": false
+      },
+      "numCpuSockets": 1,
+      "numCpuCores": 4,
+      "numCpuThreads": 4,
+      "cpuCoreMhz": 2600
+    },
+    "physicalMachineRelatedData": {
+      "memory": {
+        "id": "Memory/host-341",
+        "displayName": "Memory/host-341",
+        "capacity": 1.6776692E7
+      },
+      "processor": [
+        {
+          "id": "PROC-0-host-341",
+          "displayName": "PROC-0-host-341",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-1-host-341",
+          "displayName": "PROC-1-host-341",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-2-host-341",
+          "displayName": "PROC-2-host-341",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-3-host-341",
+          "displayName": "PROC-3-host-341",
+          "capacity": 2600.0
+        }
+      ],
+      "io": [
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic0",
+          "displayName": "vmnic0",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-ab"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic1",
+          "displayName": "vmnic1",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-ae"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic2",
+          "displayName": "vmnic2",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-af"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+    "displayName": "VC-PM-2",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_PROVISIONED",
+        "capacity": 1.6776692E7,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "used": 1092.3,
+        "capacity": 10400.0,
+        "peak": 2037.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "IO_THROUGHPUT",
+        "used": 1.1,
+        "capacity": 1408000.0,
+        "peak": 6.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "NETWORK",
+        "key": "DistributedVirtualPortgroup::VM network",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "NET_THROUGHPUT",
+        "used": 12801.2,
+        "capacity": 384000.0,
+        "peak": 35452.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "used": 4519603.733333333,
+        "capacity": 1.6776692E7,
+        "peak": 4521372.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "Q4_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "SWAPPING",
+        "used": 0.0,
+        "capacity": 5000000.0,
+        "active": false,
+        "resizable": true
+      },
+      {
+        "commodityType": "Q2_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "CPU_PROVISIONED",
+        "capacity": 10400.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM",
+        "used": 4519603.733333333,
+        "capacity": 1.6776692E7,
+        "peak": 4521372.0,
+        "active": true,
+        "resizable": false,
+        "utilizationThresholdPct": 100.0
+      },
+      {
+        "commodityType": "HOST_LUN_ACCESS",
+        "used": 24.0,
+        "capacity": 256.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU",
+        "used": 1092.3,
+        "capacity": 10400.0,
+        "peak": 2037.0,
+        "active": true,
+        "resizable": false,
+        "utilizationThresholdPct": 100.0
+      },
+      {
+        "commodityType": "Q1_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "BALLOONING",
+        "used": 0.0,
+        "capacity": 1.73801472E7,
+        "active": false,
+        "resizable": true
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-29"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "cpuModel",
+        "value": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "model",
+        "value": "VMware Virtual Platform"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vendor",
+        "value": "VMware, Inc."
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "timezone",
+        "value": "UTC"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "AssetTag",
+        "value": " No Asset Tag"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "ServiceTag",
+        "value": "VMware-42 38 bb 4b 04 dc 8a fd-ec 49 22 23 48 b1 aa 8a"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "availableForPlacement": true
+    },
+    "maintenance": false,
+    "physicalMachineData": {
+      "pmState": {
+        "failover": false
+      },
+      "numCpuSockets": 1,
+      "numCpuCores": 4,
+      "numCpuThreads": 4,
+      "cpuCoreMhz": 2600
+    },
+    "physicalMachineRelatedData": {
+      "memory": {
+        "id": "Memory/host-29",
+        "displayName": "Memory/host-29",
+        "capacity": 1.6776692E7
+      },
+      "processor": [
+        {
+          "id": "PROC-0-host-29",
+          "displayName": "PROC-0-host-29",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-1-host-29",
+          "displayName": "PROC-1-host-29",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-2-host-29",
+          "displayName": "PROC-2-host-29",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-3-host-29",
+          "displayName": "PROC-3-host-29",
+          "capacity": 2600.0
+        }
+      ],
+      "io": [
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic0",
+          "displayName": "vmnic0",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-72"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic1",
+          "displayName": "vmnic1",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-8e"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic2",
+          "displayName": "vmnic2",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-8f"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+    "displayName": "VC-ConsumerVDC-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+        "capacity": 0.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+        "capacity": 0.0,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "fd89688c27bc19b631e983cce131703dac8cd1aa",
+        "bought": [
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::fd89688c27bc19b631e983cce131703dac8cd1aa",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::fd89688c27bc19b631e983cce131703dac8cd1aa",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "resgroup-1031"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtualDatacenterData": {
+      "supportsStorage": false,
+      "vdcTypeProps": {
+        "supportsNesting": false,
+        "nestedConsumer": false
+      }
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014",
+    "displayName": "VC-ConsumerVDC-2",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014",
+        "capacity": 0.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014",
+        "capacity": 0.0,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "4335299fd93fc262828bdeba1a7df0254099651d",
+        "bought": [
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::4335299fd93fc262828bdeba1a7df0254099651d",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::4335299fd93fc262828bdeba1a7df0254099651d",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "resgroup-1031"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtualDatacenterData": {
+      "supportsStorage": false,
+      "vdcTypeProps": {
+        "supportsNesting": false,
+        "nestedConsumer": false
+      }
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "fd89688c27bc19b631e983cce131703dac8cd1aa",
+    "displayName": "VC-ProducerVDC-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::fd89688c27bc19b631e983cce131703dac8cd1aa",
+        "capacity": 0.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::fd89688c27bc19b631e983cce131703dac8cd1aa",
+        "capacity": 0.0,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "resgroup-1031"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtualDatacenterData": {
+      "supportsStorage": false,
+      "vdcTypeProps": {
+        "role": "PRODUCER",
+        "supportsNesting": false,
+        "nestedConsumer": false
+      }
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "4335299fd93fc262828bdeba1a7df0254099651d",
+    "displayName": "VC-ProducerVDC-2",
+    "commoditiesSold": [
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::4335299fd93fc262828bdeba1a7df0254099651d",
+        "used": 1296.0,
+        "capacity": 33722.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::4335299fd93fc262828bdeba1a7df0254099651d",
+        "used": 1.0468197E7,
+        "capacity": 5.479424E7,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      },
+      {
+        "providerId": "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      },
+      {
+        "providerId": "Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+        "bought": [
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "PhysicalMachine::Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "PhysicalMachine::Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "resgroup-27"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtualDatacenterData": {
+      "supportsStorage": false,
+      "vdcTypeProps": {
+        "role": "PRODUCER",
+        "supportsNesting": false,
+        "nestedConsumer": false
+      }
+    }
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "421e29a6-578b-511b-9dc0-4c61dd040392",
+    "displayName": "VC-VM-1",
+    "commoditiesSold": [
+      {
+        "commodityType": "VMEM",
+        "capacity": 2097152.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vmemData": {
+          "hotAddSupported": false
+        }
+      },
+      {
+        "commodityType": "VCPU",
+        "capacity": 2599.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vcpuData": {
+          "hotAddSupported": false,
+          "hotRemoveSupported": false
+        }
+      },
+      {
+        "commodityType": "APPLICATION",
+        "key": "VirtualMachine::421e29a6-578b-511b-9dc0-4c61dd040392",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vm-423"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "numCpus",
+        "value": "1"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "d906de4474fb006802cf624f3bb1e2092c33f2d5"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "instanceUuid",
+        "value": "501e63c0-71ec-c841-16ef-b5f2aeee9bc2"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "targetAddress",
+        "value": "vsphere-dc7.eng.vmturbo.com"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vmHardwareCompatibilityVersion",
+        "value": "vmx-08"
+      }
+    ],
+    "powerState": "POWERED_OFF",
+    "consumerPolicy": {
+      "shopsTogether": true
+    },
+    "notification": [
+      {
+        "event": "VMware Tools are not installed",
+        "category": "DISCOVERY",
+        "severity": "NORMAL"
+      }
+    ],
+    "layeredOver": [
+      "7d6d67a50cfe1979797de159220841a37a55a50c"
+    ],
+    "virtualMachineData": {
+      "vmState": {
+        "connected": true
+      },
+      "guestName": "Microsoft Windows Server 2008 (32-bit)"
+    },
+    "virtualMachineRelatedData": {
+      "io": [
+        {
+          "id": "ETH-vm-423",
+          "displayName": "vm-423",
+          "macAddress": "00-50-56-9e-08-19"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "4239a399-8536-567a-7a34-3c802381c326",
+    "displayName": "VC-VM-2",
+    "commoditiesSold": [
+      {
+        "commodityType": "VMEM",
+        "capacity": 8388608.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vmemData": {
+          "hotAddSupported": false
+        }
+      },
+      {
+        "commodityType": "VCPU",
+        "capacity": 5200.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vcpuData": {
+          "hotAddSupported": false,
+          "hotRemoveSupported": false
+        }
+      },
+      {
+        "commodityType": "APPLICATION",
+        "key": "VirtualMachine::4239a399-8536-567a-7a34-3c802381c326",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a013",
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      },
+      {
+        "providerId": "Virtual_ESX_4238a9ea-0c49-31dd-7a7e-87fdab53c974",
+        "bought": [
+          {
+            "commodityType": "MEM_PROVISIONED",
+            "used": 8388608.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "IO_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "NET_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "SWAPPING",
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "Q2_VCPU"
+          },
+          {
+            "commodityType": "BALLOONING",
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_PROVISIONED",
+            "used": 5200.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vm-44"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "numCpus",
+        "value": "2"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "7211c625dabdad4ce73ae2f1a9761bfb42efca63"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "instanceUuid",
+        "value": "5039d9fb-3afe-0437-e671-ccb2ed7a2b19"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "targetAddress",
+        "value": "vsphere-dc7.eng.vmturbo.com"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vmHardwareCompatibilityVersion",
+        "value": "vmx-08"
+      }
+    ],
+    "powerState": "POWERED_OFF",
+    "consumerPolicy": {
+      "shopsTogether": true
+    },
+    "notification": [
+      {
+        "event": "VMware Tools are not installed",
+        "category": "DISCOVERY",
+        "severity": "NORMAL"
+      }
+    ],
+    "layeredOver": [
+      "7d6d67a50cfe1979797de159220841a37a55a50c"
+    ],
+    "virtualMachineData": {
+      "vmState": {
+        "connected": true
+      },
+      "guestName": "Microsoft Windows Server 2008 R2 (64-bit)"
+    },
+    "virtualMachineRelatedData": {
+      "io": [
+        {
+          "id": "ETH-vm-44",
+          "displayName": "vm-44",
+          "macAddress": "00-50-56-b9-a2-00"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "4239351b-13d9-5cc7-92fe-0be14e911805",
+    "displayName": "VC-VM-3",
+    "commoditiesSold": [
+      {
+        "commodityType": "VMEM",
+        "capacity": 2097152.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vmemData": {
+          "hotAddSupported": false
+        }
+      },
+      {
+        "commodityType": "VCPU",
+        "capacity": 2599.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vcpuData": {
+          "hotAddSupported": false,
+          "hotRemoveSupported": false
+        }
+      },
+      {
+        "commodityType": "APPLICATION",
+        "key": "VirtualMachine::4239351b-13d9-5cc7-92fe-0be14e911805",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "bought": [
+          {
+            "commodityType": "MEM_PROVISIONED",
+            "used": 2097152.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "Q1_VCPU"
+          },
+          {
+            "commodityType": "MEM",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "IO_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "NET_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "SWAPPING",
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "BALLOONING",
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_PROVISIONED",
+            "used": 2599.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      },
+      {
+        "providerId": "76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::76ab4e6f6ecaa70c0f199476f8381d0ac3c2a014",
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vm-46"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "numCpus",
+        "value": "1"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "d61ff9a67a836973545147194e4696dc7ba19770"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "instanceUuid",
+        "value": "5039b4b5-f1e7-31fd-692c-ba3a2f158c63"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "targetAddress",
+        "value": "vsphere-dc7.eng.vmturbo.com"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vmHardwareCompatibilityVersion",
+        "value": "vmx-08"
+      }
+    ],
+    "powerState": "POWERED_OFF",
+    "consumerPolicy": {
+      "shopsTogether": true
+    },
+    "notification": [
+      {
+        "event": "VMware Tools are not installed",
+        "category": "DISCOVERY",
+        "severity": "NORMAL"
+      }
+    ],
+    "virtualMachineData": {
+      "vmState": {
+        "connected": true
+      },
+      "guestName": "Red Hat Enterprise Linux 6 (64-bit)"
+    },
+    "virtualMachineRelatedData": {
+      "io": [
+        {
+          "id": "ETH-vm-46",
+          "displayName": "vm-46",
+          "macAddress": "00-50-56-b9-57-c1"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "4239351b-13d9-5cc7-92fe-0be14e911666",
+    "displayName": "VC-VM-redundant",
+    "commoditiesSold": [
+      {
+        "commodityType": "VMEM",
+        "capacity": 2097152.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vmemData": {
+          "hotAddSupported": false
+        }
+      },
+      {
+        "commodityType": "VCPU",
+        "capacity": 2599.0,
+        "limit": -1.0,
+        "active": true,
+        "resizable": true,
+        "vcpuData": {
+          "hotAddSupported": false,
+          "hotRemoveSupported": false
+        }
+      },
+      {
+        "commodityType": "APPLICATION",
+        "key": "VirtualMachine::4239351b-13d9-5cc7-92fe-0be14e911805",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "bought": [
+          {
+            "commodityType": "MEM_PROVISIONED",
+            "used": 2097152.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "Q1_VCPU"
+          },
+          {
+            "commodityType": "MEM",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "IO_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "NET_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "SWAPPING",
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "BALLOONING",
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_PROVISIONED",
+            "used": 2599.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vm-47"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "numCpus",
+        "value": "1"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "d61ff9a67a836973545147194e4696dc7ba19770"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "instanceUuid",
+        "value": "5039b4b5-f1e7-31fd-692c-ba3a2f158c63"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "targetAddress",
+        "value": "vsphere-dc7.eng.vmturbo.com"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vmHardwareCompatibilityVersion",
+        "value": "vmx-08"
+      }
+    ],
+    "powerState": "POWERED_OFF",
+    "consumerPolicy": {
+      "shopsTogether": true
+    },
+    "notification": [
+      {
+        "event": "VMware Tools are not installed",
+        "category": "DISCOVERY",
+        "severity": "NORMAL"
+      }
+    ],
+    "virtualMachineData": {
+      "vmState": {
+        "connected": true
+      },
+      "guestName": "Red Hat Enterprise Linux 6 (64-bit)"
+    },
+    "virtualMachineRelatedData": {
+      "io": [
+        {
+          "id": "ETH-vm-888",
+          "displayName": "vm-888",
+          "macAddress": "00-50-56-b9-57-c1"
+        }
+      ]
+    }
+  }
+]

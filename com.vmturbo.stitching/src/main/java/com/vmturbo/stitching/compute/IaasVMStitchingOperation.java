@@ -29,7 +29,7 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  *   matches the ID or the IP address of the discovered VM
  */
 
-public class VMStitchingOperation implements StitchingOperation<String,String> {
+public class IaasVMStitchingOperation implements StitchingOperation<String, String> {
     private static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -111,9 +111,9 @@ public class VMStitchingOperation implements StitchingOperation<String,String> {
 
         // All the commodities sold by the container VM should now be sold by the hypervisor vm.
         resultBuilder
-                .queueChangeRelationships(hypervisorVM, toUpdate -> {
-                    CopyCommodities.copyCommodities().from(containerVM).to(toUpdate);
-                })
-                .queueEntityMerger(MergeEntities.mergeEntity(containerVM).onto(hypervisorVM));
+            .queueChangeRelationships(hypervisorVM, toUpdate -> {
+                CopyCommodities.copyCommodities().from(containerVM).to(toUpdate);
+            })
+            .queueEntityMerger(MergeEntities.mergeEntity(containerVM).onto(hypervisorVM));
     }
 }
