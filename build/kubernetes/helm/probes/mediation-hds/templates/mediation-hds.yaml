@@ -43,7 +43,7 @@ spec:
         - name: consul_host
           value: consul
         - name: instance_id
-          value: mediation-dynatrace-1
+          value: mediation-hds-1
         readinessProbe:
           httpGet:
             port: 8080
