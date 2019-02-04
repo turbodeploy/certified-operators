@@ -34,8 +34,15 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
-        - name: JAVA_OPTS
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+          value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
+  {{- else }}
           value: {{ .Values.java.options }}
+  {{- end }}
+{{- else }}
+          value: {{ .Values.java.options }}
+{{- end }}
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -54,9 +61,6 @@ spec:
           httpGet:
             port: 8080
             path: /health
-        ports:
-        - containerPort: 8080
-          name: auth-port
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:

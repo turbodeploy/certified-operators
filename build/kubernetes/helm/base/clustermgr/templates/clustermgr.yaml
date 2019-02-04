@@ -34,8 +34,15 @@ spec:
         image: {{ template "clustermgr_image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
-        - name: JAVA_OPTS
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+          value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
+  {{- else }}
           value: {{ .Values.java.options }}
+  {{- end }}
+{{- else }}
+          value: {{ .Values.java.options }}
+{{- end }}
         - name: clustermgr_host
           value: clustermgr
         - name: clustermgr_port
@@ -56,8 +63,6 @@ spec:
           value: kafka:9092
         - name: node_name
           value: default
-        ports:
-        - containerPort: 8080
         readinessProbe:
           httpGet:
             port: 8080

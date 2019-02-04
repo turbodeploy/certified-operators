@@ -21,7 +21,15 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: JAVA_OPTS
+{{- if .Values.global }}
+  {{- if .Values.global.debug }}
+          value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
+  {{- else }}
           value: {{ .Values.java.options }}
+  {{- end }}
+{{- else }}
+          value: {{ .Values.java.options }}
+{{- end }}
         - name: LOG4J_CONTEXT_SELECTOR
           value: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
         - name: clustermgr_host
@@ -35,10 +43,7 @@ spec:
         - name: consul_host
           value: consul
         - name: instance_id
-          value: mediation-hds-1
-        ports:
-        - containerPort: 8080
-          name: hds-port
+          value: mediation-dynatrace-1
         readinessProbe:
           httpGet:
             port: 8080
