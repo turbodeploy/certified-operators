@@ -925,6 +925,9 @@ public class ActionSpecMapper {
                     formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
                     formatResizeActionCommodityValue(commodityType, resize.getNewCapacity())));
         }
+        if (resize.hasCommodityAttribute()) {
+            actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
+        }
         actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
         actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
     }

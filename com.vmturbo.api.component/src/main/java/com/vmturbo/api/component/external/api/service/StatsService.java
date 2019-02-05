@@ -427,7 +427,7 @@ public class StatsService implements IStatsService {
             // results in the UI.
             long currentStatsTimeWindowStart = clockTimeNow - liveStatsRetrievalWindow.toMillis();
             long currentStatsTimeWindowEnd = clockTimeNow + liveStatsRetrievalWindow.toMillis();
-            if (!requestStatsParsedResultPair.hasCostStat && inputDto.getEndDate() != null
+            if (requestStatsParsedResultPair.hasNonCostStat && inputDto.getEndDate() != null
                     && DateTimeUtil.parseTime(inputDto.getEndDate()) > currentStatsTimeWindowEnd) {
                 ProjectedStatsResponse response =
                         statsServiceRpc.getProjectedStats(statsMapper.toProjectedStatsRequest(entityStatOids,
