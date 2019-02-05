@@ -279,6 +279,7 @@
             <id>mediation-all</id>
             <modules>
                 <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
@@ -354,6 +355,7 @@
             <id>sdk</id>
             <modules>
                 <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
             </modules>
         </profile>
 
@@ -636,6 +638,7 @@
                      that we currently support in XL. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
                 <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
@@ -748,6 +751,7 @@
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
@@ -1414,6 +1418,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

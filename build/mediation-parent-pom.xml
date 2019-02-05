@@ -19,22 +19,6 @@
         <pluginManagement>
             <plugins>
                 <plugin>
-                    <artifactId>maven-help-plugin</artifactId>
-                    <inherited>false</inherited>
-                    <executions>
-                        <execution>
-                            <id>generate-effective-dependencies-pom</id>
-                            <phase>generate-resources</phase>
-                            <goals>
-                                <goal>effective-pom</goal>
-                            </goals>
-                            <configuration>
-                                <output>${project.build.directory}/effective-pom/spring-boot-dependencies.xml</output>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>xml-maven-plugin</artifactId>
                     <inherited>false</inherited>
@@ -56,37 +40,17 @@
                     </configuration>
                 </plugin>
                 <plugin>
-                    <groupId>org.codehaus.mojo</groupId>
-                    <artifactId>build-helper-maven-plugin</artifactId>
-                    <inherited>false</inherited>
-                    <executions>
-                        <execution>
-                            <id>attach-artifacts</id>
-                            <phase>package</phase>
-                            <goals>
-                                <goal>attach-artifact</goal>
-                            </goals>
-                            <configuration>
-                                <artifacts>
-                                    <artifact>
-                                        <file>${project.build.directory}/effective-pom/spring-boot-dependencies.xml</file>
-                                        <type>effective-pom</type>
-                                    </artifact>
-                                </artifacts>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
                     <configuration>
                         <archive>
                             <manifest>
-                                <addClasspath>true</addClasspath>
-                                <mainClass>com.vmturbo.mediation.client.MediationComponentMain</mainClass>
-                                <classpathPrefix>lib/</classpathPrefix>
+                                <addClasspath>false</addClasspath>
+                                <mainClass>com.vmturbo.mediation.client.bootstrap.MediationBootstrap</mainClass>
                             </manifest>
+                            <manifestEntries>
+                                <Class-Path>bootstrap/com.vmturbo.mediation.client.bootstrap-${project.version}.jar</Class-Path>
+                            </manifestEntries>
                         </archive>
                     </configuration>
                 </plugin>
@@ -109,6 +73,10 @@
                                 <directory>${project.build.directory}/lib</directory>
                             </resource>
                             <resource>
+                                <targetPath>/bootstrap</targetPath>
+                                <directory>${project.build.directory}/bootstrap</directory>
+                            </resource>
+                            <resource>
                                 <targetPath>/swagger</targetPath>
                                 <directory>${project.build.directory}/generated-docs/swagger</directory>
                             </resource>
@@ -128,6 +96,24 @@
                             <configuration>
                                 <outputDirectory>${project.build.directory}/lib</outputDirectory>
                                 <useBaseVersion>false</useBaseVersion>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>copy-mediation-bootstrap</id>
+                            <goals>
+                                <goal>copy</goal>
+                            </goals>
+                            <phase>prepare-package</phase>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}/bootstrap</outputDirectory>
+                                <useBaseVersion>false</useBaseVersion>
+                                <artifactItems>
+                                    <artifactItem>
+                                        <groupId>com.vmturbo</groupId>
+                                        <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
+                                        <version>${project.version}</version>
+                                    </artifactItem>
+                                </artifactItems>
                             </configuration>
                         </execution>
                     </executions>
