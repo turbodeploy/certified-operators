@@ -562,13 +562,13 @@ public class BootstrapSupplyTest {
                         BootstrapSupply.shopTogetherBootstrap(economy);
 
         assertTrue(bootStrapActionList.size() == 2);
-        assertEquals(bootStrapActionList.get(1).getActionTarget(), pm2);
-        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(0).getType());
+        assertEquals(bootStrapActionList.get(0).getActionTarget(), pm2);
+        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
         Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
         Move expectedStorageMove1 = new Move(economy, sl2, st1, st2);
         Move expectedComputeMove2 = new Move(economy, sl3, pm1, pm2);
         Move expectedStorageMove2 = new Move(economy, sl4, st1, st2);
-        List<Move> moves = ((CompoundMove)bootStrapActionList.get(0)).getConstituentMoves();
+        List<Move> moves = ((CompoundMove)bootStrapActionList.get(1)).getConstituentMoves();
         assertTrue( (moves.get(0).equals(expectedComputeMove1) && moves.get(1).equals(expectedStorageMove1))
                        || (moves.get(0).equals(expectedStorageMove1) && moves.get(1).equals(expectedComputeMove1))
                        || (moves.get(0).equals(expectedComputeMove2) && moves.get(1).equals(expectedStorageMove2))

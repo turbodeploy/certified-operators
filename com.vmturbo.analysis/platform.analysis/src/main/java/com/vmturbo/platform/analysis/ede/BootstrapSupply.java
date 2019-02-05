@@ -510,6 +510,11 @@ public class BootstrapSupply {
                     // when the provisionbysupply actually happens it will go to something
                     // in the same clique as other shoppinglists.
                     slsThatNeedProvBySupply.put(sl, commonClique);
+                    if (!sellerThatFits.getState().isActive()) {
+                        // if sellerThatFits is inactive, pass in the activated seller
+                        provisionedRelatedActions.add((new Activate(economy, sellerThatFits,
+                                market, sellerThatFits, null)).take());
+                    }
                     traderList.add(sellerThatFits);
                     slList.add(sl);
                 } else { // provision by demand
