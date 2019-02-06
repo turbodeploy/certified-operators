@@ -211,8 +211,8 @@ CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `aggregate`(IN statspref CHAR(10))
         min(a.min_value) as min_value,
         max(a.max_value) as max_value,
         avg(a.avg_value) as avg_value,
-        sum(samples) as samples,
-        sum(new_samples) as new_samples
+        count(*) as samples,
+        count(*) as new_samples 
         from ',statspref,'_stats_latest a, aggregation_meta_data b where a.snapshot_time > b.last_aggregated_by_day and b.aggregate_table=\'',statspref,'_stats_latest\'  group by day_key');
 
 
@@ -297,8 +297,8 @@ on duplicate key update
         min(a.min_value) as min_value,
         max(a.max_value) as max_value,
         avg(a.avg_value) as avg_value,
-        sum(samples) as samples,
-        sum(new_samples) as new_samples
+        count(*) as samples,
+        count(*) as new_samples
         from ',statspref,'_stats_latest a, aggregation_meta_data b where a.snapshot_time > b.last_aggregated_by_month and b.aggregate_table=\'',statspref,'_stats_latest\'  group by month_key');
 
     PREPARE stmt from @sql;
