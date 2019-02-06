@@ -13,8 +13,17 @@ import random
 import re
 import socket
 import subprocess
+import json
 import tarfile
+import logging
+import logging.handlers
+import platform
+import fileinput
 import urllib2
+import zipfile
+import shutil
+import httplib
+import re
 
 SERVICES = [
     'influxdb',  # The influxdb service. Metrics are stored to influx.
@@ -28,6 +37,10 @@ VERSION_FILE = '/etc/docker/turbonomic_info.txt'
 ENV_FILE_PATH = '/etc/docker/.env'  # Only exists in production
 VERSION_LINE_PREFIX = 'Version: XL '
 DUMP_DIR = '/var/lib/docker/volumes/docker_influxdb-dump/_data'
+PROMETHEUS_METRICS_DIR = '/tmp/metron_scraped_metrics'
+PROMETHEUS_METRICS_ZIP_FILE = 'prometheus-metrics.zip'
+PROMETHEUS_METRICS_ZIP_PATH = '/tmp/{}'.format(PROMETHEUS_METRICS_ZIP_FILE)
+PROMETHEUS_METRICS_SERVICE_SKIP = ['rsyslog']  # don't collect prometheus metrics from these services.
 DIAGS_URL = 'https://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi'
 LOG_FORMAT = '%(asctime)s %(levelname)s: %(message)s'
 CURLRC_FILE_PATH = os.path.expanduser("~") + '/.curlrc'
@@ -91,6 +104,39 @@ def docker_compose(cmd):
     call_shell_cmd([DOCKER_COMPOSE_COMMAND] + cmd)
 
 
+def service_ip_addresses():
+    """
+    Composes a dictionary of service names to their associated ip addresses.
+
+    :return: A  dictionary of service names to their associated ip addresses.
+    """
+    docker_ps_output = subprocess.check_output([DOCKER_COMMAND, 'ps'])
+    lines = docker_ps_output.strip().split("\n")
+
+    # Lines are in the format (first field is always container id, last is always the name):
+    # CONTAINER ID    IMAGE        COMMAND           CREATED       STATUS        PORTS     NAMES
+    lines.pop(0)  # Remove the header line
+    name_to_id = {}
+    ip_addresses = {}
+
+    for line in lines:
+        fields = re.split(" {2,}", line)
+        # name is in the format build_topology-processor_1. Pull out the 'topology-processor' bit.
+        name = fields[-1].split('_')[1]
+        if name not in PROMETHEUS_METRICS_SERVICE_SKIP:
+            name_to_id[name] = fields[0]
+
+    # Parse the ip address for the service from the docker-inspect output.
+    for name, docker_id in name_to_id.items():
+        docker_inspect_output = subprocess.check_output([DOCKER_COMMAND, 'inspect', docker_id])
+        inspect_json = json.loads(docker_inspect_output)
+        networks = inspect_json[0]['NetworkSettings']['Networks']
+        network_key = next(key for key in networks.keys() if key.endswith('_default'))
+        ip_addresses[name] = networks[network_key]['IPAddress']
+
+    return ip_addresses
+
+
 def call_shell_cmd(cmd, shell=False):
     """
     Execute a command in the external OS environement.
@@ -120,7 +166,7 @@ def remove_export_cron():
     call_shell_cmd(cmd, shell=True)
 
 
-def add_export_cron(interval, customer_name):
+def add_export_cron(interval, customer_name, scrape_prometheus):
     """
     Add an export cron job - the add command is adapted from:
     https://stackoverflow.com/questions/4880290/how-do-i-create-a-crontab-through-a-script
@@ -130,14 +176,16 @@ def add_export_cron(interval, customer_name):
     """
     hour = random.randint(0, 5)  # 12AM to 4AM only
     min = random.randint(0, 60)
-    logging.info("Creating a cron job to auto-upload Metron data every {} day(s) at {}:{}".format(
-        interval, hour, min))
+    logging.info("Creating a cron job to auto-upload Metron data every {} day(s) at {}:{}. "
+                 "Scrape prometheus={}".format(
+        interval, hour, min, scrape_prometheus))
     #
     # Remove any old one before adding
     #
     remove_export_cron()
-    cmd = '(crontab -l 2>/dev/null; echo "{} {} */{} * * {}/{}{}") | crontab -'.format(
-        min, hour, interval, cwd, UPLOAD_CMD, customer_name)
+    prometheus_arg = ' -p' if scrape_prometheus else ''
+    cmd = '(crontab -l 2>/dev/null; echo "{} {} */{} * * {}/{}{}{}") | crontab -'.format(
+        min, hour, interval, cwd, UPLOAD_CMD, customer_name, prometheus_arg)
     call_shell_cmd(cmd, shell=True)
 
 
@@ -172,7 +220,7 @@ def metron_control(args):
         persist_metron_state('true')
 
         if args.autoupload:
-            add_export_cron(args.uploadinterval, args.customername)
+            add_export_cron(args.uploadinterval, args.customername, args.scrape_prometheus)
 
 
 def persist_metron_state(enabled_state):
@@ -188,6 +236,52 @@ def persist_metron_state(enabled_state):
             print re.sub("^METRON_ENABLED=.*", "METRON_ENABLED={}".format(enabled_state), line),
     else:
         logging.info("Skipping save of 'METRON_ENABLED={}' to '{}'".format(enabled_state, ENV_FILE_PATH))
+
+
+def scrape_metrics_for_service(service_name, service_ip):
+    try:
+        url = 'http://{}:8080/metrics'.format(service_ip)
+        response = urllib2.urlopen(url)
+        metrics = response.read()
+        response.close()
+
+        with open("{}/{}-metrics.txt".format(PROMETHEUS_METRICS_DIR, service_name), "w") as text_file:
+            text_file.write(metrics)
+
+        return service_name
+    except urllib2.URLError:
+        pass
+    except httplib.BadStatusLine:
+        logging.exception("BadStatusLine when retrieving metrics for {} at '{}':".format(service_name, url))
+    return None
+
+
+def scrape_component_prometheus_metrics():
+    """
+    Scrape individual component prometheus metrics and write them into files in the METRICS_DIR.
+    """
+    try:
+        if not os.path.exists(PROMETHEUS_METRICS_DIR):
+            logging.info("Attempting to make prometheus metrics directory {}".format(PROMETHEUS_METRICS_DIR))
+            os.mkdir(PROMETHEUS_METRICS_DIR)
+
+        service_ips = service_ip_addresses()
+        logging.info("Scraping metrics for services: {}".format(service_ips.keys()))
+        services_with_metrics = map(scrape_metrics_for_service, service_ips.keys(), service_ips.values())
+        services_with_metrics = filter(None, services_with_metrics)
+
+        with zipfile.ZipFile(PROMETHEUS_METRICS_ZIP_PATH, 'w') as zip:
+            for metrics_file in os.listdir(PROMETHEUS_METRICS_DIR):
+                filename = "{}/{}".format(PROMETHEUS_METRICS_DIR, metrics_file)
+                zip.write(filename, arcname='/prometheus-metrics/{}'.format(metrics_file))
+        logging.info("Created prometheus metric zip file {} containing metrics for the components {}"
+                     .format(PROMETHEUS_METRICS_ZIP_PATH, services_with_metrics))
+    except OSError:
+        logging.exception("Error scraping prometheus metrics.")
+    except IndexError:
+        logging.exception("Error scraping prometheus metrics.")
+    except Exception:
+        logging.exception("Unexpected error while scraping prometheus metrics.")
 
 
 def metron_export(args):
@@ -224,15 +318,26 @@ def metron_export(args):
         logging.error("......data directory on the influxdb container: /home/influxdb/influxdb-dump")
         exit(1)
 
+    # Scrape prometheus metrics into a zip file in the /tmp directory.
+    if args.scrape_prometheus:
+        scrape_component_prometheus_metrics()
+
     try:
         # Generate a tar file for everything in the given dump directory.  Adopted from:
         # https://stackoverflow.com/questions/2032403/how-to-create-full-compressed-tar-file-using-python
         #
         with tarfile.open(export_file_fullpath, "w") as tar:
-            tar.add(DUMP_DIR, arcname=os.path.sep)
+            tar.add(DUMP_DIR, arcname=os.path.sep + 'metron_data')
+            tar.add(PROMETHEUS_METRICS_ZIP_PATH, arcname=os.path.sep + PROMETHEUS_METRICS_ZIP_FILE)
             logging.info("Metron data has been exported to {}".format(export_file_fullpath))
             fnames = tar.getnames()
             tar.close()
+
+        # Remove the metrics directory that may have been created earlier. Ignore any errors that may occur
+        # because this cleanup is just hygiene and an error is not that harmful.
+        shutil.rmtree(PROMETHEUS_METRICS_DIR, ignore_errors=False)
+        if os.path.exists(PROMETHEUS_METRICS_ZIP_PATH):
+            os.remove(PROMETHEUS_METRICS_ZIP_PATH)
 
         if args.upload:
             logging.info("Starting to upload the metron data {}...".format(export_file_fullpath))
@@ -393,6 +498,8 @@ if __name__ == "__main__":
                                 help="Specify the upload interval in days [1-365]; default=7 (1 week)")
     control_parser.add_argument('-n', '--customername',
                                 help='Customer name as part of the constructed upload file name')
+    control_parser.add_argument('-p', '--scrape-prometheus', action='store_true', default=False,
+                                help='Boolean flag to indicate whether to scrape prometheus')
     control_parser.set_defaults(func=metron_control)
 
     export_parser = subparser.add_parser('export', help='Export Metron metric data.')
@@ -407,6 +514,8 @@ if __name__ == "__main__":
                                help='Boolean flag to indicate we would upload Metron data to turbo')
     export_parser.add_argument('-c', '--clean', action='store_true',
                                help='Boolean flag to indicate we would delete the data dump files')
+    export_parser.add_argument('-p', '--scrape-prometheus', action='store_true', default=False,
+                               help='Boolean flag to indicate whether to scrape prometheus')
     export_parser.set_defaults(func=metron_export)
 
     proxy_parser = subparser.add_parser('proxy',
