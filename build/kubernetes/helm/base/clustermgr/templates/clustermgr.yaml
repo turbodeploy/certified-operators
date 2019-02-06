@@ -34,6 +34,7 @@ spec:
         image: {{ template "clustermgr_image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
+        - name: JAVA_OPTS
 {{- if .Values.global }}
   {{- if .Values.global.debug }}
           value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
