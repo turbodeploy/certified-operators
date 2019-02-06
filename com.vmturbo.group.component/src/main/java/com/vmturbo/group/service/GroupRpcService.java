@@ -186,7 +186,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .filter(group -> !request.hasTypeFilter() ||
                             group.getType().equals(request.getTypeFilter()))
                     .filter(group -> !request.hasNameFilter() ||
-                            GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupName(group),
+                            GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupDisplayName(group),
                                     request.getNameFilter()))
                     .filter(group -> !request.hasClusterFilter() ||
                             GroupProtoUtil.clusterFilterMatcher(group, request.getClusterFilter()))
@@ -630,7 +630,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 .build();
         logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
         Set<Long> matchingClusterMembers = groupStore.getAll().stream()
-                .filter(group -> GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupName(group), nf))
+                .filter(group -> GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupDisplayName(group), nf))
                 .filter(Group::hasCluster) // only clusters plz
                 .map(Group::getCluster)
                 .flatMap(clusterInfo -> clusterInfo.getMembers().getStaticMemberOidsList().stream())
