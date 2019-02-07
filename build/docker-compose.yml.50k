@@ -225,18 +225,21 @@ services:
       - clustermgr
       - auth
 
-#  cost:
-#    extends:
-#      file: prod-services.yml
-#      service: cost-prod
-#    environment:
+  cost:
+    extends:
+      file: prod-services.yml
+      service: cost-prod
+    environment:
+      JAVA_OPTS: "-Xmx384M"
+    mem_limit: 512M
+# OM-42831: restore the original settings when the cloud features are ready to go
 #      JAVA_OPTS: "-Xmx512M"
 #    mem_limit: 1024M
-#    depends_on:
-#      - db
-#      - clustermgr
-#      - kafka1
-#      - auth
+    depends_on:
+      - db
+      - clustermgr
+      - kafka1
+      - auth
 
   influxdb:
     extends:

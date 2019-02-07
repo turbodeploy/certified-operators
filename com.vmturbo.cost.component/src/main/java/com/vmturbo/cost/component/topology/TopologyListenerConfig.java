@@ -80,14 +80,17 @@ public class TopologyListenerConfig {
                 reservedInstanceConfig.reservedInstanceCoverageUpload(),
                 costConfig.businessAccountHelper(),
                 costJournalRecorder());
-        topologyProcessor().addLiveTopologyListener(entitiesListener);
+        //OM-42831: Disabling the live topology listener until we are ready to release the cloud functionality
+        //topologyProcessor().addLiveTopologyListener(entitiesListener);
         return entitiesListener;
     }
 
+    /* OM-42831: restore this when we are ready to release the cloud functionality in XL
     @Bean
     public TopologyProcessor topologyProcessor() {
         return topologyClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
     }
+    */
 
     @Bean
     public TopologyCostCalculatorFactory topologyCostCalculatorFactory() {
