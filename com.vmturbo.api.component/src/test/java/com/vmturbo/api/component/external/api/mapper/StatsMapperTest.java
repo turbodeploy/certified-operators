@@ -461,6 +461,20 @@ public class StatsMapperTest {
         assertThat(request.getFilter(), is(STATS_FILTER));
     }
 
+    /**
+     * "1M" is one month as defined in {@link DateTimeUtil}.
+     * The unit tests for {@link DateTimeUtil} is covered in OpsMgr, here we just verify it doesn't
+     * throw exception.
+     */
+    @Test
+    public void testNewPeriodStatsFilterWith1MendDate() {
+        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
+        StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
+        statPeriodApiInputDTO.setEndDate("1M");
+        StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO, Optional.empty());
+        assertTrue(filter.hasEndDate());
+    }
+
     @Test
     public void testProjectedEntityStatsRequestIdsAndPaginationParams() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();

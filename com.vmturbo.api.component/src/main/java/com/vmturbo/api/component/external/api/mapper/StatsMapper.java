@@ -36,6 +36,7 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -481,7 +482,7 @@ public class StatsMapper {
 
             final String inputEndDate = statApiInput.getEndDate();
             if (inputEndDate != null) {
-                final Long aLong = Long.valueOf(inputEndDate);
+                final Long aLong = DateTimeUtil.parseTime(inputEndDate);
                 filterRequestBuilder.setEndDate(aLong);
             }
             if (statApiInput.getStatistics() != null) {
