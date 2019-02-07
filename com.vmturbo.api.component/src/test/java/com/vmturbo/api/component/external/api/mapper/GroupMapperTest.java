@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -1016,5 +1017,24 @@ public class GroupMapperTest {
         assertThat(dto.getEntitiesCount(), is(3));
         assertThat(dto.getMemberUuidList(),
                 containsInAnyOrder("10", "20", "30"));
+    }
+
+    /**
+     * Test converting {@link ClusterInfo} to {@link GroupApiDTO}
+     */
+    @Test
+    public void testCreateClusterApiDto() {
+        final String displayName = "group-foo";
+
+        final ClusterInfo clusterInfo = ClusterInfo.newBuilder()
+            .setDisplayName(displayName)
+            .setClusterType(ClusterInfo.Type.COMPUTE)
+            .setMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(1L).build())
+            .build();
+        final GroupApiDTO g = groupMapper.createClusterApiDto(clusterInfo);
+        assertEquals(displayName, g.getDisplayName());
+        assertEquals(GroupMapper.CLUSTER, g.getClassName());
+        assertEquals(1, g.getMembersCount().intValue());
+        assertThat(g.getMemberUuidList(), hasItems("1"));
     }
 }

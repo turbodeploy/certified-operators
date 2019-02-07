@@ -372,6 +372,7 @@ public class GroupMapper {
         outputDTO.setMemberUuidList(clusterInfo.getMembers().getStaticMemberOidsList().stream()
             .map(Object::toString)
             .collect(Collectors.toList()));
+        outputDTO.setDisplayName(clusterInfo.getDisplayName());
         return outputDTO;
     }
 
