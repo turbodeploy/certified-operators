@@ -82,11 +82,12 @@ public final class EdeCommon {
         final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
         final double excessQuantity = peakQuantities[boughtIndex] - boughtQnty;
         if (logger.isTraceEnabled()) {
-            logger.trace("Seller {} commodity {} quantity would change from {} to {}",
+            logger.trace("Seller {} commodity {} quantity would change from {} to {}, capacity {}",
                     seller.getDebugInfoNeverUseInCode(),
                     shoppingList.getBasket().getCommodityDebugInfoAt(boughtIndex),
                     commSold.getQuantity(),
-                    newQuantity);
+                    newQuantity,
+                    commSold.getCapacity());
         }
 
         // calculate the price per unit for quantity and peak quantity
@@ -112,9 +113,10 @@ public final class EdeCommon {
                 (excessQuantity / effectiveCapacity) * pricePeak : 0;
         costCurrentMinMax[0] = quoteUsed + quotePeak;
         if (logger.isTraceEnabled()) {
-            logger.trace("Buyer {} would pay (used) {} (peak) {} for commodity {}",
+            logger.trace("Buyer {} would pay (used) {} (peak) {} for commodity {}, bought qty {}",
                     shoppingList.getBuyer(), quoteUsed, quotePeak,
-                    shoppingList.getBasket().getCommodityDebugInfoAt(boughtIndex));
+                    shoppingList.getBasket().getCommodityDebugInfoAt(boughtIndex),
+                    boughtQnty);
         }
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
