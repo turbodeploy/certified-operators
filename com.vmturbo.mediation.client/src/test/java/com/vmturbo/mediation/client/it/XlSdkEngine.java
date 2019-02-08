@@ -230,9 +230,11 @@ public class XlSdkEngine implements ISdkEngine {
         private IntegrationTestServer testServer;
         private SdkProbe probe;
         private final File probeHome;
+        private final File probeJarsDir;
 
         public SdkContainer() throws IOException {
-            this.probeHome = tmpFolder.newFolder();
+            this.probeJarsDir = tmpFolder.newFolder("probe-jars");
+            this.probeHome = tmpFolder.newFolder("probe-jars", "testprobe");
         }
 
         @Override
@@ -276,7 +278,7 @@ public class XlSdkEngine implements ISdkEngine {
                     testName.getMethodName() + "-" + instanceCounter.getAndIncrement();
             environment.setProperty("instance_id", instanceId);
             environment.setProperty("component_type", "sdk-test-" + instanceId);
-            environment.setProperty("probe-directory", probeHome.toString());
+            environment.setProperty("probe-directory", probeJarsDir.toString());
             environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");

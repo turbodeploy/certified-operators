@@ -277,7 +277,7 @@
         </profile>
 
         <profile>
-            <id>mediation-all</id>
+            <id>all-separate-probes</id>
             <modules>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
@@ -643,6 +643,13 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>mediation</id>
+            <modules>
+                <module>../com.vmturbo.mediation.component</module>
+            </modules>
+        </profile>
+
         <!-- Development profile. Intended for use during the development of a change.
              Don't include slow modules here (unless it's ABSOLUTELY necessary)! -->
         <profile>
@@ -664,8 +671,6 @@
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
-                <module>../com.vmturbo.sample.component</module>
-                <module>../com.vmturbo.sample.component.api</module>
                 <module>../com.vmturbo.action.orchestrator.api</module>
                 <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.components.test.utilities</module>
@@ -694,38 +699,17 @@
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
 
-                <!-- Probe components. This should only include the probes
-                     that we currently support in XL. -->
+                <!-- Probe components. This should only include core mediation packages
+                and the mediation component. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
-                <module>../com.vmturbo.mediation.aix.component</module>
-                <module>../com.vmturbo.mediation.apm.snmp.component</module>
-                <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
-                <module>../com.vmturbo.mediation.compellent.component</module>
-                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
-                <module>../com.vmturbo.mediation.delegatingprobe</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.hyperflex.component</module>
-                <module>../com.vmturbo.mediation.hyperv.component</module>
-                <module>../com.vmturbo.mediation.netapp.component</module>
-                <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.rhv.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
-                <module>../com.vmturbo.mediation.stressprobe.component</module>
-                <module>../com.vmturbo.mediation.ucs.component</module>
-                <module>../com.vmturbo.mediation.ucsdirector.component</module>
-                <module>../com.vmturbo.mediation.vcd.component</module>
-                <module>../com.vmturbo.mediation.vcenter.component</module>
-                <module>../com.vmturbo.mediation.vmax.component</module>
-                <module>../com.vmturbo.mediation.vmm.component</module>
-                <module>../com.vmturbo.mediation.vplex.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../com.vmturbo.mediation.actionscript</module>
+                <module>../com.vmturbo.mediation.aws.conversion</module>
+                <module>../com.vmturbo.mediation.azure.conversion</module>
+                <module>../com.vmturbo.mediation.cloud.conversion</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
+                <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
@@ -922,6 +906,10 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+
+                <!-- Mediation container with all the probes inside. -->
+                <module>../com.vmturbo.mediation.component</module>
+
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>

@@ -36,7 +36,7 @@
                                     <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

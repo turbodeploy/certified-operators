@@ -38,7 +38,7 @@
                                     <artifactId>com.vmturbo.mediation.azure.conversion</artifactId>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
                                     <version>${project.version}</version>
                                 </artifactItem>
                             </artifactItems>

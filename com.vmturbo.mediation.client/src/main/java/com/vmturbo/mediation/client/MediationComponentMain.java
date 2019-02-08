@@ -1,6 +1,8 @@
 package com.vmturbo.mediation.client;
 
 import java.io.File;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -18,16 +20,16 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.ExecutionStatus;
 import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
 import com.vmturbo.mediation.common.ProbeProperties;
+import com.vmturbo.mediation.common.ProbesConfig;
+import com.vmturbo.mediation.common.RemoteComposer;
 import com.vmturbo.mediation.common.WorkerLifecycleListener;
 
 /**
  * Main component of mediation client microservice.
- *
- * @param <A> type of account values to use with this probe.
  */
 @Configuration("theComponent")
 @Import({MediationComponentConfig.class})
-public class MediationComponentMain<A> extends BaseVmtComponent {
+public class MediationComponentMain extends BaseVmtComponent {
 
     @Value("${probe-directory:probe-jars}")
     private File probeDirectory;
@@ -47,19 +49,18 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
     }
 
     @Bean
-    public MediationWorker mediationWorker() {
+    public RemoteComposer remoteComposer() {
         try {
-            return new MediationWorker(config(), probeProperties(), lifecycleListener(),
-                    threadPool(), negotiationTimeoutSec, keepAliveIntervalSec,
-                    chunkSendDelay);
+            return new RemoteComposer(probePropertiesCollection(), config(), lifecycleListener(), threadPool(),
+                negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelay);
         } catch (ProbeConfigurationLoadException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Bean
-    public ProbeProperties<A> probeProperties() throws ProbeConfigurationLoadException {
-        return ProbeProperties.parse(probeDirectory);
+    public Collection<ProbeProperties<?>> probePropertiesCollection() throws ProbeConfigurationLoadException {
+        return ProbesConfig.parse(probeDirectory);
     }
 
     @Bean
@@ -94,29 +95,19 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
     }
 
     @Override
-    public String getComponentName() {
-        try {
-            return probeProperties().getProbeType();
-        } catch (ProbeConfigurationLoadException e) {
-            log.error("Unable to get probe properties. Returning default component name", e);
-            return "Unknown";
-        }
-    }
-
-    @Override
     protected void onStartComponent() {
         super.onStartComponent();
-        mediationWorker().startMediationHandshake();
+        remoteComposer().startMediationHandshake();
     }
 
     @Override
     public void onStopComponent() {
-        mediationWorker().close();
+        remoteComposer().close();
     }
 
     @Override
     public void onFailedComponent() {
-        mediationWorker().close();
+        remoteComposer().close();
         super.onStopComponent();
     }
 

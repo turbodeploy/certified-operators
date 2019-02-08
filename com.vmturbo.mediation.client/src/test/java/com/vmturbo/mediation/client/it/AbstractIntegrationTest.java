@@ -101,7 +101,7 @@ public abstract class AbstractIntegrationTest {
 
         @Bean
         public BaseVmtComponent theComponent() {
-            return new MediationComponentMain<>();
+            return new MediationComponentMain();
         }
     }
 
@@ -291,6 +291,7 @@ public abstract class AbstractIntegrationTest {
         private final IntegrationTestServer testServer;
         private final SdkProbe probe;
         private final File probeHome;
+        private final File probeJarsDir;
 
 
         private SdkContainer(SdkProbe probe) throws Exception {
@@ -299,7 +300,8 @@ public abstract class AbstractIntegrationTest {
                                 "Websocket server should be started before container");
             }
             this.probe = probe;
-            this.probeHome = tmpFolder.newFolder();
+            this.probeJarsDir = tmpFolder.newFolder("probe-jars");
+            this.probeHome = tmpFolder.newFolder("probe-jars", "testprobe");
             final MockEnvironment environment = new MockEnvironment() {
                 @Override
                 protected void customizePropertySources(MutablePropertySources propertySources) {
@@ -331,7 +333,7 @@ public abstract class AbstractIntegrationTest {
                             testName.getMethodName() + "-" + instanceCounter.getAndIncrement();
             environment.setProperty("instance_id", instanceId);
             environment.setProperty("component_type", "sdk-test-" + instanceId);
-            environment.setProperty("probe-directory", probeHome.toString());
+            environment.setProperty("probe-directory", probeJarsDir.toString());
             environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
