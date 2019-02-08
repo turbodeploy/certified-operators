@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -516,7 +517,8 @@ public class InterpretActionTest {
         when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(15d);
         projectedCosts.put(vm.getOid(), projectedCostJournal);
         ActionInterpreter interpreter = new ActionInterpreter(mock(CommodityConverter.class),
-                slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of());
+                slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
+                new CloudEntityResizeTracker(), Maps.newHashMap());
         ActionTO actionTO = null;
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region

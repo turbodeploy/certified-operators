@@ -22,12 +22,17 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion.Builder;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
@@ -37,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -46,6 +52,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
@@ -72,16 +79,21 @@ public class ActionInterpreter {
     private final CloudTopologyConverter cloudTc;
     private final Map<Long, TopologyEntityDTO> originalTopology;
     private final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap;
+    private final CloudEntityResizeTracker cert;
+    private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
 
     ActionInterpreter(CommodityConverter commodityConverter,
                       Map<Long, ShoppingListInfo> shoppingListOidToInfos,
                       CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
-                      Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap) {
+                      Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
+                      Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
         this.originalTopology = originalTopology;
         this.oidToTraderTOMap = oidToTraderTOMap;
+        this.cert = cert;
+        this.projectedRiCoverage = projectedRiCoverage;
     }
 
     /**
@@ -770,9 +782,8 @@ public class ActionInterpreter {
                                 .build())
                         .build();
             case CONGESTION:
-                // For cloud entities, we change congestion to either efficiency or performance
-                // based on if there was savings or not. For on-prem entities, we let congestion
-                // remain as congestion and add all congested commodities
+                // For cloud entities we explain create either an efficiency or congestion change
+                // explanation based on the savings
                 return changeExplanationBasedOnSavings(moveTO, savings).orElse(
                         ChangeProviderExplanation.newBuilder().setCongestion(
                                 ChangeProviderExplanation.Congestion.newBuilder()
@@ -793,9 +804,8 @@ public class ActionInterpreter {
                         .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance())
                         .build();
             case PERFORMANCE:
-                // For cloud entities, we change performance to either efficiency or performance
-                // based on if there was savings or not.  For on-prem entities, we let performance
-                // remain as performance
+                // For cloud entities we explain create either an efficiency or congestion change
+                // explanation based on the savings
                 return changeExplanationBasedOnSavings(moveTO, savings).orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance())
                         .build());
@@ -817,22 +827,51 @@ public class ActionInterpreter {
      */
     private Optional<ChangeProviderExplanation> changeExplanationBasedOnSavings(MoveTO moveTO,
                                                                                 Optional<CurrencyAmount> savings) {
+        Optional<ChangeProviderExplanation> explanation = Optional.empty();
         if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
+            ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
             if (savings.isPresent()) {
+                boolean isPrimaryTierChange = TopologyDTOUtil.isPrimaryTierEntityType(
+                        cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType());
+                Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
+                        cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
+                Set<CommodityType> congestedComms = commsResizedByUsageType.get(CommodityUsageType.CONGESTED);
+                Set<CommodityType> underUtilizedComms = commsResizedByUsageType.get(CommodityUsageType.UNDER_UTILIZED);
                 if (savings.get().getAmount() >= 0) {
-                    return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                            ChangeProviderExplanation.Efficiency.newBuilder()).build());
+                    Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder();
+                    if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.buyerId)) {
+                        if (congestedComms != null && !congestedComms.isEmpty()) {
+                            efficiencyBuilder.addAllCongestedCommodities(congestedComms);
+                        }
+                        if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
+                            efficiencyBuilder.addAllUnderUtilizedCommodities(underUtilizedComms);
+                        }
+                    } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
+                        efficiencyBuilder.setIsRiCoverageIncreased(true);
+                    }
+                    explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                            efficiencyBuilder).build());
                 } else {
-                    return Optional.of(ChangeProviderExplanation.newBuilder().setPerformance(
-                            ChangeProviderExplanation.Performance.newBuilder()).build());
+                    Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder();
+                    if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.getBuyerId())) {
+                        if (congestedComms != null && !congestedComms.isEmpty()) {
+                            congestionBuilder.addAllCongestedCommodities(congestedComms);
+                        }
+                        if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
+                            congestionBuilder.addAllUnderUtilizedCommodities(underUtilizedComms);
+                        }
+                    } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
+                        congestionBuilder.setIsRiCoverageIncreased(true);
+                    }
+                    explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
+                            congestionBuilder).build());
                 }
             } else {
-                ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
                 logger.error("No savings present while trying to explain move for {}",
                         originalTopology.get(slInfo.getBuyerId()).getDisplayName());
             }
         }
-        return Optional.empty();
+        return explanation;
     }
 
     private ActionEntity createActionEntity(final long id,

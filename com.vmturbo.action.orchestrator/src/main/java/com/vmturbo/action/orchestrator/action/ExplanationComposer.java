@@ -22,6 +22,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
@@ -58,8 +61,9 @@ public class ExplanationComposer {
         "No current supplier has enough capacity to satisfy demand for ";
     public static final String ACTION_TYPE_ERROR =
         "Can not give a proper explanation as action type is not defiend";
-
-
+    public static final String INCREASE_RI_UTILIZATION =
+            "Increase RI Utilization.";
+    public static final String WASTED_COST = "Wasted Cost";
 
     /**
      * Private to prevent instantiation.
@@ -141,15 +145,14 @@ public class ExplanationComposer {
                 return buildComplianceExplanation(sourceEntity,
                     changeExp.getCompliance().getMissingCommoditiesList());
             case CONGESTION:
-                return buildCongestionExplanation(
-                    changeExp.getCongestion().getCongestedCommoditiesList());
+                return buildCongestionExplanation(changeExp.getCongestion());
             case EVACUATION:
                 return buildEvacuationExplanation(
                     changeExp.getEvacuation().getSuspendedEntity());
             case PERFORMANCE:
                 return buildPerformanceExplanation();
             case EFFICIENCY:
-                return buildEfficiencyExplanation();
+                return buildEfficiencyExplanation(changeExp.getEfficiency());
             default:
                 return ACTION_TYPE_ERROR;
         }
@@ -178,17 +181,29 @@ public class ExplanationComposer {
     }
 
     /**
-     * Build a generic explanation for congestion. This should end up looking like:
+     * Build a explanation for congestion. This should end up looking like:
+     * For on-prem entities:
+     * "{comma-delimited congested commodities list} congestion"
+     * For cloud entities, if some commodities resized, then the below explanation will appear:
+     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
+     * For cloud entities, if no commodities resized and if the destination is an RI, then:
+     * "Increase RI Utilization"
      *
-     *     "{comma-delimited congested commodities list} congestion"
-     *
-     * @param commodityTypes a list of congested commodity types
+     * @param congestion The congestion change provider explanation
      * @return explanation
      */
-    public static String buildCongestionExplanation(List<TopologyDTO.CommodityType> commodityTypes) {
-        StringJoiner sj = new StringJoiner(", ", "", " congestion");
-        commodityTypes.forEach(c -> sj.add(ActionDTOUtil.getCommodityDisplayName(c)));
-        return sj.toString();
+    public static String buildCongestionExplanation(Congestion congestion) {
+        List<TopologyDTO.CommodityType> congestedComms =  congestion.getCongestedCommoditiesList();
+        List<TopologyDTO.CommodityType> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
+        // For the cloud, we should have either congested commodities or increase RI utilization
+        // A blank explanation should not occur.
+        String congestionExplanation = "";
+        if (!congestedComms.isEmpty() || !underUtilizedComms.isEmpty()) {
+            congestionExplanation += buildCommodityUtilizationExplanation(congestedComms, underUtilizedComms);
+        } else if (congestion.getIsRiCoverageIncreased()) {
+            congestionExplanation += INCREASE_RI_UTILIZATION;
+        }
+        return congestionExplanation;
     }
 
     /**
@@ -219,7 +234,7 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildPerformanceExplanation() {
-        return new StringBuilder().append(MOVE_PERFORMANCE_EXPLANATION).toString();
+        return MOVE_PERFORMANCE_EXPLANATION;
     }
 
     /**
@@ -262,8 +277,64 @@ public class ExplanationComposer {
         return sb.toString();
     }
 
-    public static String buildEfficiencyExplanation() {
-        return "Efficiency...";
+    /**
+     * As of now [1/27/2019], the efficiency message is only used for cloud entities.
+     *
+     * If some commodities resized, then the below explanation will appear:
+     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
+     * If no commodities resized and if the destination is an RI, then:
+     * "Increase RI Utilization"
+     * If none of the above conditions are true, then:
+     * "Wasted Cost"
+     *
+     * @param efficiency The efficiency change provider explanation
+     * @return
+     */
+    public static String buildEfficiencyExplanation(Efficiency efficiency) {
+        List<TopologyDTO.CommodityType> overUtilizedComms =  efficiency.getCongestedCommoditiesList();
+        List<TopologyDTO.CommodityType> underUtilizedComms =  efficiency.getUnderUtilizedCommoditiesList();
+        boolean isUtilizationDrivenAction = !overUtilizedComms.isEmpty() || !underUtilizedComms.isEmpty();
+        String efficiencyExplanation = "";
+        if (isUtilizationDrivenAction || efficiency.hasIsRiCoverageIncreased()) {
+            if (isUtilizationDrivenAction) {
+                efficiencyExplanation += buildCommodityUtilizationExplanation(
+                        overUtilizedComms, underUtilizedComms);
+            } else if (efficiency.getIsRiCoverageIncreased()) {
+                efficiencyExplanation += INCREASE_RI_UTILIZATION;
+            }
+        } else {
+            efficiencyExplanation = WASTED_COST;
+        }
+        return efficiencyExplanation;
+    }
+
+    /**
+     * Returnd a string of the form:
+     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
+     *
+     * @param congestedComms the congested commodities list
+     * @param underUtilizedComms the under-utilized commodities list
+     * @return
+     */
+    public static String buildCommodityUtilizationExplanation(
+            @Nonnull List<TopologyDTO.CommodityType> congestedComms,
+            @Nonnull List<TopologyDTO.CommodityType> underUtilizedComms) {
+        boolean areCongestedCommoditiesPresent = !congestedComms.isEmpty();
+        boolean areUnderUtilizedCommoditiesPresent = !underUtilizedComms.isEmpty();
+        String commUtilizationExplanation = "";
+        if (areCongestedCommoditiesPresent) {
+            commUtilizationExplanation = congestedComms.stream().map(
+                    c -> ActionDTOUtil.getCommodityDisplayName(c))
+                    .collect(Collectors.joining(", ")) + " congestion";
+            if (areUnderUtilizedCommoditiesPresent) {
+                commUtilizationExplanation += ". ";
+            }
+        }
+        if (areUnderUtilizedCommoditiesPresent) {
+            commUtilizationExplanation += "Underutilized " + underUtilizedComms.stream().map(
+                    c -> ActionDTOUtil.getCommodityDisplayName(c)).collect(Collectors.joining(", "));
+        }
+        return commUtilizationExplanation;
     }
 
     /**

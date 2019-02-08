@@ -39,7 +39,16 @@ message Explanation {
         // A move explanation suggesting commodity congestion.
         message Congestion {
             // A list of commodities' base type which are cheaper at the destination.
+            // For the cloud, these are the commodities sold by the target entity which are
+            // congested / over-utilized
             repeated topology.CommodityType congested_commodities = 1;
+
+            // For the cloud, these are the commodities sold by the target entity which are
+            // under-utilized
+            repeated topology.CommodityType under_utilized_commodities = 2;
+
+            // For the cloud, true if increasing RI coverage is the main reason for the move
+            optional bool is_ri_coverage_increased = 3;
         }
 
         // A move explanation suggesting evacuation of buyers.
@@ -52,20 +61,21 @@ message Explanation {
         message InitialPlacement {}
 
         // A move explanation suggesting an overall performance improvement.
-        message Performance {
-            // A map of the commodity type to the changes in the commodity
-            map<int32, double> commodity_changes = 1;
+        message Performance {}
 
-            //Is RI destination
-            optional bool is_ri_destination = 2;
-        }
-
+        // Efficiency messages are currently generated for the cloud.
+        // We generate an efficiency message when we move the on-demand cost is cheaper at destination.
         message Efficiency {
-            // A map of the commodity type to the changes in the commodity
-            map<int32, double> commodity_changes = 1;
+            // These are the commodities sold by the target entity which are
+            // congested / over-utilized
+            repeated topology.CommodityType congested_commodities = 1;
 
-            //Is RI destination
-            optional bool is_ri_Destination = 2;
+            // These are the commodities sold by the target entity which are
+            // under-utilized
+            repeated topology.CommodityType under_utilized_commodities = 2;
+
+            // True if increasing RI coverage is the main reason for the move
+            optional bool is_ri_coverage_increased = 3;
         }
     }
 

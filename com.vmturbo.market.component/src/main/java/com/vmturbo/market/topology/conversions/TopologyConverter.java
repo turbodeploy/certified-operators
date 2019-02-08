@@ -188,6 +188,8 @@ public class TopologyConverter {
 
     private final TopologyInfo topologyInfo;
 
+    private final CloudEntityResizeTracker cert = new CloudEntityResizeTracker();
+
     private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
     private float liveMarketMoveCostFactor = AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR;
     private boolean isAlleviatePressurePlan = false;
@@ -218,7 +220,7 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData);
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
-                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap);
+                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap, cert, projectedReservedInstanceCoverage);
     }
 
     /**
@@ -270,7 +272,7 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData);
         this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap);
+                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap, cert, projectedReservedInstanceCoverage);
     }
 
     @VisibleForTesting
@@ -290,7 +292,7 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, null);
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
-                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap);
+                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap, cert, projectedReservedInstanceCoverage);
     }
 
     private boolean isPlan() {
@@ -1014,6 +1016,8 @@ public class TopologyConverter {
             double newCapacity;
             if (Math.ceil(resizeUpDemand / targetUtil) > commSold.getCapacity()) {
                 newCapacity = resizeUpDemand / targetUtil;
+                cert.logCommodityResize(topologyDTO.getOid(), commSold.getCommodityType(),
+                        newCapacity - commSold.getCapacity());
                 logger.debug("Using resizeUpDemand value {} for Driving commodity type {} for "
                         + "entity {}. New commBoughtUsed = {} and targetUtil = {}", resizeUpDemand,
                         commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
@@ -1022,6 +1026,8 @@ public class TopologyConverter {
             } else if (resizeDownDemand > 0 && Math.ceil(resizeDownDemand / targetUtil)
                     < commSold.getCapacity()) {
                 newCapacity = resizeDownDemand / targetUtil;
+                cert.logCommodityResize(topologyDTO.getOid(), commSold.getCommodityType(),
+                        newCapacity - commSold.getCapacity());
                 logger.debug("Using resizeDownDemand value {} for Driving commodity type {} for "
                         + "entity {}. New commBoughtUsed = {} and  targetUtil = {}", resizeDownDemand,
                         commSold.getCommodityType().getType(), topologyDTO.getDisplayName(),
