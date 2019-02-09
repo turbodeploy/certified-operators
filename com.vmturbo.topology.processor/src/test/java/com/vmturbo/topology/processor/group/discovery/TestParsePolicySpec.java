@@ -63,14 +63,16 @@ public class TestParsePolicySpec {
     public void testParsePoliciesOfGroups() {
 
         List<CommonDTO.GroupDTO> groups = initBuyerSellerGroups();
-        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups);
+        long targetId = 111L;
+        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, targetId);
         List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
         // 4 sets of groups created, only 2 of them become policies.
         // Of the other two - one is not a pair and one has a deleted group.
         Assert.assertEquals(2, policies.size());
 
         Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
-            .collect(Collectors.toMap(GroupProtoUtil::discoveredIdFromName, Function.identity()));
+            .collect(Collectors.toMap(group ->
+                    GroupProtoUtil.discoveredIdFromName(group, targetId), Function.identity()));
 
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
@@ -110,14 +112,17 @@ public class TestParsePolicySpec {
     @Test
     public void testParsePoliciesOfGroupsWithVmClusterPolicy() {
         List<CommonDTO.GroupDTO> groups = initBuyerBuyerGroups();
-        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups);
+        final long targetId = 111L;
+        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, targetId);
         List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
         // 3 VM groups created with buyer/buyer constraints, only 2 of them become policies.
         // The third is a deleted group so no policy gets created.
         Assert.assertEquals(2, policies.size());
 
+
         Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
-            .collect(Collectors.toMap(GroupProtoUtil::discoveredIdFromName, Function.identity()));
+                .collect(Collectors.toMap(group ->
+                        GroupProtoUtil.discoveredIdFromName(group, targetId), Function.identity()));
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
             Assert.assertEquals(policyInfo.getPolicyName(),

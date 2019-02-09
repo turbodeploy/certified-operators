@@ -39,6 +39,7 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ProtocolStringList;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -62,6 +63,7 @@ import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -445,7 +447,11 @@ public class SettingStoreTest {
                 .addDiscoveredGroupNames("group-a")
                 .build();
 
-        final Map<String, Long> groupOids = ImmutableMap.of("group-a", 1L);
+        final Map<String, Long> groupOids = ImmutableMap.of(
+                GroupProtoUtil.createGroupCompoundKey(
+                        spInfo.getDiscoveredGroupNames(0),
+                        EntityType.forNumber(spInfo.getEntityType()),
+                        targetId), 1L);
 
         // Create a discovered setting policies, a and b.
         settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
@@ -492,9 +498,19 @@ public class SettingStoreTest {
             .addDiscoveredGroupNames("group-c")
             .build();
 
-        final Map<String, Long> groupOids = ImmutableMap.of("group-a", 1L,
-            "group-b", 2L,
-            "group-c", 3L);
+        final Map<String, Long> groupOids = ImmutableMap.of(
+                GroupProtoUtil.createGroupCompoundKey(
+                        settingPolicyA.getDiscoveredGroupNames(0),
+                        EntityType.forNumber(settingPolicyA.getEntityType()),
+                        targetId), 1L,
+                GroupProtoUtil.createGroupCompoundKey(
+                        settingPolicyB.getDiscoveredGroupNames(0),
+                        EntityType.forNumber(settingPolicyB.getEntityType()),
+                        targetId), 2L,
+                GroupProtoUtil.createGroupCompoundKey(
+                        settingPolicyC.getDiscoveredGroupNames(0),
+                        EntityType.forNumber(settingPolicyC.getEntityType()),
+                        targetId), 3L);
 
         // Create 2 discovered setting policies, a and b.
         settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,

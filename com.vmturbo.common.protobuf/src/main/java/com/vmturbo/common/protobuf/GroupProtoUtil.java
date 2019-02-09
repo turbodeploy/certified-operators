@@ -26,6 +26,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class GroupProtoUtil {
 
+    public final static String GROUP_KEY_SEP = "-";
+
     /**
      * @param name The name to compare with the filter.
      * @param filter The name filter.
@@ -141,6 +143,27 @@ public class GroupProtoUtil {
     }
 
     /**
+     * Give a {@link CommonDTO.GroupDTO}, and extract its name properly. This function will be used
+     * by both discovered group and discovered policy. Because for discovered group and discovered
+     * policy, they should have exactly same logic to create group name if they have related.
+     * Otherwise, discovered policy will not been created.
+     *
+     * @param sdkDTO a {@link CommonDTO.GroupDTO}
+     * @return a group name.
+     */
+    @Nonnull
+    public static String extractName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+        if (sdkDTO.hasGroupName()) {
+            return sdkDTO.getGroupName();
+        } else if (sdkDTO.hasConstraintInfo() && sdkDTO.getConstraintInfo().hasConstraintName()) {
+            return sdkDTO.getConstraintInfo().getConstraintName();
+        } else {
+            throw new IllegalArgumentException(
+                    "GroupName or ConstraintName must be present in groupDTO");
+        }
+    }
+
+    /**
      * For groups, the identifiers used by the group component are built from the name and entity
      * type of groups. This is done to distinguish groups of the same name but different entity types
      * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
@@ -152,8 +175,10 @@ public class GroupProtoUtil {
      * @return The id of the discovered group as used by the group component.
      */
     @Nonnull
-    public static String discoveredIdFromName(@Nonnull final CommonDTO.GroupDTO group) {
-        return composeId(group.getDisplayName(), group.getEntityType());
+    public static String discoveredIdFromName(@Nonnull final CommonDTO.GroupDTO group,
+                                              @Nonnull final long targetId) {
+        return createGroupCompoundKey(extractName(group), group.getEntityType(),
+                targetId);
     }
 
     /**
@@ -168,8 +193,10 @@ public class GroupProtoUtil {
      * @return The id of the discovered group as used by the group component.
      */
     @Nonnull
-    public static String discoveredIdFromName(@Nonnull final GroupInfo group) {
-        return composeId(group.getName(), EntityType.forNumber(group.getEntityType()));
+    public static String discoveredIdFromName(@Nonnull final GroupInfo group,
+                                              @Nonnull final long targetId) {
+        return createGroupCompoundKey(group.getName(), EntityType.forNumber(group.getEntityType()),
+                targetId);
     }
 
     /**
@@ -182,15 +209,40 @@ public class GroupProtoUtil {
      * @return The id of the discovered cluster as used by the group component.
      */
     @Nonnull
-    public static String discoveredIdFromName(@Nonnull final ClusterInfo clusterInfo) {
-        return composeId(clusterInfo.getName(),
-            clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE ?
-                EntityDTO.EntityType.PHYSICAL_MACHINE : EntityDTO.EntityType.STORAGE);
+    public static String discoveredIdFromName(@Nonnull final ClusterInfo clusterInfo,
+                                              @Nonnull final long targetId) {
+        return createGroupCompoundKey(clusterInfo.getName(), getClusterEntityType(clusterInfo),
+                targetId);
     }
 
-    private static String composeId(@Nonnull final String originalName,
-                                    @Nonnull final EntityType entityType) {
-        return originalName + "-" + entityType;
+    /**
+     *  Clusters can either have members which are all of type Host entities or
+     *  all of type Storage(In the future it may involve more entity types).
+     *  This is a helper function to determine the entity
+     *  type the cluster contains.
+     *
+     * @param clusterInfo The cluster whose entity type needs to be displayed.
+     * @return The entity type of the cluster.
+     */
+    @Nonnull
+    public static EntityType getClusterEntityType(@Nonnull final ClusterInfo clusterInfo) {
+        return clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE ?
+                EntityDTO.EntityType.PHYSICAL_MACHINE : EntityDTO.EntityType.STORAGE;
+    }
+
+    /**
+     *  Create the composite key for the Group.
+     *
+     * @param groupName Discovered name of the group
+     * @param entityType Type of the group
+     * @param targetId Id of the target that discovered the group.
+     * @return
+     */
+    public static String createGroupCompoundKey(@Nonnull final String groupName,
+                                                 @Nonnull final EntityType entityType,
+                                                 @Nonnull final long targetId) {
+        return String.join(GROUP_KEY_SEP, groupName,
+                String.valueOf(entityType), String.valueOf(targetId));
     }
 
     /**

@@ -11,9 +11,11 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Map discovered setting policies to instances of {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo}.
@@ -51,10 +53,11 @@ public class DiscoveredSettingPoliciesMapper {
 
         final List<Long> groupOids = new ArrayList<>(info.getDiscoveredGroupNamesCount());
         for (String groupName : info.getDiscoveredGroupNamesList()) {
-            final Long oid = groupNamesToOids.get(groupName);
+            final Long oid = groupNamesToOids.get(GroupProtoUtil.createGroupCompoundKey(groupName,
+                    EntityType.forNumber(info.getEntityType()), targetId));
             if (oid == null) {
-                logger.warn("Invalid setting policy {}. Invalid groupName {}. Valid group names are: {}", info,
-                    groupName, groupNamesToOids.keySet());
+                logger.warn("Invalid setting policy {}. Invalid groupName {}. Valid group names are: {}",
+                        info, groupName, groupNamesToOids.keySet());
                 return Optional.empty();
             }
             groupOids.add(oid);
