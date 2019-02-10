@@ -217,7 +217,7 @@ dashboards:
     History-Dashboard:
       json: dashboards/History Dashboard.json
     Kubernetes-Dashboard:
-      json: dashboards/Action Orchestrator Dashboard.json
+      json: dashboards/Kubernetes Cluster.json
     Market-Dashboard:
       json: dashboards/Market Dashboard.json
     Messaging-Metrics:
