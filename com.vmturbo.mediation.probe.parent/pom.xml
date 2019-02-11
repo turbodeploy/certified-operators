@@ -58,23 +58,29 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j2.Version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.platform.sdk.probe</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.platform.sdk.common</artifactId>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-core</artifactId>
+                <version>${log4j2.Version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.platform.sdk.common</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+                <scope>provided</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <pluginRepositories>
         <pluginRepository>

@@ -38,7 +38,6 @@
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>
-                                    <excludes>log4j*.jar</excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
@@ -47,81 +46,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>docker</id>
-            <build>
-                <pluginManagement>
-                    <plugins>
-                        <plugin>
-                            <groupId>org.jacoco</groupId>
-                            <artifactId>jacoco-maven-plugin</artifactId>
-                        </plugin>
-                        <plugin>
-                            <groupId>com.spotify</groupId>
-                            <artifactId>docker-maven-plugin</artifactId>
-                            <configuration>
-                                <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
-                                <imageTags>
-                                    <imageTag>${project.version}</imageTag>
-                                </imageTags>
-                                <labels>
-                                    <label>com.vmturbo.version=${project.version}</label>
-                                </labels>
-                                <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}</baseImage>
-                                <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                                <volumes>
-                                    <volume>/home/turbonomic/data</volume>
-                                </volumes>
-                            </configuration>
-                            <executions>
-                                <execution>
-                                    <id>build-docker-image</id>
-                                    <phase>package</phase>
-                                    <goals>
-                                        <goal>build</goal>
-                                    </goals>
-                                </execution>
-                                <execution>
-                                    <id>tag-docker-image</id>
-                                    <phase>package</phase>
-                                    <goals>
-                                        <goal>tag</goal>
-                                    </goals>
-                                    <configuration>
-                                        <image>${docker.image.prefix}/${project.artifactId}</image>
-                                        <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
-                                    </configuration>
-                                </execution>
-                                <execution>
-                                    <id>push-docker-image</id>
-                                    <phase>deploy</phase>
-                                    <goals>
-                                        <goal>push</goal>
-                                    </goals>
-                                    <configuration>
-                                        <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
-                                    </configuration>
-                                </execution>
-                            </executions>
-                        </plugin>
-                        <plugin>
-                            <groupId>org.apache.maven.plugins</groupId>
-                            <artifactId>maven-jar-plugin</artifactId>
-                            <configuration>
-                                <archive>
-                                    <manifest>
-                                        <addClasspath>true</addClasspath>
-                                        <classpathPrefix>lib/</classpathPrefix>
-                                    </manifest>
-                                </archive>
-                            </configuration>
-                        </plugin>
-                    </plugins>
-                </pluginManagement>
-            </build>
-        </profile>
-    </profiles>
-
 </project>

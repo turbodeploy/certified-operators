@@ -37,8 +37,6 @@
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>
-                                    <!-- do not exclude "log4j*.jar" since "log4j-1.2.17" is needed
-                                         by third party library "ovirt-engine-sdk-java" -->
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

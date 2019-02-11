@@ -38,7 +38,6 @@
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>
-                                    <excludes>log4j*.jar</excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
