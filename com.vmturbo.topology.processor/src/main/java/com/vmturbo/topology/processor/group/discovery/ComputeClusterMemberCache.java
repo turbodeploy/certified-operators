@@ -71,8 +71,7 @@ public class ComputeClusterMemberCache {
         return Optional.ofNullable(cache.get(host.getTargetId()))
             .flatMap(clusterMemberses -> clusterMemberses.stream()
                 .filter(clusterMembers -> clusterMembers.hasMember(host.getOid()))
-                .map(clusterMembers -> GroupProtoUtil.discoveredIdFromName(
-                        clusterMembers.getClusterInfo(), host.getTargetId()))
+                .map(clusterMembers -> GroupProtoUtil.discoveredIdFromName(clusterMembers.getClusterInfo()))
                 .findFirst());
     }
 

@@ -31,7 +31,6 @@ import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -80,11 +79,8 @@ public class DiscoveredSettingPolicyScannerTest {
     private static final long HOST_3_ID = 3L;
 
     private static final String COMPUTE_CLUSTER_NAME = "compute-cluster";
-    private static final String GROUP_COMPONENT_COMPUTE_CLUSTER_NAME =
-            String.join(GroupProtoUtil.GROUP_KEY_SEP,
-                    COMPUTE_CLUSTER_NAME,
-                    String.valueOf(EntityType.PHYSICAL_MACHINE),
-                    String.valueOf(VC_TARGET_ID));
+    private static final String GROUP_COMPONENT_COMPUTE_CLUSTER_NAME = COMPUTE_CLUSTER_NAME +
+        "-" + EntityType.PHYSICAL_MACHINE;
 
 
     @Before

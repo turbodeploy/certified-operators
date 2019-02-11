@@ -472,10 +472,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         return new StreamObserver<DiscoveredGroupsPoliciesSettings>() {
 
             final Map<String, Long> allGroupsMap = new HashMap<>();
-            // Mapping from TargetId -> List of ClusterInfos
-            // We assume that there are no duplicate clusterInfos. We could have used a set.
-            // But hashing a complex object like clusterInfos will be expensive.
-            final Map<Long, List<ClusterInfo>> targetIdToClusterInfosMap = new HashMap<>();
+            final List<ClusterInfo> allClusterInfos = new ArrayList<>();
 
             @Override
             public void onNext(final DiscoveredGroupsPoliciesSettings record) {
@@ -485,28 +482,26 @@ public class GroupRpcService extends GroupServiceImplBase {
                                 .withDescription("Request must have a target ID.").asException());
                         return;
                     }
-                    final long targetId = record.getTargetId();
                     final Map<String, Long> groupsMap = new HashMap<>();
                     // Update everything in a single transaction.
                     dslContext.transaction(configuration -> {
                         final DSLContext transactionContext = DSL.using(configuration);
                         groupsMap.putAll(groupStore.updateTargetGroups(transactionContext,
-                                targetId,
+                                record.getTargetId(),
                                 record.getDiscoveredGroupList(),
                                 record.getDiscoveredClusterList()));
                         policyStore.updateTargetPolicies(transactionContext,
-                                targetId,
+                                record.getTargetId(),
                                 record.getDiscoveredPolicyInfosList(), groupsMap);
                         settingStore.updateTargetSettingPolicies(transactionContext,
-                                targetId,
+                                record.getTargetId(),
                                 record.getDiscoveredSettingPoliciesList(), groupsMap);
 
                     });
                     // successfully updated the DB. Now add it to the records that needs to
                     // be added to the index.
                     allGroupsMap.putAll(groupsMap);
-                    targetIdToClusterInfosMap.computeIfAbsent(targetId,
-                            k -> new ArrayList<>()).addAll(record.getDiscoveredClusterList());
+                    allClusterInfos.addAll(record.getDiscoveredClusterList());
 
                 } catch (DataAccessException e) {
                     logger.error("Failed to store discovered collections due to a database query error.", e);
@@ -532,19 +527,16 @@ public class GroupRpcService extends GroupServiceImplBase {
 
             private Map<Long, ClusterInfo> createClusterIdToClusterInfoMapping() {
                 Map<Long, ClusterInfo> clusterIdToClusterInfoMap = new HashMap<>();
-                targetIdToClusterInfosMap.forEach((targetId, clusterInfos) -> {
-                            clusterInfos.forEach(clusterInfo -> {
-                                String clusterName =
-                                        GroupProtoUtil.discoveredIdFromName(clusterInfo, targetId);
-                                long clusterId = allGroupsMap.getOrDefault(clusterName, 0L);
-                                if (clusterId == 0L) {
-                                    // Skip this cluster as we couldn't find the clusterId.
-                                    logger.warn("Can't get clusterId for cluster {}, targetId:{}",
-                                            clusterInfo, targetId);
-                                    return;
-                                }
-                                clusterIdToClusterInfoMap.put(clusterId, clusterInfo);
-                            });
+                allClusterInfos.stream()
+                        .forEach(clusterInfo -> {
+                            String clusterName = GroupProtoUtil.discoveredIdFromName(clusterInfo);
+                            long clusterId = allGroupsMap.getOrDefault(clusterName, 0L);
+                            if (clusterId == 0L) {
+                                // Skip this cluster as we couldn't find the clusterId.
+                                logger.warn("Can't get clusterId for cluster {}", clusterInfo);
+                                return;
+                            }
+                            clusterIdToClusterInfoMap.put(clusterId, clusterInfo);
                         });
                 return clusterIdToClusterInfoMap;
             }

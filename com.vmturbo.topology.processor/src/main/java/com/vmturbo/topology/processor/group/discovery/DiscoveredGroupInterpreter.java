@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -136,7 +135,7 @@ class DiscoveredGroupInterpreter {
         final ClusterInfo.Builder builder = ClusterInfo.newBuilder();
         builder.setClusterType(sdkDTO.getEntityType().equals(EntityType.PHYSICAL_MACHINE)
                 ? Type.COMPUTE : Type.STORAGE);
-        final String clusterName = GroupProtoUtil.extractName(sdkDTO);
+        final String clusterName = DiscoveredGroupPolicyUtil.extractName(sdkDTO);
         builder.setName(clusterName);
         if (sdkDTO.hasDisplayName()) {
             builder.setDisplayName(sdkDTO.getDisplayName());
@@ -171,7 +170,7 @@ class DiscoveredGroupInterpreter {
                                            final long targetId) {
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
-        final String groupName = GroupProtoUtil.extractName(sdkDTO);
+        final String groupName = DiscoveredGroupPolicyUtil.extractName(sdkDTO);
         builder.setName(groupName);
         if (sdkDTO.hasDisplayName()) {
             builder.setDisplayName(sdkDTO.getDisplayName());

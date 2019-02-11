@@ -107,13 +107,11 @@ public class GroupProtoUtilTest {
     @Test
     public void testGroupDTODiscoveredId() {
         final CommonDTO.GroupDTO group = CommonDTO.GroupDTO.newBuilder()
-            .setGroupName("foo")
+            .setDisplayName("foo")
             .setEntityType(EntityType.PHYSICAL_MACHINE)
             .build();
 
-        long targetId = 111L;
-        Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
+        Assert.assertEquals("foo-PHYSICAL_MACHINE", GroupProtoUtil.discoveredIdFromName(group));
     }
 
     @Test
@@ -123,9 +121,7 @@ public class GroupProtoUtilTest {
             .setEntityType(EntityType.STORAGE_VALUE)
             .build();
 
-        long targetId = 111L;
-        Assert.assertEquals("foo-STORAGE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
+        Assert.assertEquals("foo-STORAGE", GroupProtoUtil.discoveredIdFromName(group));
     }
 
     @Test
@@ -135,8 +131,6 @@ public class GroupProtoUtilTest {
             .setClusterType(Type.COMPUTE)
             .build();
 
-        long targetId = 111L;
-        Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
+        Assert.assertEquals("foo-PHYSICAL_MACHINE", GroupProtoUtil.discoveredIdFromName(group));
     }
 }

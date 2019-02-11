@@ -131,7 +131,7 @@ public class DiscoveredGroupUploader {
                 discoveredGroupInterpreter.interpretSdkGroupList(groups, targetId);
         synchronized (latestGroupByTarget) {
             latestGroupByTarget.put(targetId, interpretedDtos);
-            final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups, targetId);
+            final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups);
             final List<DiscoveredPolicyInfo> discoveredPolicyInfos = parser.parsePoliciesOfGroups();
             latestPoliciesByTarget.put(targetId, discoveredPolicyInfos);
             discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);

@@ -89,8 +89,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         final Map<SpecKey, InstanceType> existingByKey = existingCollections.stream()
                 .collect(Collectors.toMap(instance -> {
                     SpecType spec = infoGetter().apply(instance);
-                    return new SpecKey(infoNameGetter().apply(spec),
-                            memberTypeGetter().apply(spec), targetId);
+                    return new SpecKey(infoNameGetter().apply(spec), memberTypeGetter().apply(spec));
                 },
                 Function.identity(),
                 // In case of conflicts, print a warning and just pick one.
@@ -109,7 +108,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         final Map<SpecKey, SpecType> newByKey = newDiscoveredCollections.stream()
                 .collect(Collectors.toMap(
                     spec -> new SpecKey(infoNameGetter().apply(spec),
-                        memberTypeGetter().apply(spec), targetId),
+                        memberTypeGetter().apply(spec)),
                     Function.identity(),
                     (one, other) -> {
                         logger.warn("Discovered two colliding collections for the " +
@@ -118,7 +117,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
                     }));
 
         existingByKey.entrySet().stream().forEach(e ->
-            oidMap.put(e.getKey().toString(), idGetter().apply(e.getValue())));
+            oidMap.put(e.getKey().name, idGetter().apply(e.getValue())));
 
         // Here we iterate over the same thing three times. It's not ideal from a performance
         // standpoint, but the number of groups is relatively small and each iteration is quick,
@@ -166,7 +165,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
      * This is a workaround for bug OM-22036 - VM and PM groups have the same name.
      * @return an identifier of the spec for the purpose of mapping group to OID
      */
-    protected abstract BiFunction<SpecType, Long, String> infoIdGetter();
+    protected abstract Function<SpecType, String> infoIdGetter();
 
     /**
      * @return A function to get the entity type of a specification.
@@ -220,7 +219,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
             try {
                 long oid = identityProvider.next();
                 storeFn.storeInstance(createInstance(oid, groupInfo));
-                oidMap.put(infoIdGetter().apply(groupInfo, targetId), oid);
+                oidMap.put(infoIdGetter().apply(groupInfo), oid);
             } catch (InvalidItemException | DataAccessException | DuplicateNameException e) {
                 logger.warn("Encountered exception trying to save group {}. Message: {}",
                         infoNameGetter().apply(groupInfo), e.getLocalizedMessage());
@@ -232,8 +231,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
             try {
                 final InstanceType newInstance = createInstance(groupId, newGroupInfo);
                 updateFn.updateInstance(newInstance);
-                oidMap.forcePut(infoIdGetter().apply(newGroupInfo, targetId),
-                        idGetter().apply(newInstance));
+                oidMap.forcePut(infoIdGetter().apply(newGroupInfo), idGetter().apply(newInstance));
             } catch (InvalidItemException | ImmutableUpdateException | ItemNotFoundException | DuplicateNameException e) {
                 // Ignore the exception - let the process continue.
                 logger.warn("Encountered exception trying to update group {}. Message: {}",
@@ -283,8 +281,8 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         }
 
         @Override
-        protected BiFunction<GroupInfo, Long, String> infoIdGetter() {
-            return (info, id) -> GroupProtoUtil.discoveredIdFromName(info, id);
+        protected Function<GroupInfo, String> infoIdGetter() {
+            return GroupInfo::getName;
         }
 
         @Override
@@ -337,8 +335,8 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         }
 
         @Override
-        protected BiFunction<ClusterInfo, Long, String> infoIdGetter() {
-            return (info, id) -> GroupProtoUtil.discoveredIdFromName(info, id);
+        protected Function<ClusterInfo, String> infoIdGetter() {
+            return GroupProtoUtil::discoveredIdFromName;
         }
 
         @Override
@@ -403,9 +401,8 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         }
 
         @Override
-        protected BiFunction<PolicyInfo, Long, String> infoIdGetter() {
-            return (info, targetId) -> String.join(GroupProtoUtil.GROUP_KEY_SEP,
-                    info.getName(), String.valueOf(targetId));
+        protected Function<PolicyInfo, String> infoIdGetter() {
+            return PolicyInfo::getName;
         }
 
         @Override
@@ -463,9 +460,8 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         }
 
         @Override
-        protected BiFunction<SettingPolicyInfo, Long, String> infoIdGetter() {
-            return (info, id) -> String.join(GroupProtoUtil.GROUP_KEY_SEP, info.getName(),
-                    String.valueOf(info.getEntityType()), String.valueOf(id));
+        protected Function<SettingPolicyInfo, String> infoIdGetter() {
+            return info -> info.getName() + "-" + info.getEntityType();
         }
 
         @Override
@@ -506,27 +502,20 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
      * determine when a new spec is meant to update an existing group.
      */
     private static class SpecKey {
-
         private final String name;
         private final int memberType;
-        private final long targetId;
-
 
         SpecKey(@Nonnull final String name,
-                final int memberType,
-                final long discovererId) {
+                final int memberType) {
             this.name = name;
             this.memberType = memberType;
-            this.targetId = discovererId;
         }
 
         @Override
         public boolean equals(Object other) {
             if (other instanceof TargetCollectionUpdate.SpecKey) {
                 final SpecKey otherKey = (SpecKey)other;
-                return (otherKey.name.equals(name)
-                        && otherKey.memberType == memberType
-                        && otherKey.targetId == targetId);
+                return otherKey.name.equals(name) && otherKey.memberType == memberType;
             } else {
                 return false;
             }
@@ -534,13 +523,7 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, memberType, targetId);
-        }
-
-        @Override
-        public String toString() {
-            return String.join(GroupProtoUtil.GROUP_KEY_SEP, name, String.valueOf(memberType),
-                    String.valueOf(targetId));
+            return Objects.hash(name, memberType);
         }
     }
 
