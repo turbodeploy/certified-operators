@@ -401,6 +401,8 @@ public class HistorydbIO extends BasedbIO {
                         topologyInfo.getTopologyId())
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
                         marketStatsData.getEntityType())
+                .set(MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
+                    marketStatsData.getEnvironmentType())
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_TYPE,
                         marketStatsData.getPropertyType())
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.PROPERTY_SUBTYPE,

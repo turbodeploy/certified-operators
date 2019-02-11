@@ -331,16 +331,11 @@ public class SupplyChainFetcherFactory {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
-            // If the desired environment type is "HYBRID", we're looking for cloud OR on-prem,
-            // which is the same as looking for all.
-            if (environmentType == null || environmentType == EnvironmentType.HYBRID) {
+            if (environmentType == null) {
                 this.environmentType = Optional.empty();
             } else {
-                this.environmentType = Optional.of(UIEnvironmentType.fromString(
-                        environmentType.name()).toEnvType());
+                this.environmentType = UIEnvironmentType.fromString(environmentType.name()).toEnvType();
             }
-
-
             this.supplyChainRpcService = supplyChainRpcService;
             this.groupExpander = groupExpander;
         }

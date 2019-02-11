@@ -216,9 +216,12 @@ public class TopologyFilterFactory {
                             " doesn't match a known/valid env type.");
                 }
                 // It's more efficient to compare the numeric value of the enum.
-                return new PropertyFilter(intPredicate(targetType.toEnvType().getNumber(),
+                return targetType.toEnvType()
+                    .map(envType -> new PropertyFilter(intPredicate(envType.getNumber(),
                         stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                        entity -> entity.getEnvironmentType().getNumber()));
+                        entity -> entity.getEnvironmentType().getNumber())))
+                    // If we're not looking for a specific environment type, all entities match.
+                    .orElseGet(() -> new PropertyFilter((entity) -> true));
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);

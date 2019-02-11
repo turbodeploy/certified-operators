@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -39,7 +40,11 @@ public class ServiceEntityRepoDTOConverter {
         topologyEntityBuilder.setEntityType(RepoObjectType.toTopologyEntityType(
                 serviceEntityRepoDTO.getEntityType()));
         topologyEntityBuilder.setEnvironmentType(
-            UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType()).toEnvType());
+            UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType())
+                .toEnvType()
+                // We don't expect to have a HYBRID topology entity, so if we get a hybrid
+                // environment type, assume something's wrong and put it as "UNKNOWN".
+                .orElse(EnvironmentType.UNKNOWN_ENV));
         if (serviceEntityRepoDTO.getState() != null) {
             topologyEntityBuilder.setEntityState(
                 UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState());

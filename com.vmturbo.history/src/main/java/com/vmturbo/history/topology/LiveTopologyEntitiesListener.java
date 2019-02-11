@@ -21,6 +21,7 @@ import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.utils.SystemLoadHelper;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
 /**
@@ -68,11 +69,11 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(TopologyInfo topologyInfo,
                                        RemoteIterator<TopologyEntityDTO> topologyDTOs) {
-        SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
+        try (final DataMetricTimer timer = SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.
-                        LIVE_CONTEXT_TYPE_LABEL).time(() -> {
+                        LIVE_CONTEXT_TYPE_LABEL).startTimer()) {
             handleLiveTopology(topologyInfo, topologyDTOs);
-        });
+        }
     }
 
     /**
@@ -117,7 +118,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                 .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                .observe(numEntities);
+                .observe((double)numEntities);
         } catch (Exception e) {
             logger.warn("Error occurred while processing data for realtime topology broadcast "
                             + topologyInfo.getTopologyId(), e);

@@ -1,15 +1,10 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.components.common.utils.StringConstants.ENVIRONMENT_TYPE;
-import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
-import static com.vmturbo.history.db.jooq.JooqUtils.number;
-import static com.vmturbo.history.db.jooq.JooqUtils.relation;
-import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
 import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
 import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
+import static com.vmturbo.components.common.utils.StringConstants.ENVIRONMENT_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
 import static com.vmturbo.components.common.utils.StringConstants.PRODUCER_UUID;
@@ -18,6 +13,12 @@ import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.components.common.utils.StringConstants.RELATION;
 import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.history.db.jooq.JooqUtils.dField;
+import static com.vmturbo.history.db.jooq.JooqUtils.envType;
+import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
+import static com.vmturbo.history.db.jooq.JooqUtils.number;
+import static com.vmturbo.history.db.jooq.JooqUtils.relation;
+import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
@@ -27,10 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,10 +40,14 @@ import org.jooq.Table;
 
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 
 /**
  * A utility class to create jOOQ queries/conditions for live stats requests.
@@ -229,7 +232,23 @@ public interface StatsQueryFactory {
                                     .eq(desiredRelation));
                             break;
                         case ENVIRONMENT_TYPE:
-                            // TODO (roman, Nov 21 2018) OM-40569: Add proper support for this.
+                            // We only record the environment type in the database for the aggregate
+                            // market stats tables.
+                            if (HistoryStatsUtils.isMarketStatsTable(table)) {
+                                final Optional<EnvironmentType> envType = UIEnvironmentType.fromString(
+                                    propertyValueFilter.getValue()).toEnvType();
+                                if (envType.isPresent()) {
+                                    commodityTest = commodityTest.and(
+                                        envType(dField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName())).
+                                            eq(envType.get()));
+                                }
+                            } else {
+                                // For "regular" tables we rely on the API component to only
+                                // target the entities in the proper environment type.
+                                logger.debug("Ignoring environment type filter (value: {}) for " +
+                                    "non-market table {}",
+                                    propertyValueFilter.getValue(), table.getName());
+                            }
                             break;
                         default:
                             // default is to use 'property' as column name and perform a string match

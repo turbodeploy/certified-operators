@@ -2,15 +2,6 @@ package com.vmturbo.history.utils;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.vmturbo.history.db.EntityType.APPLICATION;
-import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
-import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
-import static com.vmturbo.history.db.EntityType.CHASSIS;
-import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
-import static com.vmturbo.history.db.EntityType.IO_MODULE;
-import static com.vmturbo.history.db.EntityType.STORAGE_CONTROLLER;
-import static com.vmturbo.history.db.EntityType.SWITCH;
-import static com.vmturbo.history.db.EntityType.VDC;
 import static com.vmturbo.components.common.utils.StringConstants.CONTAINER;
 import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_HOST;
 import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_STORAGE;
@@ -23,6 +14,15 @@ import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_ST
 import static com.vmturbo.components.common.utils.StringConstants.PHYSICAL_MACHINE;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE;
 import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
+import static com.vmturbo.history.db.EntityType.APPLICATION;
+import static com.vmturbo.history.db.EntityType.APPLICATION_SERVER;
+import static com.vmturbo.history.db.EntityType.BUSINESS_APPLICATION;
+import static com.vmturbo.history.db.EntityType.CHASSIS;
+import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
+import static com.vmturbo.history.db.EntityType.IO_MODULE;
+import static com.vmturbo.history.db.EntityType.STORAGE_CONTROLLER;
+import static com.vmturbo.history.db.EntityType.SWITCH;
+import static com.vmturbo.history.db.EntityType.VDC;
 
 import java.sql.Timestamp;
 import java.util.Calendar;
@@ -38,17 +38,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.Field;
+import org.jooq.Table;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class HistoryStatsUtils {
 
@@ -58,6 +60,13 @@ public class HistoryStatsUtils {
      * The default price index value.
      */
     public static final double DEFAULT_PRICE_IDX = 1.0f;
+
+    private static final Set<Table<?>> MARKET_TABLES = ImmutableSet.<Table<?>>builder()
+        .add(Tables.MARKET_STATS_LATEST)
+        .add(Tables.MARKET_STATS_BY_HOUR)
+        .add(Tables.MARKET_STATS_BY_DAY)
+        .add(Tables.MARKET_STATS_BY_MONTH)
+        .build();
 
     /**
      * If any of these metrics are requested, we need to post-process the response and tally
@@ -457,5 +466,9 @@ public class HistoryStatsUtils {
         checkArgument(subClsOK ? expected.isAssignableFrom(given) : given==expected,
                 "Incorrect field type %s (expected %s)",
                 given.getName(), expected.getName());
+    }
+
+    public static boolean isMarketStatsTable(@Nonnull final Table<?> table) {
+        return MARKET_TABLES.contains(table);
     }
 }

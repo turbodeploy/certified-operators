@@ -15,10 +15,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
-import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.StatsConfig;
+import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;
 import com.vmturbo.history.topology.PlanTopologyEntitiesListener;
-import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -28,7 +27,7 @@ import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
  * Configuration for the PriceIndex Listener for the History component
  **/
 @Configuration
-@Import({TopologyListenerConfig.class, StatsConfig.class, HistoryApiConfig.class,
+@Import({StatsConfig.class, HistoryApiConfig.class,
         MarketClientConfig.class})
 public class MarketListenerConfig {
 
@@ -42,16 +41,10 @@ public class MarketListenerConfig {
     private int writeTopologyChunkSize;
 
     @Autowired
-    private TopologyListenerConfig topologyListenerConfig;
-
-    @Autowired
     private StatsConfig statsConfig;
 
     @Autowired
     private HistoryApiConfig apiConfig;
-
-    @Autowired
-    private MarketListenerConfig marketListenerConfig;
 
     @Autowired
     private MarketClientConfig marketClientConfig;
@@ -64,7 +57,7 @@ public class MarketListenerConfig {
     public MarketListener marketListener() {
         return new MarketListener(
                 statsConfig.planStatsWriter(),
-                marketListenerConfig.priceIndexWriter(),
+                priceIndexVisitorFactory(),
                 realtimeTopologyContextId,
                 apiConfig.statsAvailabilityTracker(),
                 statsConfig.projectedStatsStore());
@@ -106,8 +99,8 @@ public class MarketListenerConfig {
     }
 
     @Bean
-    PriceIndexWriter priceIndexWriter() {
-        return new PriceIndexWriter(historyDbConfig.historyDbIO(),
+    DBPriceIndexVisitorFactory priceIndexVisitorFactory() {
+        return new DBPriceIndexVisitorFactory(historyDbConfig.historyDbIO(),
                 writeTopologyChunkSize);
     }
 }

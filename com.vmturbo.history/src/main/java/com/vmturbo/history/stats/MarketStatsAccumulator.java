@@ -23,11 +23,13 @@ import org.jooq.InsertSetMoreStep;
 import org.jooq.Query;
 import org.jooq.Table;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -42,16 +44,29 @@ import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
  * Accumulate the stats for a given Entity Type organized by the stats property_name.
  **/
 public class MarketStatsAccumulator {
 
+    private static final Logger logger = LogManager.getLogger();
+
+    private final TopologyInfo topologyInfo;
+
     /**
      *   DB entity type to which these stats belong. Determines the table stats are written to.
      */
     private final String entityType;
+
+    /**
+     * The environment type for this accumulator.
+     *
+     * Note that the environment type currently only affects how the aggregate market stats
+     * are saved - the individual entity records are saved without environment type information.
+     */
+    private final EnvironmentType environmentType;
 
     /**
      * The Jooq table for stats of this entity type.
@@ -71,6 +86,8 @@ public class MarketStatsAccumulator {
 
     private int queuedRows = 0;
 
+    private int numEntitiesCount = 0;
+
     /**
      * A list of commodities that are to be excluded, i.e. not written to the DB.
      */
@@ -85,32 +102,7 @@ public class MarketStatsAccumulator {
     private final HistorydbIO historydbIO;
 
     /**
-     * Counters for monitoring DB usage.
-     */
-    private static final io.prometheus.client.Counter TOPOLOGY_INSERT_BATCH_COUNT = io.prometheus.client.Counter.build()
-            .name("history_topology_insert_batch_count")
-            .help("Number of batches of insert DB statements performed.")
-            .labelNames("topology_type", "context_type")
-            .register();
-
-    private static final io.prometheus.client.Counter TOPOLOGY_INSERT_COUNT = io.prometheus.client.Counter.build()
-            .name("history_topology_insert_count")
-            .help("Number of insert DB statements performed.")
-            .labelNames("topology_type", "context_type")
-            .register();
-
-    private static final io.prometheus.client.Counter TOPOLOGY_INSERT_ROW_COUNT = io.prometheus.client.Counter.build()
-            .name("history_topology_insert_rows")
-            .help("Number of stats rows inserted.")
-            .labelNames("topology_type", "context_type")
-            .register();
-
-
-    private final Logger logger = LogManager.getLogger();
-
-
-    /**
-     * map from a commodity key, constructed from (entity type, property type & subtype, relation)
+     * map from a commodity key, constructed from (property type & subtype, relation)
      * to a Market Stats Data item for the given key.
      */
     private final Map<String, MarketStatsData> statsMap = new HashMap<>();
@@ -128,7 +120,7 @@ public class MarketStatsAccumulator {
     /**
      * This map lists properties of entities which are to be persisted as stats.
      * If an entity property with the given property key is found, the value of that property
-     * is persisted as the corresponding {@link ClassicEnumMapper.CommodityTypeUnits} using the mixedCase name.
+     * is persisted as the corresponding {@link com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits} using the mixedCase name.
      */
     private static final Map<String, CommodityTypeUnits> PERSISTED_ATTRIBUTE_MAP
             = new ImmutableMap.Builder<String, CommodityTypeUnits>()
@@ -148,10 +140,15 @@ public class MarketStatsAccumulator {
      * @param commoditiesToExclude a list of commodity names used by the market but not necessary
      *                             to be persisted as stats in the db
      */
-    public MarketStatsAccumulator(@Nonnull String entityType, @Nonnull HistorydbIO historydbIO,
-                                  long writeTopologyChunkSize,
-                                  @Nonnull ImmutableList<String> commoditiesToExclude) {
+    public MarketStatsAccumulator(@Nonnull final TopologyInfo topologyInfo,
+                                  @Nonnull final String entityType,
+                                  @Nonnull final EnvironmentType environmentType,
+                                  @Nonnull final HistorydbIO historydbIO,
+                                  final long writeTopologyChunkSize,
+                                  @Nonnull final ImmutableList<String> commoditiesToExclude) {
+        this.topologyInfo = topologyInfo;
         this.entityType = entityType;
+        this.environmentType = environmentType;
         this.historydbIO = historydbIO;
         this.writeTopologyChunkSize = writeTopologyChunkSize;
 
@@ -205,7 +202,7 @@ public class MarketStatsAccumulator {
 
         synchronized (statsMap) {
             MarketStatsData statsData = statsMap.computeIfAbsent(commodityKey, key ->
-                    new MarketStatsData(entityType, propertyType, propertySubtype,
+                    new MarketStatsData(entityType, environmentType, propertyType, propertySubtype,
                             relationType));
             // accumulate the values from this stat item
             statsData.accumulate(used, peak, capacity, effectiveCapacity);
@@ -222,23 +219,61 @@ public class MarketStatsAccumulator {
     }
 
     /**
+     * Call this for every entity of the entity type and environment type associated with the
+     * {@link MarketStatsAccumulator}.
+     *
+     * @param entityDTO The entity.
+     * @param capacities (seller entityId) -> (commodity type) -> (capacity)
+     * @param delayedCommoditiesBought a map of (providerId) -> ({@link DelayedCommodityBoughtWriter}).
+     *                                 This method may add entries to the map if the entity being
+     *                                 processed is buying commodities from a provider that does
+     *                                 not exist in the capacities input map.
+     * @param entityByOid mapping from oid of the entity to the entity object
+     * @throws VmtDbException If there is an error interacting with the database.
+     */
+    public void recordEntity(@Nonnull final TopologyEntityDTO entityDTO,
+                             @Nonnull final Map<Long, Map<Integer, Double>> capacities,
+                             @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
+                             @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
+        persistCommoditiesBought(entityDTO, capacities,
+            delayedCommoditiesBought, entityByOid);
+
+        persistCommoditiesSold(entityDTO.getOid(),
+            entityDTO.getCommoditySoldListList());
+
+        persistEntityAttributes(entityDTO);
+
+        numEntitiesCount++;
+    }
+
+    /**
+     * Call this after all relevant entities in the topology have been recorded via calls
+     * to {@link MarketStatsAccumulator#recordEntity(TopologyEntityDTO, Map, Multimap, Map)}.
+     *
+     * @throws VmtDbException If there is an error interacting with the database.
+     */
+    public void writeFinalStats() throws VmtDbException {
+        writeQueuedRows();
+        persistMarketStats();
+    }
+
+    /**
      * Persist the overall stats for an entity type within Live Market once the stats have
      * been aggregated here. Append the "counts" stats for a
      * selected set of Entity Types, e.g. "numVMs" = # of VMs in the topology.
      *
      * Note: not batched.
      *
-     * @param entityCount The number of entities in the topology.
-     * @param topologyInfo Information about the topology.
      * @throws VmtDbException if there's a DB error writing the market_stats_latest table.
      */
-    public void persistMarketStats(final int entityCount, @Nonnull final TopologyInfo topologyInfo)
+    @VisibleForTesting
+    void persistMarketStats()
             throws VmtDbException {
 
         // first add counts for the given entity, if applicable
         String countMetric = countSEsMetrics.get(entityType);
         if (countMetric != null) {
-            addEntityCountStat(countMetric, entityCount);
+            addEntityCountStat(countMetric, numEntitiesCount);
         }
 
         // create a list of "insert" statements, one for each stat value.
@@ -255,13 +290,12 @@ public class MarketStatsAccumulator {
      *
      * <p>Note that the insertStmt parameter is re-used, and so is not closed here.
      * It must be closed by the caller.
-     * @param snapshotTime the time of the snapshot
      * @param entityId the OID of the entity which is selling these commodities
      * @param commoditySoldList a list of CommoditySoldDTO values to be persisted
      */
-    public void persistCommoditiesSold(long snapshotTime,
-                                long entityId,
-                                @Nonnull List<TopologyDTO.CommoditySoldDTO> commoditySoldList)
+    @VisibleForTesting
+    void persistCommoditiesSold(final long entityId,
+                                @Nonnull final List<TopologyDTO.CommoditySoldDTO> commoditySoldList)
             throws VmtDbException {
         for (TopologyDTO.CommoditySoldDTO commoditySoldDTO : commoditySoldList) {
             // do not persist commodity if it is not active
@@ -291,7 +325,7 @@ public class MarketStatsAccumulator {
                     = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
                     ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
                     : capacity;
-            historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime,
+            historydbIO.initializeCommodityInsert(mixedCaseCommodityName, topologyInfo.getCreationTime(),
                     entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
                     effectiveCapacity, commoditySoldDTO.getCommodityType().getKey(), insertStmt,
                     dbTable);
@@ -329,23 +363,23 @@ public class MarketStatsAccumulator {
      * If the provider of a set of commodities is not available yet (because it shows up later
      * in the incoming topology message) then delay the insertion of that set of commodities.
      *
-     * @param snapshotTime time for the snapshot of the topology being persisted
      * @param entityDTO the buyer DTO
      * @param capacities map from seller entityId and commodity type to capacity
      * @param delayedCommoditiesBought a map of commodities-bought where seller entity is not yet known
      * @param entityByOid mapping from oid of the entity to the entity object
      * @throws VmtDbException when cannot insert to the DB
      */
-    public void persistCommoditiesBought(
-            long snapshotTime,
-            @Nonnull TopologyDTO.TopologyEntityDTO entityDTO,
-            @Nonnull Map<Long, Map<Integer, Double>> capacities,
-            @Nonnull Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
-            @Nonnull Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
+    @VisibleForTesting
+    void persistCommoditiesBought(
+            @Nonnull final TopologyDTO.TopologyEntityDTO entityDTO,
+            @Nonnull final Map<Long, Map<Integer, Double>> capacities,
+            @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
+            @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
         for (CommoditiesBoughtFromProvider commodityBoughtGrouping : entityDTO.getCommoditiesBoughtFromProvidersList()) {
             Long providerId = commodityBoughtGrouping.hasProviderId() ?
                     commodityBoughtGrouping.getProviderId() : null;
-            DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(snapshotTime,
+            DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(
+                    topologyInfo.getCreationTime(),
                     entityDTO.getOid(), providerId, commodityBoughtGrouping,
                     capacities, entityByOid);
 
@@ -370,12 +404,12 @@ public class MarketStatsAccumulator {
         private final Map<Long, Map<Integer, Double>> capacities;
         private final Map<Long, TopologyEntityDTO> entityByOid;
 
-        public DelayedCommodityBoughtWriter(long snapshotTime,
-                                            long entityOid,
-                                            @Nullable Long providerId,
-                                            @Nonnull CommoditiesBoughtFromProvider commoditiesBought,
-                                            @Nonnull Map<Long, Map<Integer, Double>> capacities,
-                                            @Nonnull Map<Long, TopologyEntityDTO> entityByOid) {
+        public DelayedCommodityBoughtWriter(final long snapshotTime,
+                                    final long entityOid,
+                                    @Nullable final Long providerId,
+                                    @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
+                                    @Nonnull final Map<Long, Map<Integer, Double>> capacities,
+                                    @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
             this.snapshotTime = snapshotTime;
             this.entityOid = entityOid;
             this.providerId = providerId;
@@ -401,17 +435,16 @@ public class MarketStatsAccumulator {
      *
      * <p>Note that the insertStmt parameter is re-used, and so is not closed here.
      * It must be closed by the caller.
-     * @param snapshotTime the timestamp for this snapshot
      * @param entityDTO the entity for which the attributes should be persisted
      */
-    public void persistEntityAttributes(long snapshotTime,
-                                        @Nonnull TopologyDTO.TopologyEntityDTO entityDTO)
+    @VisibleForTesting
+    void persistEntityAttributes(@Nonnull final TopologyDTO.TopologyEntityDTO entityDTO)
             throws VmtDbException {
 
         long entityId = entityDTO.getOid();
 
         // persist "Produces" == # of commodities sold
-        persistEntityAttribute(snapshotTime, entityId, PRODUCES.getMixedCase(),
+        persistEntityAttribute(entityId, PRODUCES.getMixedCase(),
                 entityDTO.getCommoditySoldListCount(), insertStmt, dbTable);
 
         // scan entity attributes for specific attributes to persist as commodities
@@ -422,7 +455,7 @@ public class MarketStatsAccumulator {
                 try {
                     double floatValue = Float.valueOf(propertyValue);
                     String commodityType = PERSISTED_ATTRIBUTE_MAP.get(propertyKey).getMixedCase();
-                    persistEntityAttribute(snapshotTime, entityId, commodityType,
+                    persistEntityAttribute(entityId, commodityType,
                             floatValue, insertStmt, dbTable);
                     internalAddCommodity(commodityType, commodityType, floatValue, floatValue,
                             floatValue, floatValue, RelationType.METRICS);
@@ -439,21 +472,19 @@ public class MarketStatsAccumulator {
      *
      * <p>Note that the insertStmt parameter is re-used, and so is not closed here.
      * It must be closed by the caller.
-     * @param snapshotTime the timestamp for this snapshot
      * @param entityId the OID of the entity to be persisted
      * @param mixedCaseCommodityName the name for this commodity
      * @param valueToPersist the value of the commodity to be persisted
      * @param insertStmt a {@link InsertSetMoreStep} pre-populated with common values for rows
      * @param dbTable the xxx_stats_latest table into which the values will be inserted
      */
-    private void persistEntityAttribute(long snapshotTime,
-                                        long entityId,
+    private void persistEntityAttribute(long entityId,
                                         @Nonnull String mixedCaseCommodityName,
                                         double valueToPersist,
                                         @Nonnull InsertSetMoreStep<?> insertStmt,
                                         @Nonnull Table<?> dbTable) throws VmtDbException {
         // initialize the common values for this row
-        historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime, entityId,
+        historydbIO.initializeCommodityInsert(mixedCaseCommodityName, topologyInfo.getCreationTime(), entityId,
                 RelationType.METRICS, /*providerId*/null, null,
                 null, null, insertStmt, dbTable);
         // set the values specific to used component of commodity and write
@@ -559,25 +590,26 @@ public class MarketStatsAccumulator {
         }
     }
 
-    public void writeQueuedRows() throws VmtDbException {
+    @VisibleForTesting
+    void writeQueuedRows() throws VmtDbException {
         if (queuedRows > 0) {
             // todo (ml) consider adding an accumulating metric for the total time taken for db io
             historydbIO.execute(BasedbIO.Style.FORCED, insertStmt);
             // count the number of batches of insert statements executed
-            TOPOLOGY_INSERT_BATCH_COUNT
+            Metrics.TOPOLOGY_INSERT_BATCH_COUNT
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
                             SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                    .inc();
+                    .increment();
             // count the number of insert statements in this batch
-            TOPOLOGY_INSERT_COUNT
+            Metrics.TOPOLOGY_INSERT_COUNT
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
                             SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                    .inc();
+                    .increment();
             // calculate the number of rows inserted, based on the number of values and values-per-row
-            TOPOLOGY_INSERT_ROW_COUNT
+            Metrics.TOPOLOGY_INSERT_ROW_COUNT
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
                             SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                    .inc(queuedRows);
+                    .increment((double)queuedRows);
 
         }
     }
@@ -607,6 +639,7 @@ public class MarketStatsAccumulator {
     public static class MarketStatsData {
 
         private final String entityType;
+        private final EnvironmentType environmentType;
         private final String propertyType;
         private final String propertySubtype;
         private final RelationType relationType;
@@ -617,11 +650,13 @@ public class MarketStatsAccumulator {
         private double max;
         private int count = 0;
 
-        public MarketStatsData(@Nonnull String entityType,
-                               @Nonnull String propertyType,
-                               @Nonnull String propertySubtype,
-                               @Nonnull RelationType relationType) {
+        public MarketStatsData(@Nonnull final String entityType,
+                               @Nonnull final EnvironmentType environmentType,
+                               @Nonnull final String propertyType,
+                               @Nonnull final String propertySubtype,
+                               @Nonnull final RelationType relationType) {
             this.entityType = entityType;
+            this.environmentType = environmentType;
             this.propertyType = propertyType;
             this.propertySubtype = propertySubtype;
             this.relationType = relationType;
@@ -690,6 +725,10 @@ public class MarketStatsAccumulator {
             return entityType;
         }
 
+        public EnvironmentType getEnvironmentType() {
+            return environmentType;
+        }
+
         public String getPropertyType() {
             return propertyType;
         }
@@ -709,5 +748,31 @@ public class MarketStatsAccumulator {
         public Double getMax() {
             return max;
         }
+    }
+
+    static class Metrics {
+        /**
+         * Counters for monitoring DB usage.
+         */
+        private static final DataMetricCounter TOPOLOGY_INSERT_BATCH_COUNT = DataMetricCounter.builder()
+            .withName("history_topology_insert_batch_count")
+            .withHelp("Number of batches of insert DB statements performed.")
+            .withLabelNames("topology_type", "context_type")
+            .build()
+            .register();
+
+        private static final DataMetricCounter TOPOLOGY_INSERT_COUNT = DataMetricCounter.builder()
+            .withName("history_topology_insert_count")
+            .withHelp("Number of insert DB statements performed.")
+            .withLabelNames("topology_type", "context_type")
+            .build()
+            .register();
+
+        private static final DataMetricCounter TOPOLOGY_INSERT_ROW_COUNT = DataMetricCounter.builder()
+            .withName("history_topology_insert_rows")
+            .withHelp("Number of stats rows inserted.")
+            .withLabelNames("topology_type", "context_type")
+            .build()
+            .register();
     }
 }

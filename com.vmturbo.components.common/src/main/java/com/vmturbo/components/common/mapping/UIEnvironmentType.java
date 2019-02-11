@@ -1,5 +1,7 @@
 package com.vmturbo.components.common.mapping;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -22,6 +24,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 public enum UIEnvironmentType {
     CLOUD("CLOUD"),
     ON_PREM("ONPREM"),
+    HYBRID("HYBRID"),
     UNKNOWN("UNKNOWN");
 
     private static final Logger logger = LogManager.getLogger();
@@ -64,8 +67,8 @@ public enum UIEnvironmentType {
     @Nonnull
     public static UIEnvironmentType fromString(@Nullable final String inputEnvType) {
         if (inputEnvType == null) {
-            logger.warn("Returning UNKOWN entity state for empty string.");
-            return UIEnvironmentType.UNKNOWN;
+            // If the input string is "null", assume we want both cloud and on-prem.
+            return UIEnvironmentType.HYBRID;
         } else {
             for (UIEnvironmentType envType : UIEnvironmentType.values()) {
                 if (inputEnvType.equalsIgnoreCase(envType.getApiEnumStringValue())) {
@@ -79,10 +82,17 @@ public enum UIEnvironmentType {
 
     /**
      * @return Get the {@link EnvironmentType} associated with this {@link UIEnvironmentType}.
+     *         If this {@link UIEnvironmentType} is not associated with any particular
+     *         {@link EnvironmentType} (i.e. in the {@link UIEnvironmentType#HYBRID} case), return
+     *         empty.
      */
     @Nonnull
-    public EnvironmentType toEnvType() {
-        return ENTITY_STATE_MAPPINGS.inverse().getOrDefault(this, EnvironmentType.UNKNOWN_ENV);
+    public Optional<EnvironmentType> toEnvType() {
+        if (this == HYBRID) {
+            return Optional.empty();
+        } else {
+            return Optional.of(ENTITY_STATE_MAPPINGS.inverse().getOrDefault(this, EnvironmentType.UNKNOWN_ENV));
+        }
     }
 
     /**

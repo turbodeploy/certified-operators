@@ -19,6 +19,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Listen for updates to the plan topology; record them to the DB.
@@ -57,18 +58,17 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
     @Override
     public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
                                        @Nonnull final RemoteIterator<TopologyEntityDTO> topologyDTOs) {
-        SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
+        try (DataMetricTimer timer = SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                .time(() -> {
-                    handleScopedTopology(topologyInfo, topologyDTOs);
-                });
+                .startTimer()) {
+            handleScopedTopology(topologyInfo, topologyDTOs);
+        }
     }
 
     private void handleScopedTopology(TopologyInfo topologyInfo,
             RemoteIterator<TopologyEntityDTO> dtosIterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
-        final long creationTime = topologyInfo.getCreationTime();
         logger.info("Receiving plan topology, context: {}, id: {}", topologyContextId, topologyId);
         try {
             int numEntities = planStatsWriter.processChunks(topologyInfo, dtosIterator);
@@ -76,7 +76,7 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                    .observe(numEntities);
+                    .observe((double)numEntities);
         } catch (CommunicationException | TimeoutException | InterruptedException
                 | VmtDbException e) {
             logger.warn("Error occurred while processing data for topology broadcast "

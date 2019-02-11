@@ -676,6 +676,7 @@ public class Analysis {
             .map(entity -> SkippedEntity.newBuilder()
                 .setOid(entity.getOid())
                 .setEntityType(entity.getEntityType())
+                .setEnvironmentType(entity.getEnvironmentType())
                 .build())
             .collect(Collectors.toSet());
     }

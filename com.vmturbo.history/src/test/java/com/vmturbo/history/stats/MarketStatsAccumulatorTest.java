@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -111,12 +112,11 @@ public class MarketStatsAccumulatorTest {
 
         // arrange
         String entityType = "PhysicalMachine";
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(entityType,
-                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(TOPOLOGY_INFO,
+            entityType, EnvironmentType.ON_PREM, historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
 
         // act
-        final int hostCount = 10;
-        marketStatsAccumulator.persistMarketStats(hostCount, TOPOLOGY_INFO);
+        marketStatsAccumulator.persistMarketStats();
 
         // assert
         assertThat(marketStatsAccumulator.values().size(), is(1));
@@ -124,8 +124,11 @@ public class MarketStatsAccumulatorTest {
         verify(historydbIO).execute(Mockito.anyObject(), queryListCaptor.capture());
         verify(historydbIO).getMarketStatsInsertStmt(statsDataCaptor.capture(), eq(TOPOLOGY_INFO));
         verifyNoMoreInteractions(historydbIO);
-        assertThat(statsDataCaptor.getValue().getPropertyType(), is(NUM_HOSTS));
-        assertThat(statsDataCaptor.getValue().getUsed(), is((double)hostCount));
+
+        final MarketStatsData mktStatsData = statsDataCaptor.getValue();
+        assertThat(mktStatsData.getPropertyType(), is(NUM_HOSTS));
+        assertThat(mktStatsData.getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(mktStatsData.getUsed(), is((double)0));
 
     }
 
@@ -136,7 +139,8 @@ public class MarketStatsAccumulatorTest {
 
         // create the object under test
         String entityType = "PhysicalMachine";
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(entityType,
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(TOPOLOGY_INFO,
+                entityType, EnvironmentType.ON_PREM,
                 historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
         commoditiesSold.add(StatsTestUtils.cpu(3.14));
@@ -144,7 +148,7 @@ public class MarketStatsAccumulatorTest {
         // act
         // write 10 stats rows - doesn't matter that they are the same
         for (int i=0; i < 10; i++) {
-            marketStatsAccumulator.persistCommoditiesSold(SNAPSHOT_TIME, ENTITY_ID, commoditiesSold);
+            marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
         }
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
@@ -161,13 +165,14 @@ public class MarketStatsAccumulatorTest {
 
         // create the object under test
         String entityType = "PhysicalMachine";
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(entityType,
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
+                TOPOLOGY_INFO, entityType, EnvironmentType.ON_PREM,
                 historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
         commoditiesSold.add(StatsTestUtils.dspma(50000));
 
         // act
-        marketStatsAccumulator.persistCommoditiesSold(SNAPSHOT_TIME, ENTITY_ID, commoditiesSold);
+        marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
 
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
@@ -183,7 +188,8 @@ public class MarketStatsAccumulatorTest {
         // arrange
         InsertSetMoreStep mockInsertStmt = createMockInsertQuery(StatsTestUtils.APP_LATEST_TABLE);
 
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(APP_ENTITY_TYPE,
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
+                TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
                 historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         Map<Long, Map<Integer, Double>> capacities = Maps.newHashMap();
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
@@ -199,7 +205,7 @@ public class MarketStatsAccumulatorTest {
 
         // act
         for (int i=0; i < 10; i++) {
-            marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testApp,
+            marketStatsAccumulator.persistCommoditiesBought(testApp,
                     capacities, delayedCommoditiesBought, entityByOid);
         }
         // flush the stats, triggering the final insert
@@ -217,7 +223,8 @@ public class MarketStatsAccumulatorTest {
         // arrange
         InsertSetMoreStep mockInsertStmt = createMockInsertQuery(StatsTestUtils.APP_LATEST_TABLE);
 
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(APP_ENTITY_TYPE,
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
+            TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
             historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
 
         Map<Long, Map<Integer, Double>> capacities = Mockito.mock(Map.class);
@@ -227,7 +234,7 @@ public class MarketStatsAccumulatorTest {
 
         // act
         for (int i=0; i < 10; i++) {
-            marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testAppWithoutProvider,
+            marketStatsAccumulator.persistCommoditiesBought(testAppWithoutProvider,
                 capacities, delayedCommoditiesBought, entityByOid);
         }
         // flush the stats, triggering the final insert
@@ -250,14 +257,15 @@ public class MarketStatsAccumulatorTest {
         // arrange
         InsertSetMoreStep mockInsertStmt = createMockInsertQuery(StatsTestUtils.APP_LATEST_TABLE);
 
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(APP_ENTITY_TYPE,
-                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
+            TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
+            historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         Map<Long, Map<Integer, Double>> capacities = Maps.newHashMap();
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
         Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testApp.getOid(), testApp);
 
         // act
-        marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testApp,
+        marketStatsAccumulator.persistCommoditiesBought(testApp,
                 capacities, delayedCommoditiesBought, entityByOid);
         // flush the stats, triggering the final insert
         marketStatsAccumulator.writeQueuedRows();
@@ -280,14 +288,15 @@ public class MarketStatsAccumulatorTest {
         // arrange
         InsertSetMoreStep mockInsertStmt = createMockInsertQuery(StatsTestUtils.APP_LATEST_TABLE);
 
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(APP_ENTITY_TYPE,
-                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
+            TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
+            historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
         Map<Long, Map<Integer, Double>> capacities = Maps.newHashMap();
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
         Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testApp.getOid(), testApp);
 
         // accumulate commodities bought from a seller who is not yet known
-        marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testApp,
+        marketStatsAccumulator.persistCommoditiesBought(testApp,
                 capacities, delayedCommoditiesBought, entityByOid);
         // save capacities from vm
         Map<Integer, Double> capacityMap = testVm.getCommoditySoldListList().stream().collect(Collectors.toMap(
@@ -316,11 +325,12 @@ public class MarketStatsAccumulatorTest {
     public void testPersistEntityAttributes() throws Exception {
         // arrange
         InsertSetMoreStep mockInsertStmt = createMockInsertQuery(StatsTestUtils.PM_LATEST_TABLE);
-        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(PM_ENTITY_TYPE,
-                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(TOPOLOGY_INFO,
+            PM_ENTITY_TYPE, EnvironmentType.ON_PREM,
+            historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
 
         // act
-        marketStatsAccumulator.persistEntityAttributes(SNAPSHOT_TIME, testPm);
+        marketStatsAccumulator.persistEntityAttributes(testPm);
         marketStatsAccumulator.writeQueuedRows();
 
         // assert - 3 attribute rows (other attributes filtered) -> 1 write

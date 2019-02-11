@@ -140,20 +140,48 @@ public interface StatSnapshotCreator {
                             }
                         }
 
-                        // calculate the averages
-                        final int numStatRecords = dbStatRecordList.size();
-                        float avgValueAvg = avgTotal / numStatRecords;
-                        float minValueAvg = minTotal / numStatRecords;
-                        float maxValueAvg = maxTotal / numStatRecords;
+                        final StatRecord statRecord;
+                        if (fullMarket) {
+                            // For the full market, we don't divide the values by the number of
+                            // records. This is because we know all records for this commodity at
+                            // this time refer to the same "entity" (i.e. the market). The total
+                            // value for this entity got "split" according to certain properties
+                            // when we saved it, and we add up all the matching rows to "re-unite"
+                            // it at query-time.
+                            //
+                            // For example, if a certain commodity "amtConsumed" has value 2 for
+                            // environment_type ON_PREM and value 3 for environment_type CLOUD,
+                            // then when we search for commodity "amtConsumed" with no environment
+                            // type filter (i.e. we want the amount consumed across environments),
+                            // the returned value should be 5 (total), not 2.5 (average)
+                            //
+                            // Note (roman, Feb 6 2019): It's not clear what the different expected
+                            // records are here. It's possible that there are stats for which we
+                            // DO want the amount to be averaged across records.
 
-                        // calculate the "reserved" amount. This is the gap between capacity and
-                        // "effective capacity".
-                        float reserved = (float) (capacityValue.getAvg() - effectiveCapacityValue.getAvg());
+                            // calculate the "reserved" amount. This is the gap between capacity and
+                            // "effective capacity".
+                            float reserved = (float) (capacityValue.getTotal() - effectiveCapacityValue.getTotal());
+                            statRecord = statRecordBuilder.buildStatRecord(propertyType, propertySubtype,
+                                capacityValue.toStatValue(), reserved,
+                                producerId, avgTotal, minTotal, maxTotal,
+                                commodityKey, avgTotal, relation);
+                        } else {
+                            // calculate the averages
+                            final int numStatRecords = dbStatRecordList.size();
+                            float avgValueAvg = avgTotal / numStatRecords;
+                            float minValueAvg = minTotal / numStatRecords;
+                            float maxValueAvg = maxTotal / numStatRecords;
 
-                        // build the record for this stat (commodity type)
-                        final StatRecord statRecord = statRecordBuilder.buildStatRecord(propertyType, propertySubtype,
+                            // calculate the "reserved" amount. This is the gap between capacity and
+                            // "effective capacity".
+                            float reserved = (float) (capacityValue.getAvg() - effectiveCapacityValue.getAvg());
+
+                            // build the record for this stat (commodity type)
+                            statRecord = statRecordBuilder.buildStatRecord(propertyType, propertySubtype,
                                 capacityValue.toStatValue(), reserved, producerId, avgValueAvg, minValueAvg, maxValueAvg,
                                 commodityKey, avgTotal, relation);
+                        }
 
                         // return add this record to the snapshot for this timestamp
                         snapshotBuilder.addStatRecords(statRecord);

@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -14,11 +13,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -45,7 +47,7 @@ public class LiveStatsAggregator {
     private final TopologyInfo topologyInfo;
 
     /**
-     * Each string should be a value of {@link CommodityTypes}.
+     * Each string should be a value of {@link CommodityType}.
      */
     private final ImmutableList<String> commoditiesToExclude;
 
@@ -64,9 +66,9 @@ public class LiveStatsAggregator {
      */
     private Map<Map<Integer, Double>, Map<Integer, Double>> reusableCapacityMaps = Maps.newHashMap();
     /**
-     * Market statistics accumulators keyed by base entity type.
+     * {@link MarketStatsAccumulator}s by base entity type and environment type.
      */
-    private Map<String, MarketStatsAccumulator> accumulators = Maps.newHashMap();
+    private Table<String, EnvironmentType, MarketStatsAccumulator> accumulatorsByEntityAndEnvType = HashBasedTable.create();
     /**
      * Map from numerical entity type to {@link EntityType}.
      */
@@ -75,10 +77,6 @@ public class LiveStatsAggregator {
      * Map from numerical entity type to (String) base entity type.
      */
     private Map<Integer, Optional<String>> baseEntityTypes = Maps.newHashMap();
-    /**
-     * Number of entities by base entity type.
-     */
-    private Map<String, Counter> perTypeCounters = Maps.newHashMap();
 
     /**
      * This map is used when a commodity bought list is received but the provider
@@ -91,8 +89,6 @@ public class LiveStatsAggregator {
     /**
      * Metrics used for counting DB operations so as to better understand DB performance.
      */
-
-
     public LiveStatsAggregator(@Nonnull final HistorydbIO historydbIO,
                                @Nonnull final TopologyInfo topologyInfo,
                                ImmutableList<String> commoditiesToExclude,
@@ -163,9 +159,9 @@ public class LiveStatsAggregator {
      */
     private void aggregateEntityStats(TopologyEntityDTO entityDTO,
             Map<Long, TopologyEntityDTO> entityByOid) throws VmtDbException {
-        int sdkEntityType = entityDTO.getEntityType();
+        final int sdkEntityType = entityDTO.getEntityType();
         // determine the DB Entity Type for this SDK Entity Type
-        Optional<EntityType> entityDBInfo =
+        final Optional<EntityType> entityDBInfo =
             entityTypes.computeIfAbsent(sdkEntityType, historydbIO::getEntityType);
         if (!entityDBInfo.isPresent()) {
             logger.debug("DB info for entity type {}[{}] not present.",
@@ -176,23 +172,23 @@ public class LiveStatsAggregator {
         // Capture the base entity type without aliasing, used for the market_stats_xxx table
         // The market_stats_last entries MUST NOT alias DataCenter with PhysicalMachine.
         // This is why we require "baseEntityType".
-        Optional<String> baseEntityTypeOptional = baseEntityTypes.computeIfAbsent(sdkEntityType,
+        final Optional<String> baseEntityTypeOptional = baseEntityTypes.computeIfAbsent(sdkEntityType,
                 historydbIO::getBaseEntityType);
         if (!baseEntityTypeOptional.isPresent()) {
             return;
         }
         final String baseEntityType = baseEntityTypeOptional.get();
-        MarketStatsAccumulator marketStatsAccumulator = accumulators.computeIfAbsent(baseEntityType,
-                type -> new MarketStatsAccumulator(type, historydbIO, writeTopologyChunkSize,
-                        commoditiesToExclude));
 
-        long snapshotTime = topologyInfo.getCreationTime();
-        marketStatsAccumulator.persistCommoditiesBought(snapshotTime, entityDTO, capacities,
-                delayedCommoditiesBought, entityByOid);
-        marketStatsAccumulator.persistCommoditiesSold(snapshotTime, entityDTO.getOid(),
-            entityDTO.getCommoditySoldListList());
-        marketStatsAccumulator.persistEntityAttributes(snapshotTime, entityDTO);
-        perTypeCounters.computeIfAbsent(baseEntityType, key -> new Counter()).increment();
+        MarketStatsAccumulator marketStatsAccumulator =
+            accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
+        if (marketStatsAccumulator == null) {
+            marketStatsAccumulator = new MarketStatsAccumulator(topologyInfo, baseEntityType,
+                entityDTO.getEnvironmentType(), historydbIO, writeTopologyChunkSize,
+                commoditiesToExclude);
+            accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
+        }
+
+        marketStatsAccumulator.recordEntity(entityDTO, capacities, delayedCommoditiesBought, entityByOid);
     }
 
     /**
@@ -223,11 +219,8 @@ public class LiveStatsAggregator {
      * @throws VmtDbException when there is a problem writing to the DB.
      */
     public void writeFinalStats() throws VmtDbException {
-        for (Entry<String, MarketStatsAccumulator> statsEntry : accumulators.entrySet()) {
-            String baseType = statsEntry.getKey();
-            MarketStatsAccumulator statsAccumulator = statsEntry.getValue();
-            statsAccumulator.writeQueuedRows();
-            statsAccumulator.persistMarketStats(perTypeCounters.get(baseType).value(), topologyInfo);
+        for (final MarketStatsAccumulator statsAccumulator : accumulatorsByEntityAndEnvType.values()) {
+            statsAccumulator.writeFinalStats();
         }
     }
 
@@ -246,36 +239,5 @@ public class LiveStatsAggregator {
         handleDelayedCommoditiesBought(entityDTO.getOid());
         // schedule the stats for the entity for persisting to db
         aggregateEntityStats(entityDTO, entityByOid);
-    }
-
-    /**
-     * A counter.
-     *
-     */
-    private static class Counter {
-
-        private int value = 0;
-
-        /**
-         * Get the value of the counter.
-         *
-         * @return the value of the counter
-         */
-        private int value() {
-            return value;
-        }
-
-        /**
-         * Increment the counter by 1.
-         *
-         */
-        private void increment() {
-            value++;
-        }
-
-        @Override
-        public String toString() {
-            return String.valueOf(value);
-        }
     }
 }

@@ -141,6 +141,10 @@
                                     <converter>com.vmturbo.history.schema.RelationTypeConverter</converter>
                                 </customType>
                                 <customType>
+                                    <name>com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType</name>
+                                    <converter>com.vmturbo.history.schema.EnvironmentTypeConverter</converter>
+                                </customType>
+                                <customType>
                                     <name>com.vmturbo.api.enums.Period</name>
                                     <converter>com.vmturbo.history.schema.PeriodConverter</converter>
                                 </customType>
@@ -177,6 +181,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.history.schema.RelationType</name>
                                     <expressions>.*\.relation</expressions>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType</name>
+                                    <expressions>.*\.environment_type</expressions>
                                 </forcedType>
 
                                 <forcedType>
@@ -234,6 +242,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
         </dependency>
         <!-- Other Dependencies -->
         <dependency>

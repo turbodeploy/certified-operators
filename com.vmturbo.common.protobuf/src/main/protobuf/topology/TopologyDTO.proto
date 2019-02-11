@@ -461,6 +461,10 @@ message ProjectedTopology {
             // The entity type of the entity. We often need the entity type to figure
             // out what to do with the entity.
             optional int32 entity_type = 2;
+
+            // The environment type of the entity. We may need the environment type to
+            // properly categorize the entity.
+            optional .common.EnvironmentType environment_type = 3;
         }
 
         // The basic information of the source topology
