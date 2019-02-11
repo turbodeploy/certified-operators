@@ -15,68 +15,112 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
- * Tracks stitching order dependency among probes.  Can return a set of ProbeCategories that need
- * to stitch before a passed in ProbeCategory.
+ * Tracks stitching order dependency among probes.  Can return a set of {@link ProbeCategory} or
+ * {@link SDKProbeType} that need to stitch before a passed in probe category or type.
  */
 public class ProbeStitchingDependencyTracker {
+
     private final static Logger logger = LogManager.getLogger();
+
     /**
-     * Map that takes a ProbeCategory and returns a Set of ProbeCategory objects that need to stitch
-     * before it.
+     * Map that takes a {@link ProbeCategory} and returns a Set of {@link ProbeCategory}s that need
+     * to stitch before it.
      */
-    private final Map<ProbeCategory, Set<ProbeCategory>> stitchBeforeMap = Maps.newHashMap();
+    private final Map<ProbeCategory, Set<ProbeCategory>> probeCategoriesStitchBeforeMap =
+        Maps.newHashMap();
+
+    /**
+     * Map that takes a {@link SDKProbeType} and returns a Set of {@link SDKProbeType}s objects that
+     * need to stitch before it.
+     */
+    private final Map<SDKProbeType, Set<SDKProbeType>> probeTypesStitchBeforeMap =
+        Maps.newHashMap();
 
     /**
      * Create a ProbeStitchingDependencyTracker from a dependency map that has no cycles.
      *
-     * @param dependencyMap A map from ProbeCategory to a CategoryEntry object containing
-     *                      all the probe categories that need to stitch before it.
+     * @param probeCategoriesDependencyMap A map from {@link ProbeCategory} to a StitchingEntry
+     *                                     object containing all the probe categories that need to
+     *                                     stitch before it.
+     * @param probeTypesDependencyMap A map from {@link SDKProbeType} to a StitchingEntry object
+     *                                containing all the probe types that need to stitch before it.
      */
     private ProbeStitchingDependencyTracker(
-            @Nonnull final Map<ProbeCategory, CategoryEntry> dependencyMap) {
+            @Nonnull final Map<ProbeCategory, StitchingEntry<ProbeCategory>>
+                probeCategoriesDependencyMap,
+            @Nonnull final Map<SDKProbeType, StitchingEntry<SDKProbeType>>
+                probeTypesDependencyMap) {
+        constructStitchingDependencyTracker(probeCategoriesDependencyMap,
+            probeCategoriesStitchBeforeMap);
+        constructStitchingDependencyTracker(probeTypesDependencyMap,
+            probeTypesStitchBeforeMap);
+    }
+
+    private <CATEGORY_OR_TYPE> void constructStitchingDependencyTracker(
+            @Nonnull final Map<CATEGORY_OR_TYPE, StitchingEntry<CATEGORY_OR_TYPE>> dependencyMap,
+            @Nonnull final Map<CATEGORY_OR_TYPE, Set<CATEGORY_OR_TYPE>> stitchBeforeMap) {
         Objects.requireNonNull(dependencyMap);
         dependencyMap.entrySet().stream()
-                .forEach(nextEntry -> stitchBeforeMap
-                        .computeIfAbsent(nextEntry.getKey(), key -> Sets.newHashSet())
-                        .addAll(nextEntry.getValue().getStitchAfter()));
-        stitchBeforeMap.keySet().forEach(key -> stitchBeforeMap.put(key, getTransitiveClosure(key)));
+            .forEach(nextEntry -> stitchBeforeMap
+                .computeIfAbsent(nextEntry.getKey(), key -> Sets.newHashSet())
+                .addAll(nextEntry.getValue().getStitchAfter()));
+        stitchBeforeMap.keySet().forEach(
+            key -> stitchBeforeMap.put(key, getTransitiveClosure(key, stitchBeforeMap)));
     }
 
     /**
-     * Compute the transitive closure of a ProbeCategory in stitchBeforeMap.  The transitive closure
-     * of a vertex in a graph is the set of all vertices reachable from that vertex.  See
-     * https://en.wikipedia.org/wiki/Transitive_closure#In_graph_theory. For example, if
-     * Storage has a map entry of Hypervisor, Hyper_Converged and Hyper_Converged has an entry of
+     * Compute the transitive closure of a {@link CATEGORY_OR_TYPE} in stitchBeforeMap.  The
+     * transitive closure of a vertex in a graph is the set of all vertices reachable from that
+     * vertex.  See https://en.wikipedia.org/wiki/Transitive_closure#In_graph_theory. For example,
+     * if Storage has a map entry of Hypervisor, Hyper_Converged and Hyper_Converged has an entry of
      * Hypervisor, Cloud_Management, then the transitive closure for Storage would be Hypervisor,
      * Hyper_Converged, Cloud_Management meaning Storage must stitch after all those categories are
      * stitched.  Note that we take advantage of the fact that stitchBeforeMap has no cycles in it.
      *
-     * @param probeCategory The {@link ProbeCategory} to compute the transitive closure of.
+     * @param categoryOrType The {@link CATEGORY_OR_TYPE} to compute the transitive closure of.
      * @return {@link Set} giving the ProbeCategory objects in the transitive closure.
      */
-    private Set<ProbeCategory> getTransitiveClosure(ProbeCategory probeCategory) {
-        Set<ProbeCategory> retVal = Sets.newHashSet();
-        Set<ProbeCategory> categoriesToAdd = stitchBeforeMap.get(probeCategory);
-        logger.trace("ProbeCategory {} has categories {}", probeCategory, categoriesToAdd);
-        if (categoriesToAdd != null) {
-            categoriesToAdd.stream()
-                    .forEach(probeCat -> retVal.addAll(getTransitiveClosure(probeCat)));
-            retVal.addAll(categoriesToAdd);
+    private <CATEGORY_OR_TYPE> Set<CATEGORY_OR_TYPE> getTransitiveClosure(
+            @Nonnull final CATEGORY_OR_TYPE categoryOrType,
+            @Nonnull final Map<CATEGORY_OR_TYPE, Set<CATEGORY_OR_TYPE>> stitchBeforeMap) {
+        Set<CATEGORY_OR_TYPE> retVal = Sets.newHashSet();
+        Set<CATEGORY_OR_TYPE> categoriesOrTypesToAdd = stitchBeforeMap.get(categoryOrType);
+        logger.trace("Probe category or type {} has category or type {}", categoryOrType,
+            categoriesOrTypesToAdd);
+        if (categoriesOrTypesToAdd != null) {
+            categoriesOrTypesToAdd.stream()
+                .forEach(probeCat -> retVal.addAll(getTransitiveClosure(probeCat,
+                    stitchBeforeMap)));
+            retVal.addAll(categoriesOrTypesToAdd);
         }
-        logger.trace("getTransitiveClosure for {} returning {}", probeCategory, retVal);
+        logger.trace("getTransitiveClosure for {} returning {}", categoryOrType, retVal);
         return retVal;
 
     }
+
     /**
-     * Return the set of probeCategories that must stitch before this one.
+     * Return the set of probe categories that must stitch before this one.
      *
      * @param probeCategory {@link ProbeCategory} to get the dependencies of.
-     * @return Set of probeCategories that must stitch before this one.
+     * @return Set of probe categories that must stitch before this one.
      */
-    public Set<ProbeCategory> getProbeCategoriesThatStitchBefore(ProbeCategory probeCategory) {
-        return stitchBeforeMap.getOrDefault(probeCategory, Collections.emptySet());
+    public Set<ProbeCategory> getProbeCategoriesThatStitchBefore(
+            ProbeCategory probeCategory) {
+        return probeCategoriesStitchBeforeMap.getOrDefault(probeCategory, Collections.emptySet());
+    }
+
+    /**
+     * Return the set of prpbe types that must stitch before this one.
+     *
+     * @param probeType {@link SDKProbeType} to get the dependencies of.
+     * @return Set of probe types that must stitch before this one.
+     */
+    public Set<SDKProbeType> getProbeTypesThatStitchBefore(
+            SDKProbeType probeType) {
+        return probeTypesStitchBeforeMap.getOrDefault(probeType, Collections.emptySet());
     }
 
     /**
@@ -90,95 +134,128 @@ public class ProbeStitchingDependencyTracker {
     /**
      * Get the default ProbeStitchingDependencyTracker
      *
-     * @return {@link ProbeStitchingDependencyTracker} that gives default probe category stitching
-     * order.
+     * @return {@link ProbeStitchingDependencyTracker} that gives default probe category or type
+     * stitching order.
      */
     @Nullable public static ProbeStitchingDependencyTracker getDefaultStitchingDependencyTracker() {
         try {
-            return newBuilder().requireThat(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.STORAGE_BROWSING).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.FABRIC).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                    .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.HYPERVISOR)
-                    .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                    .build();
+            return newBuilder()
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.STORAGE_BROWSING).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.STORAGE_BROWSING).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.FABRIC).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.FABRIC).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                // probe type ordering, we only support the probe types comparison if they are
+                // belonged to same category.
+                .requireThatProbeType(SDKProbeType.CLOUD_FOUNDRY).stitchAfter(SDKProbeType.PIVOTAL_OPSMAN)
+                .build();
         } catch (ProbeException e) {
-            logger.error("Dependency cycle while building default ProbeStitchingDependencyTracker",
-                    e);
+            logger.error("Dependency cycle while building default " +
+                "ProbeStitchingDependencyTracker", e);
             return null;
         }
     }
 
     public static class Builder {
-        Map<ProbeCategory, CategoryEntry> probeCategoryDependencyMap = Maps.newHashMap();
 
-        private Builder() {
+        private final Map<ProbeCategory, StitchingEntry<ProbeCategory>> probeCategoryDependencyMap =
+            Maps.newHashMap();
 
-        }
+        private final Map<SDKProbeType, StitchingEntry<SDKProbeType>> probeTypeDependencyMap =
+            Maps.newHashMap();
+
+        private Builder() { }
 
         /**
-         * Create or get the CategoryEntry object that will enable us to add a ProbeCategory
+         * Create or get the StitchingEntry object that will enable us to add a {@link ProbeCategory}
          * stitching order dependency.
          *
          * @param probeCategory the {@link ProbeCategory} that we want to restrict to stitching
-         *                      after some other ProbeCategory.
-         * @return CategoryEntry for probeCategory that will encapsulate all the ProbeCategories
-         * that need to stitch before it.
+         *                      after some other {@link ProbeCategory} .
+         * @return StitchingEntry for probe categories that will encapsulate all the probe
+         * categories that need to stitch before it.
          */
-        public CategoryEntry requireThat(@Nonnull final ProbeCategory probeCategory) {
+        public StitchingEntry<ProbeCategory> requireThatProbeCategory(
+                @Nonnull final ProbeCategory probeCategory) {
             return probeCategoryDependencyMap.computeIfAbsent(probeCategory,
-                    probeCat -> new CategoryEntry(this));
+                probeCat -> new StitchingEntry<>(this));
         }
 
         /**
-         * Iterate over the probeCategories and see if we have any cycles in the
-         * probeCategoryDependencyMap.
+         * Create or get the StitchingEntry object that will enable us to add a {@link SDKProbeType}
+         * stitching order dependency.
+         *
+         * @param probetype the {@link SDKProbeType} that we want to restrict to stitching
+         *                      after some other {@link SDKProbeType}.
+         * @return StitchingEntry for probe types that will encapsulate all the probe types that
+         * need to stitch before it.
+         */
+        public StitchingEntry<SDKProbeType> requireThatProbeType(
+                @Nonnull final SDKProbeType probetype) {
+            return probeTypeDependencyMap.computeIfAbsent(probetype,
+                probeCat -> new StitchingEntry<>(this));
+        }
+
+        /**
+         * Iterate over the probe {@link CATEGORY_OR_TYPE} and see if we have any cycles.
          *
          * @return true if there is a cycle, false if not.
          */
-        private boolean checkForCycles() {
+        private <CATEGORY_OR_TYPE> boolean checkForCycles(
+                @Nonnull final Map<CATEGORY_OR_TYPE, StitchingEntry<CATEGORY_OR_TYPE>>
+                    dependencyMap) {
             boolean cycleExists = false;
-            Set<ProbeCategory> allVisited = Sets.newHashSet();
-            for (ProbeCategory probeCat : probeCategoryDependencyMap.keySet()) {
-                // if we haven't already covered this probeCategory, check it for cycles by doing
-                // a depth first search with this category as root
+            Set<CATEGORY_OR_TYPE> allVisited = Sets.newHashSet();
+            for (CATEGORY_OR_TYPE probeCat : dependencyMap.keySet()) {
+                // if we haven't already covered this probe category or type, check it for cycles by
+                // doing a depth first search with this as root
                 if (allVisited.contains(probeCat)) {
                     continue;
                 }
-                Set<ProbeCategory> visited = Sets.newHashSet();
-                cycleExists = checkForCycles(probeCat, visited);
+                Set<CATEGORY_OR_TYPE> visited = Sets.newHashSet();
+                cycleExists = checkForCycles(probeCat, visited, dependencyMap);
                 if (cycleExists) {
                     return true;
                 }
-                // keep track of all the ProbeCategories we've visited to optimize performance by
-                // avoiding searching the same portion of the forest twice.
+                // keep track of all the probe categories or types we've visited to optimize
+                // performance by avoiding searching the same portion of the forest twice.
                 allVisited.addAll(visited);
             }
             return cycleExists;
         }
 
         /**
-         * Check if there is a cycle starting from a particular ProbeCategory in the dependency map.
+         * Check if there is a cycle starting from a particular {@link CATEGORY_OR_TYPE} in the
+         * dependency map.
          *
-         * @param root The starting probe category.
-         * @param visited The set of probe categories that have already been visited.
+         * @param root The starting probe category or type.
+         * @param visited The set of probe categories or types that have already been visited.
          * @return
          */
-        private boolean checkForCycles(@Nonnull ProbeCategory root,
-                                       @Nonnull Set<ProbeCategory> visited) {
-            CategoryEntry categoryEntry = probeCategoryDependencyMap.get(root);
+        private <CATEGORY_OR_TYPE> boolean checkForCycles(
+                @Nonnull CATEGORY_OR_TYPE root,
+                @Nonnull Set<CATEGORY_OR_TYPE> visited,
+                @Nonnull Map<CATEGORY_OR_TYPE, StitchingEntry<CATEGORY_OR_TYPE>> dependencyMap) {
+            StitchingEntry<CATEGORY_OR_TYPE> stitchingEntry = dependencyMap.get(root);
             boolean cycleExists = false;
             if (visited.contains(root)) {
                 logger.error("Cycle detected while building ProbeStitchingDependencyTracker."
-                        + "  Cycle begins at ProbeCategory {}", root);
+                    + "  Cycle begins at probe category or type {}", root);
                 return true;
             }
             visited.add(root);
-            if (categoryEntry!=null) {
-                for (ProbeCategory probeCat : categoryEntry.getStitchAfter()) {
-                    cycleExists = checkForCycles(probeCat, visited);
+            if (stitchingEntry != null) {
+                for (CATEGORY_OR_TYPE probeCat : stitchingEntry.getStitchAfter()) {
+                    cycleExists = checkForCycles(probeCat, visited, dependencyMap);
                     if (cycleExists) {
                         break;
                     }
@@ -190,52 +267,66 @@ public class ProbeStitchingDependencyTracker {
         }
 
         /**
-         * Build and return the {@link ProbeStitchingDependencyTracker} that represents the stitching order
-         * dependencies for the ProbeCategories that have dependencies after ensuring that no cycles
-         * exist in the stitching order.
+         * Build and return the {@link ProbeStitchingDependencyTracker} that represents the
+         * stitching order dependencies for the {@link ProbeCategory}s or {@link SDKProbeType}s that
+         * have dependencies after ensuring that no cycles exist in the stitching order.
          *
          * @return {@link ProbeStitchingDependencyTracker} encapsulating the stitching order, if it is
          * well defined.
          * @throws ProbeException if there is a cycle in the stitching order.
          */
         public ProbeStitchingDependencyTracker build() throws ProbeException {
-            if (checkForCycles()) {
+            if (checkForCycles(probeCategoryDependencyMap)) {
                 throw new ProbeException(
-                        "Cycle found in generating stitching dependency graph for probes.");
+                    "Cycle found in generating stitching dependency graph for different probe " +
+                        "categories.");
             }
-            return new ProbeStitchingDependencyTracker(probeCategoryDependencyMap);
+            if (checkForCycles(probeTypeDependencyMap)) {
+                throw new ProbeException(
+                    "Cycle found in generating stitching dependency graph for different probe " +
+                        "types");
+            }
+            return new ProbeStitchingDependencyTracker(probeCategoryDependencyMap,
+                probeTypeDependencyMap);
         }
     }
 
-    public static class CategoryEntry {
+    /**
+     * Class for {@link ProbeCategory} or {@link SDKProbeType} to hold relationship between the
+     * current probe and the probes which stitch before it.
+     *
+     * @param <CATEGORY_OR_TYPE> {@link ProbeCategory} or {@link SDKProbeType} that can define the
+     *                          probe order
+     */
+    public static class StitchingEntry<CATEGORY_OR_TYPE> {
 
         private final Builder builder;
 
-        private final Set<ProbeCategory> stitchAfter = Sets.newHashSet();
+        private final Set<CATEGORY_OR_TYPE> stitchAfter = Sets.newHashSet();
 
-        private CategoryEntry(Builder builder) {
+        private StitchingEntry(Builder builder) {
             this.builder = builder;
         }
 
         /**
-         * Add a {@link ProbeCategory} that will stitch before the ProbeCategory related to this
-         * CategoryEntry.
+         * Add a stitching entry {@link CATEGORY_OR_TYPE} that will stitch before the
+         * {@link CATEGORY_OR_TYPE} related to this entry.
          *
-         * @param earlierCategory ProbeCategory that needs to stitch before this one.
-         * @return
+         * @param earlierEntry {@link CATEGORY_OR_TYPE} that needs to stitch before this one.
+         * @return builder
          */
-        public Builder stitchAfter(ProbeCategory earlierCategory) {
-            stitchAfter.add(earlierCategory);
+        public Builder stitchAfter(CATEGORY_OR_TYPE earlierEntry) {
+            stitchAfter.add(earlierEntry);
             return builder;
         }
 
         /**
-         * Get the set of {@link ProbeCategory} objects representing probes that this category
-         * needs to stitch after.
+         * Get the set of {@link CATEGORY_OR_TYPE} objects representing probes that this entry needs
+         * to stitch after.
          *
-         * @return Set of {@link ProbeCategory}
+         * @return Set of {@link CATEGORY_OR_TYPE}
          */
-        public Set<ProbeCategory> getStitchAfter() {
+        public Set<CATEGORY_OR_TYPE> getStitchAfter() {
             return stitchAfter;
         }
     }

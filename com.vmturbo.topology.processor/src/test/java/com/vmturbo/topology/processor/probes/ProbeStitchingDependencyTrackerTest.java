@@ -10,12 +10,19 @@ import org.junit.rules.ExpectedException;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.probes.ProbeStitchingDependencyTracker.Builder;
 
 /**
  * Tests for {@link ProbeStitchingDependencyTracker}.
  */
 public class ProbeStitchingDependencyTrackerTest {
+
+    private final String categoryExceptionMsg = "Cycle found in generating stitching dependency " +
+            "graph for different probe categories.";
+
+    private final String typeExceptionMsg = "Cycle found in generating stitching dependency " +
+            "graph for different probe types";
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -24,10 +31,9 @@ public class ProbeStitchingDependencyTrackerTest {
     public void testSimpleLoop() throws Exception {
         Builder builder = ProbeStitchingDependencyTracker.newBuilder();
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage(
-                "Cycle found in generating stitching dependency graph for probes.");
-        builder.requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                .requireThat(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.CLOUD_NATIVE)
+        expectedException.expectMessage(categoryExceptionMsg);
+        builder.requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.CLOUD_NATIVE)
                 .build();
     }
 
@@ -35,14 +41,13 @@ public class ProbeStitchingDependencyTrackerTest {
     public void testLongLoop() throws Exception {
         Builder builder = ProbeStitchingDependencyTracker.newBuilder();
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage(
-                "Cycle found in generating stitching dependency graph for probes.");
-        builder.requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                .requireThat(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
-                .requireThat(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
-                .requireThat(ProbeCategory.STORAGE_BROWSING).stitchAfter(ProbeCategory.HYPERCONVERGED)
-                .requireThat(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.HYPERVISOR)
-                .requireThat(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.CLOUD_NATIVE)
+        expectedException.expectMessage(categoryExceptionMsg);
+        builder.requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
+                .requireThatProbeCategory(ProbeCategory.STORAGE_BROWSING).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.CLOUD_NATIVE)
                 .build();
     }
 
@@ -50,16 +55,60 @@ public class ProbeStitchingDependencyTrackerTest {
     public void testComplexLoop() throws Exception {
         Builder builder = ProbeStitchingDependencyTracker.newBuilder();
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage(
-                "Cycle found in generating stitching dependency graph for probes.");
-        builder.requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                .requireThat(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
-                .requireThat(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
-                .requireThat(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
-                .requireThat(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
-                .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
-                .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                .requireThat(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.HYPERCONVERGED)
+        expectedException.expectMessage(categoryExceptionMsg);
+        builder.requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
+                .requireThatProbeCategory(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .build();
+    }
+
+    @Test
+    public void testProbeTypesWithLoop() throws Exception {
+        Builder builder = ProbeStitchingDependencyTracker.newBuilder();
+        expectedException.expect(ProbeException.class);
+        expectedException.expectMessage(typeExceptionMsg);
+        builder.requireThatProbeType(SDKProbeType.VCENTER).stitchAfter(SDKProbeType.HYPERV)
+                .requireThatProbeType(SDKProbeType.HYPERV).stitchAfter(SDKProbeType.AWS)
+                .requireThatProbeType(SDKProbeType.AWS).stitchAfter(SDKProbeType.VCENTER)
+                .build();
+    }
+
+    @Test
+    public void testMixWithLoopInCategories() throws Exception {
+        Builder builder = ProbeStitchingDependencyTracker.newBuilder();
+        expectedException.expect(ProbeException.class);
+        expectedException.expectMessage(categoryExceptionMsg);
+        builder.requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
+                .requireThatProbeCategory(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .requireThatProbeType(SDKProbeType.VCENTER).stitchAfter(SDKProbeType.HYPERV)
+                .requireThatProbeType(SDKProbeType.HYPERV).stitchAfter(SDKProbeType.AWS)
+                .requireThatProbeType(SDKProbeType.AWS).stitchAfter(SDKProbeType.VCENTER)
+                .build();
+    }
+
+    @Test
+    public void testMixWithLoopInTypes() throws Exception {
+        Builder builder = ProbeStitchingDependencyTracker.newBuilder();
+        expectedException.expect(ProbeException.class);
+        expectedException.expectMessage(typeExceptionMsg);
+        builder.requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
+                .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
+                .requireThatProbeCategory(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .requireThatProbeType(SDKProbeType.VCENTER).stitchAfter(SDKProbeType.HYPERV)
+                .requireThatProbeType(SDKProbeType.HYPERV).stitchAfter(SDKProbeType.AWS)
+                .requireThatProbeType(SDKProbeType.AWS).stitchAfter(SDKProbeType.VCENTER)
                 .build();
     }
 
@@ -67,9 +116,9 @@ public class ProbeStitchingDependencyTrackerTest {
     public void testOrderingInSimpleSetup() throws Exception {
         Builder builder = ProbeStitchingDependencyTracker.newBuilder();
         ProbeStitchingDependencyTracker tracker =
-                builder.requireThat(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
-                .requireThat(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
-                .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
+                builder.requireThatProbeCategory(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
+                .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
                 .build();
         assertEquals(Sets.newHashSet(ProbeCategory.HYPERCONVERGED,
                 ProbeCategory.PAAS, ProbeCategory.DATABASE_SERVER),
@@ -87,13 +136,13 @@ public class ProbeStitchingDependencyTrackerTest {
     public void testOrderingInComplexSetup() throws Exception {
         Builder builder = ProbeStitchingDependencyTracker.newBuilder();
         ProbeStitchingDependencyTracker tracker =
-                builder.requireThat(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                        .requireThat(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
-                        .requireThat(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
-                        .requireThat(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
-                        .requireThat(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
-                        .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
-                        .requireThat(ProbeCategory.PAAS).stitchAfter(ProbeCategory.STORAGE)
+                builder.requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                        .requireThatProbeCategory(ProbeCategory.CLOUD_MANAGEMENT).stitchAfter(ProbeCategory.STORAGE)
+                        .requireThatProbeCategory(ProbeCategory.STORAGE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
+                        .requireThatProbeCategory(ProbeCategory.HYPERVISOR).stitchAfter(ProbeCategory.HYPERCONVERGED)
+                        .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.PAAS)
+                        .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.DATABASE_SERVER)
+                        .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.STORAGE)
                         .build();
         assertEquals(Sets.newHashSet(ProbeCategory.DATABASE_SERVER,
                 ProbeCategory.STORAGE, ProbeCategory.STORAGE_BROWSING, ProbeCategory.HYPERCONVERGED,
@@ -110,9 +159,22 @@ public class ProbeStitchingDependencyTrackerTest {
     }
 
     @Test
+    public void testProbeTypeOrdering() throws Exception {
+        Builder builder = ProbeStitchingDependencyTracker.newBuilder();
+        ProbeStitchingDependencyTracker tracker =
+                builder.requireThatProbeType(SDKProbeType.CLOUD_FOUNDRY).stitchAfter(SDKProbeType.PIVOTAL_OPSMAN)
+                        .requireThatProbeType(SDKProbeType.CLOUD_FOUNDRY).stitchAfter(SDKProbeType.VCENTER)
+                        .build();
+        assertEquals(Sets.newHashSet(SDKProbeType.PIVOTAL_OPSMAN, SDKProbeType.VCENTER),
+                tracker.getProbeTypesThatStitchBefore(SDKProbeType.CLOUD_FOUNDRY));
+        assertTrue(tracker.getProbeTypesThatStitchBefore(SDKProbeType.PIVOTAL_OPSMAN).isEmpty());
+        assertTrue(tracker.getProbeTypesThatStitchBefore(SDKProbeType.VCENTER).isEmpty());
+    }
+
+    @Test
     public void testDefaultScopeForStorageProbes() {
         assertEquals(
-                Sets.newHashSet(ProbeCategory.HYPERVISOR),
+                Sets.newHashSet(ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_MANAGEMENT),
                 ProbeStitchingDependencyTracker
                         .getDefaultStitchingDependencyTracker()
                         .getProbeCategoriesThatStitchBefore(ProbeCategory.STORAGE)
