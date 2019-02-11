@@ -372,13 +372,11 @@ public class ReservedInstanceAnalyzer {
             TopologyEntityCloudTopology cloudTopology,
             ReservedInstanceHistoricalDemandDataType demandDataType) {
 
-        final boolean isOverrideRICoverage = scope.getOverrideRICoverage();
-        float scopePreferredCoverage = isOverrideRICoverage ? scope.getPreferredCoverage() : 0;
-        if (isOverrideRICoverage) {
-            logger.debug("Override RI coverage is checked and the coverage percentage is {}%",
-                    scopePreferredCoverage * 100);
-        } else {
-            logger.debug("Override RI coverage is not checked.");
+        // OM-42801: disabled override coverage
+        if (scope.getOverrideRICoverage()) {
+            logger.info("The scope has RI Coverage Override set to {}%."
+                            + "This setting is ignored and the maximal savings algorithm is run.",
+                    scope.getPreferredCoverage() * 100);
         }
         List<ReservedInstanceAnalysisRecommendation> recommendations = new ArrayList<ReservedInstanceAnalysisRecommendation>();
         Table<Long, Long, List<ReservedInstanceBoughtInfo>> reservedInstanceBoughtTable =
@@ -432,21 +430,8 @@ public class ReservedInstanceAnalyzer {
             }
             numContextsAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
-            if (isOverrideRICoverage) {
-                float totalDemand = sumDataPoints(removeNegativeDataPoints(combineDemand
-                        (riContextDemand.values().stream().collect(Collectors.toList()))));
-                //if it is covered then use the percentage to get the covered percentage
-                float totalDemandCovered = totalDemand * scopePreferredCoverage;
-                float remainingDemand = sumDataPoints(normalizedDemand);
-                float remainingCoveredDemand = totalDemandCovered - (totalDemand -
-                        remainingDemand);
-                kernelResult = RecommendationKernelAlgorithm.coverageComputation(pricing.getOnDemandCost(),
-                                pricing.getReservedInstanceCost(), scopePreferredCoverage, remainingCoveredDemand,
-                                normalizedDemand, regionalContext.toString(), logTag);
-            } else {
-                kernelResult = RecommendationKernelAlgorithm.computation(pricing.getOnDemandCost(),
-                                pricing.getReservedInstanceCost(), normalizedDemand, regionalContext.toString(), logTag);
-            }
+            kernelResult = RecommendationKernelAlgorithm.computation(pricing.getOnDemandCost(),
+                    pricing.getReservedInstanceCost(), normalizedDemand, regionalContext.toString(), logTag);
             if (kernelResult == null) {
                 continue;
             }
@@ -715,8 +700,8 @@ public class ReservedInstanceAnalyzer {
         final String logTag = kernelResult.getLogTag();
         final String recommendationTag = logTag.replace(": ", "");
         int numberOfRIsToBuy = kernelResult.getNumberOfRIsToBuy();
-        final String actionGoal = scope.getOverrideRICoverage() ?
-            String.format(Locale.ROOT, "%.1f%%", scope.getPreferredCoverage() * 100) : "Max Savings";
+        // OM-42801: override RI coverage is disabled
+        final String actionGoal = "Max Savings";
 
         float hourlyCostSavings = kernelResult.getHourlyCostSavings().get(numberOfRIsToBuy);
         int riPotentialInCoupons = kernelResult.getRiNormalizedCouponsMap().get(numberOfRIsToBuy);
