@@ -11,6 +11,7 @@ import org.junit.Test;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingOperationLibrary.StitchingUnknownProbeException;
+import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
@@ -63,6 +64,17 @@ public class StitchingOperationLibraryTest {
                 Arrays.asList(VcdVMStitchingOperation.class, ElasticVDCStitchingOperation.class),
                 library.stitchingOperationsFor(SDKProbeType.VCD.getProbeType(),
                         ProbeCategory.CLOUD_MANAGEMENT).stream()
+                        .map(Object::getClass)
+                        .collect(Collectors.toList())
+        );
+    }
+
+    @Test
+    public void testCloudFoundryProbeCategory() throws StitchingUnknownProbeException {
+        assertEquals(
+                Arrays.asList(CloudFoundryVMStitchingOperation.class),
+                library.stitchingOperationsFor(SDKProbeType.CLOUD_FOUNDRY.getProbeType(),
+                        ProbeCategory.PAAS).stream()
                         .map(Object::getClass)
                         .collect(Collectors.toList())
         );

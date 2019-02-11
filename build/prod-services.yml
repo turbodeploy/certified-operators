@@ -639,3 +639,14 @@ services:
       component_type: mediation-pivotal
       instance_id: mediation-pivotal-1
     restart: always
+
+  mediation-cloudfoundry-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.cloudfoundry.component
+    environment:
+      consul_host: consul
+      component_type: mediation-cloudfoundry
+      instance_id: mediation-cloudfoundry-1
+    restart: always

@@ -12,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
+import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
 import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
 
@@ -72,6 +74,10 @@ public class StitchingOperationLibrary {
             case HYPERCONVERGED:
                 return Collections.emptyList();
             case PAAS:
+                if (probeType.equals(SDKProbeType.CLOUD_FOUNDRY.getProbeType())) {
+                    return Collections.singletonList(
+                            new CloudFoundryVMStitchingOperation());
+                }
                 return Collections.singletonList(new IaasVMStitchingOperation());
             case GUEST_OS_PROCESSES:
                 return Collections.emptyList();

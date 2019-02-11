@@ -1,0 +1,89 @@
+[
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "3r287y3gfd238727390j",
+    "displayName": "vm-1",
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "key233",
+        "value": "value233"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "customTargetId",
+        "value": "vm-1"
+      }
+    ],
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualMachine::52cc3b60-005e-40e6-a365-65ae34b29bbf",
+        "used": 100.0,
+        "capacity": 5000.0,
+        "peak": 200.0
+      },
+      {
+        "commodityType": "CLUSTER",
+        "used": 100.0,
+        "capacity": 5000.0,
+        "peak": 200.0
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtual_machine_data": {
+      "ipAddress": [
+        "10.0.1.15"
+      ],
+      "vmState": {
+        "connected": false
+      },
+      "guestName": "LINUX"
+    }
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "42001f32-5e65-f711-0f77-203771358f93",
+    "displayName": "vm-2",
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "key1",
+        "value": "value1"
+      }
+    ],
+    "commoditiesSold": [
+      {
+        "commodityType": "APPLICATION",
+        "key": "VirtualMachine::42001f32-5e65-f711-0f77-203771358f93",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "VCPU",
+        "key": "VirtualMachine::42001f32-5e65-f711-0f77-203771358f93",
+        "capacity": 10656.0,
+        "limit": -1.0,
+        "active": true
+      },
+      {
+        "commodityType": "VMEM",
+        "capacity": 1.6777216E7,
+        "limit": -1.0,
+        "active": true
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtual_machine_data": {
+      "ipAddress": [
+        "10.0.1.22"
+      ],
+      "vmState": {
+        "connected": false
+      },
+      "guestName": "LINUX"
+    }
+  }
+]

@@ -520,6 +520,15 @@ services:
 #      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
+#
+#  mediation-cloudfoundry:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-cloudfoundry-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
 
   mediation-actionscript:
     extends:

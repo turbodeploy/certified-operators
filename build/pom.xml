@@ -312,6 +312,7 @@
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
@@ -568,6 +569,13 @@
         </profile>
 
         <profile>
+            <id>mediation-cloudfoundry</id>
+            <modules>
+                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -658,6 +666,7 @@
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -787,6 +796,7 @@
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
