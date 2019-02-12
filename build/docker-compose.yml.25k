@@ -467,15 +467,6 @@ services:
 #    mem_limit: 2048M
 #    depends_on: *clustermgrdep
 #
-#  mediation-wmi:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-wmi-prod
-#    environment:
-#      JAVA_OPTS: "-Xmx1536M"
-#    mem_limit: 2048M
-#    depends_on: *clustermgrdep
-#
 #  mediation-snmp:
 #    extends:
 #      file: prod-services.yml
