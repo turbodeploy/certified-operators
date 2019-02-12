@@ -35,36 +35,37 @@ public enum EntitySettingSpecs {
      * Move action automation mode.
      */
     Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Resize action automation mode.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Provision action automation mode.
      */
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY), actionExecutionMode(),
+            true),
     /**
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD), nonExecutableActionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), nonExecutableActionMode(), true),
     /**
      * Activate action automation mode.
      */
     Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.PHYSICAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Storage Move action automation mode.
      */
@@ -201,8 +202,8 @@ public enum EntitySettingSpecs {
      */
     LatencyCapacity("latencyCapacity", "Storage latency capacity [ms]", Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER,
-                    EntityType.LOGICAL_POOL, EntityType.DISK_ARRAY),
+            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER, EntityType.LOGICAL_POOL,
+                EntityType.DISK_ARRAY),
             numeric(1f, 2000f, 100f), true),
     /**
      * Ignore High Availability(HA).
@@ -217,7 +218,7 @@ public enum EntitySettingSpecs {
     VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
             Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
@@ -226,7 +227,7 @@ public enum EntitySettingSpecs {
     VmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
             Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
 
     /**
@@ -254,8 +255,7 @@ public enum EntitySettingSpecs {
     ActivateActionWorkflow("activateActionWorkflow", "Activate Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
             string(), true),
 
     /**
@@ -265,7 +265,7 @@ public enum EntitySettingSpecs {
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
         string(), true),
 
     /**
@@ -275,8 +275,7 @@ public enum EntitySettingSpecs {
     ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+            EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
             string(), true),
 
     /**
@@ -286,7 +285,7 @@ public enum EntitySettingSpecs {
     ResizeActionWorkflow("resizeActionWorkflow", "Resize Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
             string(), true),
 
     /**
@@ -296,7 +295,7 @@ public enum EntitySettingSpecs {
     SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE),
             string(), true),
 
     /**
@@ -305,8 +304,7 @@ public enum EntitySettingSpecs {
     ResponseTimeCapacity("responseTimeCapacity", "Response Time Capacity [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -316,8 +314,7 @@ public enum EntitySettingSpecs {
     SLACapacity("slaCapacity", "SLA Capacity",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -327,8 +324,7 @@ public enum EntitySettingSpecs {
     TransactionsCapacity("transactionsCapacity", "Transactions Capacity",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
@@ -341,26 +337,9 @@ public enum EntitySettingSpecs {
     AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Auto Set Transactions Capacity",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.APPLICATION, EntityType.DATABASE_SERVER),
             new BooleanSettingDataType(false),
             true),
-
-    /**
-     * Heap utilization threshold.
-     */
-    HeapUtilization("heapUtilization", "Heap Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION),
-            numeric(20f, 100f, 80f), true),
-
-    /**
-     * Collection time utilization threshold.
-     */
-    CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION),
-            numeric(10f, 100f, 10f), true),
 
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),

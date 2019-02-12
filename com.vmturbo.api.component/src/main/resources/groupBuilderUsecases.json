@@ -58,30 +58,12 @@
         ]
     },
 
-    "Container" : {
-        "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"}
-        ]
-    },
-
-    "ContainerPod" : {
-        "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerpodsByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containerpodsByVMName"}
-        ]
-    },
-
     "Application" : {
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appsByName"}]
     },
 
     "ApplicationServer" : {
         "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
-    },
-
-    "BusinessApplication" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"}]
     },
 
     "Database" : {
