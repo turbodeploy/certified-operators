@@ -88,6 +88,8 @@
         "slaCapacity",
         "transactionsCapacity",
         "autoSetTransactionsCapacity",
+        "heapUtilization",
+        "collectionTimeUtilization",
         "RATE_OF_RESIZE",
         "resizeTargetUtilizationVcpu",
         "resizeTargetUtilizationVmem"
