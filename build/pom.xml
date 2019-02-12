@@ -278,47 +278,50 @@
         <profile>
             <id>mediation-all</id>
             <modules>
-                <module>../com.vmturbo.mediation.client</module>
-                <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.aix.component</module>
-                <module>../com.vmturbo.mediation.vmax.component</module>
-                <module>../com.vmturbo.mediation.hyperv.component</module>
-                <module>../com.vmturbo.mediation.netapp.component</module>
-                <module>../com.vmturbo.mediation.ucs.component</module>
-                <module>../com.vmturbo.mediation.ucsdirector.component</module>
-                <module>../com.vmturbo.mediation.vmm.component</module>
-                <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.compellent.component</module>
-                <module>../com.vmturbo.mediation.vplex.component</module>
-                <module>../com.vmturbo.mediation.rhv.component</module>
-                <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
-                <module>../com.vmturbo.mediation.aws.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.cost.component</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.component</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
-                <module>../com.vmturbo.mediation.oneview.component</module>
-                <module>../com.vmturbo.mediation.vcd.component</module>
-                <module>../com.vmturbo.mediation.database.mssql.component</module>
-                <module>../com.vmturbo.mediation.apm.snmp.component</module>
-                <module>../com.vmturbo.mediation.appdynamics.component</module>
-                <module>../com.vmturbo.mediation.dynatrace.component</module>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
-                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
-                <module>../com.vmturbo.mediation.stressprobe.component</module>
-                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.delegatingprobe</module>
+                <module>../com.vmturbo.mediation.aix.component</module>
+                <module>../com.vmturbo.mediation.apm.snmp.component</module>
+                <module>../com.vmturbo.mediation.appdynamics.component</module>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.aws.component</module>
+                <module>../com.vmturbo.mediation.aws.conversion</module>
+                <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.azure.conversion</module>
+                <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
+                <module>../com.vmturbo.mediation.cloud.conversion</module>
+                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
+                <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
+                <module>../com.vmturbo.mediation.delegatingprobe</module>
+                <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.istio.component</module>
+                <module>../com.vmturbo.mediation.hds.component</module>
+                <module>../com.vmturbo.mediation.hpe3par.component</module>
+                <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.netapp.component</module>
+                <module>../com.vmturbo.mediation.netflow.component</module>
+                <module>../com.vmturbo.mediation.oneview.component</module>
+                <module>../com.vmturbo.mediation.openstack.component</module>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.pure.component</module>
+                <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
+                <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.tetration.component</module>
+                <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
+                <module>../com.vmturbo.mediation.vcd.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
+                <module>../com.vmturbo.mediation.vmax.component</module>
+                <module>../com.vmturbo.mediation.vmm.component</module>
+                <module>../com.vmturbo.mediation.vplex.component</module>
+                <module>../com.vmturbo.mediation.xtremio.component</module>
             </modules>
         </profile>
 
@@ -562,6 +565,27 @@
         </profile>
 
         <profile>
+            <id>mediation-netflow</id>
+            <modules>
+                <module>../com.vmturbo.mediation.netflow.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-tetration</id>
+            <modules>
+                <module>../com.vmturbo.mediation.tetration.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-istio</id>
+            <modules>
+                <module>../com.vmturbo.mediation.istio.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-pivotal</id>
             <modules>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
@@ -647,30 +671,30 @@
                 <module>../com.vmturbo.mediation.probe.parent</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
+                <module>../com.vmturbo.mediation.apm.snmp.component</module>
+                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
+                <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
+                <module>../com.vmturbo.mediation.delegatingprobe</module>
+                <module>../com.vmturbo.mediation.hds.component</module>
+                <module>../com.vmturbo.mediation.hpe3par.component</module>
+                <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.netapp.component</module>
+                <module>../com.vmturbo.mediation.openstack.component</module>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.pure.component</module>
+                <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
+                <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
+                <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
-                <module>../com.vmturbo.mediation.ucs.component</module>
-                <module>../com.vmturbo.mediation.ucsdirector.component</module>
-                <module>../com.vmturbo.mediation.netapp.component</module>
-                <module>../com.vmturbo.mediation.hyperv.component</module>
-                <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
-                <module>../com.vmturbo.mediation.rhv.component</module>
-                <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.apm.snmp.component</module>
-                <module>../com.vmturbo.mediation.vcd.component</module>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
-                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
-                <module>../com.vmturbo.mediation.stressprobe.component</module>
-                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
-                <module>../com.vmturbo.mediation.delegatingprobe</module>
-                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
+                <module>../com.vmturbo.mediation.xtremio.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
@@ -759,48 +783,51 @@
                 <module>../com.vmturbo.system.notification.receiver</module>
 
                 <!-- Probe components. These are ALL the probes. -->
-                <module>../com.vmturbo.mediation.client</module>
-                <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
-                <module>../com.vmturbo.mediation.vcenter.component</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
-                <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.ucs.component</module>
-                <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
-                <module>../com.vmturbo.mediation.hyperv.component</module>
-                <module>../com.vmturbo.mediation.netapp.component</module>
-                <module>../com.vmturbo.mediation.vmax.component</module>
-                <module>../com.vmturbo.mediation.vmm.component</module>
-                <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.compellent.component</module>
-                <module>../com.vmturbo.mediation.vplex.component</module>
-                <module>../com.vmturbo.mediation.rhv.component</module>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
-                <module>../com.vmturbo.mediation.aws.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.cost.component</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.component</module>
-                <module>../com.vmturbo.mediation.oneview.component</module>
-                <module>../com.vmturbo.mediation.vcd.component</module>
-                <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
-                <module>../com.vmturbo.mediation.dynatrace.component</module>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.aws.component</module>
+                <module>../com.vmturbo.mediation.aws.conversion</module>
+                <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.azure.conversion</module>
+                <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
+                <module>../com.vmturbo.mediation.cloud.conversion</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
-                <module>../com.vmturbo.mediation.stressprobe.component</module>
-                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
+                <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
+                <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.istio.component</module>
+                <module>../com.vmturbo.mediation.hds.component</module>
+                <module>../com.vmturbo.mediation.hpe3par.component</module>
+                <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.netapp.component</module>
+                <module>../com.vmturbo.mediation.netflow.component</module>
+                <module>../com.vmturbo.mediation.oneview.component</module>
+                <module>../com.vmturbo.mediation.openstack.component</module>
+                <module>../com.vmturbo.mediation.pivotal.component</module>
+                <module>../com.vmturbo.mediation.pure.component</module>
+                <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
+                <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.tetration.component</module>
+                <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
+                <module>../com.vmturbo.mediation.vcd.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
+                <module>../com.vmturbo.mediation.vcenter.component</module>
+                <module>../com.vmturbo.mediation.vmax.component</module>
+                <module>../com.vmturbo.mediation.vmm.component</module>
+                <module>../com.vmturbo.mediation.vplex.component</module>
+                <module>../com.vmturbo.mediation.xtremio.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
