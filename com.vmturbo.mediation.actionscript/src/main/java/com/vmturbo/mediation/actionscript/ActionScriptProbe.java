@@ -17,7 +17,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -89,15 +88,9 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
     @Nonnull
     @Override
     public List<ActionPolicyDTO> getActionPolicies() {
-        /*
-         * As an action orchestrator, this probe can execute almost every action, that is possible
-         * in the world. As we do not have a separate feature for action orchestration, we are
-         * masking the functionality under action execution. As a result, we have to provide
-         * something from this method, while it is ignored on the server side.
-         */
-        return Collections.singletonList(
-                ActionPolicyDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build());
+        return Collections.emptyList();
     }
+
     /**
      * Validate the target. In this case we validate the path to the ActionScript folder.
      *
