@@ -143,10 +143,18 @@ dependencies:
     repository: file://../probes/mediation-hyperv
     version: 0.1.0
     condition: hyperv.enabled
+  - name: mediation-istio
+    repository: file://../probes/mediation-istio
+    version: 0.1.0
+    condition: istio.enabled
   - name: mediation-netapp
     repository: file://../probes/mediation-netapp
     version: 0.1.0
     condition: netapp.enabled
+  - name: mediation-netflow
+    repository: file://../probes/mediation-netflow
+    version: 0.1.0
+    condition: netflow.enabled
   - name: mediation-mssql
     repository: file://../probes/mediation-mssql
     version: 0.1.0
@@ -179,6 +187,10 @@ dependencies:
     repository: file://../probes/mediation-snmp
     version: 0.1.0
     condition: snmp.enabled
+  - name: mediation-tetration
+    repository: file://../probes/mediation-tetration
+    version: 0.1.0
+    condition: tetration.enabled
   - name: mediation-ucs
     repository: file://../probes/mediation-ucs
     version: 0.1.0

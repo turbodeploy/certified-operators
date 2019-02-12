@@ -64,9 +64,13 @@ hds:
   enabled: false
 hyperv:
   enabled: false
+istio:
+  enabled: false
 mssql:
   enabled: false
 netapp:
+  enabled: false
+netflow:
   enabled: false
 oneview:
   enabled: false
@@ -81,6 +85,8 @@ rhv:
 scaleio:
   enabled: false
 snmp:
+  enabled: false
+tetration:
   enabled: false
 ucs:
   enabled: false
