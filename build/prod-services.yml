@@ -596,6 +596,17 @@ services:
       instance_id: mediation-actionscript-1
     restart: always
 
+  mediation-wmi-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.apm.wmi.component
+    environment:
+      consul_host: consul
+      component_type: mediation-wmi
+      instance_id: mediation-wmi-1
+    restart: always
+
   mediation-snmp-prod:
     extends:
       file: common-services.yml
