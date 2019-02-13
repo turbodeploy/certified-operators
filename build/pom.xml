@@ -302,6 +302,7 @@
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
+                <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
@@ -520,7 +521,7 @@
             <modules>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
-           </modules>
+            </modules>
         </profile>
 
         <profile>
@@ -608,6 +609,13 @@
         </profile>
 
         <profile>
+            <id>mediation-hyperflex</id>
+            <modules>
+                <module>../com.vmturbo.mediation.hyperflex.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -687,6 +695,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
+                <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
@@ -874,6 +883,7 @@
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
+                <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
@@ -964,9 +974,9 @@
                         <execution>
                             <id>report</id>
                             <phase>prepare-package</phase>
-                               <goals>
-                                  <goal>report</goal>
-                                </goals>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
                         </execution>
                     </executions>
                 </plugin>
@@ -1208,7 +1218,7 @@
                     </executions>
                 </plugin>
                 <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${surefire.version}</version>
                     <configuration>
@@ -1327,7 +1337,7 @@
                         <skip>false</skip>
                         <runOnlyOnce>false</runOnlyOnce>
                         <excludeProperties>
-                          <excludeProperty>git.user.*</excludeProperty>
+                            <excludeProperty>git.user.*</excludeProperty>
                         </excludeProperties>
                         <includeOnlyProperties>
                         </includeOnlyProperties>
@@ -1337,7 +1347,7 @@
                         <abbrevLength>7</abbrevLength>
                         <commitIdGenerationMode>flat</commitIdGenerationMode>
                         <gitDescribe>
-                             don't generate the describe property
+                            don't generate the describe property
                             <skip>false</skip>
 
                             <always>false</always>

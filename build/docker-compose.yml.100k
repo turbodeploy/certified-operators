@@ -565,6 +565,15 @@ services:
 #      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
+#
+#  mediation-hyperflex:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-hyperflex-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
 
   mediation-actionscript:
     extends:

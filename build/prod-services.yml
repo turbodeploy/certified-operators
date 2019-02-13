@@ -694,3 +694,14 @@ services:
       component_type: mediation-tetration
       instance_id: mediation-tetration-1
     restart: always
+
+  mediation-hyperflex-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.hyperflex.component
+    environment:
+      consul_host: consul
+      component_type: mediation-hyperflex
+      instance_id: mediation-hyperflex-1
+    restart: always
