@@ -37,6 +37,7 @@ import org.springframework.util.SocketUtils;
 
 import com.google.common.io.Resources;
 
+import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
@@ -58,7 +59,7 @@ public class ActionScriptPathValidatorTest  {
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
     @Before
-    public void setUp() throws IOException, GeneralSecurityException {
+    public void setUp() throws IOException, KeyValidationException {
         testPort = SocketUtils.findAvailableTcpPort();
         logger.info("TCP Test Port for SSH: {}", testPort);
 
