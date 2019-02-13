@@ -84,8 +84,8 @@ public class AnalysisServer implements AutoCloseable {
     private void pollOutgoingMessages() {
         try {
             for (;;) {
-                final AnalysisResults failedMsg = resultsToSend.take();
-                sendSingleMessage(failedMsg);
+                final AnalysisResults msg = resultsToSend.take();
+                sendSingleMessage(msg);
             }
         } catch (InterruptedException e) {
             logger.info("Thread interrupted, Can not send the failed message from previous " +
