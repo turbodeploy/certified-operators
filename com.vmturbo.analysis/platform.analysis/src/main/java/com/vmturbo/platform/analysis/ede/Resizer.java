@@ -221,7 +221,8 @@ public class Resizer {
                                                   double rateOfRightSize) {
         // If the current capacity is already above the raw material's capacity, do not resize up
         // further.
-        if (resizeCommodity.getEffectiveCapacity() > rawMaterial.getEffectiveCapacity()) {
+        if (rawMaterial != null &&
+                resizeCommodity.getEffectiveCapacity() > rawMaterial.getEffectiveCapacity()) {
             if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
                 logger.debug("Cannot resize {}/{} further up. Current capacity {} already " +
                         "above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
@@ -309,7 +310,7 @@ public class Resizer {
         // it to the raw material capacity. (This can happen when the current capacity is greater
         // than the raw material's capacity)
         double newCapacity = currentCapacity - amount;
-        if (newCapacity > rawMaterial.getEffectiveCapacity()) {
+        if (rawMaterial != null && newCapacity > rawMaterial.getEffectiveCapacity()) {
             double deltaToRawMaterialCapacity = currentCapacity - rawMaterial.getEffectiveCapacity();
             amount = Math.ceil(deltaToRawMaterialCapacity / capacityIncrement) * capacityIncrement;
             // Do not decrement by the full capacity. This can happen in case the capacityIncrement
