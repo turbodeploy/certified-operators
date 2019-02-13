@@ -1046,7 +1046,7 @@ services:
   mediation-istio:
     extends:
       file: common-services.yml
-      service: dev-istio-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.istio.component
     depends_on: *clustermgrdep
     ports:
@@ -1061,7 +1061,7 @@ services:
   mediation-netflow:
     extends:
       file: common-services.yml
-      service: dev-netflow-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.netflow.component
     depends_on: *clustermgrdep
     ports:
@@ -1076,7 +1076,7 @@ services:
   mediation-tetration:
     extends:
       file: common-services.yml
-      service: dev-tetration-component
+      service: dev-mediation-component
     image: turbonomic/com.vmturbo.mediation.tetration.component
     depends_on: *clustermgrdep
     ports:
