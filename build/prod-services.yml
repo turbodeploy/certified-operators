@@ -661,3 +661,36 @@ services:
       component_type: mediation-cloudfoundry
       instance_id: mediation-cloudfoundry-1
     restart: always
+
+  mediation-istio-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.istio.component
+    environment:
+      consul_host: consul
+      component_type: mediation-istio
+      instance_id: mediation-istio-1
+    restart: always
+
+  mediation-netflow-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.netflow.component
+    environment:
+      consul_host: consul
+      component_type: mediation-netflow
+      instance_id: mediation-netflow-1
+    restart: always
+
+  mediation-tetration-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.tetration.component
+    environment:
+      consul_host: consul
+      component_type: mediation-tetration
+      instance_id: mediation-tetration-1
+    restart: always

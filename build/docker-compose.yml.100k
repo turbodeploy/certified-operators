@@ -538,6 +538,33 @@ services:
 #      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
+#
+#  mediation-istio:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-istio-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
+#
+#  mediation-netflow:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-netflow-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
+#
+#  mediation-tetration:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-tetration-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
 
   mediation-actionscript:
     extends:

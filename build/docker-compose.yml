@@ -1042,3 +1042,48 @@ services:
       instance_id: mediation-cloudfoundry-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_CLOUDFOUNDRY_XMX_MB}M ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_CLOUDFOUNDRY_MEM_LIMIT_MB}M
+
+  mediation-istio:
+    extends:
+      file: common-services.yml
+      service: dev-istio-component
+    image: turbonomic/com.vmturbo.mediation.istio.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_ISTIO_PORT}"
+      - "${MEDIATION_ISTIO_DEBUG_PORT}"
+    environment:
+      component_type: mediation-istio
+      instance_id: mediation-istio-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ISTIO_XMX_MB}M ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_MB}M
+
+  mediation-netflow:
+    extends:
+      file: common-services.yml
+      service: dev-netflow-component
+    image: turbonomic/com.vmturbo.mediation.netflow.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_NETFLOW_PORT}"
+      - "${MEDIATION_NETFLOW_DEBUG_PORT}"
+    environment:
+      component_type: mediation-netflow
+      instance_id: mediation-netflow-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_NETFLOW_XMX_MB}M ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_MB}M
+
+  mediation-tetration:
+    extends:
+      file: common-services.yml
+      service: dev-tetration-component
+    image: turbonomic/com.vmturbo.mediation.tetration.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_TETRATION_PORT}"
+      - "${MEDIATION_TETRATION_DEBUG_PORT}"
+    environment:
+      component_type: mediation-tetration
+      instance_id: mediation-tetration-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_TETRATION_XMX_MB}M ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_MB}M
