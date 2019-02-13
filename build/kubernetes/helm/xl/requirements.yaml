@@ -139,6 +139,10 @@ dependencies:
     repository: file://../probes/mediation-hpe3par
     version: 0.1.0
     condition: hpe3par.enabled
+  - name: mediation-hyperflex
+    repository: file://../probes/mediation-hyperflex
+    version: 0.1.0
+    condition: hyperflex.enabled
   - name: mediation-hyperv
     repository: file://../probes/mediation-hyperv
     version: 0.1.0

@@ -62,6 +62,8 @@ hpe3par:
   enabled: false
 hds:
   enabled: false
+hyperflex:
+  enabled: false
 hyperv:
   enabled: false
 istio:
