@@ -1,7 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.common.protobuf.ActionDTOUtil.TRANSLATION_PATTERN;
-import static com.vmturbo.common.protobuf.ActionDTOUtil.TRANSLATION_PREFIX;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
 import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
@@ -49,11 +49,12 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -69,12 +70,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.reports.db.StringConstants;
@@ -1132,6 +1135,11 @@ public class ActionSpecMapper {
 
             if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
                 queryBuilder.setEndDate(DateTimeUtil.parseTime(inputDto.getEndTime()));
+            }
+
+            if (inputDto.getEnvironmentType() != null) {
+                UIEnvironmentType.fromString(inputDto.getEnvironmentType().name()).toEnvType()
+                    .ifPresent(queryBuilder::setEnvironmentType);
             }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.

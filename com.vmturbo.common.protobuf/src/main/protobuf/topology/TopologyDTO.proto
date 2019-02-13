@@ -250,16 +250,20 @@ message TopologyEntityDTO {
     optional Edit edit = 11;
 
     // The Origin tracks where and how an entity came to be included in the topology.
-    // An entity can have one of three possible Origins:
+    // An entity can have one of four possible Origins:
     //   1) discovered from a probe target (or multiple targets).
     //   2) created by a Placement Reservation
     //   3) Added as part of a plan scenario, such as an entity added by an "add workload" config,
     //      or headroom vm's added for cluster headroom calculation.
+    //   4) Added by the market - for example, as a clone of an existing entity. This should never
+    //      be set in a live or plan-over-live source topology, but entities in the projected
+    //      topology or the plan-over-plan source topology may have this origin.
     message Origin {
         oneof origin_type {
             DiscoveryOrigin discovery_origin = 1;
             ReservationOrigin reservation_origin = 2;
-            PlanOrigin plan_origin = 3;
+            PlanScenarioOrigin plan_scenario_origin = 3;
+            AnalysisOrigin analysis_origin = 4;
         }
     }
 
@@ -304,8 +308,15 @@ message TopologyEntityDTO {
     // Workload", "Replace". Phantom Entities are also created in special situations, such as for
     // calculating headroom in the cluster headroom plan. The plan origin for these entities will
     // refer to the plan id the entity was added to support.
-    message PlanOrigin {
+    message PlanScenarioOrigin {
         required int64 plan_id = 1;
+    }
+
+    // An entity created by the market's analysis, and included in the projected topology.
+    message AnalysisOrigin {
+        // If this entity was cloned by the market, this is the id of the entity it was cloned
+        // from.
+        optional int64 original_entity_id = 1;
     }
 
     // if the entity has met a (potentially grisly) end, describe it. Currently there are only two

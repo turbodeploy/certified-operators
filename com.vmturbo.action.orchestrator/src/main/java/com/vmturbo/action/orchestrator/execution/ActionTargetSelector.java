@@ -26,8 +26,8 @@ import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;

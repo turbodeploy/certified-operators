@@ -14,7 +14,10 @@ import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
  * An {@link ActionAggregator} for the global scope.
@@ -35,11 +38,33 @@ public class GlobalActionAggregator extends ActionAggregator {
      */
     @Override
     public void processAction(@Nonnull final SingleActionSnapshot action) {
-        // TODO (roman, Nov 15 2018): We should add the environment type to the action.
-        // For now - as a purely temporary measure - we use the presence of "savingsPerHour"
-        // because we're not setting it in on-prem actions.
-        final EnvironmentType envType = action.recommendation().hasSavingsPerHour() ?
-                EnvironmentType.CLOUD : EnvironmentType.ON_PREM;
+        final ActionEnvironmentType actionEnvType;
+        try {
+            actionEnvType = ActionEnvironmentType.forAction(action.recommendation());
+        } catch (UnsupportedActionException e) {
+            logger.warn("Attempted to process unsupported action! Error: {}", e.getMessage());
+            return;
+        }
+
+        final EnvironmentType envType;
+        if (actionEnvType == ActionEnvironmentType.ON_PREM) {
+            envType = EnvironmentType.ON_PREM;
+        } else if (actionEnvType == ActionEnvironmentType.CLOUD) {
+            envType = EnvironmentType.CLOUD;
+        } else {
+            // (roman, Jan 29 2019): We don't really expect this case to be hit - actions between
+            // on-prem and cloud don't currently exist in the realtime case, so we don't account
+            // for them.
+            //
+            // Note: Right now, since we don't expect "hybrid" environment actions, to see the
+            // total actions in the environment we can add the ON_PREM and CLOUD. If we need to
+            // support "hybrid" actions, this approach would lead to double-counting. We will need
+            // to make the environment type of MgmtUnitSubgroupKey optional, and keep an extra
+            // subgroup with an unset environment to represent total actions. Basically, do
+            // what we do with entity types!
+            envType = EnvironmentType.ON_PREM;
+        }
+        Metrics.ENV_TYPE_ACTIONS.labels(actionEnvType.name()).increment();
 
         // Update the per-entity-type records.
         final Multimap<Integer, ActionEntity> involvedEntitiesByType =
@@ -85,5 +110,15 @@ public class GlobalActionAggregator extends ActionAggregator {
         public GlobalActionAggregator newAggregator(@Nonnull final LocalDateTime snapshotTime) {
             return new GlobalActionAggregator(snapshotTime);
         }
+    }
+
+    public static class Metrics {
+        private static final DataMetricCounter ENV_TYPE_ACTIONS = DataMetricCounter.builder()
+            .withName("ao_action_stat_env_type_actions_count")
+            .withHelp("The number of actions processed by the stats framework with a specific environment type.")
+            .withLabelNames("env")
+            .build()
+            .register();
+
     }
 }

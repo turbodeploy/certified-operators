@@ -1,12 +1,14 @@
-package com.vmturbo.common.protobuf;
+package com.vmturbo.common.protobuf.action;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -18,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -27,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -179,43 +182,43 @@ public class ActionDTOUtil {
     @Nonnull
     public static Set<Long> getInvolvedEntityIds(@Nonnull final ActionDTO.Action action)
             throws UnsupportedActionException {
-        return getInvolvedEntities(action)
+        return getInvolvedEntities(action).stream()
             .map(ActionEntity::getId)
             .collect(Collectors.toSet());
     }
 
     @Nonnull
-    public static Stream<ActionEntity> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
+    public static List<ActionEntity> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
             throws UnsupportedActionException {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
                 final ActionDTO.Move move = action.getInfo().getMove();
-                Stream.Builder<ActionEntity> retBuilder = Stream.<ActionEntity>builder()
-                        .add(move.getTarget());
+                List<ActionEntity> retList = new ArrayList<>();
+                retList.add(move.getTarget());
                 for (ChangeProvider change : move.getChangesList()) {
                     if (change.getSource().getId() != 0) {
-                        retBuilder.accept(change.getSource());
+                        retList.add(change.getSource());
                     }
                     if (change.hasResource()) {
-                        retBuilder.accept(change.getResource());
+                        retList.add(change.getResource());
                     }
-                    retBuilder.accept(change.getDestination());
+                    retList.add(change.getDestination());
                 }
-                return retBuilder.build();
+                return retList;
             case RESIZE:
-                return Stream.of(action.getInfo().getResize().getTarget());
+                return Collections.singletonList(action.getInfo().getResize().getTarget());
             case ACTIVATE:
-                return Stream.of(action.getInfo().getActivate().getTarget());
+                return Collections.singletonList(action.getInfo().getActivate().getTarget());
             case DEACTIVATE:
-                return Stream.of(action.getInfo().getDeactivate().getTarget());
+                return Collections.singletonList(action.getInfo().getDeactivate().getTarget());
             case PROVISION:
-                return Stream.of(action.getInfo().getProvision().getEntityToClone());
+                return Collections.singletonList(action.getInfo().getProvision().getEntityToClone());
             case RECONFIGURE:
                 final ActionDTO.Reconfigure reconfigure = action.getInfo().getReconfigure();
                 if (reconfigure.hasSource()) {
-                    return Stream.of(reconfigure.getTarget(), reconfigure.getSource());
+                    return Arrays.asList(reconfigure.getTarget(), reconfigure.getSource());
                 } else {
-                    return Stream.of(reconfigure.getTarget());
+                    return Collections.singletonList(reconfigure.getTarget());
                 }
             default:
                 throw new UnsupportedActionException(action);

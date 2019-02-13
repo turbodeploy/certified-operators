@@ -141,7 +141,7 @@ public class EnvironmentTypeInjector {
             case RESERVATION_ORIGIN:
                 // It's not clear if we ever need reservations in the cloud.
                 return EnvironmentType.ON_PREM;
-            case PLAN_ORIGIN:
+            case PLAN_SCENARIO_ORIGIN:
                 // TODO (roman, Oct 25 2018): Entities that are added as part of a plan may be
                 // cloud entities - e.g. if we're trying to simulate the impact of adding a bunch
                 // of instances to the AWS environment.

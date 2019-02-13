@@ -11,7 +11,7 @@ import org.junit.Test;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;

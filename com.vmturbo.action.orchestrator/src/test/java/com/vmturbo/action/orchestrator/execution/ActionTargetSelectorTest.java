@@ -21,7 +21,7 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;

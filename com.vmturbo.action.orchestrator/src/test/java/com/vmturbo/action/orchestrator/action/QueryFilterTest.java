@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -20,15 +21,20 @@ import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests for the {@link QueryFilter} class.
@@ -36,7 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 public class QueryFilterTest {
     private static final long ACTION_PLAN_ID = 9876;
 
-    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
+    private final ActionStore actionStore = mock(ActionStore.class);
 
     private final ActionQueryFilter visibleFilter = ActionQueryFilter.newBuilder()
         .setVisible(true)
@@ -263,6 +269,98 @@ public class QueryFilterTest {
 
         assertTrue(new QueryFilter(Optional.of(filter))
                                     .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testEnvironmentFilterMatch() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(1)
+            .setImportance(0)
+            .setExecutable(true)
+            .setExplanation(Explanation.newBuilder().build())
+            .setInfo(ActionInfo.newBuilder()
+                .setActivate(Activate.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(7)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setEnvironmentType(EnvironmentType.CLOUD))))
+            .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+        final ActionView actionView = mock(ActionView.class);
+        when(actionView.getRecommendation()).thenReturn(action);
+        assertTrue(new QueryFilter(Optional.of(filter))
+            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testEnvironmentFilterNoMatch() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(1)
+            .setImportance(0)
+            .setExecutable(true)
+            .setExplanation(Explanation.newBuilder().build())
+            .setInfo(ActionInfo.newBuilder()
+                .setActivate(Activate.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(7)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setEnvironmentType(EnvironmentType.CLOUD))))
+            .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .build();
+        final ActionView actionView = mock(ActionView.class);
+        when(actionView.getRecommendation()).thenReturn(action);
+        assertFalse(new QueryFilter(Optional.of(filter))
+            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testEnvironmentFilterUnset() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(1)
+            .setImportance(0)
+            .setExecutable(true)
+            .setExplanation(Explanation.newBuilder().build())
+            .setInfo(ActionInfo.newBuilder()
+                .setActivate(Activate.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(7)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setEnvironmentType(EnvironmentType.CLOUD))))
+            .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .build();
+        final ActionView actionView = mock(ActionView.class);
+        when(actionView.getRecommendation()).thenReturn(action);
+        // Should pass the filter, since no environment type is specified.
+        assertTrue(new QueryFilter(Optional.of(filter))
+            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testEnvironmentFilterUnsupportedAction() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(1)
+            .setImportance(0)
+            .setExecutable(true)
+            .setExplanation(Explanation.newBuilder().build())
+            // No "action type".
+            .setInfo(ActionInfo.getDefaultInstance())
+            .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .build();
+        final ActionView actionView = mock(ActionView.class);
+        when(actionView.getRecommendation()).thenReturn(action);
+        assertFalse(new QueryFilter(Optional.of(filter))
+            .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
     }
 
     private ActionView executableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {

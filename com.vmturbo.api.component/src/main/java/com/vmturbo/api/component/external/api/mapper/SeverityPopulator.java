@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;

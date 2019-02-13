@@ -1,49 +1,29 @@
 package com.vmturbo.action.orchestrator.execution;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ExecutableStep;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 

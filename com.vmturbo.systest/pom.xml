@@ -72,6 +72,24 @@
                 </pluginManagement>
             </build>
         </profile>
+        <profile>
+            <id>platform</id>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <artifactId>maven-surefire-plugin</artifactId>
+                            <executions>
+                                <execution>
+                                    <id>default-test</id>
+                                    <phase>none</phase>
+                                </execution>
+                            </executions>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
     </profiles>
 
     <dependencies>

@@ -69,7 +69,7 @@ import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;

@@ -1,6 +1,9 @@
 package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ENTITY_VALUE;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -24,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -32,11 +36,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -214,15 +221,17 @@ public class TopologyConverterFromMarketTest {
                         .build();
         when(mockCCD.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
 
-        List<TopologyDTO.ProjectedTopologyEntity> entity =
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
             converter.convertFromMarket(Collections.singletonList(trader),
                 ImmutableMap.of(expectedEntity.getOid(), expectedEntity, expectedEntity2.getOid(), expectedEntity2),
                 PriceIndexMessage.getDefaultInstance(), mockCCD);
         assertEquals(1L, entity.size());
-        assertEquals(expectedEntity.getCommoditySoldList(0), entity.get(0).getEntity().getCommoditySoldList(0));
-        assertEquals(1, entity.get(0).getEntity().getCommoditiesBoughtFromProvidersCount());
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE,
-                entity.get(0).getEntity().getCommoditiesBoughtFromProviders(0).getProviderEntityType());
+        assertThat(entity.get(PM_OID).getEntity().getCommoditySoldListList(),
+            contains(expectedEntity.getCommoditySoldListList().toArray()));
+
+        assertThat(entity.get(PM_OID).getEntity().getCommoditiesBoughtFromProvidersCount(), is(1));
+        assertThat(entity.get(PM_OID).getEntity().getCommoditiesBoughtFromProviders(0).getProviderEntityType(),
+            is(EntityType.PHYSICAL_MACHINE_VALUE));
     }
 
     /**
@@ -347,13 +356,13 @@ public class TopologyConverterFromMarketTest {
                         .build())
                 .build();
 
-        List<TopologyDTO.ProjectedTopologyEntity> entity =
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
                 converter.convertFromMarket(Collections.singletonList(trader),
                         ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
                         PriceIndexMessage.getDefaultInstance(), mockCCD);
         assertEquals(1L, entity.size());
         // Ensure the entity is having SUSPENDED state.
-        assertEquals(EntityState.SUSPENDED, entity.get(0).getEntity().getEntityState());
+        assertThat(entity.get(trader.getOid()).getEntity().getEntityState(), is(EntityState.SUSPENDED));
     }
 
 
@@ -476,7 +485,7 @@ public class TopologyConverterFromMarketTest {
                 .build();
 
         // Act
-        List<TopologyDTO.ProjectedTopologyEntity> entity =
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
                 converter.convertFromMarket(
                         // the traders in the market
                         Lists.newArrayList(pmTrader, vmTrader),
@@ -488,12 +497,12 @@ public class TopologyConverterFromMarketTest {
         // Assert two entities returned - they will be in the original order - VM and PM
         assertEquals(2L, entity.size());
         // check that the PM expected capacity and used matches the actual converted capacity and used
-        final CommoditySoldDTO actualCpuCommodity = entity.get(0).getEntity().getCommoditySoldList(0);
+        final CommoditySoldDTO actualCpuCommodity = entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
         assertEquals(topologyCPUSold.getCapacity(), actualCpuCommodity.getCapacity(), epsilon);
         assertEquals(topologyCPUSold.getUsed(), actualCpuCommodity.getUsed(), epsilon);
         // check that the VM expected used matches the actual converted used
-        assertEquals(1, entity.get(1).getEntity().getCommoditiesBoughtFromProvidersList().size());
-        final List<CommodityBoughtDTO> actualBoughtCommodityList = entity.get(1).getEntity()
+        assertEquals(1, entity.get(vmTrader.getOid()).getEntity().getCommoditiesBoughtFromProvidersList().size());
+        final List<CommodityBoughtDTO> actualBoughtCommodityList = entity.get(vmTrader.getOid()).getEntity()
                 .getCommoditiesBoughtFromProvidersList().iterator().next().getCommodityBoughtList();
         assertEquals(1, actualBoughtCommodityList.size());
         assertEquals(RAW_VM_USED, actualBoughtCommodityList.iterator().next().getUsed(), epsilon);
@@ -616,7 +625,7 @@ public class TopologyConverterFromMarketTest {
                 .build();
 
         // Act
-        List<TopologyDTO.ProjectedTopologyEntity> entity =
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
                 converter.convertFromMarket(
                         // the traders in the market
                         Lists.newArrayList(pmTrader, vmTrader),
@@ -628,16 +637,228 @@ public class TopologyConverterFromMarketTest {
         // Assert two entities returned - they will be in the original order - VM and PM
         assertEquals(2L, entity.size());
         // check that the PM expected capacity and used matches the actual converted capacity and used
-        final CommoditySoldDTO actualCpuCommodity = entity.get(0).getEntity().getCommoditySoldList(0);
+        final CommoditySoldDTO actualCpuCommodity = entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
         assertEquals(MARKET_PM_CAPACITY, actualCpuCommodity.getCapacity(), TopologyConverter.EPSILON);
         assertEquals(MARKET_PM_USED, actualCpuCommodity.getUsed(), TopologyConverter.EPSILON);
         // check that the VM expected used matches the actual converted used
-        assertEquals(1, entity.get(1).getEntity().getCommoditiesBoughtFromProvidersList().size());
-        final List<CommodityBoughtDTO> actualBoughtCommodityList = entity.get(1).getEntity()
+        assertEquals(1, entity.get(vmTrader.getOid()).getEntity().getCommoditiesBoughtFromProvidersList().size());
+        final List<CommodityBoughtDTO> actualBoughtCommodityList = entity.get(vmTrader.getOid()).getEntity()
                 .getCommoditiesBoughtFromProvidersList().iterator().next().getCommodityBoughtList();
         assertEquals(1, actualBoughtCommodityList.size());
         assertEquals(RAW_VM_USED, actualBoughtCommodityList.iterator().next().getUsed(), TopologyConverter.EPSILON);
 
     }
+
+    @Test
+    public void testConvertFromMarketPreservesOriginalEnvType() {
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(
+                TopologyInfo.newBuilder()
+                    .setTopologyType(TopologyType.REALTIME)
+                    .build(),
+                false,
+                AnalysisUtil.QUOTE_FACTOR,
+                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter,
+                mockCCD));
+
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+
+        final EconomyDTOs.TraderTO vmTrader = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(VM_OID)
+            .build();
+
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Collections.singletonList(vmTrader),
+                ImmutableMap.of(VM_OID, originalVm),
+                    PriceIndexMessage.getDefaultInstance(), mockCCD);
+
+        assertThat(entity.get(VM_OID).getEntity().getEnvironmentType(),
+            is(originalVm.getEnvironmentType()));
+    }
+
+    @Test
+    public void testConvertFromMarketPreservesOriginalTypeSpecificInfo() {
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(
+                TopologyInfo.newBuilder()
+                    .setTopologyType(TopologyType.REALTIME)
+                    .build(),
+                false,
+                AnalysisUtil.QUOTE_FACTOR,
+                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter,
+                mockCCD));
+
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                    .setNumCpus(100)))
+            .build();
+
+        final EconomyDTOs.TraderTO vmTrader = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(VM_OID)
+            .build();
+
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Collections.singletonList(vmTrader),
+                ImmutableMap.of(VM_OID, originalVm),
+                PriceIndexMessage.getDefaultInstance(), mockCCD);
+
+        assertThat(entity.get(VM_OID).getEntity().getTypeSpecificInfo(),
+            is(originalVm.getTypeSpecificInfo()));
+    }
+
+    @Test
+    public void testConvertFromMarketPreservesOriginalOrigin() {
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(
+                TopologyInfo.newBuilder()
+                    .setTopologyType(TopologyType.REALTIME)
+                    .build(),
+                false,
+                AnalysisUtil.QUOTE_FACTOR,
+                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter, mockCCD));
+
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .addDiscoveringTargetIds(123)))
+            .build();
+
+        final EconomyDTOs.TraderTO vmTrader = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(VM_OID)
+            .build();
+
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Collections.singletonList(vmTrader),
+                ImmutableMap.of(VM_OID, originalVm),
+                PriceIndexMessage.getDefaultInstance(), mockCCD);
+
+        assertThat(entity.get(VM_OID).getEntity().getOrigin(),
+            is(originalVm.getOrigin()));
+    }
+
+    @Test
+    public void testConvertFromMarketCloneRetainsOriginalEnvType() {
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .build(),
+                false,
+                AnalysisUtil.QUOTE_FACTOR,
+                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter, mockCCD));
+
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
+
+        final long cloneId = 127329;
+        final EconomyDTOs.TraderTO cloneTrader = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(cloneId)
+            .setCloneOf(VM_OID)
+            .build();
+
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Collections.singletonList(cloneTrader),
+                ImmutableMap.of(VM_OID, originalVm),
+                PriceIndexMessage.getDefaultInstance(), mockCCD);
+
+        assertThat(entity.get(cloneId).getEntity().getEnvironmentType(),
+            is(originalVm.getEnvironmentType()));
+    }
+
+    @Test
+    public void testConvertFromMarketCloneRetainsOriginalTypeSpecificInfo() {
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(
+                TopologyInfo.newBuilder()
+                    .setTopologyType(TopologyType.REALTIME)
+                    .build(),
+                false,
+                AnalysisUtil.QUOTE_FACTOR,
+                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter,
+                mockCCD));
+
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                    .setNumCpus(100)))
+            .build();
+
+        final long cloneId = 127329;
+        final EconomyDTOs.TraderTO cloneTrader = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(cloneId)
+            .setCloneOf(VM_OID)
+            .build();
+
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Collections.singletonList(cloneTrader),
+                ImmutableMap.of(VM_OID, originalVm),
+                PriceIndexMessage.getDefaultInstance(), mockCCD);
+
+        assertThat(entity.get(cloneId).getEntity().getTypeSpecificInfo(),
+            is(originalVm.getTypeSpecificInfo()));
+    }
+
+    @Test
+    public void testConvertFromMarketCloneHasAnalysisOrigin() {
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(
+                TopologyInfo.newBuilder()
+                    .setTopologyType(TopologyType.REALTIME)
+                    .build(),
+                false,
+                AnalysisUtil.QUOTE_FACTOR,
+                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter,
+                mockCCD));
+
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .addDiscoveringTargetIds(123)))
+            .build();
+
+        final long cloneId = 127329;
+        final EconomyDTOs.TraderTO cloneTrader = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(cloneId)
+            .setCloneOf(VM_OID)
+            .build();
+
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Collections.singletonList(cloneTrader),
+                ImmutableMap.of(VM_OID, originalVm),
+                PriceIndexMessage.getDefaultInstance(), mockCCD);
+
+        // The origin is NOT the same - it's a market origin since this is a clone.
+        assertThat(entity.get(cloneId).getEntity().getOrigin().getAnalysisOrigin().getOriginalEntityId(),
+            is(originalVm.getOid()));
+    }
+
+
 }
 

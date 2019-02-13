@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 

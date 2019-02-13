@@ -2,9 +2,10 @@ package com.vmturbo.topology.processor.actions.data.context;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
@@ -46,7 +47,7 @@ public class ActivateContext extends AbstractActionExecutionContext {
     /**
      * Get the primary entity ID for this action
      * Corresponds to the logic in
-     *   {@link com.vmturbo.common.protobuf.ActionDTOUtil#getPrimaryEntityId(Action) ActionDTOUtil.getPrimaryEntityId}.
+     *   {@link ActionDTOUtil#getPrimaryEntityId(Action) ActionDTOUtil.getPrimaryEntityId}.
      * In comparison to that utility method, because we know the type here we avoid the switch
      * statement and the corresponding possiblity of an {@link UnsupportedActionException} being
      * thrown.

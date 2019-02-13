@@ -7,8 +7,8 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;

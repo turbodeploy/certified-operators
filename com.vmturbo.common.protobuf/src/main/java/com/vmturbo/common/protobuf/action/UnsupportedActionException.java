@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf;
+package com.vmturbo.common.protobuf.action;
 
 import javax.annotation.Nonnull;
 
@@ -18,7 +18,8 @@ public class UnsupportedActionException extends Exception {
     private final long actionId;
 
     public UnsupportedActionException(long actionId, @Nonnull final ActionInfo actionInfo) {
-        super("Action: " + actionId + " is not supported.");
+        super("Action: " + actionId + " with type " + actionInfo.getActionTypeCase() +
+            " is not supported.");
         this.actionId = actionId;
         this.actionInfo = actionInfo;
     }

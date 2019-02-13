@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -27,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
@@ -128,7 +128,7 @@ public class Analysis {
 
     private Map<Long, TopologyEntityDTO> scopeEntities = Collections.emptyMap();
 
-    private Collection<ProjectedTopologyEntity> projectedEntities = null;
+    private Map<Long, ProjectedTopologyEntity> projectedEntities = null;
 
     private Map<Long, CostJournal<TopologyEntityDTO>> projectedEntityCosts = null;
 
@@ -350,11 +350,19 @@ public class Analysis {
                     projectedTraderDTO,
                     topologyDTOs,
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
-                projectedEntities.addAll(projectedEntitiesFromOriginalTopo);
+                projectedEntitiesFromOriginalTopo.forEach(projectedEntity -> {
+                    final ProjectedTopologyEntity existing =
+                        projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
+                    if (existing != null && !projectedEntity.equals(existing)) {
+                        logger.error("Existing projected entity overwritten by entity from " +
+                            "original topology. Existing (converted from market): {}\nOriginal: {}",
+                            existing, projectedEntity);
+                    }
+                });
 
                 // Calculate the projected entity costs.
                 final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
-                        cloudTopologyFactory.newCloudTopology(projectedEntities.stream()
+                        cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
                                 .filter(ProjectedTopologyEntity::hasEntity)
                                 .map(ProjectedTopologyEntity::getEntity));
                 // Projected RI coverage has been calculated by convertFromMarket
@@ -370,17 +378,8 @@ public class Analysis {
                     .setTopologyId(topologyInfo.getTopologyId())
                     .setTopologyContextId(topologyInfo.getTopologyContextId())
                     .setAnalysisStartTimestamp(startTime.toEpochMilli());
-            // We need to put all the entities from the projected topology into this map.
-            // We also need to put entities for which no traders were created (like Volumes)
-            // from the original topology because these will be used to interpret actions.
-            final Map<Long, Integer> entityIdToType = projectedTraderDTO.stream()
-                    .collect(Collectors.toMap(TraderTO::getOid, TraderTO::getType));
-            projectedEntitiesFromOriginalTopo.stream().filter(p -> p.hasEntity())
-                    .map(p -> p.getEntity())
-                    .forEach(e -> entityIdToType.put(e.getOid(), e.getEntityType()));
-
             results.getActionsList().stream()
-                    .map(action -> converter.interpretAction(action, entityIdToType,
+                    .map(action -> converter.interpretAction(action, projectedEntities,
                             this.originalCloudTopology, projectedEntityCosts,
                             topologyCostCalculator))
                     .filter(Optional::isPresent)
@@ -523,7 +522,7 @@ public class Analysis {
      * @return the projected topology
      */
     public Optional<Collection<ProjectedTopologyEntity>> getProjectedTopology() {
-        return completed ? Optional.ofNullable(projectedEntities) : Optional.empty();
+        return completed ? Optional.ofNullable(projectedEntities).map(Map::values) : Optional.empty();
     }
 
 

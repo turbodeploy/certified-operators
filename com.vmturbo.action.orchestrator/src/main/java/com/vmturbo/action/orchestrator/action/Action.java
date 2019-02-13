@@ -353,7 +353,6 @@ public class Action implements ActionView {
                 .orElseGet(() -> getClippedActionMode(curRecommendation));
     }
 
-
     /**
      * Calculate the {@link ActionMode} for this action based on the mode default for this action,
      * limited by (clipped by) the action modes supported by the probe for this action.

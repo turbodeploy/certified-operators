@@ -175,6 +175,10 @@ message ActionEntity {
 
     // Type of the entity provider.
     required int32 type = 2;
+
+    // The environment type of the entity.
+    // This is used to infer which actions apply to which environments.
+    optional .common.EnvironmentType environment_type = 3;
 }
 
 // Resize a commodity on a specific
@@ -655,6 +659,9 @@ message ActionQueryFilter {
 
     // Include only actions of the given categories.
     repeated ActionCategory categories = 8;
+
+    // Include only actions in a particular environment.
+    optional .common.EnvironmentType environment_type = 9;
 }
 
 // The number of actions of a specific type that match the criteria in

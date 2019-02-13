@@ -17,9 +17,10 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.store.ActionStore;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
 /**
  * A optionalFilter that can be used to test whether an action passes or fails the optionalFilter.
@@ -31,7 +32,7 @@ public class QueryFilter {
     // ActionQueryFilter to support constant-time lookups.
     private final Optional<Set<Long>> involvedEntities;
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A filter for use in testing whether an action is visible to the UI.
@@ -123,6 +124,20 @@ public class QueryFilter {
                         ActionDTOUtil.getActionInfoActionType(actionView.getRecommendation()))) {
             return false;
         }
+
+        if (filter.hasEnvironmentType()) {
+            try {
+                final ActionEnvironmentType envType =
+                    ActionEnvironmentType.forAction(actionView.getRecommendation());
+                if (!envType.matchesEnvType(filter.getEnvironmentType())) {
+                    return false;
+                }
+            } catch (UnsupportedActionException e) {
+                logger.error("Unsupported action found in action store: {}", e.getMessage());
+                return false;
+            }
+        }
+
 
         // Return false if the action is not related to the specified entities.
         if (filter.hasInvolvedEntities()) {

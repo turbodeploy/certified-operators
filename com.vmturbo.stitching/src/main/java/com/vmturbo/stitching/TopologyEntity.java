@@ -255,7 +255,7 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
      * @return True if added as part of a plan scenario, false otherwise.
      */
     public boolean hasPlanOrigin() {
-        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasPlanOrigin();
+        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasPlanScenarioOrigin();
     }
 
     /**

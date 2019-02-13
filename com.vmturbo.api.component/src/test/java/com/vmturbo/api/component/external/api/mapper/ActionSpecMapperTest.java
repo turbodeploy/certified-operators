@@ -42,10 +42,11 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -71,6 +72,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -780,7 +782,7 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testCreateLiveActionFilterDates() {
+    public void testCreateActionFilterDates() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setStartTime(DateTimeUtil.toString(1_000_000));
         inputDto.setEndTime(DateTimeUtil.toString(2_000_000));
@@ -799,6 +801,32 @@ public class ActionSpecMapperTest {
         final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
         assertFalse(filter.hasStartDate());
         assertFalse(filter.hasEndDate());
+    }
+
+    @Test
+    public void testCreateActionFilterEnvTypeCloud() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setEnvironmentType(EnvironmentType.CLOUD);
+
+        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
+        assertThat(filter.getEnvironmentType(), is(EnvironmentTypeEnum.EnvironmentType.CLOUD));
+    }
+
+    @Test
+    public void testCreateActionFilterEnvTypeOnPrem() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setEnvironmentType(EnvironmentType.ONPREM);
+
+        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
+        assertThat(filter.getEnvironmentType(), is(EnvironmentTypeEnum.EnvironmentType.ON_PREM));
+    }
+
+    @Test
+    public void testCreateActionFilterEnvTypeUnset() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+
+        final ActionQueryFilter filter = mapper.createLiveActionFilter(inputDto, Optional.empty());
+        assertFalse(filter.hasEnvironmentType());
     }
 
     @Test

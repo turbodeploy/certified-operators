@@ -42,7 +42,7 @@ import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;

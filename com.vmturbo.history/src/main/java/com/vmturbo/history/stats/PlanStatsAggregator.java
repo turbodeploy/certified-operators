@@ -160,7 +160,7 @@ public class PlanStatsAggregator {
     private boolean shouldCountEntity(TopologyEntityDTO entity) {
         return !(isProcessingSourceTopologyStats
                 && entity.hasOrigin()
-                && entity.getOrigin().hasPlanOrigin());
+                && entity.getOrigin().hasPlanScenarioOrigin());
     }
 
     /**

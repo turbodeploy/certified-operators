@@ -51,7 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -390,7 +390,8 @@ public class TopologyEditorTest {
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
         assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(vmEntity.getDisplayName()));
-        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanOrigin(), is(PlanOrigin.newBuilder()
+        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanScenarioOrigin(),
+            is(PlanScenarioOrigin.newBuilder()
                 .setPlanId(topologyInfo.getTopologyContextId())
                 .build()));
     }

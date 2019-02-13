@@ -41,7 +41,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;

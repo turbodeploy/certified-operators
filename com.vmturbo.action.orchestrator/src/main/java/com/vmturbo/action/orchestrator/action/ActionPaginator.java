@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;

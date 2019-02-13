@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -88,7 +88,7 @@ public class EnvironmentTypeInjectorTest {
     @Test
     public void testPlanEntity() {
         final TopologyGraph graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
-            .setPlanOrigin(PlanOrigin.newBuilder()
+            .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
                 .setPlanId(1111))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);

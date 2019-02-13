@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -297,9 +298,10 @@ public class ReservedInstanceAnalysisRecommendation {
 
         logger.info(explanationString);
         ActionEntity entityToClone = ActionEntity.newBuilder()
-                .setId(getComputeTier().getOid())
-                .setType(EntityType.COMPUTE_TIER_VALUE)
-                .build();
+            .setId(getComputeTier().getOid())
+            .setType(EntityType.COMPUTE_TIER_VALUE)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build();
 
         Provision provision = Provision.newBuilder()
                 .setEntityToClone(entityToClone)

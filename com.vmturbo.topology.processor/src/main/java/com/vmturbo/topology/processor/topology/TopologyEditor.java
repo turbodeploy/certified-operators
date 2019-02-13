@@ -40,7 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -160,9 +160,9 @@ public class TopologyEditor {
 
         // entities added in this stage will have a plan origin pointed to the context id of this topology
         Origin entityOrigin = Origin.newBuilder()
-                .setPlanOrigin(PlanOrigin.newBuilder()
-                        .setPlanId(topologyInfo.getTopologyContextId()))
-                .build();
+            .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
+                    .setPlanId(topologyInfo.getTopologyContextId()))
+            .build();
 
         entityAdditions.forEach((oid, addCount) -> {
             TopologyEntity.Builder entity = topology.get(oid);

@@ -42,7 +42,7 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;

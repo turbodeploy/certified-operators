@@ -61,7 +61,7 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 

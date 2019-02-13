@@ -21,12 +21,12 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;

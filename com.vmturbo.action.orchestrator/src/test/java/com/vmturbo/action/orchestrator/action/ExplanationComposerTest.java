@@ -1,6 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.common.protobuf.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
@@ -21,7 +21,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

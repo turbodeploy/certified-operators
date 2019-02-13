@@ -16,12 +16,13 @@ import org.apache.logging.log4j.Logger;
 
 import jersey.repackaged.com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -206,7 +207,7 @@ public class MoveContext extends AbstractActionExecutionContext {
     /**
      * Get the primary entity ID for this action
      * Corresponds to the logic in
-     *   {@link com.vmturbo.common.protobuf.ActionDTOUtil#getPrimaryEntityId(Action) ActionDTOUtil.getPrimaryEntityId}.
+     *   {@link ActionDTOUtil#getPrimaryEntityId(Action) ActionDTOUtil.getPrimaryEntityId}.
      * In comparison to that utility method, because we know the type here we avoid the switch
      * statement and the corresponding possiblity of an {@link UnsupportedActionException} being
      * thrown.
@@ -263,15 +264,15 @@ public class MoveContext extends AbstractActionExecutionContext {
     }
 
     private static ChangeProvider createStorageChange(long storageEntityId) {
+        // We know the source and destination entity types are going to be "STORAGE", because
+        // we filter for the "storage" providers when getting the storage entity IDs.
         return ChangeProvider.newBuilder()
                 .setSource(ActionEntity.newBuilder()
                         .setId(storageEntityId)
-                        // We must set a type on each ActionEntity, otherwise they will not build
-                        // However, the type will not actually be used in actionItemDtoBuilder
-                        .setType(EntityType.PHYSICAL_MACHINE_VALUE))
+                        .setType(EntityType.STORAGE_VALUE))
                 .setDestination(ActionEntity.newBuilder()
                         .setId(storageEntityId)
-                        .setType(EntityType.PHYSICAL_MACHINE_VALUE))
+                        .setType(EntityType.STORAGE_VALUE))
                 .build();
     }
 
