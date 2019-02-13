@@ -1,8 +1,5 @@
 package com.vmturbo.api.component.external.api.websocket;
 
-import java.util.concurrent.TimeUnit;
-
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -12,9 +9,6 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 @Configuration
 public class ApiWebsocketConfig implements WebSocketConfigurer {
-
-    @Value("${sessionTimeoutSeconds}")
-    private int sessionTimeoutSeconds;
 
     /**
      * The URL at which the UI listens for websocket notifications.
@@ -45,6 +39,6 @@ public class ApiWebsocketConfig implements WebSocketConfigurer {
      */
     @Bean
     public ApiWebsocketHandler websocketHandler() {
-        return new ApiWebsocketHandler(sessionTimeoutSeconds, TimeUnit.SECONDS);
+        return new ApiWebsocketHandler();
     }
 }

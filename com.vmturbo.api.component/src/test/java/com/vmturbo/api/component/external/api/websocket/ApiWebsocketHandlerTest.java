@@ -4,8 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import java.util.concurrent.TimeUnit;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,7 +23,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 public class ApiWebsocketHandlerTest {
 
     private final WebSocketSession session = mock(WebSocketSession.class);
-    private final ApiWebsocketHandler websocketHandler = new ApiWebsocketHandler(60*30, TimeUnit.SECONDS);
+    private final ApiWebsocketHandler websocketHandler = new ApiWebsocketHandler();
 
     @Captor
     private ArgumentCaptor<BinaryMessage> notificationCaptor;
