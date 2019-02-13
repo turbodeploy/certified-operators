@@ -175,7 +175,8 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER, EntityType.CONTAINER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER,
+                    EntityType.APPLICATION, EntityType.APPLICATION_SERVER, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
@@ -184,7 +185,8 @@ public enum EntitySettingSpecs {
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER, EntityType.CONTAINER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER,
+                    EntityType.APPLICATION, EntityType.APPLICATION_SERVER, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
 
     /**
@@ -255,7 +257,7 @@ public enum EntitySettingSpecs {
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
             string(), true),
 
     /**
@@ -265,7 +267,7 @@ public enum EntitySettingSpecs {
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
         string(), true),
 
     /**
@@ -276,7 +278,7 @@ public enum EntitySettingSpecs {
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
             string(), true),
 
     /**
@@ -296,7 +298,7 @@ public enum EntitySettingSpecs {
     SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
             string(), true),
 
     /**
