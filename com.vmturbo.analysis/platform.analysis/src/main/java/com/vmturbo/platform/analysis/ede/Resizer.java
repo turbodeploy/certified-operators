@@ -17,6 +17,7 @@ import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -103,7 +104,7 @@ public class Resizer {
                             CommoditySold rawMaterial = findSellerCommodity(economy, seller,
                                                                             soldIndex);
                             double newEffectiveCapacity =
-                               calculateEffectiveCapacity(desiredCapacity, commoditySold,
+                               calculateEffectiveCapacity(seller, basketSold.get(soldIndex), desiredCapacity, commoditySold,
                                                           rawMaterial, rateOfResize);
                             if (Double.compare(newEffectiveCapacity,
                                                commoditySold.getEffectiveCapacity()) != 0) {
@@ -167,6 +168,8 @@ public class Resizer {
      *
      * In all cases, the the new size is not permitted to exceed the capacity of the seller.
      *
+     * @param seller          The seller whose commodity is being resized
+     * @param commSpec        The commSpec being resized
      * @param desiredCapacity The calculated new desired effective capacity; may be greater or less than
      *                        than current capacity.
      * @param resizeCommodity The {@link CommoditySold commodity} being resized, to obtain peak usage,
@@ -175,7 +178,7 @@ public class Resizer {
      * @param rateOfRightSize The user configured rateOfRightSize from {@link EconomySettings}.
      * @return The recommended new capacity.
      */
-    private static double calculateEffectiveCapacity(double desiredCapacity,
+    private static double calculateEffectiveCapacity(Trader seller, CommoditySpecification commSpec, double desiredCapacity,
                                                      @NonNull CommoditySold resizeCommodity,
                                                      CommoditySold rawMaterial,
                                                      float rateOfRightSize) {
@@ -184,21 +187,14 @@ public class Resizer {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
         double desiredAdjustment = desiredCapacity - currentCapacity;
         double capacityIncrement = resizeCommodity.getSettings().getCapacityIncrement() * resizeCommodity.getSettings().getUtilizationUpperBound();
-
-        double adjustment;
+        double adjustment = 0;
         if (desiredCapacity > currentCapacity) {
-            adjustment = calculateResizeUpAmount(desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
+            adjustment = calculateResizeUpAmount(seller, commSpec, desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
         } else {
             // "amount" values are always non-negative, hence we negate the arg and the result for a downward resize
-            adjustment = -calculateResizeDownAmount(-desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
+            adjustment = -calculateResizeDownAmount(seller, commSpec, -desiredAdjustment, resizeCommodity, rawMaterial, capacityIncrement, rateOfRightSize);
         }
-        double newCapacity = currentCapacity + adjustment;
-
-        // Ensure that we don't exceed supplier capacity
-        if (rawMaterial != null && newCapacity > rawMaterial.getEffectiveCapacity()) {
-            newCapacity = rawMaterial.getEffectiveCapacity();
-        }
-        return newCapacity;
+        return currentCapacity + adjustment;
     }
 
     /**
@@ -208,6 +204,8 @@ public class Resizer {
      *
      * In addition, the amount is limited by available headroom in the seller.
      *
+     * @param seller the seller
+     * @param commSpec the commSpec being resized
      * @param desiredAmount the desired capacity increase; must be non-negative
      * @param resizeCommodity the {@link CommoditySold commodity} being resized.
      * @param rawMaterial the source of raw material supplying the {@link CommoditySold commodity} being resized.
@@ -215,12 +213,23 @@ public class Resizer {
      * @param rateOfRightSize the user configured rightsizing rate from {@link EconomySettings}.
      * @return the recommended amount of increase for {@link CommoditySold commodity} being resized; always non-negative
      * */
-    private static double calculateResizeUpAmount(double desiredAmount,
+    private static double calculateResizeUpAmount(Trader seller, CommoditySpecification commSpec,
+                                                  double desiredAmount,
                                                   @NonNull CommoditySold resizeCommodity,
                                                   CommoditySold rawMaterial,
                                                   double capacityIncrement,
                                                   double rateOfRightSize) {
-
+        // If the current capacity is already above the raw material's capacity, do not resize up
+        // further.
+        if (resizeCommodity.getEffectiveCapacity() > rawMaterial.getEffectiveCapacity()) {
+            if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+                logger.debug("Cannot resize {}/{} further up. Current capacity {} already " +
+                        "above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
+                        commSpec.getDebugInfoNeverUseInCode(), resizeCommodity.getEffectiveCapacity(),
+                        rawMaterial.getEffectiveCapacity());
+            }
+            return 0;
+        }
         // compute increments sufficient for desired amount
         int numIncrements = (int) Math.ceil(desiredAmount / (capacityIncrement * rateOfRightSize));
 
@@ -251,6 +260,8 @@ public class Resizer {
      * <li>The capacity is not allowed to drop below a single capacity increment amount.</li>
      * </ul>
      *
+     * @param seller            the seller whose commodity is being resized
+     * @param commSpec          the commSpec which is being resized
      * @param desiredAmount     the desired capacity decrease; must be non-negative.
      * @param resizeCommodity   the {@link CommoditySold commodity} being resized.
      * @param rawMaterial       the source of raw material supplying the {@link CommoditySold commodity} being resized.
@@ -258,7 +269,8 @@ public class Resizer {
      * @param rateOfRightSize   the user configured rightsizing rate from {@link EconomySettings}.
      * @return the recommended amount of decrease for {@link CommoditySold commodity} being resized; always non-negative.
      */
-    private static double calculateResizeDownAmount(double desiredAmount,
+    private static double calculateResizeDownAmount(Trader seller, CommoditySpecification commSpec,
+                                                    double desiredAmount,
                                                     @NonNull CommoditySold resizeCommodity,
                                                     CommoditySold rawMaterial,
                                                     double capacityIncrement,
@@ -293,7 +305,23 @@ public class Resizer {
         if (currentCapacity - amount < capacityIncrement) {
             amount = currentCapacity >= 2 * capacityIncrement ? currentCapacity - capacityIncrement : 0.0;
         }
-
+        // If the final number to go to is greater than the raw material capacity, then restrict
+        // it to the raw material capacity. (This can happen when the current capacity is greater
+        // than the raw material's capacity)
+        double newCapacity = currentCapacity - amount;
+        if (newCapacity > rawMaterial.getEffectiveCapacity()) {
+            double deltaToRawMaterialCapacity = currentCapacity - rawMaterial.getEffectiveCapacity();
+            amount = Math.ceil(deltaToRawMaterialCapacity / capacityIncrement) * capacityIncrement;
+            // Do not decrement by the full capacity. This can happen in case the capacityIncrement
+            // is bigger than the raw material capacity. In such a case, do not resize.
+            amount = (amount >= currentCapacity) ? 0 : amount;
+            if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+                logger.debug("New resized capacity for {}/{} is {}. But this is above rawMaterial " +
+                                "capacity {}. Changing newCapacity to {}" , seller.getDebugInfoNeverUseInCode(),
+                        commSpec.getDebugInfoNeverUseInCode(), newCapacity,
+                        rawMaterial.getEffectiveCapacity(), currentCapacity - amount);
+            }
+        }
         return amount;
     }
 

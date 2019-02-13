@@ -474,7 +474,7 @@ public class ResizerTest {
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
      * VM's VMEM and VCPU have low ROI.
-     * VM's CPU and MEM have capacities of 150 each, which exceeds PM's capacity.
+     * VM's VCPU and VMEM have capacities of 150 each, which exceeds PM's capacity.
      * VM's CPU and MEM have maxQuantity of 120.
      * The desired capacity is 25.85 - result of calling calculateDesiredCapacity.
      * That capacity will be bumped to 120 because of the maxQuantity value.
@@ -500,7 +500,87 @@ public class ResizerTest {
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
         assertEquals(100, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
 
+    /**
+     * Resize down when the currentCapacity is above rawMaterial capacity.
+     *
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's VCPU and VMEM have capacities of 150 each, which exceeds PM's capacity.
+     * The desired capacity is 26.66 - result of calling calculateDesiredCapacity.
+     * The capacity decrement is 30.
+     * The rate of resize is set to low and so capacity is only decremented by one decrement to make
+     * the newCapacity 120.
+     * But this is still above the rawMaterial capacity of 100. So we end up with an eventual
+     * value of 90 which is 2 decrements down.
+     * */
+    @Test
+    public void testResizeDecisions_resizeDownExceedsSellerCapacityWithCapacityIncrement() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+                150, 150, 70, 70, 20, 20, 0.65, 0.8,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
+        // set the rate of resize to low
+        economy.getSettings().setRateOfResize(1000000);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(90, resize1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(90, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Resize down when the currentCapacity is above rawMaterial capacity. This test has a really
+     * big increment greater than the capacity of the raw material. Its an extreme case.
+     *
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's CPU and MEM have capacities of 1500 each, which exceeds PM's capacity.
+     * The desired capacity is 40 - result of calling calculateDesiredCapacity.
+     * The capcity increment is 500.
+     * The rate of resize is set to low and so capacity is only decremented by one decrement to make
+     * the newCapacity 1000.
+     * But this is still above the rawMaterial capacity of 100. So we try to decrease by
+     * Match.ceil((1500 - 100)/500) = 3 decrements to make the newCapacity 0.
+     * But we should not size down to 0, and so we don't produce an action.
+     * */
+    @Test
+    public void testResizeDecisions_noActionsWhenResizeDownExceedsSellerCapacityWithBigCapacityIncrement() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+                1500, 1500, 70, 70, 20, 20, 0.65, 0.8,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(500));
+        // set the rate of resize to low
+        economy.getSettings().setRateOfResize(1000000);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
+    }
+
+    /**
+     * When we try to resize up a VM when its current capacity is already above the raw material's
+     * capacity, then we should not produce an action.
+     **/
+    @Test
+    public void testResizeDecisions_resizeUpWhenCurrentCapacityGreaterThanRawMaterialCapacity() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+                101, 101, 80, 80, 95, 95, 0.65, 0.75,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
     }
 
     /**
