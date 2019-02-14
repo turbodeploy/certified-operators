@@ -11,7 +11,7 @@ imageCredentials:
 
 global:
   repository: registry.turbonomic.com/turbonomic
-  tag: 7.12.0-SNAPSHOT
+  tag: 7.13.0-SNAPSHOT
 #  externalIP: 10.233.0.3 # byo k8s DNS
 #              10.100.0.10 # eks DNS
 #              10.0.0.10 # aks DNS
