@@ -31,11 +31,6 @@
             <groupId>org.apache.sshd</groupId>
             <artifactId>sshd-sftp</artifactId>
         </dependency>
-
-        <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-sftp</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk15on</artifactId>
