@@ -75,9 +75,8 @@ spec:
       - name: rsyslog-auditlogdata
         persistentVolumeClaim:
           claimName: rsyslog-auditlogdata
-      - emptyDir:
-          medium: Memory
-        name: rsyslog-tmpfs0
+      - name: rsyslog-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

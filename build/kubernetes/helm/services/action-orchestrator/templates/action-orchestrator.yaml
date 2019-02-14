@@ -63,9 +63,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: action-orchestrator-tmpfs0
+      - name: action-orchestrator-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

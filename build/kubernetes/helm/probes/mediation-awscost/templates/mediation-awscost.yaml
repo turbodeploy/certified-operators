@@ -1,17 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    zone: secure
-    io.kompose.service: mediation-awscost
-  name: mediation-awscost
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -69,8 +55,6 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /home/turbonomic/data
-          name: mediation-awscost
         - mountPath: /tmp
           name: mediation-awscost-tmpfs0
       restartPolicy: Always
@@ -79,12 +63,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       volumes:
-      - name: mediation-awscost
-        persistentVolumeClaim:
-          claimName: mediation-awscost
-      - emptyDir:
-          medium: Memory
-        name: mediation-awscost-tmpfs0
+      - name: mediation-awscost-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

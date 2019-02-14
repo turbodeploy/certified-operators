@@ -78,9 +78,8 @@ spec:
       - name: mysql-log
         persistentVolumeClaim:
           claimName: mysql-log
-      - emptyDir:
-          medium: Memory
-        name: db-tmpfs0
+      - name: db-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

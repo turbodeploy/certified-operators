@@ -82,9 +82,8 @@ spec:
       - name: consuldata
         persistentVolumeClaim:
           claimName: consuldata
-      - emptyDir:
-          medium: Memory
-        name: consul-tmpfs0
+      - name: consul-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

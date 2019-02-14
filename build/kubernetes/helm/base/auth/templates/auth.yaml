@@ -82,9 +82,8 @@ spec:
       - name: auth
         persistentVolumeClaim:
           claimName: auth
-      - emptyDir:
-          medium: Memory
-        name: auth-tmpfs0
+      - name: auth-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

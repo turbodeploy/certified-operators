@@ -82,9 +82,8 @@ spec:
       - name: reporting
         persistentVolumeClaim:
           claimName: reporting
-      - emptyDir:
-          medium: Memory
-        name: reporting-tmpfs0
+      - name: reporting-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

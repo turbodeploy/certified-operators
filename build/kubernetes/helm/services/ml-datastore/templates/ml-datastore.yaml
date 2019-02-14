@@ -63,9 +63,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: ml-datastore-tmpfs0
+      - name: ml-datastore-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

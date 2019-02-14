@@ -61,9 +61,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: mediation-snmp-tmpfs0
+      - name: mediation-snmp-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

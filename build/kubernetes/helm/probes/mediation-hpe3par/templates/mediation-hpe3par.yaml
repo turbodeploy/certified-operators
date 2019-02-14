@@ -59,9 +59,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: mediation-hpe3par-tmpfs0
+      - name: mediation-hpe3par-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

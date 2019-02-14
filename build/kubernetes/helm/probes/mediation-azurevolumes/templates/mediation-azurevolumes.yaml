@@ -61,9 +61,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: mediation-azurevolumes-tmpfs0
+      - name: mediation-azurevolumes-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

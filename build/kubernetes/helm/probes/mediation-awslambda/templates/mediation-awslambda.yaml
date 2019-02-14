@@ -61,9 +61,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: mediation-awslambda-tmpfs0
+      - name: mediation-awslambda-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

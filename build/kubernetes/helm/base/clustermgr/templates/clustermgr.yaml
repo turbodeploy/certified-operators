@@ -88,9 +88,8 @@ spec:
       - name: clustermgr
         persistentVolumeClaim:
           claimName: clustermgr
-      - emptyDir:
-          medium: Memory
-        name: clustermgr-tmpfs0
+      - name: clustermgr-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

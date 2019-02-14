@@ -131,10 +131,8 @@ spec:
       - name: nginx-run
         persistentVolumeClaim:
           claimName: nginx-run
-      - emptyDir:
-          medium: Memory
-          sizeLimit: "1Gi"
-        name: nginx-tmpfs0
+      - name: nginx-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

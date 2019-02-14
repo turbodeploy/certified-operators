@@ -88,9 +88,8 @@ spec:
       - name: topology-processor
         persistentVolumeClaim:
           claimName: topology-processor
-      - emptyDir:
-          medium: Memory
-        name: topology-processor-tmpfs0
+      - name: topology-processor-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

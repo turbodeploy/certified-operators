@@ -103,9 +103,8 @@ spec:
       - name: arangodb-dump
         persistentVolumeClaim:
           claimName: arangodb-dump
-      - emptyDir:
-          medium: Memory
-        name: arangodb-tmpfs0
+      - name: arangodb-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

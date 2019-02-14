@@ -61,9 +61,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: mediation-ucs-tmpfs0
+      - name: mediation-ucs-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

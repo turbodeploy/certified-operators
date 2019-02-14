@@ -61,9 +61,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: mediation-pivotal-tmpfs0
+      - name: mediation-pivotal-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

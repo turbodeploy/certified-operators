@@ -81,9 +81,8 @@ spec:
       - name: influxdb-dump
         persistentVolumeClaim:
           claimName: influxdb-dump
-      - emptyDir:
-          medium: Memory
-        name: influxdb-tmpfs0
+      - name: influxdb-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

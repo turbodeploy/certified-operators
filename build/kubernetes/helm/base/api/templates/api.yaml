@@ -105,9 +105,8 @@ spec:
       - name: api-certs
         persistentVolumeClaim:
           claimName: api-certs
-      - emptyDir:
-          medium: Memory
-        name: api-tmpfs0
+      - name: api-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

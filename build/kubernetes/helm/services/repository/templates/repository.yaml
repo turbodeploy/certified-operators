@@ -65,9 +65,8 @@ spec:
       - name: turbocred
       restartPolicy: Always
       volumes:
-      - emptyDir:
-          medium: Memory
-        name: repository-tmpfs0
+      - name: repository-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

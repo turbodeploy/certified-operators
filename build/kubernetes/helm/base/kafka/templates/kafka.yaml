@@ -86,10 +86,8 @@ spec:
       - name: kafka-log
         persistentVolumeClaim:
           claimName: kafka-log
-      - emptyDir:
-          medium: Memory
-          sizeLimit: "1Gi"
-        name: kafka-tmpfs0
+      - name: kafka-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

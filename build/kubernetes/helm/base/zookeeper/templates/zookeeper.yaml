@@ -73,9 +73,8 @@ spec:
       - name: zookeeper-data
         persistentVolumeClaim:
           claimName: zookeeper-data
-      - emptyDir:
-          medium: Memory
-        name: zookeeper-tmpfs0
+      - name: zookeeper-tmpfs0
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
