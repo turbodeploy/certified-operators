@@ -3,12 +3,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
+        <artifactId>xl-sdk-probe-parent</artifactId>
         <groupId>com.vmturbo</groupId>
-        <artifactId>Turbonomic-XL</artifactId>
         <version>7.13.0-SNAPSHOT</version>
-        <relativePath>../build/pom.xml</relativePath>
+        <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
     </parent>
 
+    <packaging>jar</packaging>
     <artifactId>com.vmturbo.mediation.vcenter.browsing.conversion</artifactId>
     <description>Mediation Component for VCenter Storage Browsing conversion probe</description>
 
@@ -19,52 +20,13 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>create-distribution</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                        <configuration>
-                            <appendAssemblyId>false</appendAssemblyId>
-                            <descriptors>
-                                <descriptor>assembly.xml</descriptor>
-                            </descriptors>
-                        </configuration>
-                    </execution>
-                </executions>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>vmturbo-sdk-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
 
     <dependencies>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.platform.sdk.common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.platform.sdk.probe</artifactId>
-        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.vmware.browsing.sdk</artifactId>
