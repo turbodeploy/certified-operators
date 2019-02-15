@@ -8,7 +8,7 @@ rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.
 if [ "$DNS_RESOLVER" == "" ]; then
     export DNS_RESOLVER=`cat /etc/resolv.conf | grep "nameserver" | awk '{print $2}' | tr '\n' ' '`
 fi
-envsubst '${API} ${TOPOLOGY} ${DNS_RESOLVER}' < /home/nginx/conf/nginx.conf.template > /tmp/nginx.conf
+envsubst '${API} ${TOPOLOGY} ${DNS_RESOLVER}' < /home/nginx/conf/nginx.conf.template > /home/nginx/conf/nginx.conf
 
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when
@@ -50,7 +50,7 @@ fi
 
 start_nginx() {
     echo "Starting nginx" 2>&1 | ${LOGGER_COMMAND}
-    exec nginx -c /tmp/nginx.conf -p /var/log/nginx > >($LOGGER_COMMAND) 2>&1
+    exec nginx -c /home/nginx/conf/nginx.conf > >($LOGGER_COMMAND) 2>&1
 }
 
 start_nginx

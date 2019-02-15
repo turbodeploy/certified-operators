@@ -1,8 +1,9 @@
-FROM alpine
+FROM ubuntu:18.04
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN apk update && \
-apk add --no-cache rsyslog python2 openjdk8-jre-base ca-certificates bash util-linux
+RUN apt-get update -q -y && apt-get upgrade -q -y && \
+apt-get install -q -y --no-install-recommends rsyslog python2.7 openjdk-8-jre-headless ca-certificates-java && \
+rm -rf /var/lib/apt/lists/* && apt-get clean
 
 COPY entrypoint.sh /
 COPY collect_diags.sh /
@@ -19,7 +20,8 @@ COPY swagger /swagger/
 ADD rsyslog.conf /etc
 
 # Create a user which is not allowed to logon in the system.
-RUN addgroup staff && adduser -S -D -h /home/turbonomic -s /bin/bash -G staff turbonomic && passwd -l root
+RUN adduser --system --disabled-password -home /home/turbonomic --ingroup staff --disabled-login --shell /bin/bash turbonomic && \
+passwd -l root
 
 USER turbonomic
 

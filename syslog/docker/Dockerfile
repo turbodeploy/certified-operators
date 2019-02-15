@@ -1,10 +1,9 @@
-FROM alpine
+FROM ubuntu:18.04
 MAINTAINER Michael Borodiansky<michael.borodiansky@turbonomic.com>
 
-RUN addgroup -g 1000 vmtsyslog && adduser -S -D -h /home/vmtsyslog -s /bin/bash -G vmtsyslog -u 1000 vmtsyslog && passwd -l root
-
-RUN apk update && \
-apk add --no-cache ca-certificates python2 zip xz rsyslog bash && \
+RUN apt-get update -q -y && apt-get upgrade -q -y && \
+apt-get install -q -y ca-certificates python2.7 zip xz-utils rsyslog bash && \
+addgroup --gid 1000 vmtsyslog && adduser --uid 1000 --system --disabled-password -home /home/vmtsyslog --ingroup vmtsyslog --disabled-login --shell /bin/bash vmtsyslog && \
 mkdir -p /home/vmtsyslog/rsyslog && \
 chown -R vmtsyslog:vmtsyslog /home/vmtsyslog && \
 mkdir -p /var/lib/logrotate && \

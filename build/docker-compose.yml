@@ -103,7 +103,7 @@ services:
     environment:
       ZOO_MY_ID: 1
       ZOO_SERVERS: zoo1
-      SERVER_JVMFLAGS: "-Xmx${ZOOKEEPER_XMX_MB}M -Xms16m -Xss512k"
+      SERVER_JVMFLAGS: "-Xmx${ZOOKEEPER_XMX_MB}M"
     volumes:
       - zoo1-data:/var/lib/zoo
 
@@ -149,7 +149,7 @@ services:
       component_type: auth
       instance_id: auth-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${AUTH_XMX_MB}M ${AUTH_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${AUTH_XMX_MB}M ${AUTH_SYSTEM_PROPERTIES}"
     volumes:
       - auth:/home/turbonomic/data
     mem_limit: ${AUTH_MEM_LIMIT_MB}M
@@ -170,7 +170,7 @@ services:
       component_type: clustermgr
       instance_id: clustermgr-1
       serverHttpPort: 8080
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${CLUSTERMGR_XMX_MB}M ${CLUSTERMGR_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${CLUSTERMGR_XMX_MB}M ${CLUSTERMGR_SYSTEM_PROPERTIES}"
       node_name: default
       consul_host: consul
       kafkaServers: ${KAFKA_SERVERS}
@@ -194,7 +194,7 @@ services:
       component_type: api
       instance_id: api-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${API_XMX_MB}M ${API_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${API_XMX_MB}M ${API_SYSTEM_PROPERTIES}"
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
@@ -236,7 +236,7 @@ services:
       component_type: market
       instance_id: market-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MARKET_XMX_MB}M ${MARKET_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MARKET_XMX_MB}M ${MARKET_SYSTEM_PROPERTIES}"
     mem_limit: ${MARKET_MEM_LIMIT_MB}M
 
   action-orchestrator:
@@ -256,7 +256,7 @@ services:
       component_type: action-orchestrator
       instance_id: action-orchestrator-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ACTION_ORCHESTRATOR_XMX_MB}M ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ACTION_ORCHESTRATOR_XMX_MB}M ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     mem_limit: ${ACTION_ORCHESTRATOR_MEM_LIMIT_MB}M
 
   topology-processor:
@@ -277,7 +277,7 @@ services:
       instance_id: topology-processor-1
       node_name: default
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${TOPOLOGY_PROCESSOR_XMX_MB}M ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${TOPOLOGY_PROCESSOR_XMX_MB}M ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
     volumes:
       - topology-processor:/home/turbonomic/data
     mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_MB}M
@@ -307,7 +307,7 @@ services:
     environment:
       component_type: sample
       instance_id: sample-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${SAMPLE_XMX_MB}M ${SAMPLE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${SAMPLE_XMX_MB}M ${SAMPLE_SYSTEM_PROPERTIES}"
 
   arangodb:
     extends:
@@ -361,7 +361,7 @@ services:
       instance_id: ml-datastore-1
       kafkaServers: ${KAFKA_SERVERS}
       METRON_ENABLED: "${METRON_ENABLED}"
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ML_DATASTORE_XMX_MB}M ${ML_DATASTORE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ML_DATASTORE_XMX_MB}M ${ML_DATASTORE_SYSTEM_PROPERTIES}"
     mem_limit: ${ML_DATASTORE_MEM_LIMIT_MB}M
 
   repository:
@@ -382,7 +382,7 @@ services:
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPOSITORY_XMX_MB}M ${REPOSITORY_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPOSITORY_XMX_MB}M ${REPOSITORY_SYSTEM_PROPERTIES}"
     mem_limit: ${REPOSITORY_MEM_LIMIT_MB}M
 
   group:
@@ -401,7 +401,7 @@ services:
       component_type: group
       instance_id: group-1
       logging.level.com.vmturbo.group: info # change to debug to enable more debugging output
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${GROUP_XMX_MB}M ${GROUP_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${GROUP_XMX_MB}M ${GROUP_SYSTEM_PROPERTIES}"
       kafkaServers: ${KAFKA_SERVERS}
     mem_limit: ${GROUP_MEM_LIMIT_MB}M
 
@@ -423,7 +423,7 @@ services:
       instance_id: history-1
       logging.level.com.vmturbo.history: INFO
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${HISTORY_XMX_MB}M ${HISTORY_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${HISTORY_XMX_MB}M ${HISTORY_SYSTEM_PROPERTIES}"
     mem_limit: ${HISTORY_MEM_LIMIT_MB}M
 
   plan-orchestrator:
@@ -443,7 +443,7 @@ services:
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${PLAN_ORCHESTRATOR_XMX_MB}M ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${PLAN_ORCHESTRATOR_XMX_MB}M ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
 
   reporting:
@@ -465,7 +465,7 @@ services:
       instance_id: reporting-1
       report.files.output.dir: /home/turbonomic/data
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPORTING_XMX_MB}M ${REPORTING_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPORTING_XMX_MB}M ${REPORTING_SYSTEM_PROPERTIES}"
     mem_limit: ${REPORTING_MEM_LIMIT_MB}M
 
   cost:
@@ -485,7 +485,7 @@ services:
         component_type: cost
         instance_id: cost-1
         logging.level.com.vmturbo.cost: info # change to debug to enable more debugging output
-        JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${COST_XMX_MB}M ${COST_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+        JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${COST_XMX_MB}M ${COST_SYSTEM_PROPERTIES}"
         kafkaServers: ${KAFKA_SERVERS}
       mem_limit: ${COST_MEM_LIMIT_MB}M
 
@@ -501,7 +501,7 @@ services:
     environment:
       component_type: mediation-vcenter
       instance_id: mediation-vcenter-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCENTER_XMX_MB}M ${MEDIATION_VCENTER_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCENTER_XMX_MB}M ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
 
   mediation-vcenter-browsing:
@@ -516,7 +516,7 @@ services:
     environment:
       component_type: mediation-vcenter-browsing
       instance_id: mediation-vcenter-browsing-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCENTER_BROWSING_XMX_MB}M ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCENTER_BROWSING_XMX_MB}M ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VCENTER_BROWSING_MEM_LIMIT_MB}M
 
   mediation-stressprobe:
@@ -535,7 +535,7 @@ services:
       serverGrpcPort: 9001
       consul_host: consul
       consul_port: 8500
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STRESSPROBE_XMX_MB}M ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STRESSPROBE_XMX_MB}M ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
       kvStoreRetryIntervalMillis : 1000
     mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_MB}M
 
@@ -555,7 +555,7 @@ services:
       consul_port: 8500
       component_type: mediation-stressprobe
       instance_id: mediation-storagestressprobe-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STORAGESTRESSPROBE_XMX_MB}M ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STORAGESTRESSPROBE_XMX_MB}M ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
       kvStoreRetryIntervalMillis : 1000
     mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_MB}M
 
@@ -571,7 +571,7 @@ services:
     environment:
       component_type: mediation-delegatingprobe
       instance_id: mediation-delegatingprobe-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DELEGATINGPROBE_XMX_MB}M ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DELEGATINGPROBE_XMX_MB}M ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES}"
       kvStoreRetryIntervalMillis : 1000
     mem_limit: ${MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB}M
 
@@ -587,7 +587,7 @@ services:
     environment:
       component_type: mediation-hyperv
       instance_id: mediation-hyperv-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HYPERV_XMX_MB}M ${MEDIATION_HYPERV_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HYPERV_XMX_MB}M ${MEDIATION_HYPERV_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_HYPERV_MEM_LIMIT_MB}M
 
   mediation-netapp:
@@ -602,7 +602,7 @@ services:
     environment:
       component_type: mediation-netapp
       instance_id: mediation-netapp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_NETAPP_XMX_MB}M ${MEDIATION_NETAPP_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_NETAPP_XMX_MB}M ${MEDIATION_NETAPP_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_NETAPP_MEM_LIMIT_MB}M
 
   mediation-ucs:
@@ -617,7 +617,7 @@ services:
     environment:
       component_type: mediation-ucs
       instance_id: mediation-ucs-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_UCS_XMX_MB}M ${MEDIATION_UCS_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_UCS_XMX_MB}M ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_UCS_MEM_LIMIT_MB}M
 
 #  mediation-aix:
@@ -645,7 +645,7 @@ services:
     environment:
       component_type: mediation-vmax
       instance_id: mediation-vmax-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMAX_XMX_MB}M ${MEDIATION_VMAX_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMAX_XMX_MB}M ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VMAX_MEM_LIMIT_MB}M
 
   mediation-vmm:
@@ -660,7 +660,7 @@ services:
     environment:
       component_type: mediation-vmm
       instance_id: mediation-vmm-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMM_XMX_MB}M ${MEDIATION_VMM_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMM_XMX_MB}M ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VMM_MEM_LIMIT_MB}M
 
   mediation-hpe3par:
@@ -675,7 +675,7 @@ services:
     environment:
       component_type: mediation-hpe3par
       instance_id: mediation-hpe3par-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HPE3PAR_XMX_MB}M ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HPE3PAR_XMX_MB}M ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_HPE3PAR_MEM_LIMIT_MB}M
 
   mediation-pure:
@@ -690,7 +690,7 @@ services:
     environment:
       component_type: mediation-pure
       instance_id: mediation-pure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_PURE_XMX_MB}M ${MEDIATION_PURE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_PURE_XMX_MB}M ${MEDIATION_PURE_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_PURE_MEM_LIMIT_MB}M
 
   mediation-scaleio:
@@ -705,7 +705,7 @@ services:
     environment:
       component_type: mediation-scaleio
       instance_id: mediation-scaleio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_SCALEIO_XMX_MB}M ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_SCALEIO_XMX_MB}M ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_SCALEIO_MEM_LIMIT_MB}M
 
   mediation-hds:
@@ -720,7 +720,7 @@ services:
     environment:
       component_type: mediation-hds
       instance_id: mediation-hds-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HDS_XMX_MB}M ${MEDIATION_HDS_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HDS_XMX_MB}M ${MEDIATION_HDS_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_HDS_MEM_LIMIT_MB}M
 
   mediation-compellent:
@@ -735,7 +735,7 @@ services:
     environment:
       component_type: mediation-compellent
       instance_id: mediation-compellent-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_COMPELLENT_XMX_MB}M ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_COMPELLENT_XMX_MB}M ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_COMPELLENT_MEM_LIMIT_MB}M
 
   mediation-xtremio:
@@ -750,7 +750,7 @@ services:
     environment:
       component_type: mediation-xtremio
       instance_id: mediation-xtremio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_XTREMIO_XMX_MB}M ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_XTREMIO_XMX_MB}M ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_XTREMIO_MEM_LIMIT_MB}M
 
   mediation-vplex:
@@ -765,7 +765,7 @@ services:
     environment:
       component_type: mediation-vplex
       instance_id: mediation-vplex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VPLEX_XMX_MB}M ${MEDIATION_VPLEX_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VPLEX_XMX_MB}M ${MEDIATION_VPLEX_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_MB}M
 
   mediation-rhv:
@@ -780,7 +780,7 @@ services:
     environment:
       component_type: mediation-rhv
       instance_id: mediation-rhv-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_RHV_XMX_MB}M ${MEDIATION_RHV_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_RHV_XMX_MB}M ${MEDIATION_RHV_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
 
   mediation-openstack:
@@ -795,7 +795,7 @@ services:
     environment:
       component_type: mediation-openstack
       instance_id: mediation-openstack-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_OPENSTACK_XMX_MB}M ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_OPENSTACK_XMX_MB}M ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_OPENSTACK_MEM_LIMIT_MB}M
 
   mediation-ucsdirector:
@@ -810,7 +810,7 @@ services:
     environment:
       component_type: mediation-ucsdirector
       instance_id: mediation-ucsdirector-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_UCSDIRECTOR_XMX_MB}M ${MEDIATION_UCSDIRECTOR_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_UCSDIRECTOR_XMX_MB}M ${MEDIATION_UCSDIRECTOR_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_UCSDIRECTOR_MEM_LIMIT_MB}M
 
   mediation-aws:
@@ -825,7 +825,7 @@ services:
     environment:
       component_type: mediation-aws
       instance_id: mediation-aws-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWS_XMX_MB}M ${MEDIATION_AWS_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWS_XMX_MB}M ${MEDIATION_AWS_SYSTEM_PROPERTIES}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -845,7 +845,7 @@ services:
     environment:
       component_type: mediation-awsbilling
       instance_id: mediation-awsbilling-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSBILLING_XMX_MB}M ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSBILLING_XMX_MB}M ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -865,7 +865,7 @@ services:
     environment:
       component_type: mediation-awscost
       instance_id: mediation-awscost-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSCOST_XMX_MB}M ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSCOST_XMX_MB}M ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -885,7 +885,7 @@ services:
     environment:
       component_type: mediation-azure
       instance_id: mediation-azure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AZURE_XMX_MB}M ${MEDIATION_AZURE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AZURE_XMX_MB}M ${MEDIATION_AZURE_SYSTEM_PROPERTIES}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -905,7 +905,7 @@ services:
     environment:
       component_type: mediation-oneview
       instance_id: mediation-oneview-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ONEVIEW_XMX_MB}M ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ONEVIEW_XMX_MB}M ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
 
   mediation-vcd:
@@ -920,7 +920,7 @@ services:
     environment:
       component_type: mediation-vcd
       instance_id: mediation-vcd-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCD_XMX_MB}M ${MEDIATION_VCD_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCD_XMX_MB}M ${MEDIATION_VCD_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VCD_MEM_LIMIT_MB}M
 
   mediation-mssql:
@@ -935,7 +935,7 @@ services:
     environment:
       component_type: mediation-mssql
       instance_id: mediation-mssql-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_MSSQL_XMX_MB}M ${MEDIATION_MSSQL_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_MSSQL_XMX_MB}M ${MEDIATION_MSSQL_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_MSSQL_MEM_LIMIT_MB}M
 
   mediation-actionscript:
@@ -950,7 +950,7 @@ services:
     environment:
       component_type: mediation-actionscript
       instance_id: mediation-actionscript-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ACTIONSCRIPT_XMX_MB}M ${MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ACTIONSCRIPT_XMX_MB}M ${MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
 
   mediation-wmi:
@@ -965,7 +965,7 @@ services:
     environment:
       component_type: mediation-wmi
       instance_id: mediation-wmi-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_WMI_XMX_MB}M ${MEDIATION_WMI_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_WMI_XMX_MB}M ${MEDIATION_WMI_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_WMI_MEM_LIMIT_MB}M
 
   mediation-snmp:
@@ -980,7 +980,7 @@ services:
     environment:
       component_type: mediation-snmp
       instance_id: mediation-snmp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_SNMP_XMX_MB}M ${MEDIATION_SNMP_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_SNMP_XMX_MB}M ${MEDIATION_SNMP_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_MB}M
 
   mediation-appdynamics:
@@ -995,7 +995,7 @@ services:
     environment:
       component_type: mediation-appdynamics
       instance_id: mediation-appdynamics-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_APPDYNAMICS_XMX_MB}M ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_APPDYNAMICS_XMX_MB}M ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_APPDYNAMICS_MEM_LIMIT_MB}M
 
   mediation-dynatrace:
@@ -1010,7 +1010,7 @@ services:
     environment:
       component_type: mediation-dynatrace
       instance_id: mediation-dynatrace-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DYNATRACE_XMX_MB}M ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DYNATRACE_XMX_MB}M ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_MB}M
 
   mediation-pivotal:
@@ -1025,7 +1025,7 @@ services:
     environment:
       component_type: mediation-pivotal
       instance_id: mediation-pivotal-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_PIVOTAL_XMX_MB}M ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_PIVOTAL_XMX_MB}M ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_PIVOTAL_MEM_LIMIT_MB}M
 
   mediation-cloudfoundry:
@@ -1040,7 +1040,7 @@ services:
     environment:
       component_type: mediation-cloudfoundry
       instance_id: mediation-cloudfoundry-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_CLOUDFOUNDRY_XMX_MB}M ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_CLOUDFOUNDRY_XMX_MB}M ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_CLOUDFOUNDRY_MEM_LIMIT_MB}M
 
   mediation-istio:
@@ -1055,7 +1055,7 @@ services:
     environment:
       component_type: mediation-istio
       instance_id: mediation-istio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ISTIO_XMX_MB}M ${MEDIATION_ISTIO_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ISTIO_XMX_MB}M ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_MB}M
 
   mediation-netflow:
@@ -1070,7 +1070,7 @@ services:
     environment:
       component_type: mediation-netflow
       instance_id: mediation-netflow-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_NETFLOW_XMX_MB}M ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_NETFLOW_XMX_MB}M ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_MB}M
 
   mediation-tetration:
@@ -1085,7 +1085,7 @@ services:
     environment:
       component_type: mediation-tetration
       instance_id: mediation-tetration-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_TETRATION_XMX_MB}M ${MEDIATION_TETRATION_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_TETRATION_XMX_MB}M ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_MB}M
 
   mediation-hyperflex:
@@ -1100,5 +1100,5 @@ services:
     environment:
       component_type: mediation-hyperflex
       instance_id: mediation-hyperflex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HYPERFLEX_XMX_MB}M ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES} -Xms16m -Xss512k"
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HYPERFLEX_XMX_MB}M ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_HYPERFLEX_MEM_LIMIT_MB}M
