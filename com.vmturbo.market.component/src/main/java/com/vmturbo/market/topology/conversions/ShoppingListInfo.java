@@ -66,4 +66,11 @@ public class ShoppingListInfo {
     public Optional<Integer> getSellerEntityType() {
         return Optional.ofNullable(this.sellerEntityType);
     }
+
+    /**
+     *  The resource id. For eg. the volume id of a VM.
+     */
+    public Optional<Long> getResourceId() {
+        return Optional.ofNullable(this.resourceId);
+    }
 }

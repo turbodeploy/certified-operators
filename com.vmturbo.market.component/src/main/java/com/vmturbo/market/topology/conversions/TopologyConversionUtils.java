@@ -5,7 +5,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.map.UnmodifiableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -138,5 +137,19 @@ public class TopologyConversionUtils {
 
     public static boolean areFloatsEqual(float a, float b) {
         return Math.abs(a - b) < TopologyConversionConstants.FLOAT_COMPARISON_DELTA;
+    }
+
+    /**
+     * Should the entity type be converted to trader?
+     * We do not perform analysis on static infrastructure like compute tiers / storage tiers /
+     * regions etc. So these are converted to traders. Volumes are also not converted to traders
+     * because volumes are currently represented using the storage shopping lists of VMs.
+     *
+     * @param entityType the entity type
+     * @return true if the entity type should be converted to trader, false otherwise
+     */
+    public static boolean shouldConvertToTrader(int entityType) {
+        return !(TopologyConversionConstants.STATIC_INFRASTRUCTURE.contains(entityType)
+                || EntityType.VIRTUAL_VOLUME_VALUE == entityType);
     }
 }

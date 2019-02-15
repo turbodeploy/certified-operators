@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -36,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -363,6 +365,74 @@ public class TopologyConverterFromMarketTest {
         assertEquals(1L, entity.size());
         // Ensure the entity is having SUSPENDED state.
         assertThat(entity.get(trader.getOid()).getEntity().getEntityState(), is(EntityState.SUSPENDED));
+    }
+
+    /**
+     * Test that when createResources is called for a cloud VM, its projected volumes are created.
+     *
+     * @throws Exception not supposed to happen in this test
+     */
+    @Test
+    public void testCreateResources() throws Exception {
+        // Arrange
+        TopologyConverter converter = Mockito.spy(
+                new TopologyConverter(TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
+                        false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, marketPriceTable,
+                        mockCommodityConverter, mockCCD));
+        long azOid = 1l;
+        long volumeOid = 2l;
+        long storageTierOid = 3l;
+        long vmOid = 4l;
+        TopologyDTO.TopologyEntityDTO az = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setOid(azOid)
+                .build();
+        TopologyDTO.TopologyEntityDTO storageTier = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setOid(storageTierOid)
+                .build();
+        TopologyDTO.TopologyEntityDTO volume = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(volumeOid)
+                .setDisplayName("volume1")
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(vmOid)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(storageTierOid)
+                        .setVolumeId(volumeOid)
+                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(azOid)
+                        .setConnectedEntityType(az.getEntityType()))
+                .build();
+        // Use reflection and these entities to the entityOidToDto map
+        Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
+        Map<Long, TopologyEntityDTO> map = ImmutableMap.of(
+                azOid, az,
+                storageTierOid, storageTier,
+                volumeOid, volume);
+        entityOidToDto.setAccessible(true);
+        entityOidToDto.set(converter, map);
+
+        // Act
+        Set<TopologyEntityDTO> resources = converter.createResources(vm);
+
+        // Assert that the projected volume is connected to the storage and AZ which the VM is
+        // connected to
+        assertEquals(1, resources.size());
+        TopologyEntityDTO projectedVolume = resources.iterator().next();
+        assertEquals(2, projectedVolume.getConnectedEntityListList().size());
+        ConnectedEntity connectedStorageTier = projectedVolume.getConnectedEntityListList()
+                .stream().filter(c -> c.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE).findFirst().get();
+        ConnectedEntity connectedAz = projectedVolume.getConnectedEntityListList().stream()
+                .filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE).findFirst().get();
+        assertEquals(storageTierOid, connectedStorageTier.getConnectedEntityId());
+        assertEquals(azOid, connectedAz.getConnectedEntityId());
+        assertEquals(volume.getDisplayName(), projectedVolume.getDisplayName());
+        assertEquals(volume.getEnvironmentType(), projectedVolume.getEnvironmentType());
     }
 
 

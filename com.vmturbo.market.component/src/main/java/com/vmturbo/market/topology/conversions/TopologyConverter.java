@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -387,8 +389,7 @@ public class TopologyConverter {
                 .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
                 .forEach(t -> returnBuilder.add(t.build()));
         entityOidToDto.values().stream()
-                .filter(t -> !TopologyConversionConstants.CLOUD_ENTITY_TYPES_TO_SKIP_CONVERSION.contains(
-                        t.getEntityType()))
+                .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
                 .map(this::topologyDTOtoTraderTO)
                 .filter(Objects::nonNull)
                 .forEach(returnBuilder::add);
@@ -461,12 +462,11 @@ public class TopologyConverter {
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
                 projectedTraders.size());
         for (TraderTO projectedTrader : projectedTraders) {
-            final Optional<TopologyDTO.TopologyEntityDTO> projectedEntityOptional =
+            final Set<TopologyEntityDTO> projectedEntities =
                     traderTOtoTopologyDTO(projectedTrader, originalTopology);
-            projectedEntityOptional.ifPresent(projectedEntity -> {
+            for (TopologyEntityDTO projectedEntity : projectedEntities) {
                 final ProjectedTopologyEntity.Builder projectedEntityBuilder =
-                        ProjectedTopologyEntity.newBuilder()
-                                .setEntity(projectedEntity);
+                        ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
                 final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
                 if (priceIndex != null) {
                     if (originalTopology.containsKey(projectedEntity.getOid())) {
@@ -476,17 +476,16 @@ public class TopologyConverter {
                 }
 
                 projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
-
-                // Calculate projected RI Coverage
-                TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
-                Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
-                // original trader can be null in case of provisioned entity
-                if (originalTraderTO != null) {
-                    originalRiCoverage = cloudCostData
-                            .getRiCoverageForEntity(originalTraderTO.getOid());
-                }
-                calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
-            });
+            }
+            // Calculate projected RI Coverage
+            TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
+            Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
+            // original trader can be null in case of provisioned entity
+            if (originalTraderTO != null) {
+                originalRiCoverage = cloudCostData
+                        .getRiCoverageForEntity(originalTraderTO.getOid());
+            }
+            calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
         }
         return projectedTopologyEntities;
     }
@@ -696,19 +695,23 @@ public class TopologyConverter {
     }
 
     /**
-     * Convert a {@link EconomyDTOs.TraderTO} to a {@link TopologyDTO.TopologyEntityDTO}.
+     * Convert a {@link EconomyDTOs.TraderTO} to a set of {@link TopologyDTO.TopologyEntityDTO}.
+     * Usually one trader will return one topologyEntityDTO. But there are some exceptions.
+     * For ex. in the case of cloud VMs, one trader will give back a list of TopologyEntityDTOs
+     * which consist of the projected VM and its projected volumes.
      *
      * @param traderTO {@link EconomyDTOs.TraderTO} that is to be converted to a {@link TopologyDTO.TopologyEntityDTO}
      * @param traderOidToEntityDTO whose key is the traderOid and the value is the original
      * traderTO
-     * @return list of {@link TopologyDTO.TopologyEntityDTO}s
+     * @return set of {@link TopologyDTO.TopologyEntityDTO}s
      */
-    private Optional<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
+    private Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
+        Set<TopologyDTO.TopologyEntityDTO> topologyEntityDTOs = Sets.newHashSet();
         if (cloudTc.isMarketTier(traderTO.getOid())) {
             // Tiers and regions are added from the original topology into the projected traders
             // because there can be no change to these entities by market.
-            return Optional.empty();
+            return topologyEntityDTOs;
         }
         List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping =
             new ArrayList<>();
@@ -763,11 +766,13 @@ public class TopologyConverter {
             }
             // if can not find the ShoppingListInfo, that means Market generate some wrong shopping
             // list.
-            if (!shoppingListOidToInfos.containsKey(sl.getOid())) {
+            ShoppingListInfo slInfo = shoppingListOidToInfos.get(sl.getOid());
+            if (slInfo == null) {
                 throw new IllegalStateException("Market returned invalid shopping list for : " + sl);
             }
-            shoppingListOidToInfos.get(sl.getOid()).getSellerEntityType()
+            slInfo.getSellerEntityType()
                     .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+            slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
             topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProviderBuilder.build());
         }
 
@@ -815,7 +820,7 @@ public class TopologyConverter {
                 .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
                        - traderSetting.getMinDesiredUtilization())
             .build();
-        TopologyDTO.TopologyEntityDTO.Builder entityDTO =
+        TopologyDTO.TopologyEntityDTO.Builder entityDTOBuilder =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
                     .setEntityType(traderTO.getType())
                     .setOid(traderTO.getOid())
@@ -828,33 +833,96 @@ public class TopologyConverter {
         if (originalEntity == null) {
             // this is a clone trader
             originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
-            entityDTO.setOrigin(Origin.newBuilder()
+            entityDTOBuilder.setOrigin(Origin.newBuilder()
                 .setAnalysisOrigin(AnalysisOrigin.newBuilder()
                     .setOriginalEntityId(originalEntity.getOid())));
         } else {
             // copy the origin from the original entity
             if (originalEntity.hasOrigin()) {
-                entityDTO.setOrigin(originalEntity.getOrigin());
+                entityDTOBuilder.setOrigin(originalEntity.getOrigin());
             }
         }
 
-        // copy environmentType
-        if (originalEntity.hasEnvironmentType()) {
-            entityDTO.setEnvironmentType(originalEntity.getEnvironmentType());
-        }
-
-        // copy the TypeSpecificInfo from the original entity
-        if (originalEntity.hasTypeSpecificInfo()) {
-            entityDTO.setTypeSpecificInfo(originalEntity.getTypeSpecificInfo());
-        }
+        copyStaticAttributes(originalEntity, entityDTOBuilder);
 
         // get dspm and datastore commodity sold from the original trader, add
         // them to projected topology entity DTO
-        return Optional.of(entityDTO.addAllCommoditySoldList(originalEntity.getCommoditySoldListList().stream()
+        TopologyEntityDTO entityDTO = entityDTOBuilder.addAllCommoditySoldList(
+                originalEntity.getCommoditySoldListList().stream()
                         .filter(c -> AnalysisUtil.DSPM_OR_DATASTORE
-                                        .contains(c.getCommodityType().getType()))
+                                .contains(c.getCommodityType().getType()))
                         .collect(Collectors.toSet()))
-                        .build());
+                .build();
+        topologyEntityDTOs.add(entityDTO);
+        topologyEntityDTOs.addAll(createResources(entityDTO));
+        return topologyEntityDTOs;
+    }
+
+    /**
+     * Copies static attributes from one TopologyEntityDTO to another.
+     * Static attributes will not change between the original entity to the projected entity.
+     *
+     * @param source the source TopologyEntityDto to copy from
+     * @param destination the destination TopologyEntityDto.Builder to copy to
+     */
+    private void copyStaticAttributes(TopologyEntityDTO source, TopologyEntityDTO.Builder destination) {
+        // copy environmentType
+        if (source.hasEnvironmentType()) {
+            destination.setEnvironmentType(source.getEnvironmentType());
+        }
+
+        // copy the TypeSpecificInfo from the original entity
+        if (source.hasTypeSpecificInfo()) {
+            destination.setTypeSpecificInfo(source.getTypeSpecificInfo());
+        }
+    }
+
+    /**
+     * Create entities for resources of topologyEntityDTO.
+     * For ex. If a Cloud VM has a volume, then we create the projected version of the volume here.
+     *
+     * @param topologyEntityDTO The entity for which the resources need to be created
+     * @return set of resources
+     */
+    @VisibleForTesting
+    Set<TopologyEntityDTO> createResources(TopologyEntityDTO topologyEntityDTO) {
+        Set<TopologyEntityDTO> resources = Sets.newHashSet();
+        for(CommoditiesBoughtFromProvider commBoughtGrouping :
+                topologyEntityDTO.getCommoditiesBoughtFromProvidersList()) {
+            // create entities for volumes
+            if (commBoughtGrouping.hasVolumeId()) {
+                TopologyEntityDTO originalVolume = entityOidToDto.get(commBoughtGrouping.getVolumeId());
+                if (originalVolume != null && originalVolume.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    // Get the storage tier the VM consumes from
+                    TopologyEntityDTO storageTier = entityOidToDto.get(commBoughtGrouping.getProviderId());
+                    // Get the AZ the VM is connected to
+                    Optional<TopologyEntityDTO> azOpt = topologyEntityDTO.getConnectedEntityListList()
+                            .stream().filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                            .map(c -> entityOidToDto.get(c.getConnectedEntityId())).findFirst();
+                    if (storageTier != null && azOpt.isPresent()) {
+                        // Build a volume which is connected the the same AZ as the VM and the same
+                        // storageTier which is the provider for this commBoughtGrouping.
+                        ConnectedEntity connectedStorageTier = ConnectedEntity.newBuilder()
+                                .setConnectedEntityId(storageTier.getOid())
+                                .setConnectedEntityType(storageTier.getEntityType())
+                                .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                        ConnectedEntity connectedAz = ConnectedEntity.newBuilder()
+                                .setConnectedEntityId(azOpt.get().getOid())
+                                .setConnectedEntityType(azOpt.get().getEntityType()).build();
+                        List<ConnectedEntity> connectedEntities = Arrays.asList(connectedAz, connectedStorageTier);
+                        TopologyEntityDTO.Builder volume =
+                                TopologyEntityDTO.newBuilder()
+                                        .setEntityType(originalVolume.getEntityType())
+                                        .setOid(originalVolume.getOid())
+                                        .addAllConnectedEntityList(connectedEntities);
+                        copyStaticAttributes(originalVolume, volume);
+                        volume.setDisplayName(originalVolume.getDisplayName());
+                        resources.add(volume.build());
+                    }
+                }
+            }
+        }
+        return resources;
     }
 
     /**
@@ -903,7 +971,7 @@ public class TopologyConverter {
                         TopologyEntityDTO destAZ = TopologyDTOUtil.getConnectedEntitiesOfType(sourceRegion,
                                 EntityType.AVAILABILITY_ZONE_VALUE, unmodifiableEntityOidToDtoMap).get(0);
                         ConnectedEntity az = ConnectedEntity.newBuilder().setConnectedEntityId(destAZ.getOid())
-                                .setConnectedEntityId(destAZ.getEntityType())
+                                .setConnectedEntityType(destAZ.getEntityType())
                                 .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
                         connectedEntities.add(az);
                     }

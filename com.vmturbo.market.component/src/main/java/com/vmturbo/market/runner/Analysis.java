@@ -323,7 +323,7 @@ public class Analysis {
             // topology
             List<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
                     originalCloudTopology.getAllEntitesOfTypes(
-                            TopologyConversionConstants.CLOUD_ENTITY_TYPES_TO_SKIP_CONVERSION)
+                            TopologyConversionConstants.STATIC_INFRASTRUCTURE)
                             .stream().map(p -> ProjectedTopologyEntity.newBuilder()
                                     .setEntity(p).build()).collect(Collectors.toList());
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {

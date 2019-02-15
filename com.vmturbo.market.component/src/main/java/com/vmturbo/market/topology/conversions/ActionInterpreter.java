@@ -280,7 +280,8 @@ public class ActionInterpreter {
     private TopologyEntityDTO getTopologyEntityMoving(MoveTO move) {
         final ShoppingListInfo shoppingListInfo =
                 shoppingListOidToInfos.get(move.getShoppingListToMove());
-        return originalTopology.get(shoppingListInfo.getBuyerId());
+        long entityMovingId = shoppingListInfo.getResourceId().orElse(shoppingListInfo.getBuyerId());
+        return originalTopology.get(entityMovingId);
     }
 
     /**
