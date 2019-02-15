@@ -44,7 +44,8 @@ public class StorageAccessPostStitchingOpTest {
 
     private UnitTestResultBuilder resultBuilder;
 
-    private final TopologyEntityBuilder baseTe = TopologyEntityBuilder.newBuilder().withProperty(
+    private final TopologyEntityBuilder baseTe = TopologyEntityBuilder.newBuilder()
+            .withEntityType(EntityType.DISK_ARRAY_VALUE).withProperty(
             StorageAccessCapacityPostStitchingOperation.DISK_COUNTS_KEY_BY_ENTITY_TYPE
                     .get(EntityType.DISK_ARRAY_VALUE), "asdf");
 

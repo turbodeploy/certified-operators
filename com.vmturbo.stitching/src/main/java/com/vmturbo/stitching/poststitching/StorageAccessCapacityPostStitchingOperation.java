@@ -63,9 +63,6 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
         |}"
     */
 
-    private static final String IOPS_COMPUTE_DATA_KEY = DiskArrayData.newBuilder().getDescriptorForType()
-        .findFieldByNumber(DiskArrayData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName();
-
     // map from entity type to the diskCounts key (which will be used to look up property string
     // value from the entity properties map), for example: for storage controller the key is:
     // "common_dto.EntityDTO.StorageControllerData.diskCounts"
@@ -195,9 +192,13 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
      *         Since the capacity should never be 0, it serves as an error flag.
      */
     private double calculateCapacityFromDisks(@Nonnull final TopologyEntity entity) {
-        final String diskProperty =
-            entity.getTopologyEntityDtoBuilder().getEntityPropertyMapMap().get(IOPS_COMPUTE_DATA_KEY);
+        String disksKey = DISK_COUNTS_KEY_BY_ENTITY_TYPE.get(entity.getEntityType());
+        if (disksKey == null) {
+            return 0;
+        }
 
+        String diskProperty = entity.getTopologyEntityDtoBuilder()
+                .getEntityPropertyMapMap().get(disksKey);
         if (diskProperty == null) {
             return 0;
         }
