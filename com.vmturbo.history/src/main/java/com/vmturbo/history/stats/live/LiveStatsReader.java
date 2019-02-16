@@ -1,24 +1,10 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.components.common.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
-import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.CONTAINER;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_STORAGES;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.components.common.utils.StringConstants.STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.UUID;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countPerSEsMetrics;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
@@ -31,10 +17,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -67,11 +53,10 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
-import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -93,6 +78,10 @@ public class LiveStatsReader {
 
     private final StatsQueryFactory statsQueryFactory;
 
+    private final FullMarketRatioProcessorFactory fullMarketRatioProcessorFactory;
+
+    private final RatioRecordFactory ratioRecordFactory;
+
     // TODO: After StringConstants class add entity type constant, we can use it from StringConstants.
     private final String ENTITY_TYPE = "entity_type";
 
@@ -104,10 +93,14 @@ public class LiveStatsReader {
 
     public LiveStatsReader(@Nonnull final HistorydbIO historydbIO,
                            @Nonnull final TimeRangeFactory timeRangeFactory,
-                           @Nonnull final StatsQueryFactory statsQueryFactory)  {
+                           @Nonnull final StatsQueryFactory statsQueryFactory,
+                           @Nonnull final FullMarketRatioProcessorFactory fullMarketRatioProcessorFactory,
+                           @Nonnull final RatioRecordFactory ratioRecordFactory)  {
         this.historydbIO = historydbIO;
         this.timeRangeFactory = timeRangeFactory;
         this.statsQueryFactory = statsQueryFactory;
+        this.fullMarketRatioProcessorFactory = Objects.requireNonNull(fullMarketRatioProcessorFactory);
+        this.ratioRecordFactory = Objects.requireNonNull(ratioRecordFactory);
     }
 
     /**
@@ -307,8 +300,8 @@ public class LiveStatsReader {
             }
         }
 
-        // if requested, add counts
-        addCountStats(timeRange.getSnapshotTimesInRange().get(0).getTime(), entityClsMap, statsFilter.getCommodityRequestsList(), answer);
+        addCountStats(timeRange.getMostRecentSnapshotTime(),
+            entityClsMap, statsFilter.getCommodityRequestsList(), answer);
 
         final double elapsedSeconds = timer.observe();
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), elapsedSeconds);
@@ -374,10 +367,15 @@ public class LiveStatsReader {
         if (timeRangeCondition != null) {
             whereConditions.add(timeRangeCondition);
         }
+
+        final FullMarketRatioProcessor ratioProcessor =
+            fullMarketRatioProcessorFactory.newProcessor(statsFilter);
+
         // add select on the given commodity requests; if no commodityRequests specified,
         // leave out the were clause and thereby include all commodities.
         final Optional<Condition> commodityRequestsCond =
-                statsQueryFactory.createCommodityRequestsCond(statsFilter.getCommodityRequestsList(), table);
+                statsQueryFactory.createCommodityRequestsCond(
+                    ratioProcessor.getFilterWithCounts().getCommodityRequestsList(), table);
         commodityRequestsCond.ifPresent(whereConditions::add);
 
         // if no entity type provided, it will include all entity type.
@@ -393,95 +391,14 @@ public class LiveStatsReader {
                 .where(whereConditions);
 
         logger.debug("Running query... {}", query);
-        Result<? extends Record> results = historydbIO.execute(Style.FORCED, query);
+        final Result<? extends Record> result = historydbIO.execute(Style.FORCED, query);
 
-        final List<Record> answer = new ArrayList<>(results);
-
-        final Set<String> requestedRatioProps = new HashSet<>(countPerSEsMetrics);
-        if (!statsFilter.getCommodityRequestsList().isEmpty()) {
-            // This does countStats.size() lookups in commodityNames, which is a list.
-            // This is acceptable because the asked-for commodityNames is supposed to be
-            // a small ( < 10) list.
-            requestedRatioProps.retainAll(statsFilter.getCommodityRequestsList());
-        }
-
-        // Count any "__ per __" (e.g. vm per host) stats.
-        // TODO (roman, Feb 22, 2017): Refactor the count implementation to share the code
-        // between the full-market case and the "regular" case. The individual cases
-        // would be responsible for getting the entity counts (in the full-market case
-        // that's saved as a standalone property), but the shared code would calculate
-        // various ratios.
-        if (!requestedRatioProps.isEmpty()) {
-            // The results we get back from the query above contain multiple entity counts
-            // associated with snapshot times. We want, for every snapshot that has entity
-            // counts, to create the ratio properties. The resulting data structure
-            // is a map of timestamp -> map of entity count -> num of entities.
-            final Map<Timestamp, Map<String, Float>> entityCountsByTime = new HashMap<>();
-            // Go through all the returned records, and initialize the entity counts.
-            // The number of records is not expected to be super-high, so this pass
-            // won't be very expensive.
-            answer.forEach(record -> {
-                String propName = record.getValue(str(dField(table, PROPERTY_TYPE)));
-                // containsValue is efficient in a BiMap.
-                if (countSEsMetrics.containsValue(propName)) {
-                    Timestamp statTime = record.getValue(JooqUtils.timestamp(dField(table, SNAPSHOT_TIME)));
-                    Map<String, Float> snapshotCounts =
-                            entityCountsByTime.computeIfAbsent(statTime, key -> new HashMap<>());
-                    // Each count metric should appear only once per SNAPSHOT_TIME.
-                    // If it appears more than once, use the latest value.
-                    Float prevValue = snapshotCounts.put(propName,
-                            record.getValue(AVG_VALUE, Float.class));
-                    if (prevValue != null) {
-                        logger.warn("Value for " + propName +
-                                " appeared twice for the same snapshot {}", statTime);
-                    }
-                }
-            });
-
-            // Go through the entity counts by time, and for each timestamp create
-            // ratio properties based on the various counts.
-            entityCountsByTime.forEach((snapshotTime, entityCounts) -> requestedRatioProps.forEach(ratioPropName -> {
-                final double ratio;
-                switch (ratioPropName) {
-                    case NUM_VMS_PER_HOST: {
-                        final Float numHosts = entityCounts.get(NUM_HOSTS);
-                        ratio = numHosts != null && numHosts > 0 ?
-                                entityCounts.getOrDefault(NUM_VMS, 0f) / numHosts : 0;
-                        break;
-                    }
-                    case NUM_VMS_PER_STORAGE: {
-                        final Float numStorages = entityCounts.get(NUM_STORAGES);
-                        ratio = numStorages != null && numStorages > 0 ?
-                                entityCounts.getOrDefault(NUM_VMS, 0f) / numStorages : 0;
-                        break;
-                    }
-                    case NUM_CNT_PER_HOST: {
-                        final Float numHosts = entityCounts.get(NUM_HOSTS);
-                        ratio = numHosts != null && numHosts > 0 ?
-                                entityCounts.getOrDefault(NUM_CONTAINERS, 0f) / numHosts : 0;
-                        break;
-                    }
-                    case NUM_CNT_PER_STORAGE:
-                        final Float numStorages = entityCounts.get(NUM_STORAGES);
-                        ratio = numStorages != null && numStorages > 0 ?
-                                entityCounts.getOrDefault(NUM_CONTAINERS, 0f) / numStorages : 0;
-                        break;
-                    default:
-                        throw new IllegalStateException("Illegal stat name: " + ratioPropName);
-                }
-                final MarketStatsLatestRecord countRecord = new MarketStatsLatestRecord();
-                countRecord.setSnapshotTime(snapshotTime);
-                countRecord.setPropertyType(ratioPropName);
-                countRecord.setAvgValue(ratio);
-                answer.add(countRecord);
-            }));
-        }
-
+        final List<Record> answer = ratioProcessor.processResults(result);
 
         final Duration overallElapsed = Duration.between(overallStart, Instant.now());
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(),
                 overallElapsed.toMillis() / 1000.0);
-        return Collections.unmodifiableList(answer);
+        return answer;
     }
 
     /**
@@ -489,18 +406,15 @@ public class LiveStatsReader {
      * add stats records to the snapshot.
      *
      * If the commodityNames list is null or empty, then include all count-based stats.
-     *  @param currentSnapshotTime the time of the current snapshot
+     *  @param snapshotTimestamp the time of the current snapshot
      * @param entityClassMap map from entity OID to entity class name
      * @param commodityNames a list of the commodity names to filter on
      * @param countStatsRecords the list that count stats will be added to
      */
-    private void addCountStats(long currentSnapshotTime,
+    private void addCountStats(@Nonnull final Timestamp snapshotTimestamp,
                                @Nonnull Map<String, String> entityClassMap,
                                @Nullable List<CommodityRequest> commodityNames,
                                @Nonnull List<Record> countStatsRecords) {
-
-        // use the startTime for the all counted stats
-        final Timestamp snapshotTimestamp = new Timestamp(currentSnapshotTime);
 
         // derive list of calculated metrics
         List<String> filteredCommodityNames = Lists.newArrayList(countPerSEsMetrics);
@@ -531,47 +445,19 @@ public class LiveStatsReader {
 
         // for requested calculated stat, add a db record
         ImmutableBiMap<String, String> mapStatToEntityType = countSEsMetrics.inverse();
-        for (String commodityName : filteredCommodityNames) {
-            PmStatsLatestRecord countRecord = new PmStatsLatestRecord();
-            double statValue = 0;
+        for (final String commodityName : filteredCommodityNames) {
+            final Record countRecord;
             if (mapStatToEntityType.containsKey(commodityName)) {
-                statValue = entityTypeCounts.get(mapStatToEntityType.get(commodityName));
+                final PmStatsLatestRecord record = new PmStatsLatestRecord();
+                record.setSnapshotTime(snapshotTimestamp);
+                record.setPropertyType(commodityName);
+                record.setAvgValue((double)entityTypeCounts.get(mapStatToEntityType.get(commodityName)));
+                record.setRelation(RelationType.METRICS);
+                countRecord = record;
             } else {
-                final Integer vmCounts = entityTypeCounts.get(VIRTUAL_MACHINE);
-                final Integer pmCounts = entityTypeCounts.get(PHYSICAL_MACHINE);
-                final Integer stCounts = entityTypeCounts.get(STORAGE);
-                final Integer cntCounts = entityTypeCounts.get(CONTAINER);
-
-                switch(commodityName) {
-                    case NUM_VMS_PER_HOST:
-                        if (pmCounts != null && vmCounts != null && pmCounts != 0) {
-                            statValue = ((double) vmCounts) / pmCounts;
-                        }
-                        break;
-                    case NUM_VMS_PER_STORAGE:
-                        if (vmCounts != null && stCounts != null && stCounts != 0) {
-                            statValue = ((double) vmCounts) / stCounts;
-                        }
-                        break;
-                    case NUM_CNT_PER_HOST:
-                        if (cntCounts != null && pmCounts != null && pmCounts != 0) {
-                            statValue = ((double) cntCounts) / pmCounts;
-                        }
-                        break;
-                    case NUM_CNT_PER_STORAGE:
-                        if (cntCounts != null && stCounts != null && stCounts != 0) {
-                            statValue = ((double) cntCounts) / stCounts;
-                        }
-                        break;
-                    default:
-                        logger.warn("unhandled commodity count stat name: {}", commodityName);
-                        continue;
-                }
+                countRecord = ratioRecordFactory.makeRatioRecord(
+                    snapshotTimestamp, commodityName, entityTypeCounts);
             }
-            countRecord.setSnapshotTime(snapshotTimestamp);
-            countRecord.setPropertyType(commodityName);
-            countRecord.setAvgValue(statValue);
-            countRecord.setRelation(RelationType.METRICS);
             countStatsRecords.add(countRecord);
         }
     }

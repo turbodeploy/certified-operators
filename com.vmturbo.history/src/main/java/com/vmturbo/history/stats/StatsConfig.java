@@ -20,9 +20,11 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.live.FullMarketRatioProcessor.FullMarketRatioProcessorFactory;
 import com.vmturbo.history.stats.live.HistoryTimeFrameCalculator;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.stats.live.RatioRecordFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
@@ -160,7 +162,21 @@ public class StatsConfig {
 
     @Bean
     public LiveStatsReader liveStatsReader() {
-        return new LiveStatsReader(historyDbConfig.historyDbIO(), timeRangeFactory(), statsQueryFactory());
+        return new LiveStatsReader(historyDbConfig.historyDbIO(),
+            timeRangeFactory(),
+            statsQueryFactory(),
+            fullMarketRatioProcessorFactory(),
+            ratioRecordFactory());
+    }
+
+    @Bean
+    public RatioRecordFactory ratioRecordFactory() {
+        return new RatioRecordFactory();
+    }
+
+    @Bean
+    public FullMarketRatioProcessorFactory fullMarketRatioProcessorFactory() {
+        return new FullMarketRatioProcessorFactory(ratioRecordFactory());
     }
 
     @Bean

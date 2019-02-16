@@ -25,8 +25,11 @@ import static com.vmturbo.history.db.EntityType.SWITCH;
 import static com.vmturbo.history.db.EntityType.VDC;
 
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -77,6 +80,16 @@ public class HistoryStatsUtils {
                     NUM_VMS_PER_STORAGE,
                     NUM_CNT_PER_HOST,
                     NUM_CNT_PER_STORAGE);
+
+    /**
+     * The names of the count metrics involved in "ratio" stats.
+     */
+    public static final Map<String, Set<String>> METRICS_FOR_RATIOS = ImmutableMap.of(
+        NUM_VMS_PER_HOST, ImmutableSet.of(NUM_VMS, NUM_HOSTS),
+        NUM_VMS_PER_STORAGE, ImmutableSet.of(NUM_VMS, NUM_STORAGES),
+        NUM_CNT_PER_HOST, ImmutableSet.of(NUM_CONTAINERS, NUM_HOSTS),
+        NUM_CNT_PER_STORAGE, ImmutableSet.of(NUM_CONTAINERS, NUM_STORAGES));
+
     /**
      * Map to link any of the post-processed count metrics requested to the corresponding
      * entity types.
