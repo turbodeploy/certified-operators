@@ -3,7 +3,9 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -56,6 +58,14 @@ public class ShoppingList implements Serializable {
      * not the group leader.
      */
     private long groupFactor_ = 1;
+
+    // The list of commodities' base_types that have ability to not increase quote for the shopping
+    // based on some criteria.
+    private List<Integer> unquotedCommoditiesBaseTypeList_ = new ArrayList<Integer>();
+
+    // The list of commodities' base_types that are not going to increase quote for the
+    // shopping list.
+    private List<Integer> modifiableUnquotedCommoditiesBaseTypeList_ = new ArrayList<Integer>();
 
     // Constructors
     /**
@@ -321,6 +331,36 @@ public class ShoppingList implements Serializable {
      */
     public void setCost(double cost_) {
         this.cost_ = cost_;
+    }
+
+    /**
+    * Get list of unquoted commodities base types for this shopping list.
+    * @return unquotedCommoditiesBaseTypeList_
+    */
+    public List<Integer> getUnquotedCommoditiesBaseTypeList() {
+        return unquotedCommoditiesBaseTypeList_;
+    }
+
+    /**
+    * Add an unquoted commodity base type to the list.
+    */
+    public void addUnquotedCommodityBaseType(Integer i) {
+        unquotedCommoditiesBaseTypeList_.add(i);
+    }
+
+    /**
+    * Get modifiable list of unquoted commodities base types for this shopping list.
+    * @return modifiableUnquotedCommoditiesBaseTypeList_
+    */
+    public List<Integer> getModifiableUnquotedCommoditiesBaseTypeList() {
+        return modifiableUnquotedCommoditiesBaseTypeList_;
+    }
+
+    /**
+    * Add an unquoted commodity base type to the modifiable list.
+    */
+    public void addModifiableUnquotedCommodityBaseType(Integer i) {
+        modifiableUnquotedCommoditiesBaseTypeList_.add(i);
     }
 
     /**

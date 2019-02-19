@@ -151,12 +151,7 @@ final class QuoteSummer {
         // consider only active sellers while performing SNM
         @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
                 .filter(seller -> seller.getState().isActive()).collect(Collectors.toList());
-        @NonNull Stream<@NonNull Trader> stream = sellers.size() < economy_.getSettings().getMinSellersForParallelism()
-            ? sellers.stream() : sellers.parallelStream();
-        @NonNull QuoteMinimizer minimizer = stream.collect(()->new QuoteMinimizer(economy_,entry.getKey()),
-                                                           QuoteMinimizer::accept, QuoteMinimizer::combine);
-
-
+        QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers, entry.getKey());
         totalQuote_ += minimizer.getBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();

@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
+import com.vmturbo.platform.analysis.utilities.Quote;
 
 /**
  * Contains static methods related to optimizing the placement of {@link Trader}s in an
@@ -133,6 +134,43 @@ public class Placement {
     }
 
     /**
+     * Returns a QuoteMinimizer containing the cheapest quote and cheapest seller.
+     *
+     * @param economy - the economy that we want to generate a Quote Minimizer in.
+     * @param sellers - list of traders that are potential providers for the shopping list
+     * @param shoppingList - The {@link ShoppingList} for which we try to find the cheapest
+     * destination
+     * @return the QuoteMinimizer
+     */
+    public static QuoteMinimizer initiateQuoteMinimizer(@NonNull Economy economy,
+                    @NonNull List<@NonNull Trader> sellers, ShoppingList shoppingList) {
+        // If the shopping list's best provider is its current provider then obtain minimizer again
+        // without consider the commodities in the unquoted commodities base type list.
+        QuoteMinimizer minimizer;
+        for (;;) {
+            minimizer = (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                            ? sellers.stream() : sellers.parallelStream())
+                                .collect(() -> new QuoteMinimizer(economy, shoppingList),
+                                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+            if (sellers.size() > 1 && (minimizer.getBestSeller() == null
+                            || minimizer.getBestSeller() == shoppingList.getSupplier())) {
+                if (!shoppingList.getUnquotedCommoditiesBaseTypeList()
+                        .equals(shoppingList.getModifiableUnquotedCommoditiesBaseTypeList())) {
+                    shoppingList.getModifiableUnquotedCommoditiesBaseTypeList().clear();
+                    shoppingList.getUnquotedCommoditiesBaseTypeList().forEach(c -> {
+                        shoppingList.addModifiableUnquotedCommodityBaseType(c);
+                    });
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        return minimizer;
+    }
+
+    /**
      * Returns a list of recommendations to optimize the placement of a trader with a
      * particular shoppingList
      *
@@ -171,15 +209,7 @@ public class Placement {
             shoppingList.setMovable(false);
             return results;
         }
-
-        // get cheapest quote
-        final QuoteMinimizer minimizer =
-            (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                ? sellers.stream() : sellers.parallelStream())
-                                                        .collect(() -> new QuoteMinimizer(economy,
-                                                                        shoppingList),
-                QuoteMinimizer::accept, QuoteMinimizer::combine);
-
+        final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList);
         final double cheapestQuote = minimizer.getBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
         Trader buyer = shoppingList.getBuyer();

@@ -283,7 +283,9 @@ public class ActionClassifier {
                 move.setExecutable(false);
                 return;
             }
-
+            for (Integer baseType : move.getTarget().getModifiableUnquotedCommoditiesBaseTypeList()) {
+                targetCopy.addModifiableUnquotedCommodityBaseType(baseType);
+            }
             final double[] quote = EdeCommon.quote(simulationEconomy_, targetCopy, newSupplierCopy,
                             Double.POSITIVE_INFINITY, false).getQuoteValues();
             if (quote[0] < Double.POSITIVE_INFINITY) {

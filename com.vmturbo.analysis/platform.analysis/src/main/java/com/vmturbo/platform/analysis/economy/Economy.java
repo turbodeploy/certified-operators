@@ -873,6 +873,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             Basket cloneBasketBought = sl.getBasket(); // reuse baskets in original and clone
             ShoppingList cloneShoppingList = addBasketBought(cloneTrader, cloneBasketBought);
             cloneShoppingList.setShoppingListId(sl.getShoppingListId());
+            for (Integer base_type : sl.getUnquotedCommoditiesBaseTypeList()) {
+                cloneShoppingList.addUnquotedCommodityBaseType(base_type);
+            }
             double[] quantities = sl.getQuantities();
             double[] peakQuantities = sl.getPeakQuantities();
             double[] cloneQuantities = cloneShoppingList.getQuantities();

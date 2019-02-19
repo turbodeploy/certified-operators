@@ -51,6 +51,9 @@ public class QuoteFunctionFactory {
                 while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(soldIndex))) {
                     soldIndex++;
                 }
+                if (buyer.getModifiableUnquotedCommoditiesBaseTypeList().contains(basketCommSpec.getBaseType())) {
+                    continue;
+                }
                 double[] tempQuote = EdeCommon.computeCommodityCost(economy, buyer, seller,
                     soldIndex, boughtIndex, forTraderIncomeStmt);
                 quote.addCostToQuote(tempQuote[0], seller, soldIndex);

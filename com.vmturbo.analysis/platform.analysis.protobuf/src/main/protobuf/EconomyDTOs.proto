@@ -63,6 +63,9 @@ message ShoppingListTO {
     // The coupon ID. If a projected shopping list is supplied by a CBTP, then in AnalysisToProtobuf
     // we switch the supplier to the TP and this field will hold the id of the CBTP.
     optional int64 coupon_id = 7;
+
+    // The list of commodities' base_type that are not going to increase quote for the shopping list.
+    repeated int32 unquoted_commodities_base_type_list = 8;
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.

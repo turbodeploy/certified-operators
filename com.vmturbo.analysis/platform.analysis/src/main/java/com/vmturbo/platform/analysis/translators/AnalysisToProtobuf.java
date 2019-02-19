@@ -770,6 +770,10 @@ public final class AnalysisToProtobuf {
                 // supplier and the new supplier  the priceUsed and peakPriceUsed
                 for (int i = 0; i < basketBought.size(); i++) {
                     CommoditySpecification commBought = basketBought.get(i);
+                    if (move.getTarget().getModifiableUnquotedCommoditiesBaseTypeList()
+                                                        .contains(commBought.getBaseType())) {
+                        continue;
+                    }
                     CommoditySold oldCommSold = oldSupplier.getCommoditySold(commBought);
                     // if old supplier does not have the shopping list's requested commodity,
                     // move is due to compliance
