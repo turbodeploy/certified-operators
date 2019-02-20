@@ -106,5 +106,13 @@
 			<version>${vmturbo.mt.branch.version}</version>
 			<scope>test</scope>
 		</dependency>
+
+		<dependency>
+			<!-- this artifact is added only to ensure build order to build the
+            bootstrap project before any mediation components -->
+			<groupId>com.vmturbo</groupId>
+			<artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 </project>

@@ -155,11 +155,8 @@
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.client</artifactId>
         </dependency>
     </dependencies>
+
 </project>

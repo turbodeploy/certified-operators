@@ -860,6 +860,7 @@
                 <module>../com.vmturbo.system.notification.receiver</module>
 
                 <!-- Probe components. These are ALL the probes. -->
+                <module>../com.vmturbo.mediation.probe.parent</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
