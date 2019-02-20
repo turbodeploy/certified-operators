@@ -467,31 +467,17 @@ public class LiveActionStore implements ActionStore {
 
 
     /**
-     * SUCCEEDED and FAILED {@link Action} are from DB.
-     * All other {@link Action} are from actions map.
-     *
-     * @return merged actions
+     * {@inheritDoc}
      */
     @Nonnull
     @Override
     public Map<Long, ActionView> getActionViews() {
-        // TODO: (DavidBlinn) This imposes an unacceptable performance hit and
-        // seems unnecessary. Refactor to improve performance. We should probably
-        // have separate RPCs and interfaces for querying operational vs historical actions
-        // since we have to hand-roll the code to join the two in any case.
-        List<ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
-        List<ActionView> otherActionList;
+        Map<Long, ActionView> currentActionViews;
         synchronized (actionsLock) {
-            otherActionList = actions.values().stream()
-                    .filter(action -> !isSucceededorFailed(action))
-                    .collect(Collectors.toList());
-        }
-        List<ActionView> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toList());
-        Map<Long, ActionView> combinedActionMap = combinedActionList.stream()
+            currentActionViews = actions.values().stream()
                 .collect(Collectors.toMap(ActionView::getId, Function.identity()));
-        return Collections.unmodifiableMap(combinedActionMap);
+        }
+        return Collections.unmodifiableMap(currentActionViews);
     }
 
     /**
@@ -501,6 +487,8 @@ public class LiveActionStore implements ActionStore {
     @Override
     public Map<Long, ActionView> getActionViewsByDate(@Nonnull final LocalDateTime startDate,
                                                       @Nonnull final LocalDateTime endDate) {
+        // TODO (roman, Feb 19 2019: OM-43247 - Refactor the historical action query interface.
+        // Move the by-date functionality out of LiveActionStore.
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
         List<ActionView> otherActionList;
         synchronized (actionsLock) {

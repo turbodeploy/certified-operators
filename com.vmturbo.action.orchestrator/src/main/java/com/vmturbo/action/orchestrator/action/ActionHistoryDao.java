@@ -32,15 +32,6 @@ public interface ActionHistoryDao {
             @Nullable final ExecutionStep executionStep,
             final int currentState);
 
-
-    /**
-     * Returns all the existing action history.
-     *
-     * @return set of existing action history.
-     */
-    @Nonnull
-    List<ActionView> getAllActionHistory();
-
     /**
      * Returns all the existing action history between 'startDate' and 'endDate'.
      *

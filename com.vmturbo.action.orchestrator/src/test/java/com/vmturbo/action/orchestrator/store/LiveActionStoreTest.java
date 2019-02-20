@@ -392,7 +392,6 @@ public class LiveActionStoreTest {
                         .map(spec -> spec.getRecommendation().getId())
                         .collect(Collectors.toList()),
                 containsInAnyOrder(firstMove.getId(), secondMove.getId()));
-        verify(actionHistoryDao).getAllActionHistory();
     }
 
     @Test

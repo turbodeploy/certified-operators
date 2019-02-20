@@ -94,27 +94,6 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
     }
 
     /**
-     * Returns all the existing action history.
-     *
-     * @return set of existing action history.
-     */
-    @Nonnull
-    @Override
-    public List<ActionView> getAllActionHistory() {
-        try (Stream<ActionHistoryRecord> stream =  dsl
-                .selectFrom(ACTION_HISTORY)
-                .fetchSize(Integer.MIN_VALUE) // use streaming fetch
-                .stream();
-             DataMetricTimer timer =
-                     new DataMetricTimer((ACTION_HISTORY_FETCH_TIME_SECS::setData))) {
-            List<ActionView> actionViews = stream.map(actionHistory ->
-                    mapDbActionHistoryToAction(actionHistory)).collect(Collectors.toList());
-            ACTION_HISTORY_SIZE_GAUGE.setData(Double.valueOf(actionViews.size()));
-            return  actionViews;
-        }
-    }
-
-    /**
      * Returns all the existing action history between 'startDate' and 'endDate'.
      *
      * @param startDate the start date
