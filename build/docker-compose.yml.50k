@@ -565,6 +565,15 @@ services:
 #      JAVA_OPTS: "-Xmx2000M"
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep
+#
+#  mediation-aix:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-aix-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx2000M"
+#    mem_limit: 2500M
+#    depends_on: *clustermgrdep
 
   mediation-actionscript:
     extends:

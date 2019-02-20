@@ -86,7 +86,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             EntityType.DATABASE_TIER_VALUE,
             EntityType.DATABASE_SERVER_TIER_VALUE,
             EntityType.BUSINESS_ACCOUNT_VALUE,
-            EntityType.CLOUD_SERVICE_VALUE
+            EntityType.CLOUD_SERVICE_VALUE,
+            EntityType.PROCESSOR_POOL_VALUE
     );
 
     // the entity types to ignore when traversing the topology to construct account supply chain,

@@ -705,3 +705,14 @@ services:
       component_type: mediation-hyperflex
       instance_id: mediation-hyperflex-1
     restart: always
+
+  mediation-aix-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.aix.component
+    environment:
+      consul_host: consul
+      component_type: mediation-aix
+      instance_id: mediation-aix-1
+    restart: always

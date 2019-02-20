@@ -620,18 +620,20 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_UCS_XMX_MB}M ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_UCS_MEM_LIMIT_MB}M
 
-#  mediation-aix:
-#    extends:
-#      file: common-services.yml
-#      service: dev-component
-#    image: turbonomic/com.vmturbo.mediation.aix.component
-#    ports:
-#      - "${MEDIATION_AIX_DEBUG_PORT}"
-#    depends_on: *clustermgrdep
-#    environment:
-#      component_type: mediation-aix
-#      instance_id: mediation-aix-1
-#      JAVA_OPTS: "${DEV_JAVA_OPTS}"
+  mediation-aix:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.aix.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_AIX_PORT}"
+      - "${MEDIATION_AIX_DEBUG_PORT}"
+    environment:
+      component_type: mediation-aix
+      instance_id: mediation-aix-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AIX_XMX_MB}M ${MEDIATION_AIX_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_AIX_MEM_LIMIT_MB}M
 
   mediation-vmax:
     extends:
