@@ -1,0 +1,11 @@
+scripts:
+  - name: valid-in-default-dir
+    scriptPath: val-default.sh
+    entityType: PHYSICAL_MACHINE
+    actionType: MOVE
+    actionPhase: REPLACE
+    tags: ["foo", "bar"]
+  - name: valid-in-other-dir
+    scriptPath: /otherscripts/val-other.sh
+  - name: valid-in-rel-dir
+    scriptPath: ../otherscripts/val-rel.sh

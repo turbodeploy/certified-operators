@@ -1,7 +1,5 @@
 package com.vmturbo.mediation.actionscript;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +18,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.probe.ActionResult;
@@ -50,8 +46,7 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
     private IProbeContext probeContext;
 
     private final Logger logger = LogManager.getLogger(getClass());
-    private final ActionScriptPathValidator actionScriptPathValidator =
-        new ActionScriptPathValidator();
+    private ActionScriptDiscovery actionScriptDiscovery = null;
 
     @Override
     public void initialize(@Nonnull IProbeContext probeContext,
@@ -72,7 +67,7 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning discovery of ActionScript target {}", targetName);
         final DiscoveryResponse response =
-                actionScriptPathValidator.discoverActionScripts(accountValues);
+                getActionScriptDiscovery(accountValues).discoverActionScripts();
         logger.info("Discovery completed for target {} with {} workflows discovered and {} errors.",
                 targetName,
                 response.getNonMarketEntityDTOCount(),
@@ -111,7 +106,7 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning validation of ActionScript target {} ", targetName);
         final ValidationResponse response =
-                actionScriptPathValidator.validateActionScriptPath(accountValues);
+                getActionScriptDiscovery(accountValues).validateManifestFile();
         logger.info("Validation completed for target {} with {} errors.",
                 targetName,
                 response.getErrorDTOCount());
@@ -125,15 +120,23 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
                                       @Nullable final Map<String, AccountValue> secondaryAccountValuesMap,
                                       @Nonnull final IProgressTracker progressTracker)
         throws InterruptedException {
-        try (ActionScriptActionExecutor actionExecutor = new ActionScriptActionExecutor(
-            probeContext)) {
-            return actionExecutor.executeAction(actionExecutionDto, accountValues, progressTracker);
-        }
+//        try (ActionScriptActionExecutor actionExecutor = new ActionScriptActionExecutor() {
+//            probeContext)) {
+//            return actionExecutor.executeAction(actionExecutionDto, accountValues, progressTracker);
+//        }
+        return null;
     }
 
     @Nonnull
     @Override
     public Set<TemplateDTO> getSupplyChainDefinition() {
         return Sets.newHashSet();
+    }
+
+    private ActionScriptDiscovery getActionScriptDiscovery(ActionScriptProbeAccount accountValues) {
+        if (actionScriptDiscovery == null) {
+            actionScriptDiscovery = new ActionScriptDiscovery(accountValues);
+        }
+        return actionScriptDiscovery;
     }
 }

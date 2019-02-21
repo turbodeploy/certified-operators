@@ -13,6 +13,14 @@
     <artifactId>com.vmturbo.mediation.actionscript</artifactId>
     <packaging>jar</packaging>
 
+    <properties>
+        <!--
+        Set this parameter to true to allow password authentication for ssh during script discovery or execution.
+        This is useful in testing to get around difficulties supplying private keys via the UI.
+        -->
+        <ssh-allow-password-auth>false</ssh-allow-password-auth>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -20,6 +28,12 @@
                 <artifactId>vmturbo-sdk-plugin</artifactId>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
     </build>
 
     <dependencies>
@@ -99,6 +113,18 @@
                 </exclusion>
             </exclusions>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
     </dependencies>
 

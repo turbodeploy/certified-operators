@@ -18,9 +18,9 @@ import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterMapper.
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.Parameter;
 
 /**
  * Tests the {@link ActionScriptParameterMapper}, checking whether it can successfully
@@ -44,7 +44,7 @@ public class ActionScriptParameterMapperTest {
         // Create a list of parameters representing all the default parameters
         final List<Parameter> parameters = Arrays.asList(Parameter.newBuilder()
                 .setName(ActionScriptParameterDefinition.VMT_TARGET_UUID.name())
-                .setType(ActionScriptPathValidator.WORKFLOW_PARAMETER_TYPE)
+                .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
                 .build());
         // Test the mapping function
         final Set<ActionScriptParameter> actionScriptParameters =
@@ -73,7 +73,7 @@ public class ActionScriptParameterMapperTest {
             .map(parameterDefinition -> parameterDefinition.name())
             .map(parameterName -> Parameter.newBuilder()
                 .setName(parameterName)
-                .setType(ActionScriptPathValidator.WORKFLOW_PARAMETER_TYPE)
+                .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
                 .setMandatory(false)
                 .build())
             .collect(Collectors.toList());
@@ -102,7 +102,7 @@ public class ActionScriptParameterMapperTest {
         // Create a list of parameters representing all the default parameters
         final List<Parameter> parameters = Arrays.asList(Parameter.newBuilder()
             .setName(ActionScriptParameterDefinition.VMT_ACTION_DATA.name())
-            .setType(ActionScriptPathValidator.WORKFLOW_PARAMETER_TYPE)
+            .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
             .build());
         // Test the mapping function
         final Set<ActionScriptParameter> actionScriptParameters =
@@ -137,7 +137,7 @@ public class ActionScriptParameterMapperTest {
         final List<Parameter> parameters = Arrays.asList(Parameter.newBuilder()
             // Choosing VMT_ACTION_NAME, because it has no mapping function defined
             .setName(ActionScriptParameterDefinition.VMT_ACTION_NAME.name())
-            .setType(ActionScriptPathValidator.WORKFLOW_PARAMETER_TYPE)
+            .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
             .setMandatory(true)
             .build());
         // Expect a ParameterMappingException to be thrown because the parameter cannot be mapped
@@ -158,7 +158,7 @@ public class ActionScriptParameterMapperTest {
         final List<Parameter> parameters = Arrays.asList(Parameter.newBuilder()
             // Choosing VMT_ACTION_NAME, because it has no mapping function defined
             .setName("someRandomParameterName")
-            .setType(ActionScriptPathValidator.WORKFLOW_PARAMETER_TYPE)
+            .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
             .setMandatory(true)
             .build());
         // Expect a IllegalArgumentException to be thrown because the parameter is not recognized

@@ -19,7 +19,7 @@ import com.vmturbo.common.protobuf.workflow.DiscoveredWorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.DiscoveredWorkflowServiceGrpc.DiscoveredWorkflowServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.StoreDiscoveredWorkflowsRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
+import com.vmturbo.platform.common.dto.ActionExecution;
 
 /**
  * Record any Workflows extracted from discovery results in an in-memory map, by TargetId, until
@@ -57,21 +57,22 @@ public class DiscoveredWorkflowUploader {
     }
 
     /**
-     * For the given target, scan the NonMarketEntityDTOs looking for looking for type == WORKFLOW.
-     * We capture those in a map keyed by target OID. Note that any prior Workflows for the same
-     * target OID will be discarded.
-     * During topology broadcast the 'uploadDiscoveredWorkflows()' method below will be called
-     * and after the upload the cache will be reset.
+     * For the given target, create a map of workflows keyed by target OID.
+     *
+     * <p>Note that any prior Workflows for the same target OID will be discarded.</p>
+     *
+     * <p></p>During topology broadcast the 'uploadDiscoveredWorkflows()' method below will be called
+     * and after the upload the cache will be reset.</p>
      *
      * @param targetId the target OID from which these NonMarketEntityDTOs were discovered
-     * @param nonMarketEntityDTOS the NonMarketEntityDTOs to scan looking for Workflows
+     * @param workflows the NonMarketEntityDTOs to scan looking for Workflows
      */
     public void setTargetWorkflows(final long targetId,
-                                   @Nonnull final List<NonMarketEntityDTO> nonMarketEntityDTOS) {
-        log.debug("setTargetWorkflows: {}, size: {}", targetId, nonMarketEntityDTOS.size());
+                                   @Nonnull final List<ActionExecution.Workflow> workflows) {
+        log.debug("setTargetWorkflows: {}, size: {}", targetId, workflows.size());
         synchronized (workflowByTarget) {
             List<WorkflowInfo> interpretedWorkflows = discoveredWorkflowInterpreter
-                    .interpretWorkflowList(nonMarketEntityDTOS, targetId);
+                    .interpretWorkflowList(workflows, targetId);
             workflowByTarget.put(targetId, interpretedWorkflows);
         }
     }

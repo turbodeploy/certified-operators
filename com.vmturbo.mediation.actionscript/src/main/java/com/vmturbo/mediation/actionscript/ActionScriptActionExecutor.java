@@ -29,10 +29,9 @@ import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterMapper;
 import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterMapper.ActionScriptParameter;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.Parameter;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
 import com.vmturbo.platform.sdk.probe.ActionResult;
-import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
 
 /**
@@ -42,20 +41,17 @@ import com.vmturbo.platform.sdk.probe.IProgressTracker;
  * The return code from the script execution will indicate success (0) or failure (!0).
  * <p/>
  * We will need to decide what progress messages will be returned.
- *
+ * <p>
  * TODO: implement the script execution, status update, and 'destroy()' functionality.
  **/
-public class ActionScriptActionExecutor implements AutoCloseable  {
+public class ActionScriptActionExecutor implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger();
 
     private static final Pattern VALID_BASH_VARIABLE_NAME_REGEX = Pattern.compile("[a-zA-Z_][a-zA-Z_0-9]*");
 
-    private final IProbeContext probeContext;
-
-    public ActionScriptActionExecutor(final IProbeContext probeContext) {
-        this.probeContext = probeContext;
-    }
+    private static final long SESSION_CONNECT_TIMEOUT_SECS = 10L;
+    private static final long AUTH_TIMEOUT_SECS = 15L;
 
     @Override
     public void close() {
@@ -69,6 +65,8 @@ public class ActionScriptActionExecutor implements AutoCloseable  {
         throws InterruptedException {
 
         if (actionExecutionDTO.hasWorkflow()) {
+            final Workflow actionScriptWorkflow = actionExecutionDTO.getWorkflow();
+            logger.info("Executing ActionScript ", actionScriptWorkflow.getDisplayName());
             executeWorkflow(actionExecutionDTO, actionScriptProbeAccount);
 
             // TODO: implement the script execution with an async status update and 'wait for completion'
@@ -87,11 +85,8 @@ public class ActionScriptActionExecutor implements AutoCloseable  {
     private static ActionResult executeWorkflow(@Nonnull final ActionExecutionDTO actionExecutionDTO,
             @Nonnull final ActionScriptProbeAccount actionScriptProbeAccount) {
         // TODO: Convert method to execute asynchronously
-//        FutureTask actionFutureTask = new FutureTask(() -> {
-//            return new ActionResult(ActionResponseState.SUCCEEDED, "Action completed.");
-//        });
         try {
-            final boolean scriptSucceeded = SshUtils.executeRemoteCommand(actionScriptProbeAccount,
+            final boolean scriptSucceeded = SshUtils.runInSshSession(actionScriptProbeAccount,
                 ActionScriptActionExecutor::invokeActionScript,
                 actionExecutionDTO);
             final ActionResponseState responseState = scriptSucceeded ?
@@ -109,8 +104,7 @@ public class ActionScriptActionExecutor implements AutoCloseable  {
 
     private static boolean invokeActionScript(@Nonnull final ActionScriptProbeAccount accountValues,
                                               @Nonnull final ClientSession session,
-                                              @Nonnull final ActionExecutionDTO actionExecutionDTO)
-            throws RemoteExecutionException {
+                                              @Nonnull final ActionExecutionDTO actionExecutionDTO) throws RemoteExecutionException {
         // Get an SSH client channel to send/receive data over SSH
         try (ClientChannel channel = session.createShellChannel();
              ByteArrayOutputStream sent = new ByteArrayOutputStream();
@@ -126,10 +120,10 @@ public class ActionScriptActionExecutor implements AutoCloseable  {
                 channel.setErr(err);
                 channel.open();
 
-                final NonMarketEntityDTO workflow = actionExecutionDTO.getWorkflow();
+                final Workflow workflow = actionExecutionDTO.getWorkflow();
 
                 // Load the ActionScript parameters into BASH environment variables
-                final List<Parameter> paramList = workflow.getWorkflowData().getParamList();
+                final List<Parameter> paramList = workflow.getParamList();
                 final Set<ActionScriptParameter> actionScriptParameters =
                     ActionScriptParameterMapper.mapParameterValues(actionExecutionDTO, paramList);
                 for (ActionScriptParameter parameter : actionScriptParameters) {
@@ -154,10 +148,7 @@ public class ActionScriptActionExecutor implements AutoCloseable  {
 
                 // TODO: Replace this logic after the ActionScript manifest is done (OM-42083)
                 // This is a terrible hack, but we are fixing it!
-                final String actionCommand = accountValues.scriptPath
-                    + "/"
-                    + workflow.getDisplayName()
-                    + "\n";
+                final String actionCommand = workflow.getScriptPath() + "\n";
 
                 executeRemoteShellCommand("echo 'Beginning execution of ActionScript.'\n", teeOut, channel);
 

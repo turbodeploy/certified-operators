@@ -8,8 +8,9 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.Parameter;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Property;
 
 /**
  * Transform a list of NonMarketEntityDTOs with entity type "WORKFLOW" into a
@@ -18,34 +19,27 @@ import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.Parameter
 public class DiscoveredWorkflowInterpreter {
 
     /**
-     * Scan the given list of NonMarketEntityDTO's, and for each where getEntityType == WORKFLOW
-     * create a WorkflowInfo object from the NonMarketEntityDTO fields.
+     * Scan the given list of Workflow DTOs, and create a WorkflowInfo object from each
      *
-     * @param nonMarketEntityDTOS a list of NonMarketEntityDTOs from a discoverey response to be
-     *                            scanned looking for Workflows
+     * @param workflows a list of Workflow DTOs from a discovery response to be scanned
      * @param targetId the OID of the target from which these workflows were discovered
-     * @return a list consisting of a WorkflowInfo object corresponding to each WORKFLOW
-     * NonMarketEntityDTO in the input list
+     * @return a list consisting of a WorkflowInfo object corresponding to each WORKFLOW DTO in the input list
      */
     @Nonnull
-    public List<WorkflowInfo> interpretWorkflowList(@Nonnull List<NonMarketEntityDTO> nonMarketEntityDTOS,
+    public List<WorkflowInfo> interpretWorkflowList(@Nonnull List<Workflow> workflows,
                                                     long targetId) {
-        return nonMarketEntityDTOS.stream()
-                .filter(nonMarketEntityDTO -> NonMarketEntityDTO.NonMarketEntityType.WORKFLOW
-                        .equals(nonMarketEntityDTO.getEntityType()))
-                .map(nonMarketEntityDTO -> WorkflowInfo.newBuilder()
-                        .setTargetId(targetId)
-                        .setName(nonMarketEntityDTO.getId())
-                        .setDisplayName(nonMarketEntityDTO.getDisplayName())
-                        .addAllWorkflowParam(interpretParams(nonMarketEntityDTO.getWorkflowData()
-                                .getParamList()))
-                        .addAllWorkflowProperty(interpretProps(nonMarketEntityDTO.getWorkflowData()
-                                .getPropertyList()))
-                        .build())
+        return workflows.stream()
+                .map(workflow -> WorkflowInfo.newBuilder()
+                    .setTargetId(targetId)
+                    .setName(workflow.getId())
+                    .setDisplayName(workflow.getDisplayName())
+                    .addAllWorkflowParam(interpretParams(workflow.getParamList()))
+                    .addAllWorkflowProperty(interpretProps(workflow.getPropertyList()))
+                    .build())
                 .collect(Collectors.toList());
     }
 
-    private List<WorkflowDTO.WorkflowProperty> interpretProps(List<NonMarketEntityDTO.Property> propertyList) {
+    private List<WorkflowDTO.WorkflowProperty> interpretProps(List<Property> propertyList) {
         return propertyList.stream()
                 .map(nmeProperty -> WorkflowDTO.WorkflowProperty.newBuilder()
                         .setName(nmeProperty.getName())
@@ -64,5 +58,4 @@ public class DiscoveredWorkflowInterpreter {
                         .build())
                 .collect(Collectors.toList());
     }
-
 }

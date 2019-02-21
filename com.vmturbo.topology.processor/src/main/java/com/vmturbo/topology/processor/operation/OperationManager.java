@@ -30,12 +30,12 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest.Builder;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
@@ -235,7 +235,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
         // and include it in the ActionExecution to be sent to the target
         workflowInfoOpt.ifPresent(workflowInfo ->
-                actionExecutionBuilder.setWorkflow(buildWorkflowNonMarketEntity(workflowInfo)));
+                actionExecutionBuilder.setWorkflow(buildWorkflow(workflowInfo)));
         final Builder actionRequestBuilder = ActionRequest.newBuilder()
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
@@ -268,39 +268,33 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     /**
-     * Create a NonMarketEntity representing the given {@link WorkflowDTO.WorkflowInfo}.
-     * The corresponding 'entityType' is: {@link NonMarketEntityDTO.NonMarketEntityType#WORKFLOW}.
+     * Create a Workflow DTO representing the given {@link WorkflowDTO.WorkflowInfo}.
      *
      * @param workflowInfo the information describing this Workflow, including ID, displayName,
      *                     and defining data - parameters and properties.
-     * @return a newly created NonMarketEntity
+     * @return a newly created Workflow DTO
      */
-    private NonMarketEntityDTO buildWorkflowNonMarketEntity(WorkflowDTO.WorkflowInfo workflowInfo) {
-        return NonMarketEntityDTO.newBuilder()
-                .setEntityType(NonMarketEntityDTO.NonMarketEntityType.WORKFLOW)
-                .setDisplayName(workflowInfo.getDisplayName())
-                .setId(workflowInfo.getName())
-                .setDescription(workflowInfo.getDescription())
-                // populate the WorkflowData field of the NonMarketEntity
-                .setWorkflowData(NonMarketEntityDTO.WorkflowData.newBuilder()
-                        // include the 'param' entries from the Workflow
-                        .addAllParam(workflowInfo.getWorkflowParamList().stream()
-                                .map(workflowParam -> NonMarketEntityDTO.Parameter.newBuilder()
-                                        .setDescription(workflowParam.getDescription())
-                                        .setName(workflowParam.getName())
-                                        .setType(workflowParam.getType())
-                                        .setMandatory(workflowParam.getMandatory())
-                                        .build())
-                                .collect(Collectors.toList()))
-                        // include the 'property' entries from the Workflow
-                        .addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
-                                .map(workflowProperty -> NonMarketEntityDTO.Property.newBuilder()
-                                        .setName(workflowProperty.getName())
-                                        .setValue(workflowProperty.getValue())
-                                        .build())
-                                .collect(Collectors.toList()))
-                        .build())
-                .build();
+    private Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
+        return Workflow.newBuilder()
+            .setDisplayName(workflowInfo.getDisplayName())
+            .setId(workflowInfo.getName())
+            .setDescription(workflowInfo.getDescription())
+            .addAllParam(workflowInfo.getWorkflowParamList().stream()
+                .map(workflowParam -> Workflow.Parameter.newBuilder()
+                    .setDescription(workflowParam.getDescription())
+                    .setName(workflowParam.getName())
+                    .setType(workflowParam.getType())
+                    .setMandatory(workflowParam.getMandatory())
+                    .build())
+                .collect(Collectors.toList()))
+            // include the 'property' entries from the Workflow
+            .addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
+                .map(workflowProperty -> Workflow.Property.newBuilder()
+                    .setName(workflowProperty.getName())
+                    .setValue(workflowProperty.getValue())
+                    .build())
+                .collect(Collectors.toList()))
+            .build();
     }
 
     /**
@@ -770,7 +764,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         response.getEntityProfileList(), response.getDeploymentProfileList(),
                         response.getEntityDTOList());
                 discoveredWorkflowUploader.setTargetWorkflows(targetId,
-                        response.getNonMarketEntityDTOList());
+                        response.getWorkflowList());
                 DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
                 derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                 discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,

@@ -15,8 +15,8 @@ import javax.annotation.Nonnull;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.mediation.actionscript.exception.ParameterMappingException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.Parameter;
 
 /**
  * Maps values from an ActionExecutionDTO to action script parameters
