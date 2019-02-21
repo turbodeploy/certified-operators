@@ -20,9 +20,11 @@ RUN chmod 755 /change_buffer_pool_size.sh
 # rsyslog
 ADD rsyslog.conf /etc
 
-# We done wverything, time to chown and chmod before turning off root.
+# Done with everything. Time to chown and chmod before turning off root.
 RUN mkdir -p /var/lib/mysql &&\
 chown -R mysql:mysql /var/lib/mysql && \
+mkdir -p /var/lib/mysql/tmp && \
+chown -R mysql:mysql /var/lib/mysql/tmp && \
 mkdir -p /var/run/mysqld && \
 chown -R mysql:mysql /var/run/mysqld && \
 mkdir -p /var/log/mysql && \
