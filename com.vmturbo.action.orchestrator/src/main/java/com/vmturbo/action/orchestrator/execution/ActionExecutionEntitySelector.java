@@ -22,10 +22,8 @@ public interface ActionExecutionEntitySelector {
      *   they describe apply).
      *
      * @param action the action to be executed
-     * @param entityType the type of the main entity (object of) this action
      * @return the entity whose target will be used to execute the action against
      */
-    Optional<Long> getEntityId(@Nonnull ActionDTO.Action action,
-                               @Nonnull EntityDTO.EntityType entityType)
+    Optional<Long> getEntityId(@Nonnull ActionDTO.Action action)
             throws UnsupportedActionException;
 }

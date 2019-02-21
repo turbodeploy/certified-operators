@@ -4,13 +4,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -21,20 +19,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
@@ -63,35 +58,19 @@ public class ActionTargetSelector {
     private final EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
 
     /**
-     * A client for making remote calls to the Repository service
-     */
-    private final RepositoryClient repositoryClient;
-
-    /**
-     * The context ID for the realtime market. Used when making remote calls to the repository service.
-     */
-    private final long realtimeTopologyContextId;
-
-    /**
      * Create an ActionTargetSelector
      *
      * @param targetResolver to resolve conflicts when there are multiple targets which can
      *      execute the action
      * @param entitySelector to select a service entity to execute an action against
-     * @param repositoryClient a client to the repository service, to retrieve entity type information
-     * @param realtimeTopologyContextId the context ID of the realtime market
      */
     public ActionTargetSelector(@Nonnull final ActionTargetResolver targetResolver,
                                 @Nonnull final ActionExecutionEntitySelector entitySelector,
-                                @Nonnull final Channel topologyProcessorChannel,
-                                @Nonnull final RepositoryClient repositoryClient,
-                                final long realtimeTopologyContextId) {
+                                @Nonnull final Channel topologyProcessorChannel) {
         this.targetResolver = Objects.requireNonNull(targetResolver);
         this.entitySelector = Objects.requireNonNull(entitySelector);
         this.entityServiceBlockingStub = EntityServiceGrpc.newBlockingStub(
                 Objects.requireNonNull(topologyProcessorChannel));
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -130,32 +109,15 @@ public class ActionTargetSelector {
     @Nonnull
     private Map<Action, Long> performBulkActionLookup(@Nonnull Collection<Action> actions,
                                          @Nonnull LookupIdRelatedToActionFunction lookupFunction) {
-        // Get a set of all entities being acted upon
-        final Set<Long> primaryEntities = getPrimaryEntities(actions);
-
-        // Short-circuit if no entities could be retrieved from actions (or actions is empty)
-        // This is necessary because requesting entity data for an empty list throws an Exception.
-        if (primaryEntities.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        // Get the type of each entity (needed to find special cases in target entity selection)
-        // For performance reasons, this remote call is done in bulk
-        // The Map is entityId -> EntityType
-        final Map<Long, EntityDTO.EntityType> entityTypes = getEntityTypeMap(primaryEntities);
-
         // Get a map of actions to the entity that will be used to execute the action. This may
         // differ from the primary entity if a special case applies. Generally, there is a large
         // overlap between the set of primary entities and the set of selected entities
         final Map<Action, Long> actionsToSelectedEntityIds = new HashMap<>();
         for (Action action : actions) {
             try {
-                ActionDTO.Action actionDto = action.getRecommendation();
-                EntityType primaryEntityType = entityTypes.get(getPrimaryEntityId(actionDto));
-                // Select the entity to execute the action against
-                long selectedEntity = getExecutantEntityId(actionDto, primaryEntityType);
-                // Put the result in the map
-                actionsToSelectedEntityIds.put(action, selectedEntity);
+                final ActionDTO.Action actionDto = action.getRecommendation();
+                // Select the entity to execute the action against, and put the result in the map
+                actionsToSelectedEntityIds.put(action, getExecutantEntityId(actionDto));
             } catch (EntitiesResolutionException | UnsupportedActionException e) {
                 // If there was a problem determining the execution target for this action, log the
                 // exception and skip this action.
@@ -169,7 +131,7 @@ public class ActionTargetSelector {
         // For performance reasons, this remote call is done in bulk
         // The Map is entityId -> EntityInfo
         final Map<Long, EntityInfo> entityInfos =
-                getEntitiesInfo(new TreeSet<>(actionsToSelectedEntityIds.values()));
+                getEntitiesInfo(Sets.newHashSet(actionsToSelectedEntityIds.values()));
 
         // The resultMap is Action -> id, where id is either a targetId or a probeId, depending on
         // the provided function
@@ -179,10 +141,15 @@ public class ActionTargetSelector {
                 final Long selectedEntityId = actionToSelectedEntityIdEntry.getValue();
                 final Action action = actionToSelectedEntityIdEntry.getKey();
                 final EntityInfo selectedEntity = entityInfos.get(selectedEntityId);
-                final ActionDTO.Action actionDto = action.getRecommendation();
-                // Get an id (either a targetId or a probeId, depending on the provided function)
-                final long id = lookupFunction.lookupRelatedId(actionDto, selectedEntity);
-                resultMap.put(action, id);
+                if (selectedEntity != null) {
+                    final ActionDTO.Action actionDto = action.getRecommendation();
+                    // Get an id (either a targetId or a probeId, depending on the provided function)
+                    final long id = lookupFunction.lookupRelatedId(actionDto, selectedEntity);
+                    resultMap.put(action, id);
+                } else {
+                    logger.info("Selected entity {} involved in action {} no longer present in system.",
+                        selectedEntityId, action.getId());
+                }
             } catch (TargetResolutionException e) {
                 // If there was a problem determining the execution target for this action, log the
                 // exception and skip this action.
@@ -222,53 +189,20 @@ public class ActionTargetSelector {
     }
 
     /**
-     * Get a set of all entities being acted upon
-     *
-     * @param actions the actions for which to get the primary entities
-     * @return a set of all entities being acted upon
-     */
-    private Set<Long> getPrimaryEntities(@Nonnull final Collection<Action> actions) {
-        return actions.stream()
-                .map(Action::getRecommendation)
-                .map(actionDTO -> getPrimaryEntityId(actionDTO))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     *  Get the type of each entity (needed to find special cases in target entity selection)
-     *  For performance reasons, this remote call is done in bulk
-     *  The Map is entityId -> EntityType
-     *
-     * @param entities the entities for which to retrieve the type
-     * @return a map of entityId -> EntityType
-     */
-    private Map<Long, EntityType> getEntityTypeMap(final Set<Long> entities) {
-        return retrieveTopologyEntities(entities.stream().collect(Collectors.toList()))
-                .stream()
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
-                        entityDTO -> EntityType
-                                .forNumber(entityDTO.getEntityType())));
-    }
-
-    /**
      * Get the entity to use for the {@link ExecutableStep} of an {@link Action}.
      * While this defaults to the primary entity of the action--the entity being acted upon--there
      * exist special cases where a different, related entity needs to be used in order to execute
      * an action.
      *
      * @param action TopologyProcessor Action
-     * @param entityType the type of the primary entity that this action is acting upon
      * @return EntityInfo for the selected entity
      * @throws EntitiesResolutionException if entities related to the target failed to
      *         resolve in TopologyProcessor
      */
-    private EntityInfo getExecutantEntity(@Nonnull ActionDTO.Action action,
-                             @Nonnull EntityDTO.EntityType entityType)
+    private EntityInfo getExecutantEntity(@Nonnull ActionDTO.Action action)
             throws EntitiesResolutionException, UnsupportedActionException {
         // Select which entity to use for action execution.
-        long selectedEntityId = getExecutantEntityId(action, entityType);
+        long selectedEntityId = getExecutantEntityId(action);
         // Retrieve the discovered entity data for this entity from the Topology Processor.
         EntityInfo entityInfo = getEntityInfo(selectedEntityId);
         return entityInfo;
@@ -281,16 +215,14 @@ public class ActionTargetSelector {
      * an action.
      *
      * @param action TopologyProcessor Action
-     * @param entityType the type of the primary entity that this action is acting upon
      * @return entityId for the selected entity
      * @throws EntitiesResolutionException if entities related to the target failed to
      *         resolve in TopologyProcessor
      */
-    private long getExecutantEntityId(@Nonnull ActionDTO.Action action,
-                                          @Nonnull EntityDTO.EntityType entityType)
+    private long getExecutantEntityId(@Nonnull ActionDTO.Action action)
             throws EntitiesResolutionException, UnsupportedActionException {
         // Check for special cases using the entitySelector
-        return entitySelector.getEntityId(action, entityType)
+        return entitySelector.getEntityId(action)
                 .orElseThrow(() -> new EntitiesResolutionException(
                         "No entity could be found for this action: " + action.toString()));
 
@@ -311,10 +243,8 @@ public class ActionTargetSelector {
     public long getTargetId(@Nonnull ActionDTO.Action action)
             throws EntitiesResolutionException, UnsupportedActionException,
             TargetResolutionException {
-        // Get the entity type associated with this action
-        EntityDTO.EntityType entityType = getEntityTypeForAction(action);
         // Determine the entity to execute this action against
-        EntityInfo executantEntity = getExecutantEntity(action, entityType);
+        EntityInfo executantEntity = getExecutantEntity(action);
         // Determine the targetId
         return getTargetId(action, executantEntity);
     }
@@ -341,62 +271,6 @@ public class ActionTargetSelector {
                         action.getId() +
                         " has no associated target that supports execution of the action.")));
         return targetId;
-    }
-
-    /**
-     * Helper method for getting the primary entity (object of) an action
-     *
-     * @param action the action whose primary entity is to be determined
-     * @return the id of the primary entity (object of) the action, or Optional.empty if the action
-     *      is unsupported
-     */
-    private static Optional<Long> getPrimaryEntityId(@Nonnull final ActionDTO.Action action) {
-        try {
-            return Optional.of(ActionDTOUtil.getPrimaryEntityId(action));
-        } catch (UnsupportedActionException e) {
-            logger.warn("Tried to determine target entity for an unsupported action: "
-                    + action.toString());
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Get the entity type associated with this action
-     *
-     * @param action the action whose entity type to find
-     * @return the entity type associated with this action
-     * @throws UnsupportedActionException if action is not supported by XL
-     * @throws EntitiesResolutionException if entities related to the target failed to resolve in
-     *   TopologyProcessor
-     */
-    private EntityDTO.EntityType getEntityTypeForAction(ActionDTO.Action action)
-            throws UnsupportedActionException, EntitiesResolutionException {
-        // Use the main target entity (the entity being acted upon), as retrieved by ActionDTOUtil
-        final long primaryEntityId = ActionDTOUtil.getPrimaryEntityId(action);
-        // Make a remote call to the Repository service to get entity data for the target entity
-        final List<TopologyEntityDTO> entitiesResponse =
-                retrieveTopologyEntities(Collections.singletonList(primaryEntityId));
-        // Find the matching entity data (the list should have exactly one element, but it doesn't
-        // hurt to check anyway), and get the entity type data
-        final int entityTypeNumber = entitiesResponse.stream()
-                .filter(topologyEntityDTO -> topologyEntityDTO.getOid() == primaryEntityId)
-                .findFirst()
-                .orElseThrow(() -> new EntitiesResolutionException("No entity could be found for this action: "
-                        + action.toString()))
-                .getEntityType();
-        // Convert the entity type int to an Enum and return it
-        return EntityDTO.EntityType.forNumber(entityTypeNumber);
-    }
-
-    /**
-     * Retrieve entity data from Repository service
-     *
-     * @param entities the entities to fetch data about
-     * @return entity data corresponding to the provided entities
-     */
-    private List<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        return repositoryClient.retrieveTopologyEntities(entities, realtimeTopologyContextId)
-                .getEntitiesList();
     }
 
     /**

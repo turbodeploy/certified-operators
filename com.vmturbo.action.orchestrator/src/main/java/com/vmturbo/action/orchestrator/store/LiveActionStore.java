@@ -354,8 +354,6 @@ public class LiveActionStore implements ActionStore {
             entitySettingsCache.update(entitiesToRetrieve,
                     actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
 
-            filterActionsByCapabilityForUiDisplaying();
-
             // Clear READY or QUEUED actions that were not re-recommended. If they were
             // re-recommended, they would have been removed from the RecommendationTracker
             // above.
@@ -363,6 +361,10 @@ public class LiveActionStore implements ActionStore {
                 .filter(action -> (action.getState() == ActionState.READY
                             || action.getState() == ActionState.QUEUED))
                 .forEach(action -> action.receive(new NotRecommendedEvent(planId)));
+
+            // Do this after clearing READY and QUEUED actions, because we don't need to
+            // worry about capabilities for actions we no longer care about.
+            filterActionsByCapabilityForUiDisplaying();
 
             actions.values().stream()
                 .collect(Collectors.groupingBy(a ->

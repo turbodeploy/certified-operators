@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -17,7 +16,6 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
-import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -57,7 +55,7 @@ public class ActionStoreConfig {
     private ActionTranslationConfig actionTranslationConfig;
 
     @Autowired
-    WorkflowConfig workflowConfig;
+    private WorkflowConfig workflowConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
@@ -89,11 +87,16 @@ public class ActionStoreConfig {
         return new ActionStoreFactory(actionFactory(),
             actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
             databaseConfig.dsl(),
-            actionOrchestratorGlobalConfig.topologyProcessorChannel(),
-            actionOrchestratorGlobalConfig.topologyProcessor(),
+            actionHistory(),
+            actionSupportResolver(),
             entitySettingsCache(),
-            repositoryClientConfig.repositoryClient(),
             actionStatsConfig.actionsStatistician());
+    }
+
+    @Bean
+    public ActionSupportResolver actionSupportResolver() {
+        return new ActionSupportResolver(actionExecutionConfig.actionCapabilitiesStore(),
+            actionExecutionConfig.actionTargetSelector());
     }
 
     @Bean

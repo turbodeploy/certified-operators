@@ -8,8 +8,8 @@ import java.util.Optional;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -36,10 +36,8 @@ public class ActionExecutionEntitySelectorTest {
                 EntityType.PHYSICAL_MACHINE_VALUE,
                 482,
                 EntityType.PHYSICAL_MACHINE_VALUE);
-        // ... for a virtual machine
-        final EntityType entityType = EntityType.VIRTUAL_MACHINE;
 
-        Optional<Long> selectedEntityId = entitySelector.getEntityId(moveAction, entityType);
+        Optional<Long> selectedEntityId = entitySelector.getEntityId(moveAction);
         assertTrue(selectedEntityId.isPresent());
         assertEquals(primaryEntityId, selectedEntityId.get().longValue());
     }
@@ -50,10 +48,8 @@ public class ActionExecutionEntitySelectorTest {
         // Simulate a provision action...
         ActionDTO.Action provisionAction =
                 testActionBuilder.buildProvisionAction(primaryEntityId, null);
-        // ... for a virtual machine
-        final EntityType entityType = EntityType.VIRTUAL_MACHINE;
 
-        Optional<Long> selectedEntityId = entitySelector.getEntityId(provisionAction, entityType);
+        Optional<Long> selectedEntityId = entitySelector.getEntityId(provisionAction);
         assertTrue(selectedEntityId.isPresent());
         assertEquals(primaryEntityId, selectedEntityId.get().longValue());
     }

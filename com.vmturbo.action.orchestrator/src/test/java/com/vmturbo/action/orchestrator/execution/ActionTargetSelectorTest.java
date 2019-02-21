@@ -21,32 +21,29 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Unit tests for the {@link ActionTargetSelector} class.
  */
 public class ActionTargetSelectorTest {
 
-    private final static long REALTIME_CONTEXT_ID = 777;
-
     // The class under test
     private ActionTargetSelector actionTargetSelector;
 
     // Create a testable instance of the remote connection to Topology Processor
     private final EntityServiceMole entityServiceMole = Mockito.spy(new EntityServiceMole());
+
     @Rule
     public final GrpcTestServer server = GrpcTestServer.newServer(entityServiceMole);
 
@@ -61,8 +58,6 @@ public class ActionTargetSelectorTest {
 
     private ActionExecutionEntitySelector targetEntitySelectorMock;
 
-    private RepositoryClient repositoryClientMock;
-
     // A test helper class for building move actions
     TestActionBuilder testActionBuilder = new TestActionBuilder();
 
@@ -70,14 +65,11 @@ public class ActionTargetSelectorTest {
     public void setup() {
         actionTargetResolverMock = Mockito.mock(ActionTargetResolver.class);
         targetEntitySelectorMock = Mockito.mock(ActionExecutionEntitySelector.class);
-        repositoryClientMock = Mockito.mock(RepositoryClient.class);
         MockitoAnnotations.initMocks(this);
         // The class under test
         actionTargetSelector = new ActionTargetSelector(actionTargetResolverMock,
                 targetEntitySelectorMock,
-                server.getChannel(),
-                repositoryClientMock,
-                REALTIME_CONTEXT_ID);
+                server.getChannel());
     }
 
     /**
@@ -101,7 +93,7 @@ public class ActionTargetSelectorTest {
         final long selectedEntityId = 1;
         final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
         // No target selection for action execution special cases apply, return the target entity
-        when(targetEntitySelectorMock.getEntityId(any(), any()))
+        when(targetEntitySelectorMock.getEntityId(any()))
                 .thenReturn(Optional.of(selectedEntityId));
         when(entityServiceMole.getEntitiesInfo(any()))
                 .thenReturn(Stream.of(1, 2, 3).map(id ->
@@ -111,12 +103,6 @@ public class ActionTargetSelectorTest {
                                 .build()).collect(Collectors.toList()));
         when(actionTargetResolverMock.resolveExecutantTarget(any(), eq(ImmutableSet.of(targetId))))
                 .thenReturn(targetId);
-        // Return entity data about the target entity--only the type will be accessed
-        TopologyEntityDTO entityDTO = buildEntityDTO(selectedEntityId, selectedEntityType);
-        when(repositoryClientMock.retrieveTopologyEntities(any(), eq(REALTIME_CONTEXT_ID)))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
-                        .addEntities(entityDTO)
-                        .build());
 
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 3L, 1);
@@ -140,7 +126,7 @@ public class ActionTargetSelectorTest {
         final long selectedEntityId = 1;
         final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
         // No target selection for action execution special cases apply, return the target entity
-        when(targetEntitySelectorMock.getEntityId(any(), any()))
+        when(targetEntitySelectorMock.getEntityId(any()))
                 .thenReturn(Optional.of(selectedEntityId));
         // The entity info returned will not include the requested entity (the selectedEntityId)
         when(entityServiceMole.getEntitiesInfo(any()))
@@ -149,12 +135,6 @@ public class ActionTargetSelectorTest {
                                 .setEntityId(id)
                                 .putTargetIdToProbeId(targetId, probeId)
                                 .build()).collect(Collectors.toList()));
-        // Return entity data about the target entity--only the type will be accessed
-        TopologyEntityDTO entityDTO = buildEntityDTO(selectedEntityId, selectedEntityType);
-        when(repositoryClientMock.retrieveTopologyEntities(any(), eq(REALTIME_CONTEXT_ID)))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
-                        .addEntities(entityDTO)
-                        .build());
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 4L, 1);
         // This exception will be thrown since the entityServiceMole will not return the requested
@@ -178,7 +158,7 @@ public class ActionTargetSelectorTest {
         final long selectedEntityId = 1;
         final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
         // No target selection for action execution special cases apply
-        when(targetEntitySelectorMock.getEntityId(any(), any()))
+        when(targetEntitySelectorMock.getEntityId(any()))
                 .thenReturn(Optional.of(selectedEntityId));
         when(entityServiceMole.getEntitiesInfo(any()))
                 .thenReturn(Stream.of(1, 2, 3)
@@ -189,12 +169,6 @@ public class ActionTargetSelectorTest {
                                         .putTargetIdToProbeId(secondTargetId, probeId)
                                         .build())
                         .collect(Collectors.toList()));
-        // Return entity data about the target entity--only the type will be accessed
-        TopologyEntityDTO entityDTO = buildEntityDTO(selectedEntityId, selectedEntityType);
-        when(repositoryClientMock.retrieveTopologyEntities(any(), eq(REALTIME_CONTEXT_ID)))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
-                        .addEntities(entityDTO)
-                        .build());
         when(actionTargetResolverMock.resolveExecutantTarget(any(),
                 eq(ImmutableSet.of(firstTargetId, secondTargetId))))
                 .thenReturn(firstTargetId);
@@ -208,8 +182,6 @@ public class ActionTargetSelectorTest {
     public void testUnsupportedAction() throws Exception {
         final long probeId = 10;
         final long targetId = 7;
-        final long selectedEntityId = 1;
-        final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
         // Prepare some entity data to return when the Topology Processor is queried
         when(entityServiceMole.getEntitiesInfo(any()))
                 .thenReturn(Stream.of(1, 2, 3).map(id ->
@@ -220,15 +192,9 @@ public class ActionTargetSelectorTest {
         when(actionTargetResolverMock.resolveExecutantTarget(any(),
                 eq(ImmutableSet.of(targetId))))
                 .thenReturn(targetId);
-        // No target selection for action execution special cases apply
-        when(targetEntitySelectorMock.getEntityId(any(), any()))
-                .thenReturn(Optional.of(selectedEntityId));
-        // Return entity data about the target entity--only the type will be accessed
-        TopologyEntityDTO entityDTO = buildEntityDTO(selectedEntityId, selectedEntityType);
-        when(repositoryClientMock.retrieveTopologyEntities(any(), eq(REALTIME_CONTEXT_ID)))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
-                        .addEntities(entityDTO)
-                        .build());
+        // Target entity selection throws exception.
+        when(targetEntitySelectorMock.getEntityId(any()))
+                .thenThrow(UnsupportedActionException.class);
         final Action bogusAction = Action.newBuilder()
                 .setId(23)
                 .setImportance(1)
