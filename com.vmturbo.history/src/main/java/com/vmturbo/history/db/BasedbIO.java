@@ -1269,7 +1269,7 @@ public abstract class BasedbIO {
         catch (SQLException sqle) {
             logger.error("=======================================================");
             logger.error("=  Unable to retrieve connection! Make sure MySQL is  =");
-            logger.error("=  running and the root password is correct.          =");
+            logger.error("=  running and the root password is 'vmturbo'!        =");
             logger.error("=======================================================", sqle);
             throw new VmtDbException(VmtDbException.CONN_POOL_STARTUP,
                     "Cannot retrieve root db connection", sqle);
