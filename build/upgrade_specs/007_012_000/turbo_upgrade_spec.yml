@@ -1,0 +1,4 @@
+services :
+    db:
+        pre_hook:
+          - change_mariadb_temp_dir.sh

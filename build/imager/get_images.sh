@@ -72,8 +72,8 @@ cp ${WORKSPACE}/build/vmtctl ${WORKSPACE}/data/images/.
 cp ${WORKSPACE}/build/prod-services.yml ${WORKSPACE}/data/images/
 cp ${WORKSPACE}/build/common-services.yml ${WORKSPACE}/data/images/
 
-# Copy the upgrade spec file
-cp ${WORKSPACE}/build/turbo_upgrade_spec.yml ${WORKSPACE}/data/images/
+# Copy the upgrade spec files.
+cp -rfp ${WORKSPACE}/build/upgrade_specs ${WORKSPACE}/data/images/
 
 INFO="${WORKSPACE}/data/images/turbonomic_info.txt"
 echo "Built on: $(date)" > ${INFO}
