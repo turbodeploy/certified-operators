@@ -8,6 +8,6 @@ import javax.annotation.Nonnull;
 public class DuplicateTargetException extends TargetStoreException {
 
     public DuplicateTargetException(@Nonnull final String targetAddr) {
-        super(String.format("Target %s has already exists in the store.", targetAddr));
+        super(String.format("Target %s already exists.", targetAddr));
     }
 }
