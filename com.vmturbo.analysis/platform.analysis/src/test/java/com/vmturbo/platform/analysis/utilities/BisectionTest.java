@@ -1,12 +1,17 @@
 package com.vmturbo.platform.analysis.utilities;
 
+import static com.vmturbo.platform.analysis.utilities.Bisection.asDouble;
+import static com.vmturbo.platform.analysis.utilities.Bisection.asLong;
 import static java.lang.Math.E;
 import static java.lang.Math.PI;
 import static java.lang.Math.exp;
 import static java.lang.Math.sin;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.function.DoubleUnaryOperator;
+import java.util.stream.Stream;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -29,6 +34,97 @@ public class BisectionTest {
     private static final double maxError = 1e-10;
 
     // Methods
+
+    /**
+     * Feeds {@link Bisection#asLong(double)} valid input and compares output against expected one.
+     */
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: Bisection.asLong({0}) == {1}")
+    public final void testAsLong(double input, long output) {
+        assertEquals(output, asLong(input));
+    }
+
+    private static Object[] parametersForTestAsLong() {
+        final Object[][] testCases = {
+            {Double.POSITIVE_INFINITY, 0x7FF0_0000_0000_0000L},
+            {Double.MAX_VALUE, 0x7FEF_FFFF_FFFF_FFFFL},
+            {Double.MIN_NORMAL, 0x0010_0000_0000_0000L},
+            {Math.nextAfter(Double.MIN_NORMAL,0.0), 0x000F_FFFF_FFFF_FFFFL},
+            {Double.MIN_VALUE, 0x0000_0000_0000_0001L},
+            {2.0, 0x4000_0000_0000_0000L},
+            {1.0, 0x3FF0_0000_0000_0000L},
+            {0.0, 0L},
+            {Double.NaN, Double.doubleToRawLongBits(Double.NaN)},
+        };
+
+        // Test the negative values as well.
+        return Stream.concat(Arrays.stream(testCases), Arrays.stream(testCases).map(
+            testCase -> new Object[]{-(double)testCase[0], -(long)testCase[1]}
+        )).toArray();
+    }
+
+    /**
+     * Feeds {@link Bisection#asDouble(long)} valid input and compares output against expected one.
+     */
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: Bisection.asDouble({0}) == {1}")
+    public final void testAsDouble(long input, double output) {
+        assertEquals(output, asDouble(input), 0.0);
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestAsDouble() {
+        // swap input and output and replace input for negative 0.0.
+        return Arrays.stream(parametersForTestAsLong())
+            .map(testCase ->
+                Double.doubleToRawLongBits((double)((Object[])testCase)[0]) == 0x8000_0000_0000_0000L
+                ? new Object[]{0x8000_0000_0000_0000L, -0.0}
+                : new Object[]{((Object[]) testCase)[1], ((Object[]) testCase)[0]}
+            ).toArray();
+    }
+
+    /**
+     * Tests {@link Bisection#asLong(double)}'s order preservation property on pairs of floating-
+     * point numbers.
+     */
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {0} < {1} => Bisection.asLong({0}) < Bisection.asLong({1})")
+    public final void testAsLong_Order_Preservation(double x1, double x2) {
+        if (x1 < x2) {
+            assertTrue(asLong(x1) < asLong(x2));
+        } else if (x1 == x2) {
+            assertEquals(asLong(x1), asLong(x2));
+        } else if(x1 > x2){
+            assertTrue(asLong(x1) > asLong(x2));
+        } // else at least one of x1, x2 is NaN
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestAsLong_Order_Preservation() {
+        Object[] numbers = Arrays.stream(parametersForTestAsLong())
+            .map(testCase -> ((Object[]) testCase)[0]) // isolate first parameter
+            .filter(testInput -> !Double.isNaN((double)testInput)).toArray();// NaNs are not ordered
+
+        // Note: the original plan was to test some random pairs as well, but adding e.g. 20 numbers
+        // (or ~ doubling the list or ~ quadrupling the number of tests) exceeds a threshold after
+        // which the testing framework becomes sluggish (we go from ~3s to ~1m to run the tests).
+
+        // generate combinations with repetition
+        Object[][] testCases = new Object[numbers.length*(numbers.length+1)/2][2];
+        int k = 0;
+        for (int i = 0 ; i < numbers.length ; i++) {
+            for (int j = i ; j < numbers.length ; j++) {
+                testCases[k][0] = numbers[i];
+                testCases[k][1] = numbers[j];
+                ++k;
+            }
+        }
+
+        return testCases;
+    }
 
     /**
      * Feeds {@link Bisection#solve(DoubleUnaryOperator, double, double)}

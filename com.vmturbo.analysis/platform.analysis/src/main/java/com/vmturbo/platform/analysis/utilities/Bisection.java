@@ -38,7 +38,7 @@ public class Bisection {
      * @see #asDouble(long)
      */
     @Pure
-    private static long asLong(double x) {
+    static long asLong(double x) {
         long l = Double.doubleToRawLongBits(x);
         return l < 0 ? -(l & 0x7fff_ffff_ffff_ffffL) : l;
     }
@@ -69,7 +69,7 @@ public class Bisection {
      * @see #asLong(double)
      */
     @Pure
-    private static double asDouble(long l) {
+    static double asDouble(long l) {
         return Double.longBitsToDouble(l < 0 ? -l | 0x8000_0000_0000_0000L : l);
     }
 
