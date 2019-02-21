@@ -36,24 +36,28 @@ public enum EntitySettingSpecs {
      */
     Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
     /**
      * Resize action automation mode.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
+                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
     /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
     /**
      * Provision action automation mode.
      */
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
+                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER), actionExecutionMode(), true),
     /**
      * Reconfigure action automation mode (not executable).
      */
@@ -64,7 +68,8 @@ public enum EntitySettingSpecs {
      */
     Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER), actionExecutionMode(), true),
+                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
     /**
      * Storage Move action automation mode.
      */
@@ -465,6 +470,14 @@ public enum EntitySettingSpecs {
     @Nonnull
     public String getSettingName() {
         return name;
+    }
+
+    /**
+     * Returns scope of entity type applicable for this setting.
+     * @return set of entities type in scope
+     */
+    public Set<EntityType> getEntityTypeScope() {
+        return entityTypeScope;
     }
 
     /**

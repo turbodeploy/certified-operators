@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.settings;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.*;
 
 import java.util.Collections;
 import java.util.List;
@@ -52,6 +53,21 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
+
+    private static final Setting RESIZE_DISABLED_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+                    .build();
+
+    private static final Setting SUSPEND_DISABLED_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+                    .build();
+
+    private static final Setting PROVISION_DISABLED_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+                    .build();
 
     private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
@@ -251,6 +267,76 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+    }
+
+    @Test
+    public void testApplicatorsForDiskArray() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.DISK_ARRAY_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.STORAGE_CONTROLLER_VALUE)
+                        .setMovable(true))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setIsResizeable(true)
+                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                .setCloneable(true)
+                                .setSuspendable(true));
+
+        applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertFalse(entity.getCommoditiesBoughtFromProviders(0).getMovable());
+
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_DISABLED_SETTING);
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+
+        applySettings(TOPOLOGY_INFO, entity, SUSPEND_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getSuspendable());
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
+    }
+
+    @Test
+    public void testApplicatorsForLogicalPool() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.LOGICAL_POOL_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.STORAGE_CONTROLLER_VALUE)
+                        .setMovable(true))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setIsResizeable(true)
+                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                .setCloneable(true)
+                                .setSuspendable(true));
+
+        applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertFalse(entity.getCommoditiesBoughtFromProviders(0).getMovable());
+
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_DISABLED_SETTING);
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+
+        applySettings(TOPOLOGY_INFO, entity, SUSPEND_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getSuspendable());
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
+    }
+
+    @Test
+    public void testApplicatorsForStorageController() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.STORAGE_CONTROLLER_VALUE)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setIsResizeable(true)
+                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                .setCloneable(true));
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
     }
 
     @Test

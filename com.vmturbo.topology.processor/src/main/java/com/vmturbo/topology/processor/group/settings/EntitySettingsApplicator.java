@@ -267,11 +267,10 @@ public class EntitySettingsApplicator {
             }
         }
     }
+
     /**
      * For move setting, it supports both VM and Storage entities. For VM entity, it only controls
      * moves between hosts, because moves between storage is controlled by storage setting.
-     * For Storage entity, it controls all moves between its provider, no matter its provider is
-     * Disk Array or Logical Pool.
      *
      * @param commoditiesBought {@link CommoditiesBoughtFromProvider} of the entity.
      * @param entityType entity type.
@@ -280,14 +279,13 @@ public class EntitySettingsApplicator {
      */
     private static boolean shouldOverrideMovable(
             @Nonnull final CommoditiesBoughtFromProvider.Builder commoditiesBought,
-            final long entityType) {
-        if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
-            // if it is a VM entity, only override movable for hosts providers. Because Storage move
-            // is controlled by StorageMoveApplicator.
-            return commoditiesBought.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
-        } else if (entityType == EntityType.STORAGE_VALUE) {
-            // if it is a storage entity, override movable for its all providers(e.g. disk array,
-            // logical pool).
+            final int entityType) {
+        if (EntitySettingSpecs.Move.getEntityTypeScope().contains(EntityType.forNumber(entityType))) {
+            if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // if it is a VM entity, only override movable for hosts providers. Because Storage move
+                // is controlled by StorageMoveApplicator.
+                return commoditiesBought.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
+            }
             return true;
         } else {
             logger.error("Unknown entity type scope {} for Move setting.", entityType);
@@ -304,6 +302,7 @@ public class EntitySettingsApplicator {
         private StorageMoveApplicator() {
             super(EntitySettingSpecs.StorageMove);
         }
+
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
