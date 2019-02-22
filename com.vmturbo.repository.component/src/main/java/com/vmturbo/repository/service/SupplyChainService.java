@@ -21,7 +21,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -78,8 +77,8 @@ public class SupplyChainService {
                                                final Set<Integer> ignoredEntityTypes) {
 
         Optional<TopologyID> targetTopology = contextID
-            .map(context -> lifecycleManager.getTopologyId(context, TopologyType.SOURCE))
-            .orElse(lifecycleManager.getRealtimeTopologyId());
+                .map(context -> lifecycleManager.getTopologyId(context, TopologyType.SOURCE))
+                .orElse(lifecycleManager.getRealtimeTopologyId());
 
         if (!targetTopology.isPresent()) {
             contextID.ifPresent(id -> LOGGER.error("Requested topology context {} not found." +

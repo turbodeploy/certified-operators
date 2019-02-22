@@ -85,6 +85,7 @@ public class GraphDBService {
             final Optional<EntityAccessScope> entityAccessScope,
             final Set<Integer> inclusionEntityTypes,
             final Set<Integer> exclusionEntityTypes) {
+
         final Optional<TopologyID> targetTopologyId = contextID
                 .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
                 .orElse(topologyManager.getRealtimeTopologyId());
@@ -111,7 +112,7 @@ public class GraphDBService {
                     Option.ofOptional(targetTopologyId.map(TopologyID::getContextId));
 
             final Option<Either<Throwable, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
-                contextIDToUse.map(cid ->
+                    contextIDToUse.map(cid ->
                     Match(supplyChainResults).of(
                         Case(Success($()), v -> timedValue(() -> Either.right(v.toSupplyChainNodes().stream()),
                             SINGLE_SOURCE_SUPPLY_CHAIN_CONVERSION_DURATION_SUMMARY)),

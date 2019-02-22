@@ -3,6 +3,7 @@ package com.vmturbo.repository;
 import java.net.URISyntaxException;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -163,6 +164,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${repositorySearchPaginationMaxLimit}")
     private int repositorySearchPaginationMaxLimit;
 
+    @Value("${repositoryRealtimeTopologyDropDelaySecs}")
+    private int repositoryRealtimeTopologyDropDelaySecs;
+
     private ArangoDB arangoDB;
 
     private final com.vmturbo.repository.RepositoryProperties.ArangoDB arangoProps;
@@ -251,7 +255,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public TopologyLifecycleManager topologyManager() {
         return new TopologyLifecycleManager(graphDatabaseDriverBuilder(), graphDefinition(),
-                topologyProtobufsManager(), realtimeTopologyContextId);
+                topologyProtobufsManager(), realtimeTopologyContextId,
+                new ScheduledThreadPoolExecutor(1), repositoryRealtimeTopologyDropDelaySecs);
     }
 
     @Bean

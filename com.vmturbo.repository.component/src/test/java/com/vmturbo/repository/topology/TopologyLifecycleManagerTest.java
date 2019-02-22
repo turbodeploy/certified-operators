@@ -13,6 +13,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -39,12 +42,14 @@ public class TopologyLifecycleManagerTest {
 
     private final long realtimeContextId = 7;
 
+    private ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+
     private TopologyLifecycleManager topologyLifecycleManager;
 
     @Before
     public void setup() {
         topologyLifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
-                graphDefinition, topologyProtobufsManager, realtimeContextId, false);
+                graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler, 0,false);
     }
 
     @Test
@@ -83,7 +88,7 @@ public class TopologyLifecycleManagerTest {
 
         final TopologyLifecycleManager topologyLifecycleManager =
             new TopologyLifecycleManager(graphDatabaseDriverBuilder, graphDefinition,
-                    topologyProtobufsManager, realtimeContextId, false);
+                    topologyProtobufsManager, realtimeContextId, null, 0, false);
 
         final TopologyID source =
                 new TopologyID(1L, 1L, TopologyType.SOURCE);
@@ -96,6 +101,57 @@ public class TopologyLifecycleManagerTest {
         topologyLifecycleManager.registerTopology(newSource);
 
         verify(mockDriver).dropDatabase();
+    }
+
+    @Test
+    public void testRealtimeTopologyID() {
+        assertFalse(topologyLifecycleManager.getRealtimeTopologyId().isPresent());
+
+        // verify that "isPresent" is false when there is no topology yet.
+        assertFalse(topologyLifecycleManager.getRealtimeTopologyId().isPresent());
+
+        // register a topology
+        topologyLifecycleManager.registerTopology(new TopologyID(realtimeContextId, 1L, TopologyType.SOURCE));
+        Optional<TopologyID> optionalDynamicTopologyID = topologyLifecycleManager.getRealtimeTopologyId();
+        assertTrue(optionalDynamicTopologyID.isPresent());
+        TopologyID dynamicTopologyID = optionalDynamicTopologyID.get();
+        assertEquals("topology-7-SOURCE-1", dynamicTopologyID.toDatabaseName());
+        // verify the dynamic database works too
+        TopologyDatabase db = dynamicTopologyID.database();
+        assertEquals("topology-7-SOURCE-1",TopologyDatabases.getDbName(db));
+
+        // register another source topology, and validate that the dynamic topology id follows along.
+        final GraphDatabaseDriver mockDriver = mock(GraphDatabaseDriver.class);
+        when(graphDatabaseDriverBuilder.build(eq("topology-7-SOURCE-1"))).thenReturn(mockDriver);
+
+        topologyLifecycleManager.registerTopology(new TopologyID(realtimeContextId, 2L, TopologyType.SOURCE));
+        assertEquals(2L, dynamicTopologyID.getTopologyId());
+        assertEquals("topology-7-SOURCE-2",TopologyDatabases.getDbName(db));
+    }
+
+    @Test
+    public void testRealtimeDatabase() {
+        // verify that "isPresent" is false when there is no topology yet.
+        assertFalse(topologyLifecycleManager.getRealtimeDatabase().isPresent());
+
+        final TopologyID source =
+                new TopologyID(realtimeContextId, 1L, TopologyType.SOURCE);
+        topologyLifecycleManager.registerTopology(source);
+        // now we should have a valid lazy reference
+        Optional<TopologyDatabase> optionalTopologyDatabase = topologyLifecycleManager.getRealtimeDatabase();
+        assertTrue(optionalTopologyDatabase.isPresent());
+        TopologyDatabase lazyRealtimeDatabase = optionalTopologyDatabase.get();
+        assertEquals("topology-7-SOURCE-1",TopologyDatabases.getDbName(lazyRealtimeDatabase));
+        // verify that hasValue is true when there is a topology registered
+        assertTrue(topologyLifecycleManager.getRealtimeDatabase().isPresent());
+
+        // register another source topology, and validate that the database reference follows along.
+        final GraphDatabaseDriver mockDriver = mock(GraphDatabaseDriver.class);
+        when(graphDatabaseDriverBuilder.build(eq(source.toDatabaseName()))).thenReturn(mockDriver);
+
+        topologyLifecycleManager.registerTopology(new TopologyID(realtimeContextId, 2L, TopologyType.SOURCE));
+        assertEquals(2L, topologyLifecycleManager.getRealtimeTopologyId().get().getTopologyId());
+        assertEquals("topology-7-SOURCE-2",TopologyDatabases.getDbName(lazyRealtimeDatabase));
     }
 
     @Test
@@ -168,4 +224,25 @@ public class TopologyLifecycleManagerTest {
         verify(mockDriverBuilder, times(2)).listDatabases();
         verify(mockManager).registerTopology(eq(tid), eq(false));
     }
+
+    @Test
+    public void testDelayedDrop() {
+        // create a lifecycle manager with a delayed drop setting of 5 seconds.
+        TopologyLifecycleManager lifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
+                graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler, 5,false);
+
+        // register a topology
+        final TopologyID source = new TopologyID(realtimeContextId, 1L, TopologyType.SOURCE);
+        lifecycleManager.registerTopology(source);
+
+        // register another source topology, and validate that the first database drop was scheduled with a 5 second delay.
+        final GraphDatabaseDriver mockDriver = mock(GraphDatabaseDriver.class);
+        when(graphDatabaseDriverBuilder.build(eq(source.toDatabaseName()))).thenReturn(mockDriver);
+
+        lifecycleManager.registerTopology(new TopologyID(realtimeContextId, 2L, TopologyType.SOURCE));
+
+        // we know the drop task itself works from other tests - we'll just verify that the drop is scheduled
+        verify(scheduler).schedule((Runnable) any(), eq(5L), eq(TimeUnit.SECONDS));
+    }
+
 }

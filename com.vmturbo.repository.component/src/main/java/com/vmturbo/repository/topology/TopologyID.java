@@ -88,9 +88,9 @@ public class TopologyID implements Serializable {
 
     @Override
     public String toString() {
-        return "TopologyID [contextId=" + contextId
-                       + ", topologyId=" + topologyId
-                       + ", type=" + type
+        return "TopologyID [contextId=" + getContextId()
+                       + ", topologyId=" + getTopologyId()
+                       + ", type=" + getType()
                        + "]";
     }
 
@@ -116,13 +116,13 @@ public class TopologyID implements Serializable {
             return false;
         }
         TopologyID other = (TopologyID)obj;
-        if (contextId != other.contextId) {
+        if (contextId != other.getContextId()) {
             return false;
         }
-        if (topologyId != other.topologyId) {
+        if (topologyId != other.getTopologyId()) {
             return false;
         }
-        if (type != other.type) {
+        if (type != other.getType()) {
             return false;
         }
         return true;
@@ -144,4 +144,5 @@ public class TopologyID implements Serializable {
          */
         PROJECTED;
     }
+
 }

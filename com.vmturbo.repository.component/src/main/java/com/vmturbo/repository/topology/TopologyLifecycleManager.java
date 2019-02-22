@@ -10,20 +10,24 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import javaslang.Function1;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -68,12 +72,20 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     private final long realtimeTopologyContextId;
 
+    // optional scheduled executor to perform delayed database drops
+    private final ScheduledExecutorService scheduler;
+
+    // how many seconds to delay realtime topology drops by
+    private final long realtimeTopologyDropDelaySecs;
+
     public TopologyLifecycleManager(@Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                                     @Nonnull final GraphDefinition graphDefinition,
                                     @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
-                                    final long realtimeTopologyContextId) {
+                                    final long realtimeTopologyContextId,
+                                    @Nonnull final ScheduledExecutorService scheduler,
+                                    final long realtimeTopologyDropDelaySecs) {
         this(graphDatabaseDriverBuilder, graphDefinition,
-                topologyProtobufsManager, realtimeTopologyContextId, true);
+                topologyProtobufsManager, realtimeTopologyContextId, scheduler, realtimeTopologyDropDelaySecs, true);
     }
 
     @VisibleForTesting
@@ -81,11 +93,19 @@ public class TopologyLifecycleManager implements Diagnosable {
                                     @Nonnull final GraphDefinition graphDefinition,
                                     @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                     final long realtimeTopologyContextId,
+                                    @Nonnull final ScheduledExecutorService scheduler,
+                                    final long realtimeTopologyDropDelaySecs,
                                     final boolean loadExisting) {
         this.graphDatabaseDriverBuilder = graphDatabaseDriverBuilder;
         this.graphDefinition = graphDefinition;
         this.topologyProtobufsManager = topologyProtobufsManager;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.scheduler = scheduler;
+        this.realtimeTopologyDropDelaySecs = realtimeTopologyDropDelaySecs;
+
+        if (realtimeTopologyDropDelaySecs <= 0) {
+            LOGGER.info("realtimeTopologyDropDelaySecs is set to {} -- disabling delayed drop behavior.", realtimeTopologyDropDelaySecs);
+        }
 
         if (loadExisting) {
             // TODO (roman, July 17 2017): This would be cleaner if the health monitor system supported
@@ -214,16 +234,30 @@ public class TopologyLifecycleManager implements Diagnosable {
             // Replace the previous one.
             TopologyID topologyID = idByTypeInContext.put(tid.getType(), tid);
             if (topologyID != null) {
-                try {
-                    graphDatabaseDriverBuilder.build(topologyID.toDatabaseName()).dropDatabase();
-                } catch (ArangoDBException e) {
-                    if (e.getResponseCode().intValue() == 404) {
-                        // ignore database not found errors since we are trying to drop these anyways.
-                        LOGGER.warn("Database for previous topology {} was not found -- skipping drop.", topologyID);
-                    } else {
-                        // rethrow other errors
-                        throw e;
+                Runnable dropTask = () -> {
+                    String dbName = topologyID.toDatabaseName();
+                    LOGGER.info("Dropping database {}.", dbName);
+                    try {
+                        graphDatabaseDriverBuilder.build(dbName).dropDatabase();
+                    } catch (ArangoDBException e) {
+                        if (e.getResponseCode().intValue() == 404) {
+                            // ignore database not found errors since we are trying to drop these anyways.
+                            LOGGER.warn("Database for previous topology {} was not found -- skipping drop.", topologyID);
+                        } else {
+                            // rethrow other errors
+                            throw e;
+                        }
                     }
+                };
+                // determine if we need to schedule a delayed drop of the existing database
+                long delaySeconds = realtimeTopologyDropDelaySecs;
+                if (scheduler != null && delaySeconds > 0) {
+                    // schedule for delayed drop
+                    LOGGER.info("Scheduling drop of database {} in {} seconds.", topologyID.toDatabaseName(), delaySeconds);
+                    scheduler.schedule(dropTask, delaySeconds, TimeUnit.SECONDS);
+                } else {
+                    // run immediately
+                    dropTask.run();
                 }
             }
             return true;
@@ -325,7 +359,11 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     @Nonnull
     public Optional<TopologyID> getRealtimeTopologyId(@Nonnull final TopologyType topologyType) {
-        return getTopologyId(realtimeTopologyContextId, topologyType);
+        RealtimeTopologyID realtimeTopologyID
+                = new RealtimeTopologyID(realtimeTopologyContextId, topologyType);
+        // return an empty optional if there is no topology id registered yet, otherwise return
+        // an optional containing a dynamic reference to the realtime topology database id.
+        return realtimeTopologyID.isPresent() ? Optional.of(realtimeTopologyID) : Optional.empty();
     }
 
     /**
@@ -556,6 +594,89 @@ public class TopologyLifecycleManager implements Diagnosable {
 
         public TopologyDeletionException(@Nonnull final List<String> errors) {
             super(StringUtils.join(errors, ", "));
+        }
+    }
+
+    /**
+     * A {@link TopologyDatabase} variant that will be dynamically re-evaluated each time it is
+     * matched. We can use this to dynamically provide the current "realtime" topology database
+     * name, for example.
+     */
+    public static class RealtimeTopologyDatabase extends TopologyDatabase {
+
+        private Supplier<TopologyDatabase> databaseSupplier;
+
+        /**
+         *
+         * @param databaseSupplier A function that will supply the database to use.
+         */
+        RealtimeTopologyDatabase(Supplier<TopologyDatabase> databaseSupplier) {
+            this.databaseSupplier = databaseSupplier;
+        }
+
+        /**
+         * @return true, if the database supplier function detects a value. false, if it would return
+         * null.
+         */
+        public boolean hasValue() {
+            return (databaseSupplier.get() != null);
+        }
+
+        private TopologyDatabase eval() {
+            return databaseSupplier.get();
+        }
+
+        @Override
+        public <R> R match(Function1<String, R> dbName) {
+            return eval().match(dbName);
+        }
+
+        @Override
+        public String toString() {
+            return this.eval().toString();
+        }
+    }
+
+    /**
+     * A dynamic topology ID differs from a "regular" topology id in that the "topology id" component
+     * of the "topologyID" (arrgh!!) is dynamic and will point to the current topology id for the
+     * specified (static) topology context id. This means the database name it resolves to will also
+     * be dynamic.
+     */
+    public class RealtimeTopologyID extends TopologyID {
+
+        public RealtimeTopologyID(final long contextId, final TopologyType type) {
+            super(contextId, 0, type);
+        }
+
+        @Override
+        public long getTopologyId() {
+            Optional<TopologyID> topologyID = TopologyLifecycleManager.this.getTopologyId(getContextId(), getType());
+            // even though this is an optional, we are going to use the get() regardless of whether
+            // the value exists. If the value turns out not to exist, we will propagate a
+            // NoSuchElementException to indicate that the topology id doesn't exist.
+            return topologyID.get().getTopologyId();
+        }
+
+        /**
+         *
+         * @return a {@link RealtimeTopologyDatabase} the dynamically recalculates the database name when
+         *      * evaluated.
+         */
+        @Override
+        public TopologyDatabase database() {
+            return new RealtimeTopologyDatabase(()
+                    -> TopologyLifecycleManager.this.getTopologyId(getContextId(), getType())
+                    .map(TopologyID::database)
+                    .orElse(null));
+        }
+
+        /**
+         *
+         * @return true, if there is a valid topology id present for this topology
+         */
+        public boolean isPresent() {
+            return TopologyLifecycleManager.this.getTopologyId(getContextId(), getType()).isPresent();
         }
     }
 

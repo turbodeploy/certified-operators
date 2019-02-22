@@ -45,6 +45,7 @@ import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
 import com.vmturbo.repository.graph.parameter.GraphCmd.SupplyChainDirection;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
+import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 
 public class ArangoDBExecutor implements GraphDBExecutor {
@@ -185,15 +186,15 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
         final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
 
-        final String databaseName = TopologyDatabases.getDbName(supplyChainCmd.getTopologyDatabase());
+        final TopologyDatabase database = supplyChainCmd.getTopologyDatabase();
         final DataMetricTimer timer = SINGLE_SOURCE_SUPPLY_CHAIN_QUERY_DURATION_SUMMARY.startTimer();
 
         logger.debug("Supply chain provider query {}", providerQuery);
         logger.debug("Supply chain consumer query {}", consumerQuery);
 
         final Try<Seq<ArangoCursor<SubgraphResult>>> combinedResults = Try.sequence(ImmutableList.of(
-            Try.of(() -> driver.db(databaseName).query(providerQuery, null, null, SubgraphResult.class))
-            , Try.of(() -> driver.db(databaseName).query(consumerQuery, null, null, SubgraphResult.class))));
+            Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(providerQuery, null, null, SubgraphResult.class))
+            , Try.of(() -> driver.db(TopologyDatabases.getDbName(database)).query(consumerQuery, null, null, SubgraphResult.class))));
         timer.observe();
 
         combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));

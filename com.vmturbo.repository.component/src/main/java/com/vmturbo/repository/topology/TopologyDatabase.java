@@ -1,12 +1,13 @@
 package com.vmturbo.repository.topology;
 
-import javaslang.Function1;
 import org.derive4j.Data;
 import org.derive4j.Derive;
 import org.derive4j.ExportAsPublic;
 import org.derive4j.FieldNames;
 import org.derive4j.Flavour;
 import org.derive4j.Visibility;
+
+import javaslang.Function1;
 
 /**
  * A thin type to represent a topology database.
@@ -22,4 +23,6 @@ public abstract class TopologyDatabase {
 
     @Override
     public abstract String toString();
+
 }
+
