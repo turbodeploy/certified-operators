@@ -82,7 +82,9 @@ public class ApplicationCommodityKeyChanger {
 
                     // change app key on apps that are consuming from the vm
                     topologyGraph.getConsumers(vm)
-                        .filter(consumer -> consumer.getEntityType() == EntityType.APPLICATION_VALUE)
+                        .filter(consumer -> consumer.getEntityType() == EntityType.APPLICATION_VALUE ||
+                                consumer.getEntityType() == EntityType.APPLICATION_SERVER_VALUE ||
+                                consumer.getEntityType() == EntityType.DATABASE_SERVER_VALUE)
                         .forEach(app -> {
 
                             // find the commodity set that is buying from that same vm
