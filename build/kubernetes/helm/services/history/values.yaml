@@ -10,14 +10,13 @@ image:
   pullPolicy: IfNotPresent
 
 java:
-  options: "-Xmx786M"
+  options: "-Xmx3092M"
 
 resources:
   limits:
-    memory: 1Gi
+    memory: 4Gi
   requests:
     memory: 786Mi
-
 
 nodeSelector: {}
 

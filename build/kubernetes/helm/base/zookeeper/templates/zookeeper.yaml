@@ -35,7 +35,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: SERVER_JVMFLAGS
-          value: -Xmx256M
+          value: -Xmx768M
         - name: ZOO_MY_ID
           value: "1"
         - name: ZOO_SERVERS

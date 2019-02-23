@@ -10,7 +10,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 70Gi
+      storage: 500Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -64,6 +64,8 @@ spec:
           name: mysql-data
         - mountPath: /var/log/mysql
           name: mysql-log
+        - mountPath: /var/lib/mysql/tmp
+          name: mysql-tmp
         - mountPath: /tmp
           name: db-tmpfs0
       imagePullSecrets:
@@ -78,6 +80,8 @@ spec:
       - name: mysql-log
         persistentVolumeClaim:
           claimName: mysql-log
+      - name: mysql-tmp
+        emptyDir: {}
       - name: db-tmpfs0
         emptyDir: {}
 ---

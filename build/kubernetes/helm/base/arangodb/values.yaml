@@ -11,7 +11,7 @@ image:
 
 resources:
   limits:
-    memory: 1Gi
+    memory: 2Gi
   requests:
     memory: 512Mi
 

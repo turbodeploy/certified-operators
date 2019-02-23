@@ -11,9 +11,9 @@ image:
 
 resources:
   limits:
-    memory: 2Gi
+    memory: 1Gi
   requests:
-    memory: 768Mi
+    memory: 384Mi
 
 nodeSelector: {}
 
