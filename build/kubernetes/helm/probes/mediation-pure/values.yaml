@@ -10,7 +10,7 @@ image:
   pullPolicy: IfNotPresent
 
 java:
-  options: "-Xmx384M"
+  options: "-XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=75.0"
 
 resources:
   limits:

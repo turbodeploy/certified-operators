@@ -24,7 +24,7 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 30Gi
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
