@@ -102,12 +102,7 @@ public class ProbesController {
     @ResponseBody
     @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
     public List<ProbePropertyApiDTO> getAllProbeProperties()
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         return probesService.getAllProbeProperties();
     }
 
@@ -138,12 +133,7 @@ public class ProbesController {
             @PathVariable("probeId")
             String probeId)
 
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         return
             probesService.getAllProbeSpecificProbeProperties(Objects.requireNonNull(probeId));
     }
@@ -180,12 +170,7 @@ public class ProbesController {
             @PathVariable("propertyName")
             String propertyName)
 
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         return
             probesService.getProbeSpecificProbeProperty(
                 Objects.requireNonNull(probeId),
@@ -224,12 +209,7 @@ public class ProbesController {
             @PathVariable("targetId")
             String targetId)
 
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         return
             probesService.getAllTargetSpecificProbeProperties(
                 Objects.requireNonNull(probeId),
@@ -272,12 +252,7 @@ public class ProbesController {
             @PathVariable("propertyName")
             String propertyName)
 
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         return
             probesService.getTargetSpecificProbeProperty(
                 Objects.requireNonNull(probeId),
@@ -318,12 +293,7 @@ public class ProbesController {
             @RequestBody
             List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
 
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         probesService.putAllProbeSpecificProperties(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(newProbeProperties));
@@ -369,12 +339,7 @@ public class ProbesController {
             @RequestBody
             String value)
 
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         probesService.putProbeSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(name),
@@ -425,12 +390,7 @@ public class ProbesController {
             @ApiParam(value = "The new probe properties.", required = true)
             @RequestBody
             List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         probesService.putAllTargetSpecificProperties(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(targetId),
@@ -481,12 +441,7 @@ public class ProbesController {
             @ApiParam(value = "The new value of the probe property.", required = true)
             @RequestBody
             String value)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         probesService.putTargetSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(targetId),
@@ -530,12 +485,7 @@ public class ProbesController {
             @ApiParam(value = "The name of the probe property.", required = true)
             @PathVariable("name")
             String name)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         probesService.deleteProbeSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(name));
@@ -577,12 +527,7 @@ public class ProbesController {
             @ApiParam(value = "The name of the probe property", required = true)
             @PathVariable("name")
             String name)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         probesService.deleteTargetSpecificProperty(
             Objects.requireNonNull(probeId),
             Objects.requireNonNull(targetId),

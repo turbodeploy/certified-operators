@@ -143,10 +143,6 @@ public class TargetsService implements ITargetsService {
             .put("ORCHESTRATOR", "Orchestrator")
             .put("HYPERCONVERGED", "Hyperconverged")
             .build();
-    /**
-     * The 'displayName' for a target is taken from either the 'address' or 'nameOrAddress' property
-     */
-    private static final Set<String> TARGET_ADDRESS_KEYS = Sets.newHashSet("address", "nameOrAddress");
 
     static final String TARGET = "Target";
 
@@ -835,7 +831,7 @@ public class TargetsService implements ITargetsService {
                         if (value != null) {
                             final String valueString = value.getStringValue();
                             inputFieldDTO.setValue(valueString);
-                            if (TARGET_ADDRESS_KEYS.contains(inputFieldDTO.getName())) {
+                            if (TargetData.TARGET_ADDRESS_KEYS.contains(inputFieldDTO.getName())) {
                                 targetApiDTO.setDisplayName(valueString);
                             }
                         }

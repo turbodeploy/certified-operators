@@ -35,13 +35,7 @@ public interface IProbesService {
      * @throws InterruptedException the operation was interrupted.
      */
     @Nonnull
-    List<ProbePropertyApiDTO> getAllProbeProperties()
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+    List<ProbePropertyApiDTO> getAllProbeProperties() throws Exception;
 
     /**
      * Get all probe properties specific to a probe.
@@ -56,12 +50,7 @@ public interface IProbesService {
      */
     @Nonnull
     List<ProbePropertyNameValuePairApiDTO> getAllProbeSpecificProbeProperties(@Nonnull String probeId)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Get a probe property specific to a probe.
@@ -77,12 +66,7 @@ public interface IProbesService {
      */
     @Nonnull
     String getProbeSpecificProbeProperty(@Nonnull String probeId, @Nonnull String propertyName)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Get all probe properties specific to a target.
@@ -100,12 +84,7 @@ public interface IProbesService {
     List<ProbePropertyNameValuePairApiDTO> getAllTargetSpecificProbeProperties(
         @Nonnull String probeId,
         @Nonnull String targetId)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Get a probe property specific to a target.
@@ -125,12 +104,7 @@ public interface IProbesService {
         @Nonnull String probeId,
         @Nonnull String targetId,
         @Nonnull String propertyName)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Update all probe properties associated with a probe.
@@ -146,12 +120,7 @@ public interface IProbesService {
     void putAllProbeSpecificProperties(
             @Nonnull String probeId,
             @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Update one probe-specific probe property.  The property need not exist.
@@ -166,12 +135,7 @@ public interface IProbesService {
      * @throws InterruptedException the operation was interrupted.
      */
     void putProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name, @Nonnull String value)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Update all probe properties associated with a target.
@@ -189,12 +153,7 @@ public interface IProbesService {
         @Nonnull String probeId,
         @Nonnull String targetId,
         @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     /**
      * Update one target-specific probe property.  The property need not exist.
@@ -210,16 +169,11 @@ public interface IProbesService {
      * @throws InterruptedException the operation was interrupted.
      */
     void putTargetSpecificProperty(
-            @Nonnull String probeId,
-            @Nonnull String targetId,
-            @Nonnull String name,
-            @Nonnull String value)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException;
+        @Nonnull String probeId,
+        @Nonnull String targetId,
+        @Nonnull String name,
+        @Nonnull String value)
+        throws Exception;
 
     /**
      * Delete one probe-specific probe property.
@@ -232,13 +186,7 @@ public interface IProbesService {
      * @throws AccessDeniedException user not authorized.
      * @throws InterruptedException the operation was interrupted.
      */
-    void deleteProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+    void deleteProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name) throws Exception;
 
     /**
      * Delete one target-specific probe property.
@@ -256,12 +204,7 @@ public interface IProbesService {
         @Nonnull String probeId,
         @Nonnull String targetId,
         @Nonnull String name)
-        throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException;
+        throws Exception;
 
     static boolean validProbePropertyName(@Nonnull String name) {
         return !Objects.requireNonNull(name).isEmpty() && name.matches("[a-zA-Z0-9\\.\\_]*");

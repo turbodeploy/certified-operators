@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -100,13 +101,7 @@ public class TagsService implements ITagsService {
         }
 
         // convert to desired format
-        return response.getTagsMap().entrySet().stream().map(
-                e -> {
-                    final TagApiDTO t = new TagApiDTO();
-                    t.setKey(e.getKey());
-                    t.setValues(e.getValue().getValuesList());
-                    return t;
-                }).collect(Collectors.toList());
+        return TagsMapper.convertTagsToApi(response.getTagsMap());
     }
 
     /**

@@ -53,7 +53,6 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -680,7 +679,8 @@ public class MarketsService implements IMarketsService {
                 .map(entityStats -> {
                     final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                     final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                    final ServiceEntityApiDTO serviceEntityApiDTO = ServiceEntityMapper.toServiceEntityApiDTO(planEntity);
+                    final ServiceEntityApiDTO serviceEntityApiDTO =
+                        ServiceEntityMapper.toServiceEntityApiDTO(planEntity, null);
                     entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                     entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                     entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
@@ -817,7 +817,7 @@ public class MarketsService implements IMarketsService {
      */
     private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity,
                                                           Map<Long, TopologyEntityDTO> providers) {
-        ServiceEntityApiDTO seEntity = ServiceEntityMapper.toServiceEntityApiDTO(entity);
+        ServiceEntityApiDTO seEntity = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
         StringJoiner placedOnJoiner = new StringJoiner(",");
         StringJoiner notPlacedOnJoiner = new StringJoiner(",");
         // for all of the commodities bought, build a string description of which are placed

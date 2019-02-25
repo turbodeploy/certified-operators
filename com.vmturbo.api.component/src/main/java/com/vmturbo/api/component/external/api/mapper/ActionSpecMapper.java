@@ -49,7 +49,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -70,7 +69,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -371,9 +369,6 @@ public class ActionSpecMapper {
         actionApiDTO.setRisk(risk);
 
         // The target definition
-        actionApiDTO.setTarget(new ServiceEntityApiDTO());
-        actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
-        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
         actionApiDTO.setStats(createStats(actionSpec));
 
         final ActionDTO.ActionInfo info = recommendation.getInfo();
@@ -648,18 +643,21 @@ public class ActionSpecMapper {
 
         wrapperDto.setActionType(initialPlacement ? ActionType.START : actionType(move, context));
         // Set entity DTO fields for target, source (if needed) and destination entities
-        setEntityDtoFields(wrapperDto.getTarget(), move.getTarget().getId(), context);
+        wrapperDto.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(move.getTarget().getId())));
 
         ChangeProvider primaryChange = primaryChange(move, context);
         final boolean hasPrimarySource = !initialPlacement && primaryChange.getSource().hasId();
         if (hasPrimarySource) {
             long primarySourceId = primaryChange.getSource().getId();
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
-            setEntityDtoFields(wrapperDto.getCurrentEntity(), primarySourceId, context);
+            wrapperDto.setCurrentEntity(
+                ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primarySourceId)));
         }
         long primaryDestinationId = primaryChange.getDestination().getId();
         wrapperDto.setNewValue(Long.toString(primaryDestinationId));
-        setEntityDtoFields(wrapperDto.getNewEntity(), primaryDestinationId, context);
+        wrapperDto.setNewEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primaryDestinationId)));
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : move.getChangesList()) {
@@ -710,16 +708,18 @@ public class ActionSpecMapper {
 
         actionApiDTO.setActionType(actionType(move, context));
         // Set entity DTO fields for target, source (if needed) and destination entities
-        setEntityDtoFields(actionApiDTO.getTarget(), targetId, context);
+        actionApiDTO.setTarget(ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetId)));
 
         final boolean hasSource = change.getSource().hasId();
         if (hasSource) {
             final long sourceId = change.getSource().getId();
             actionApiDTO.setCurrentValue(Long.toString(sourceId));
-            setEntityDtoFields(actionApiDTO.getCurrentEntity(), sourceId, context);
+            actionApiDTO.setCurrentEntity(
+                ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(sourceId)));
         }
         actionApiDTO.setNewValue(Long.toString(destinationId));
-        setEntityDtoFields(actionApiDTO.getNewEntity(), destinationId, context);
+        actionApiDTO.setNewEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(destinationId)));
 
         // Set action details
         actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO, change, context));
@@ -858,9 +858,12 @@ public class ActionSpecMapper {
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
 
-        setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTarget().getId(), context);
+        actionApiDTO.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(reconfigure.getTarget().getId())));
         if (reconfigure.hasSource()) {
-            setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSource().getId(), context);
+            actionApiDTO.setCurrentEntity(
+                ServiceEntityMapper.copyServiceEntityAPIDTO(
+                    context.getEntity(reconfigure.getSource().getId())));
         }
 
         actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
@@ -884,16 +887,19 @@ public class ActionSpecMapper {
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.PROVISION);
 
-        final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
-        setNewEntityDtoFields(actionApiDTO.getTarget(), provision.getEntityToClone().getId(),
-                provisionedSellerUuid, context);
-
         actionApiDTO.setCurrentValue(Long.toString(provision.getEntityToClone().getId()));
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), provision.getEntityToClone().getId(), context);
+        actionApiDTO.setCurrentEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(
+                context.getEntity(provision.getEntityToClone().getId())));
 
+        final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
         actionApiDTO.setNewValue(provisionedSellerUuid);
-        setNewEntityDtoFields(actionApiDTO.getNewEntity(), provision.getEntityToClone().getId(),
-                provisionedSellerUuid, context);
+        actionApiDTO.setNewEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getCurrentEntity()));
+        actionApiDTO.getNewEntity().setDisplayName("New Entity");
+        actionApiDTO.getNewEntity().setUuid(provisionedSellerUuid);
+        actionApiDTO.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getNewEntity()));
 
         actionApiDTO.setDetails(MessageFormat.format("Provision {0}",
                 readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
@@ -906,9 +912,12 @@ public class ActionSpecMapper {
         actionApiDTO.setActionType(ActionType.RESIZE);
 
         long originalEntityOid = resize.getTarget().getId();
-        setEntityDtoFields(actionApiDTO.getTarget(), originalEntityOid, context);
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), originalEntityOid, context);
-        setEntityDtoFields(actionApiDTO.getNewEntity(), originalEntityOid, context);
+        actionApiDTO.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
+        actionApiDTO.setCurrentEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
+        actionApiDTO.setNewEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
 
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
@@ -959,7 +968,8 @@ public class ActionSpecMapper {
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         ActionType actionType = actionType(activate, context);
         actionApiDTO.setActionType(actionType);
-        setEntityDtoFields(actionApiDTO.getTarget(), activate.getTarget().getId(), context);
+        actionApiDTO.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(activate.getTarget().getId())));
 
         final List<String> reasonCommodityNames =
                 activate.getTriggeringCommoditiesList().stream()
@@ -986,7 +996,8 @@ public class ActionSpecMapper {
                                    @Nonnull final Deactivate deactivate,
                                    @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
-        setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTarget().getId(), context);
+        actionApiDTO.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(deactivate.getTarget().getId())));
 
         // Similar to 6.1, if entity is Disk Array, then it's DELETE, else it's SUSPEND
         ActionType actionType = actionType(deactivate, context);
@@ -1198,55 +1209,6 @@ public class ActionSpecMapper {
                 logger.error("Unknown action mode {}", actionMode);
                 return Optional.empty();
         }
-    }
-
-
-    /**
-     * Populate the necessary fields in the response {@link ServiceEntityApiDTO} for a newly
-     * created entity from the related entity OID as listed in the {link ActionSpecMappingContext}.
-     *
-     * TODO: this method will need to accommodate both OID and uuid in the return object
-     * when we implement the legacy UUID in TopologyDTO.proto - see OM-14309.
-     *
-     * @param responseEntityApiDTO the response {@link ServiceEntityApiDTO} to populate as "new"
-     * @param originalEntityOid the OID of the original {@link ServiceEntityApiDTO}  to copy from
-     * @param newEntityOid the OID of the newly provisioned entity
-     * @param context the {@link ActionSpecMappingContext} in which to look up the original
-     *                entity OID
-     * @throws UnknownObjectException if the originalEntityOid is not found in the context
-     */
-    private void setNewEntityDtoFields(@Nonnull final BaseApiDTO responseEntityApiDTO,
-                                       final long originalEntityOid,
-                                       @Nonnull String newEntityOid,
-                                       @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
-        final ServiceEntityApiDTO originalEntity = context.getEntity(originalEntityOid);
-        responseEntityApiDTO.setDisplayName("New Entity");
-        responseEntityApiDTO.setUuid(newEntityOid);
-        responseEntityApiDTO.setClassName(originalEntity.getClassName());
-    }
-
-    /**
-     * Populate the necessary fields in the response {@link ServiceEntityApiDTO} from the
-     * related entity OID as listed in the {@link ActionSpecMappingContext}.
-     *
-     * TODO: this method will need to accommodate both OID and uuid in the return object
-     * when we implement the legacy UUID in TopologyDTO.proto - see OM-14309.
-     *
-     * @param responseEntityApiDTO the response {@link ServiceEntityApiDTO} to populate
-     * @param originalEntityOid the OID of the original {@link ServiceEntityApiDTO}  to copy from
-     * @param context the {@link ActionSpecMappingContext} in which to look up the original
-     *                entity OID
-     * @throws UnknownObjectException if the originalEntityOid is not found in the context
-     */
-    private void setEntityDtoFields(@Nonnull final BaseApiDTO responseEntityApiDTO,
-                                    final long originalEntityOid,
-                                    @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
-        final ServiceEntityApiDTO originalEntity = context.getEntity(originalEntityOid);
-        responseEntityApiDTO.setDisplayName(originalEntity.getDisplayName());
-        responseEntityApiDTO.setUuid(originalEntity.getUuid());
-        responseEntityApiDTO.setClassName(originalEntity.getClassName());
     }
 
     /**

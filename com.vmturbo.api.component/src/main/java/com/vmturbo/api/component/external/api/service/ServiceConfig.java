@@ -204,14 +204,15 @@ public class ServiceConfig {
         return new EntitiesService(
                 communicationConfig.actionsRpcService(),
                 mapperConfig.actionSpecMapper(),
-                communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.groupRpcService(),
-                mapperConfig.entityAspectMapper()
-        );
+                mapperConfig.entityAspectMapper(),
+                communicationConfig.topologyProcessor(),
+                communicationConfig.entitySeverityService(),
+                statsService());
     }
 
     @Bean

@@ -911,7 +911,7 @@ public class StatsService implements IStatsService {
             .map(entityStats -> {
                 final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                 final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                final ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity);
+                final ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity, null);
                 entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                 entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                 entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(

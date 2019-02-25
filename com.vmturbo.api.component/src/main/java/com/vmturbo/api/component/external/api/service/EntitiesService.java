@@ -1,39 +1,47 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.util.ArrayList;
+import java.nio.file.AccessDeniedException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.mvc.ControllerLinkBuilder;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-
-import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
+import com.vmturbo.api.controller.GroupsController;
+import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -47,7 +55,9 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -61,32 +71,40 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetData;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
-/**
- * Service entrypoints to query supply chain values.
- *
- * TODO: The Repository Component will, in the future, implement a client api that will be called here, but
- * in the meanwhile, we issue HTTP requests to the Repository HTTP API:
- * GET /repository/supplychain/{oid}
- **/
 public class EntitiesService implements IEntitiesService {
+    // these two constants are used to create hateos links for getEntitiesByUuid only.
+    // TODO: discuss hateos with PM.  If we decide to support them, these constants
+    // and the utility methods should go to their own class.  If not, these constants
+    // and the utility methods should be removed.
+    private final static String UUID = "{uuid}";
+    private final static String REPLACEME = "#REPLACEME";
 
     Logger logger = LogManager.getLogger();
 
     private final ActionsServiceBlockingStub actionOrchestratorRpcService;
 
     private final ActionSpecMapper actionSpecMapper;
-
-    private final RepositoryApi repositoryApi;
 
     private final long realtimeTopologyContextId;
 
@@ -99,6 +117,12 @@ public class EntitiesService implements IEntitiesService {
     private final GroupServiceBlockingStub groupServiceClient;
 
     private final EntityAspectMapper entityAspectMapper;
+
+    private final TopologyProcessor topologyProcessor;
+
+    private final EntitySeverityServiceBlockingStub entitySeverityService;
+
+    private final StatsService statsService;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -128,52 +152,137 @@ public class EntitiesService implements IEntitiesService {
                     UIEntityType.CHASSIS.getValue(), 2,
                     ConstraintType.CLUSTER.toString(), 3);
 
-    public EntitiesService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                           @Nonnull final ActionSpecMapper actionSpecMapper,
-                           @Nonnull final RepositoryApi repositoryApi,
-                           final long realtimeTopologyContextId,
-                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
-                           @Nonnull final PaginationMapper paginationMapper,
-                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                           @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                           @Nonnull final EntityAspectMapper entityAspectMapper) {
+    public EntitiesService(
+            @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+            @Nonnull final ActionSpecMapper actionSpecMapper,
+            final long realtimeTopologyContextId,
+            @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
+            @Nonnull final PaginationMapper paginationMapper,
+            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+            @Nonnull final GroupServiceBlockingStub groupServiceClient,
+            @Nonnull final EntityAspectMapper entityAspectMapper,
+            @Nonnull final TopologyProcessor topologyProcessor,
+            @Nonnull final EntitySeverityServiceBlockingStub entitySeverityService,
+            @Nonnull final StatsService statsService) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
-        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.entitySeverityService = Objects.requireNonNull(entitySeverityService);
+        this.statsService = Objects.requireNonNull(statsService);
     }
 
     @Override
     public ServiceEntityApiDTO getEntities() throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        final ServiceEntityApiDTO result = new ServiceEntityApiDTO();
+        result.add(
+            generateLinkTo(
+                ControllerLinkBuilder.methodOn(MarketsController.class).getEntitiesByMarketUuid(REPLACEME),
+                "Market Entities"));
+        result.add(
+            generateLinkTo(
+                ControllerLinkBuilder.methodOn(GroupsController.class).getEntitiesByGroupUuid(REPLACEME),
+                "Group entities"));
+        return result;
     }
 
-
     @Override
-    public ServiceEntityApiDTO getEntityByUuid(String uuid,
-                                               boolean includeAspects) throws Exception {
-        // TODO: move the mapping for TopologyEntityDTO from repository to API; this would remove
-        // the need for two round-trip requests; i.e. the XL internal components should not deal
-        // with the external API data forma
-        final ServiceEntityApiDTO serviceEntityForUuid =
-                repositoryApi.getServiceEntityForUuid(Long.valueOf(uuid));
-        if (includeAspects) {
-            // this second call would not be required if the mapping to ServiceEntityApiDTO is in API
-            serviceEntityForUuid.setAspects(entityAspectMapper.getAspectsByEntity(
-                getTopologyEntityDTO(uuid)));
+    @Nonnull
+    public ServiceEntityApiDTO getEntityByUuid(@Nonnull String uuid, boolean includeAspects)
+            throws Exception {
+        // get information about this entity from the repository
+        final long oid = Long.valueOf(Objects.requireNonNull(uuid));
+        final TopologyEntityDTO entityAsTopologyEntityDTO = getTopologyEntityDTO(oid);
+        final ServiceEntityApiDTO result =
+            ServiceEntityMapper.toServiceEntityApiDTO(
+                entityAsTopologyEntityDTO,
+                includeAspects ? entityAspectMapper : null);
+
+        // fetch information about the discovering target
+        if (entityAsTopologyEntityDTO.hasOrigin()
+                && entityAsTopologyEntityDTO.getOrigin().hasDiscoveryOrigin()
+                && entityAsTopologyEntityDTO
+                        .getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsCount() != 0) {
+            // get the target that appears first in the list of discovering targets
+            final long targetId =
+                entityAsTopologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIds(0);
+            try {
+                final TargetApiDTO target = new TargetApiDTO();
+                target.setUuid(Long.toString(targetId));
+                final TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+                target.setDisplayName(
+                    TargetData.getDisplayName(targetInfo).orElseGet(() -> {
+                        logger.warn(
+                            "Cannot find the display name of target with id {}" +
+                                " as part of the request to get entity with id {} and name {}",
+                            target::getUuid, () -> oid, result::getDisplayName);
+                        return "";
+                    }));
+                final long probeId = targetInfo.getProbeId();
+                try {
+                    final ProbeInfo probeInfo = topologyProcessor.getProbe(probeId);
+                    target.setType(probeInfo.getType());
+                } catch (CommunicationException | TopologyProcessorException e) {
+                    // fetching information about the discovering probe failed
+                    // this information will not be added to the result
+                    // the failure will otherwise be ignored
+                    logger.warn(
+                        "Failure to get information about probe with id {}" +
+                                " as part of the request to get entity with id {} and name {}: {}",
+                            () -> probeId, () -> oid, result::getDisplayName, e::toString);
+                }
+                result.setDiscoveredBy(target);
+            } catch (CommunicationException | IllegalArgumentException | TopologyProcessorException e) {
+                // fetching information about the target failed
+                // this information will not be added to the result
+                // the failure will otherwise be ignored
+                logger.warn(
+                    "Failure to get information about target with id {}" +
+                            " as part of the request to get entity with id {} and name {}: {}",
+                    () -> targetId, () -> oid, result::getDisplayName, e::toString);
+            }
         }
-        return serviceEntityForUuid;
+
+        // fetch all consumers
+        try {
+            doForNeighbors(oid, TraversalDirection.PRODUCES, result::setConsumers);
+        } catch (StatusRuntimeException e) {
+            // fetching consumers failed
+            // there will be no consumers in the result
+            // the failure will otherwise be ignored
+            logger.warn(
+                "Cannot get the consumers of entity with id {} and name {}: {}",
+                () -> oid, result::getDisplayName, e::toString);
+        }
+
+        // fetch all providers
+        try {
+            doForNeighbors(oid, TraversalDirection.CONSUMES, result::setProviders);
+        } catch (StatusRuntimeException e) {
+            // fetching consumers failed
+            // there will be no consumers in the result
+            // the failure will otherwise be ignored
+            logger.warn(
+                "Cannot get the producers of entity with id {} and name {}: {}",
+                () -> oid, result::getDisplayName, e::toString);
+        }
+
+        // fetch entity severity
+        SeverityPopulator.populate(
+            entitySeverityService, realtimeTopologyContextId, Collections.singletonList(result));
+
+        return result;
     }
 
     @Override
     public List<StatSnapshotApiDTO> getStatsByEntityUuid(String uuid,
                                                          String encodedQuery) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return statsService.getStatsByEntityUuid(uuid, encodedQuery);
     }
 
     @Override
@@ -233,9 +342,25 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public ActionApiDTO getActionByEntityUuid(String uuid,
-                                              String aUuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    @Nonnull
+    public ActionApiDTO getActionByEntityUuid(@Nonnull String uuid, @Nonnull String aUuid)
+            throws Exception {
+        // remark: the first parameter is completely ignored.
+        // an entity id is not needed to get an action by its id.
+        try {
+            return
+                actionSpecMapper.mapActionSpecToActionApiDTO(
+                    actionOrchestratorRpcService
+                        .getAction(
+                            SingleActionRequest.newBuilder()
+                                .setActionId(Long.valueOf(Objects.requireNonNull(aUuid)))
+                                .setTopologyContextId(realtimeTopologyContextId)
+                                .build())
+                        .getActionSpec(),
+                    realtimeTopologyContextId);
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
     }
 
     @Override
@@ -259,7 +384,7 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid,
                                               StatPeriodApiInputDTO inputDto) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return statsService.getStatsByEntityQuery(uuid, inputDto);
     }
 
     @Override
@@ -387,7 +512,10 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return
+            TagsMapper
+                .convertTagsToApi(
+                    getTopologyEntityDTO(Long.valueOf(Objects.requireNonNull(s))).getTagsMap());
     }
 
     @Override
@@ -477,6 +605,78 @@ public class EntitiesService implements IEntitiesService {
         return entities.get(0);
     }
 
+    private static Link generateLinkTo(@Nonnull Object invocationValue, @Nonnull String relation) {
+        final String url =
+            ControllerLinkBuilder.linkTo(invocationValue)
+                .toString()
+                .replace("http://", "https://")
+                .replace(REPLACEME, UUID);
+        return new Link(url).withRel(relation);
+    }
+
+    /**
+     * Fetch an entity in {@link TopologyEntityDTO} form, given its oid.
+     *
+     * @param oid the oid of the entity to fetch.
+     * @return the entity.
+     * @throws UnknownObjectException if the entity was not found.
+     * @throws OperationFailedException if the operation failed.
+     * @throws UnauthorizedObjectException if user does not have proper access privileges.
+     * @throws InterruptedException if thread is interrupted during processing.
+     * @throws AccessDeniedException if user is properly authenticated.
+     */
+    @Nonnull
+    private TopologyEntityDTO getTopologyEntityDTO(long oid)
+            throws Exception {
+        // get information about this entity from the repository
+        final SearchTopologyEntityDTOsResponse searchTopologyEntityDTOsResponse;
+        try {
+            searchTopologyEntityDTOsResponse =
+                searchServiceRpc.searchTopologyEntityDTOs(
+                    SearchTopologyEntityDTOsRequest.newBuilder()
+                        .addEntityOid(oid)
+                        .build());
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
+        if (searchTopologyEntityDTOsResponse.getTopologyEntityDtosCount() == 0) {
+            final String message = "Error fetching entity with uuid: " + oid;
+            logger.error(message);
+            throw new UnknownObjectException(message);
+        }
+        return searchTopologyEntityDTOsResponse.getTopologyEntityDtos(0);
+    }
+
+    /**
+     * Common code for fetching the neighbors of an entity (using a {@link TraversalDirection}, and
+     * performing a computation on them.
+     *
+     * @param oid the oid of the entity.
+     * @param traversalDirection the traversal direction.
+     * @param code computation to execute.
+     * @throws StatusRuntimeException thrown by the internal gRPC call to the repository.
+     */
+    private void doForNeighbors(
+            long oid,
+            @Nonnull TraversalDirection traversalDirection,
+            @Nonnull Consumer<List<BaseApiDTO>> code)
+            throws StatusRuntimeException {
+        final List<TopologyEntityDTO> neighbors =
+            searchServiceRpc.searchTopologyEntityDTOs(
+                    SearchTopologyEntityDTOsRequest.newBuilder()
+                        .addSearchParameters(SearchMapper.neighbors(oid, traversalDirection))
+                        .build())
+                .getTopologyEntityDtosList();
+        code.accept(
+            neighbors.stream()
+                .map(t -> {
+                    final BaseApiDTO baseApiDTO = new BaseApiDTO();
+                    ServiceEntityMapper.setBasicFields(baseApiDTO, t);
+                    return baseApiDTO;
+                })
+                .collect(Collectors.toList())
+        );
+    }
 }
 
 

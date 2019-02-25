@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
@@ -37,6 +38,7 @@ public class SearchMapper {
     public static final String ENTITY_TYPE_PROPERTY = "entityType";
     public static final String DISPLAY_NAME_PROPERTY = "displayName";
     public static final String STATE_PROPERTY = "state";
+    public static final String OID = "oid";
 
     /**
      * Wrap an instance of {@link PropertyFilter} with a {@link SearchFilter}.
@@ -227,6 +229,16 @@ public class SearchMapper {
     }
 
     /**
+     * Creates a property filter that finds a specific entity by oid.
+     *
+     * @param oid the oid of the entity to search.
+     * @return the filter.
+     */
+    public static PropertyFilter idFilter(long oid) {
+        return stringFilter(OID, Long.toString(oid));
+    }
+
+    /**
      * Create a traversal filter that searches for instances of the provided type
      * in the given direction.
      * @param direction either PRODUCES or CONSUMES
@@ -291,5 +303,29 @@ public class SearchMapper {
                     .filter(e -> !EXCLUDE_FROM_SEARCH_ALL.contains(e))
                     .map(UIEntityType::getValue)
                     .collect(Collectors.toList());
+    /**
+     * Creates a {@link SearchParameters} builder, and gives it a start filter.
+     *
+     * @param startFilter the start filter.
+     * @return a {@link SearchParameters} filter.
+     */
+    public static SearchParameters.Builder makeSearchParameters(PropertyFilter startFilter) {
+        return SearchParameters.newBuilder().setStartingFilter(startFilter);
+    }
 
+    /**
+     * Creates a {@link SearchParameters} objects that begins from a specific entity
+     * and fetches all its neighbors according to a specific traversal direction.
+     *
+     * @param oid the oid of the starting entity.
+     * @param direction the traversal direction.
+     * @return the constructed {@link SearchParameters} filter.
+     */
+    public static SearchParameters neighbors(long oid, TraversalDirection direction) {
+        return
+            makeSearchParameters(idFilter(oid))
+                .addSearchFilter(
+                    SearchFilter.newBuilder().setTraversalFilter(numberOfHops(direction, 1)))
+                .build();
+    }
 }

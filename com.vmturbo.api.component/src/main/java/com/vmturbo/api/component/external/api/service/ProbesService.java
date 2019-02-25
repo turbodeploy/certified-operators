@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.nio.file.AccessDeniedException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -12,6 +13,7 @@ import javax.annotation.Nonnull;
 
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ProbeMapper;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
@@ -67,12 +69,7 @@ public class ProbesService implements IProbesService {
     @Override
     @Nonnull
     public List<ProbePropertyApiDTO> getAllProbeProperties()
-            throws
-            UnknownObjectException,
-            OperationFailedException,
-            UnauthorizedObjectException,
-            InterruptedException,
-            AccessDeniedException {
+            throws Exception {
         try {
             return
                 probeRpcService
@@ -81,22 +78,14 @@ public class ProbesService implements IProbesService {
                     .map(ProbeMapper::convertToProbePropertyApiDTO)
                     .collect(Collectors.toList());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
-
-            // unreachable
-            return null;
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
     @Override
     @Nonnull
     public List<ProbePropertyNameValuePairApiDTO> getAllProbeSpecificProbeProperties(@Nonnull String probeId)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         try {
             return
                 probeRpcService
@@ -105,10 +94,7 @@ public class ProbesService implements IProbesService {
                     .map(ProbeMapper::convertToNameValueApiDTO)
                     .collect(Collectors.toList());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
-
-            // unreachable
-            return null;
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -117,12 +103,7 @@ public class ProbesService implements IProbesService {
     public String getProbeSpecificProbeProperty(
             @Nonnull String probeId,
             @Nonnull String propertyName)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         if (!IProbesService.validProbePropertyName(propertyName)) {
             throw new OperationFailedException(
                 "During reading of probe property specific to probe " + probeId +
@@ -137,10 +118,7 @@ public class ProbesService implements IProbesService {
                         .setName(propertyName)
                         .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
-
-            // unreachable
-            return null;
+            throw ExceptionMapper.translateStatusException(e);
         }
         return response.hasValue() ? response.getValue() : "";
     }
@@ -149,12 +127,7 @@ public class ProbesService implements IProbesService {
     @Nonnull
     public List<ProbePropertyNameValuePairApiDTO> getAllTargetSpecificProbeProperties(
             @Nonnull String probeId, @Nonnull String targetId)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         try {
             return
                 probeRpcService.getTableOfProbeProperties(makeGetTableOfPropertiesRequest(probeId, targetId))
@@ -162,10 +135,7 @@ public class ProbesService implements IProbesService {
                     .map(ProbeMapper::convertToNameValueApiDTO)
                     .collect(Collectors.toList());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
-
-            // unreachable
-            return null;
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -175,12 +145,7 @@ public class ProbesService implements IProbesService {
             @Nonnull String probeId,
             @Nonnull String targetId,
             @Nonnull String propertyName)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         if (!IProbesService.validProbePropertyName(propertyName)) {
             throw new OperationFailedException(
                 "During reading of probe property specific to probe " + probeId + " and target " +
@@ -194,10 +159,7 @@ public class ProbesService implements IProbesService {
                     .setName(propertyName)
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
-
-            // unreachable
-            return null;
+            throw ExceptionMapper.translateStatusException(e);
         }
         return response.hasValue() ? response.getValue() : "";
     }
@@ -206,12 +168,7 @@ public class ProbesService implements IProbesService {
     public void putAllProbeSpecificProperties(
             @Nonnull String probeId,
             @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         final Set<String> observed = new HashSet<>();
         final List<ProbePropertyNameValuePair> newProbePropertiesConverted = new ArrayList<>();
         for (ProbePropertyNameValuePairApiDTO p : newProbeProperties) {
@@ -224,7 +181,7 @@ public class ProbesService implements IProbesService {
                     .addAllNewProbeProperties(newProbePropertiesConverted)
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -233,12 +190,7 @@ public class ProbesService implements IProbesService {
             @Nonnull String probeId,
             @Nonnull String name,
             @Nonnull String value)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         if (!IProbesService.validProbePropertyName(name)) {
             throw new OperationFailedException(
                 "During updating of probe property specific to probe " + probeId +
@@ -250,7 +202,7 @@ public class ProbesService implements IProbesService {
                     .setNewProbeProperty(makeProbePropertyInfo(probeId, name, value))
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -259,12 +211,7 @@ public class ProbesService implements IProbesService {
             @Nonnull String probeId,
             @Nonnull String targetId,
             @Nonnull List<ProbePropertyNameValuePairApiDTO> newProbeProperties)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         final Set<String> observed = new HashSet<>();
         final List<ProbePropertyNameValuePair> newProbePropertiesConverted = new ArrayList<>();
         for (ProbePropertyNameValuePairApiDTO p : newProbeProperties) {
@@ -277,7 +224,7 @@ public class ProbesService implements IProbesService {
                     .addAllNewProbeProperties(newProbePropertiesConverted)
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -287,12 +234,7 @@ public class ProbesService implements IProbesService {
             @Nonnull String targetId,
             @Nonnull String name,
             @Nonnull String value)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         if (!IProbesService.validProbePropertyName(name)) {
             throw new OperationFailedException(
                 "During updating of probe property specific to probe " + probeId +
@@ -304,18 +246,13 @@ public class ProbesService implements IProbesService {
                     .setNewProbeProperty(makeProbePropertyInfo(probeId, targetId, name, value))
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
     @Override
     public void deleteProbeSpecificProperty(@Nonnull String probeId, @Nonnull String name)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-               AccessDeniedException {
+            throws Exception {
         if (!IProbesService.validProbePropertyName(name)) {
             throw new OperationFailedException(
                 "During deletion of probe property specific to probe " + probeId +
@@ -328,7 +265,7 @@ public class ProbesService implements IProbesService {
                     .setName(name)
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -337,12 +274,7 @@ public class ProbesService implements IProbesService {
             @Nonnull String probeId,
             @Nonnull String targetId,
             @Nonnull String name)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
+            throws Exception {
         if (!IProbesService.validProbePropertyName(name)) {
             throw new OperationFailedException(
                 "During deletion of probe property specific to probe " + probeId +
@@ -355,7 +287,7 @@ public class ProbesService implements IProbesService {
                     .setName(name)
                     .build());
         } catch (StatusRuntimeException e) {
-            translateStatusException(e);
+            throw ExceptionMapper.translateStatusException(e);
         }
     }
 
@@ -443,38 +375,4 @@ public class ProbesService implements IProbesService {
                 .build();
     }
 
-    /**
-     * This method translates exceptions coming from a gRPC calls to exceptions that are the
-     * {@link ProbesService} is expected to throw.  If the status is unexpected, then the original
-     * gRPC exception is thrown.
-     *
-     * @param statusException a gRPC exception.
-     * @throws UnknownObjectException gRPC status was {@code NOT_FOUND}.
-     * @throws OperationFailedException gRPC status was {@code INVALID_ARGUMENT}.
-     * @throws UnauthorizedObjectException gRPC status was {@code UNAUTHENTICATED}.
-     * @throws InterruptedException gRPC status was {@code CANCELLED}.
-     * @throws AccessDeniedException gRPC status was {@code PERMISSION_DENIED}.
-     */
-    private static void translateStatusException(@Nonnull StatusRuntimeException statusException)
-            throws
-                UnknownObjectException,
-                OperationFailedException,
-                UnauthorizedObjectException,
-                InterruptedException,
-                AccessDeniedException {
-        switch (statusException.getStatus().getCode()) {
-            case NOT_FOUND:
-                throw new UnknownObjectException(statusException.getMessage());
-            case UNAUTHENTICATED:
-                throw new UnauthorizedObjectException(statusException.getMessage());
-            case PERMISSION_DENIED:
-                throw new AccessDeniedException(statusException.getMessage());
-            case CANCELLED:
-                throw new InterruptedException(statusException.getMessage());
-            case INVALID_ARGUMENT:
-                throw new OperationFailedException(statusException.getMessage());
-            default:
-                throw statusException;
-        }
-    }
 }
