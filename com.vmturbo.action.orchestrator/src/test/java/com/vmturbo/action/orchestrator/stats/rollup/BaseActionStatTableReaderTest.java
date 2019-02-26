@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.stats.rollup;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -15,7 +14,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -47,6 +45,7 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRec
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMatchedActionGroups;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.QueryResultsFromSnapshot;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyInfo;
@@ -310,19 +309,21 @@ public class BaseActionStatTableReaderTest {
             }
         });
 
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> queryResult =
+        final List<QueryResultsFromSnapshot> queryResultsFromSnapshot =
             baseReader.query(timeRange, Collections.singleton(mgmtUnitId),
                 ImmutableMatchedActionGroups.builder()
                     .allActionGroups(false)
                     .putSpecificActionGroupsById(actionGroupId, actionGroup)
                     .build());
-        assertThat(queryResult.keySet(), containsInAnyOrder(
-            snapshotRecord1.getActionSnapshotTime(),
-            snapshotRecord2.getActionSnapshotTime()));
-        assertThat(queryResult.get(snapshotRecord1.getActionSnapshotTime()),
-            is(ImmutableMap.of(actionGroup, groupStat1)));
-        assertThat(queryResult.get(snapshotRecord2.getActionSnapshotTime()),
-            is(ImmutableMap.of(actionGroup, groupStat2)));
+        assertThat(queryResultsFromSnapshot.size(), is(2));
+        assertThat(queryResultsFromSnapshot.get(0).time(), is(snapshotRecord1.getActionSnapshotTime()));
+        assertThat(queryResultsFromSnapshot.get(0).numActionSnapshots(), is(1));
+        assertThat(queryResultsFromSnapshot.get(0).statsByGroupAndMu(),
+            is(ImmutableMap.of(actionGroup, ImmutableMap.of(mgmtUnitId, groupStat1))));
+        assertThat(queryResultsFromSnapshot.get(1).time(), is(snapshotRecord2.getActionSnapshotTime()));
+        assertThat(queryResultsFromSnapshot.get(1).numActionSnapshots(), is(1));
+        assertThat(queryResultsFromSnapshot.get(1).statsByGroupAndMu(),
+            is(ImmutableMap.of(actionGroup, ImmutableMap.of(mgmtUnitId, groupStat2))));
     }
 
     @Test
@@ -367,7 +368,7 @@ public class BaseActionStatTableReaderTest {
         when(baseReader.recordToGroupStat(any())).thenReturn(groupStat1);
 
         // Act.
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> queryResult =
+        final List<QueryResultsFromSnapshot> queryResultsFromSnapshot =
             baseReader.query(timeRange, Collections.singleton(mgmtUnitId),
                 ImmutableMatchedActionGroups.builder()
                     // All action groups = true.
@@ -376,9 +377,11 @@ public class BaseActionStatTableReaderTest {
                     .build());
 
         // Assert..
-        assertThat(queryResult.keySet(), containsInAnyOrder(snapshotRecord1.getActionSnapshotTime()));
-        assertThat(queryResult.get(snapshotRecord1.getActionSnapshotTime()),
-            is(ImmutableMap.of(actionGroup, groupStat1)));
+        assertThat(queryResultsFromSnapshot.size(), is(1));
+        assertThat(queryResultsFromSnapshot.get(0).time(), is(snapshotRecord1.getActionSnapshotTime()));
+        assertThat(queryResultsFromSnapshot.get(0).numActionSnapshots(), is(1));
+        assertThat(queryResultsFromSnapshot.get(0).statsByGroupAndMu(),
+            is(ImmutableMap.of(actionGroup, ImmutableMap.of(mgmtUnitId, groupStat1))));
     }
 
     @Test
@@ -415,7 +418,7 @@ public class BaseActionStatTableReaderTest {
         // No stat record (no matching stat record, really).
 
         // Act.
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> queryResult =
+        final List<QueryResultsFromSnapshot> queryResultsFromSnapshot =
             baseReader.query(timeRange, Collections.singleton(mgmtUnitId),
                 ImmutableMatchedActionGroups.builder()
                     // All action groups = true.
@@ -425,7 +428,9 @@ public class BaseActionStatTableReaderTest {
 
         // Assert.
         // Needs to contain the earlier time before the later time.
-        assertThat(queryResult.keySet(), contains(earlierTime, laterTime));
+        assertThat(queryResultsFromSnapshot.size(), is(2));
+        assertThat(queryResultsFromSnapshot.get(0).time(), is(earlierTime));
+        assertThat(queryResultsFromSnapshot.get(1).time(), is(laterTime));
     }
 
     @Test
@@ -457,7 +462,7 @@ public class BaseActionStatTableReaderTest {
         // No stat record (no matching stat record, really).
 
         // Act.
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> queryResult =
+        final List<QueryResultsFromSnapshot> queryResultsFromSnapshot =
             baseReader.query(timeRange, Collections.singleton(mgmtUnitId),
                 ImmutableMatchedActionGroups.builder()
                     // All action groups = true.
@@ -466,7 +471,8 @@ public class BaseActionStatTableReaderTest {
                     .build());
 
         // Assert..
-        assertThat(queryResult.keySet(), containsInAnyOrder(snapshotRecord1.getActionSnapshotTime()));
+        assertThat(queryResultsFromSnapshot.size(), is(1));
+        assertThat(queryResultsFromSnapshot.get(0).time(), is(snapshotRecord1.getActionSnapshotTime()));
     }
 
     @Test

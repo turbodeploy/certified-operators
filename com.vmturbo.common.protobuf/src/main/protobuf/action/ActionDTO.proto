@@ -1048,6 +1048,7 @@ message ActionStat {
         optional double min = 1;
         optional double max = 2;
         optional double avg = 3;
+        optional double total = 4;
     }
 
     // The state for this action stat, only present if the "group_by" in the query was

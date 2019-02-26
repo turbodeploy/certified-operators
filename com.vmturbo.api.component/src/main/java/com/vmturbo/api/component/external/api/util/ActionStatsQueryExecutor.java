@@ -207,9 +207,7 @@ public class ActionStatsQueryExecutor {
             apiValueDTO.setAvg((float)actionStatValue.getAvg());
             apiValueDTO.setMax((float)actionStatValue.getMax());
             apiValueDTO.setMin((float)actionStatValue.getMin());
-            // (roman, Jan 7 2019): We don't keep track of total explicitly, but doesn't seem like
-            // the UI cares about the actual value right now as long as it's set.
-            apiValueDTO.setTotal((float)actionStatValue.getAvg());
+            apiValueDTO.setTotal((float)actionStatValue.getTotal());
             return apiValueDTO;
         }
     }

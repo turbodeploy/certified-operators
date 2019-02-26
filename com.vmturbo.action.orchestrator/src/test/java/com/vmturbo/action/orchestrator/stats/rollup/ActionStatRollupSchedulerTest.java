@@ -121,7 +121,7 @@ public class ActionStatRollupSchedulerTest {
         rollupScheduler.scheduleRollups();
         // The rollup completes after we "trim" the succeeded rollups, but before we schedule
         // the new one. Completes with "false", which means failed.
-        when(rollup.completionStatus()).thenReturn(Optional.empty(), Optional.of(false));
+        when(rollup.completionStatus()).thenReturn(Optional.empty()).thenReturn(Optional.of(false));
         // Schedule roll-up again. It should get re-submitted, because the first one failed.
         rollupScheduler.scheduleRollups();
 

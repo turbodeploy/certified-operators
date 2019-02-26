@@ -33,6 +33,7 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.ActionStatRollup;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.QueryResultsFromSnapshot;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyInfo;
@@ -101,7 +102,7 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
      */
     @Nonnull
     @Override
-    public Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> query(
+    public List<QueryResultsFromSnapshot> query(
             @Nonnull final TimeRange timeRange,
             @Nonnull final Set<Integer> mgmtUnitSubgroups,
             @Nonnull final MatchedActionGroups matchedActionGroups) throws DataAccessException {
@@ -115,23 +116,21 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
             Instant.ofEpochMilli(timeRange.getEndTime()),
             clock.getZone());
 
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> results =
-            // Use linked hash map to preserve order of inserts.
-            new LinkedHashMap<>();
+        final QueryResultsBuilder resultBuilder = new QueryResultsBuilder();
         try (DataMetricTimer timer = Metrics.QUERY_TIME.labels(tableInfo.shortTableName()).startTimer()) {
-            dslContext.select(tableInfo.snapshotTableSnapshotTime())
-                .from(tableInfo.snapshotTable())
+            dslContext.selectFrom(tableInfo.snapshotTable())
                 .where(tableInfo.snapshotTableSnapshotTime().between(startTime, endTime))
                 // Important - this will make sure the timestamps are returned in the right order.
                 //
                 // TODO (roman, Jan 17 2019): We may want to provide the sort order externally.
                 // For now doesn't seem like there's a need.
                 .orderBy(tableInfo.snapshotTableSnapshotTime().asc())
-                .fetch(tableInfo.snapshotTableSnapshotTime())
-                .forEach(snapshotTime -> results.put(snapshotTime, new HashMap<>()));
+                .forEach(snapshotRecord -> resultBuilder.addSnapshot(
+                    snapshotRecord.get(tableInfo.snapshotTableSnapshotTime()),
+                    numSnapshotsInSnapshotRecord(snapshotRecord)));
 
             final List<Condition> conditions = new ArrayList<>(3);
-            conditions.add(tableInfo.statTableSnapshotTime().in(results.keySet()));
+            conditions.add(tableInfo.statTableSnapshotTime().in(resultBuilder.matchedTimes()));
             conditions.add(tableInfo.mgmtUnitSubgroupIdField().in(mgmtUnitSubgroups));
 
             // If all action groups are acceptable, don't add the condition.
@@ -146,15 +145,16 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
                 .fetch()
                 .forEach(record -> {
                     final LocalDateTime time = record.get(tableInfo.statTableSnapshotTime());
+                    final Integer mgmtUnitSubgroupId = record.get(tableInfo.mgmtUnitSubgroupIdField());
                     final Integer actionGroupId = record.get(tableInfo.actionGroupIdField());
                     final ActionGroup actionGroup =
                         matchedActionGroups.specificActionGroupsById().get(actionGroupId);
                     final RolledUpActionGroupStat stat = recordToGroupStat(record);
-                    results.get(time).put(actionGroup, stat);
+                    resultBuilder.addStat(time, mgmtUnitSubgroupId, actionGroup, stat);
                 });
         }
 
-        return results;
+        return resultBuilder.build();
     }
 
     /**
@@ -341,6 +341,56 @@ public abstract class BaseActionStatTableReader<STAT_RECORD extends Record,
         int numActionSnapshots();
         STAT_RECORD_ record();
     }
+
+    /**
+     * Helper class to construct {@link QueryResultsFromSnapshot}s for a query.
+     */
+    private static class QueryResultsBuilder {
+        private static final Logger logger = LogManager.getLogger();
+
+        private final Map<LocalDateTime, Integer> snapshotsInRecordByTime = new LinkedHashMap<>();
+
+        private final Map<LocalDateTime, Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>>> rawResults = new HashMap<>();
+
+        void addSnapshot(@Nonnull final LocalDateTime time, int numSnapshotsInRecord) {
+            snapshotsInRecordByTime.put(time, numSnapshotsInRecord);
+        }
+
+        void addStat(@Nonnull final LocalDateTime time,
+                     @Nonnull final Integer mgmtUnitSubgroupId,
+                     @Nonnull final ActionGroup actionGroup,
+                     @Nonnull final RolledUpActionGroupStat stat) {
+            final RolledUpActionGroupStat existing =
+                rawResults.computeIfAbsent(time, k -> new HashMap<>())
+                    .computeIfAbsent(actionGroup, k -> new HashMap<>())
+                    .put(mgmtUnitSubgroupId, stat);
+            if (existing != null) {
+                logger.warn("More than one stat for the same time ({})," +
+                    " mgmt unit subgroup ({}) and action group ({}).", time, mgmtUnitSubgroupId, actionGroup.id());
+            }
+        }
+
+        @Nonnull
+        private Set<LocalDateTime> matchedTimes() {
+            return snapshotsInRecordByTime.keySet();
+        }
+
+        @Nonnull
+        public List<QueryResultsFromSnapshot> build() {
+            final List<QueryResultsFromSnapshot> retList = new ArrayList<>(snapshotsInRecordByTime.size());
+            snapshotsInRecordByTime.forEach((time, numSnapshots) -> {
+                retList.add(ImmutableQueryResultsFromSnapshot.builder()
+                    .time(time)
+                    .numActionSnapshots(numSnapshots)
+                    // Technically this should always return something, but we default to empty
+                    // just in case.
+                    .putAllStatsByGroupAndMu(rawResults.getOrDefault(time, Collections.emptyMap()))
+                    .build());
+            });
+            return retList;
+        }
+    }
+
 
     static class Metrics {
         static final String TABLE_NAME_LABEL = "table";

@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.stats;
 
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,6 +24,7 @@ import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActi
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryResult;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.QueryResultsFromSnapshot;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -121,7 +121,7 @@ public class LiveActionStatReader {
         // Select the right reader to use based on the time frame.
         final ActionStatTable.Reader targetTableReader = tablesForTimeFrame.get(timeFrame);
 
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> matchingStats =
+        final List<QueryResultsFromSnapshot> queryResultsFromSnapshots =
             targetTableReader.query(actionCountsQuery.getTimeRange(),
                 targetMgmtUnitSubgroups,
                 applicableAgIds.get());
@@ -129,12 +129,12 @@ public class LiveActionStatReader {
         final ActionStats.Builder retStatsBuilder = ActionStats.newBuilder();
         targetMgmtUnit.ifPresent(retStatsBuilder::setMgmtUnitId);
 
-        matchingStats.forEach((time, statsByGroup) -> {
+        queryResultsFromSnapshots.forEach(queryResult -> {
             final ActionStatSnapshot.Builder thisTimeSnapshot = ActionStatSnapshot.newBuilder()
-                .setTime(time.toInstant(ZoneOffset.UTC).toEpochMilli());
-
+                .setTime(queryResult.time().toInstant(ZoneOffset.UTC).toEpochMilli());
             final CombinedStatsBuckets buckets =
-                statsBucketsFactory.arrangeIntoBuckets(actionCountsQuery.getGroupBy(), statsByGroup);
+                statsBucketsFactory.arrangeIntoBuckets(actionCountsQuery.getGroupBy(),
+                    queryResult.numActionSnapshots(), queryResult.statsByGroupAndMu());
 
             buckets.toActionStats().forEach(thisTimeSnapshot::addStats);
 
@@ -179,7 +179,8 @@ public class LiveActionStatReader {
          *                into buckets. For example, if the criteria is "CATEGORY" then all
          *                action groups that share the same category will be combined into a single
          *                bucket.
-         * @param statsByGroup The {@link RolledUpActionGroupStat}s, arranged by their action group.
+         * @param statsByGroupAndMu The {@link RolledUpActionGroupStat}s, arranged by their action group
+         *                          and management unit subgroup.
          * @return {@link CombinedStatsBuckets}, with one bucket for each distinct grouping
          *          criteria value (i.e. the stat values of all action groups that share the same
          *          grouping criteria will be combined into a single value). If the grouping
@@ -187,7 +188,8 @@ public class LiveActionStatReader {
          */
         @Nonnull
         CombinedStatsBuckets arrangeIntoBuckets(@Nonnull final GroupBy groupBy,
-                                                @Nonnull final Map<ActionGroup, RolledUpActionGroupStat> statsByGroup);
+                final int numSnapshots,
+                @Nonnull final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu);
 
         /**
          * The default implementation of {@link CombinedStatsBucketsFactory}.
@@ -198,30 +200,31 @@ public class LiveActionStatReader {
              * {@inheritDoc}
              */
             @Override
-            @Nonnull
-            public CombinedStatsBuckets arrangeIntoBuckets(
-                        @Nonnull final GroupBy groupBy,
-                        @Nonnull final Map<ActionGroup, RolledUpActionGroupStat> statsByGroup) {
+            public CombinedStatsBuckets arrangeIntoBuckets(@Nonnull final GroupBy groupBy,
+                    final int numSnapshots,
+                    @Nonnull final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu) {
                 final CombinedStatsBuckets buckets = new CombinedStatsBuckets();
                 switch (groupBy) {
                     case NONE: {
                         // Everything gets aggregated into a single ActionStat.
-                        buckets.createBucket(statsByGroup.keySet(), ActionDTO.ActionStat::newBuilder);
+                        buckets.createBucket(statsByGroupAndMu.keySet(),
+                            numSnapshots,
+                            ActionDTO.ActionStat::newBuilder);
                         break;
                     }
                     case ACTION_STATE:
-                        final Map<ActionState, List<ActionGroup>> groupsByState = statsByGroup.keySet().stream()
+                        final Map<ActionState, List<ActionGroup>> groupsByState = statsByGroupAndMu.keySet().stream()
                             .collect(Collectors.groupingBy(ag -> ag.key().getActionState()));
                         groupsByState.forEach((state, groupsForState) -> {
-                            buckets.createBucket(groupsForState,
+                            buckets.createBucket(groupsForState, numSnapshots,
                                 () -> ActionDTO.ActionStat.newBuilder().setActionState(state));
                         });
                         break;
                     case ACTION_CATEGORY:
-                        final Map<ActionCategory, List<ActionGroup>> groupsByCat = statsByGroup.keySet().stream()
+                        final Map<ActionCategory, List<ActionGroup>> groupsByCat = statsByGroupAndMu.keySet().stream()
                             .collect(Collectors.groupingBy(ag -> ag.key().getCategory()));
                         groupsByCat.forEach((category, groupsForCat) -> {
-                            buckets.createBucket(groupsForCat,
+                            buckets.createBucket(groupsForCat, numSnapshots,
                                 () -> ActionDTO.ActionStat.newBuilder().setActionCategory(category));
                         });
                         break;
@@ -229,7 +232,11 @@ public class LiveActionStatReader {
                         logger.error("Unhandled split by: {}", groupBy);
                 }
 
-                statsByGroup.forEach(buckets::addStatsForGroup);
+                statsByGroupAndMu.forEach((actionGroup, statsByMuId) -> {
+                    statsByMuId.values().forEach(stat -> {
+                        buckets.addStatsForGroup(actionGroup, stat);
+                    });
+                });
                 return buckets;
             }
         }
@@ -250,8 +257,9 @@ public class LiveActionStatReader {
         private CombinedStatsBuckets() {}
 
         private void createBucket(@Nonnull final Collection<ActionGroup> bucketGroups,
+                                 final int numSnapshots,
                                  @Nonnull final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory) {
-            final CombinedStatsBucket bucket = new CombinedStatsBucket(statBuilderFactory);
+            final CombinedStatsBucket bucket = new CombinedStatsBucket(numSnapshots, statBuilderFactory);
             bucketGroups.forEach(group -> bucketForGroup.put(group, bucket));
             buckets.add(bucket);
         }
@@ -276,6 +284,8 @@ public class LiveActionStatReader {
         private static class CombinedStatsBucket {
             private final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory;
 
+            private int numSnapshots;
+
             private int       avgActionCount = 0;
             private int       minActionCount = 0;
             private int       maxActionCount = 0;
@@ -292,7 +302,9 @@ public class LiveActionStatReader {
             private double    minInvestment = 0;
             private double    maxInvestment = 0;
 
-            CombinedStatsBucket(@Nonnull final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory) {
+            CombinedStatsBucket(final int numSnapshots,
+                                @Nonnull final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory) {
+                this.numSnapshots = numSnapshots;
                 this.statBuilderFactory = Objects.requireNonNull(statBuilderFactory);
             }
 
@@ -321,25 +333,29 @@ public class LiveActionStatReader {
                     statBuilder.setActionCount(ActionDTO.ActionStat.Value.newBuilder()
                         .setAvg(avgActionCount)
                         .setMin(minActionCount)
-                        .setMax(maxActionCount));
+                        .setMax(maxActionCount)
+                        .setTotal(avgActionCount * numSnapshots));
                 }
                 if (maxEntityCount > 0) {
                     statBuilder.setEntityCount(ActionDTO.ActionStat.Value.newBuilder()
                         .setAvg(avgEntityCount)
                         .setMin(minEntityCount)
-                        .setMax(maxEntityCount));
+                        .setMax(maxEntityCount)
+                        .setTotal(avgEntityCount * numSnapshots));
                 }
                 if (maxSavings > 0) {
                     statBuilder.setSavings(ActionDTO.ActionStat.Value.newBuilder()
                         .setAvg(avgSavings)
                         .setMin(minSavings)
-                        .setMax(maxSavings));
+                        .setMax(maxSavings)
+                        .setTotal(avgSavings * numSnapshots));
                 }
                 if (maxInvestment > 0) {
                     statBuilder.setInvestments(ActionDTO.ActionStat.Value.newBuilder()
                         .setAvg(avgInvestment)
                         .setMin(minInvestment)
-                        .setMax(maxInvestment));
+                        .setMax(maxInvestment)
+                        .setTotal(avgInvestment * numSnapshots));
                 }
                 return statBuilder.build();
             }

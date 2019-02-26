@@ -43,11 +43,12 @@ public interface ActionStatTable {
          * @param mgmtUnitSubgroups The IDs of the target management unit subgroups.
          *                          If empty, there will be no results.
          * @param matchedActionGroups The target action groups.
-         * @return (stat time) -> (action group) -> (action stats for the ag at that time)
+         * @return An ordered list of {@link QueryResultsFromSnapshot}, one for each time that
+         *         had matching results. Sorted in ascending order (by time).
          * @throws DataAccessException If there is an error interacting with the database.
          */
         @Nonnull
-        Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> query(
+        List<QueryResultsFromSnapshot> query(
             @Nonnull final TimeRange timeRange,
             @Nonnull final Set<Integer> mgmtUnitSubgroups,
             @Nonnull final MatchedActionGroups matchedActionGroups)
@@ -201,6 +202,30 @@ public interface ActionStatTable {
          */
         String shortTableName();
 
+    }
+
+    /**
+     * The results for a query from a single "snapshot" - i.e. a single set of records with the
+     * same time in the proper underlying stat table.
+     */
+    @Value.Immutable
+    interface QueryResultsFromSnapshot {
+
+        /**
+         * The time of the record.
+         */
+        LocalDateTime time();
+
+        /**
+         * The number of "latest" action snapshots rolled up into this record.
+         */
+        Integer numActionSnapshots();
+
+        /**
+         * The stats matching the query at this time, arranged by {@link ActionGroup} and
+         * {@link MgmtUnitSubgroup} ID.
+         */
+        Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu();
     }
 
     /**

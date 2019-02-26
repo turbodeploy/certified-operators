@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,7 +34,9 @@ import com.vmturbo.action.orchestrator.stats.groups.ImmutableMatchedActionGroups
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableQueryResult;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.QueryResultsFromSnapshot;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
+import com.vmturbo.action.orchestrator.stats.rollup.ImmutableQueryResultsFromSnapshot;
 import com.vmturbo.action.orchestrator.stats.rollup.ImmutableRolledUpActionGroupStat;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -96,8 +97,6 @@ public class LiveActionStatReaderTest {
 
         final ActionGroup actionGroup = mock(ActionGroup.class);
         final RolledUpActionGroupStat actionGroupStat = mock(RolledUpActionGroupStat.class);
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> retStats = new HashMap<>();
-        retStats.put(retStatTime, ImmutableMap.of(actionGroup, actionGroupStat));
 
         final ActionDTO.ActionStat actionStat = ActionDTO.ActionStat.newBuilder()
             // Something to distinguish it from the default instance.
@@ -120,9 +119,19 @@ public class LiveActionStatReaderTest {
         when(timeFrameCalculator.millis2TimeFrame(timeRange.getStartTime())).thenReturn(TimeFrame.HOUR);
 
 
-        when(hourReader.query(any(), any(), any())).thenReturn(retStats);
-        when(statsBucketsFactory.arrangeIntoBuckets(groupBy, ImmutableMap.of(actionGroup, actionGroupStat)))
-            .thenReturn(buckets);
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu =
+            ImmutableMap.of(actionGroup, ImmutableMap.of(7, actionGroupStat));
+        final QueryResultsFromSnapshot qResult = ImmutableQueryResultsFromSnapshot.builder()
+            .time(retStatTime)
+            .numActionSnapshots(2)
+            .putAllStatsByGroupAndMu(statsByGroupAndMu)
+            .build();
+
+        when(hourReader.query(any(), any(), any())).thenReturn(Collections.singletonList(qResult));
+        when(statsBucketsFactory.arrangeIntoBuckets(groupBy,
+            qResult.numActionSnapshots(),
+            ImmutableMap.of(actionGroup, ImmutableMap.of(7, actionGroupStat))))
+                .thenReturn(buckets);
 
         when(buckets.toActionStats()).thenReturn(Stream.of(actionStat));
 
@@ -132,7 +141,8 @@ public class LiveActionStatReaderTest {
         verify(actionGroupStore).query(agFilter);
         verify(timeFrameCalculator).millis2TimeFrame(timeRange.getStartTime());
         verify(hourReader).query(timeRange, targetMgmtSubunit, matchedActionGroups);
-        verify(statsBucketsFactory).arrangeIntoBuckets(groupBy, ImmutableMap.of(actionGroup, actionGroupStat));
+        verify(statsBucketsFactory).arrangeIntoBuckets(
+            groupBy, qResult.numActionSnapshots(), statsByGroupAndMu);
 
         when(buckets.toActionStats()).thenReturn(Stream.of(actionStat));
 
@@ -168,14 +178,17 @@ public class LiveActionStatReaderTest {
             .build();
 
         final ActionGroup actionGroup = mock(ActionGroup.class);
-        final Map<LocalDateTime, Map<ActionGroup, RolledUpActionGroupStat>> retStats = new HashMap<>();
-        retStats.put(retStatTime, Collections.emptyMap());
         final CombinedStatsBuckets buckets = mock(CombinedStatsBuckets.class);
 
         final Set<Integer> targetMgmtSubunit = Collections.singleton(7);
         final MatchedActionGroups matchedActionGroups = ImmutableMatchedActionGroups.builder()
             .allActionGroups(false)
             .putSpecificActionGroupsById(9, actionGroup)
+            .build();
+
+        final QueryResultsFromSnapshot qResult = ImmutableQueryResultsFromSnapshot.builder()
+            .time(retStatTime)
+            .numActionSnapshots(2)
             .build();
 
         when(mgmtUnitSubgroupStore.query(muFilter)).thenReturn(Optional.of(ImmutableQueryResult.builder()
@@ -186,8 +199,8 @@ public class LiveActionStatReaderTest {
         when(timeFrameCalculator.millis2TimeFrame(timeRange.getStartTime())).thenReturn(TimeFrame.HOUR);
 
 
-        when(hourReader.query(any(), any(), any())).thenReturn(retStats);
-        when(statsBucketsFactory.arrangeIntoBuckets(groupBy, Collections.emptyMap()))
+        when(hourReader.query(any(), any(), any())).thenReturn(Collections.singletonList(qResult));
+        when(statsBucketsFactory.arrangeIntoBuckets(groupBy, 2, Collections.emptyMap()))
             .thenReturn(buckets);
 
         when(buckets.toActionStats()).thenReturn(Stream.empty());
@@ -198,7 +211,7 @@ public class LiveActionStatReaderTest {
         verify(actionGroupStore).query(agFilter);
         verify(timeFrameCalculator).millis2TimeFrame(timeRange.getStartTime());
         verify(hourReader).query(timeRange, targetMgmtSubunit, matchedActionGroups);
-        verify(statsBucketsFactory).arrangeIntoBuckets(groupBy, Collections.emptyMap());
+        verify(statsBucketsFactory).arrangeIntoBuckets(groupBy, 2, Collections.emptyMap());
         verify(buckets).toActionStats();
 
         assertThat(stats.getMgmtUnitId(), is(1L));
@@ -209,29 +222,31 @@ public class LiveActionStatReaderTest {
 
     @Test
     public void testBucketsNoSplit() {
+        final int mgmtUnitSubgroupId = 1;
         final RolledUpActionGroupStat stat1 = mock(RolledUpActionGroupStat.class);
         when(stat1.maxEntityCount()).thenReturn(5);
         final RolledUpActionGroupStat stat2 = mock(RolledUpActionGroupStat.class);
         when(stat2.maxEntityCount()).thenReturn(4);
-        final Map<ActionGroup, RolledUpActionGroupStat> statsByGroup = ImmutableMap.of(
-            mock(ActionGroup.class), stat1,
-            mock(ActionGroup.class), stat2);
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+            mock(ActionGroup.class), ImmutableMap.of(mgmtUnitSubgroupId, stat1),
+            mock(ActionGroup.class), ImmutableMap.of(mgmtUnitSubgroupId, stat2));
         final CombinedStatsBuckets buckets =
-            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.NONE, statsByGroup);
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.NONE, 1, statsByGroup);
         final List<ActionDTO.ActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
         assertThat(stats.size(), is(1));
         assertThat(stats.get(0), is(ActionDTO.ActionStat.newBuilder()
             .setEntityCount(Value.newBuilder()
                 .setMax(9)
                 .setMin(0)
-                .setAvg(0))
+                .setAvg(0)
+                .setTotal(0))
             .build()));
     }
 
     @Test
     public void testBucketsEmpty() {
         final CombinedStatsBuckets buckets =
-            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_CATEGORY, Collections.emptyMap());
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_CATEGORY, 1, Collections.emptyMap());
         assertThat(buckets.toActionStats().count(), is(0L));
     }
 
@@ -259,19 +274,23 @@ public class LiveActionStatReaderTest {
             .setActionCount(Value.newBuilder()
                 .setMin(numGroupStats * increasingGroupStat.minActionCount())
                 .setAvg(numGroupStats * increasingGroupStat.avgActionCount())
-                .setMax(numGroupStats * increasingGroupStat.maxActionCount()))
+                .setMax(numGroupStats * increasingGroupStat.maxActionCount())
+                .setTotal(numGroupStats * increasingGroupStat.avgActionCount()))
             .setEntityCount(Value.newBuilder()
                 .setMin(numGroupStats * increasingGroupStat.minEntityCount())
                 .setAvg(numGroupStats * increasingGroupStat.avgEntityCount())
-                .setMax(numGroupStats * increasingGroupStat.maxEntityCount()))
+                .setMax(numGroupStats * increasingGroupStat.maxEntityCount())
+                .setTotal(numGroupStats * increasingGroupStat.avgEntityCount()))
             .setSavings(Value.newBuilder()
                 .setMin(numGroupStats * increasingGroupStat.minSavings())
                 .setAvg(numGroupStats * increasingGroupStat.avgSavings())
-                .setMax(numGroupStats * increasingGroupStat.maxSavings()))
+                .setMax(numGroupStats * increasingGroupStat.maxSavings())
+                .setTotal(numGroupStats * increasingGroupStat.avgSavings()))
             .setInvestments(Value.newBuilder()
                 .setMin(numGroupStats * increasingGroupStat.minInvestment())
                 .setAvg(numGroupStats * increasingGroupStat.avgInvestment())
-                .setMax(numGroupStats * increasingGroupStat.maxInvestment()))
+                .setMax(numGroupStats * increasingGroupStat.maxInvestment())
+                .setTotal(numGroupStats * increasingGroupStat.avgInvestment()))
             .build();
     }
 
@@ -280,6 +299,7 @@ public class LiveActionStatReaderTest {
         final RolledUpActionGroupStat perfAssuranceStat1 = increasingGroupStat();
         final RolledUpActionGroupStat perfAssuranceStat2 = increasingGroupStat();
         final RolledUpActionGroupStat efficiencyImprovementStat = increasingGroupStat();
+        final int mgmtUnitSubgroupId = 1;
 
         final ActionGroup perfAssuranceAg1 = mock(ActionGroup.class);
         final ActionGroupKey key1 = mock(ActionGroupKey.class);
@@ -296,13 +316,13 @@ public class LiveActionStatReaderTest {
         when(key3.getCategory()).thenReturn(ActionCategory.EFFICIENCY_IMPROVEMENT);
         when(efficiencyImprovementAg.key()).thenReturn(key3);
 
-        final Map<ActionGroup, RolledUpActionGroupStat> statsByGroup = ImmutableMap.of(
-            perfAssuranceAg1, perfAssuranceStat1,
-            perfAssuranceAg2, perfAssuranceStat2,
-            efficiencyImprovementAg, efficiencyImprovementStat);
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+            perfAssuranceAg1, ImmutableMap.of(mgmtUnitSubgroupId, perfAssuranceStat1),
+            perfAssuranceAg2, ImmutableMap.of(mgmtUnitSubgroupId, perfAssuranceStat2),
+            efficiencyImprovementAg, ImmutableMap.of(mgmtUnitSubgroupId, efficiencyImprovementStat));
 
         final CombinedStatsBuckets buckets =
-            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_CATEGORY, statsByGroup);
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_CATEGORY, 1, statsByGroup);
         final List<ActionDTO.ActionStat> stats = buckets.toActionStats()
             .collect(Collectors.toList());
         assertThat(stats.size(), is(2));
@@ -318,6 +338,7 @@ public class LiveActionStatReaderTest {
         final RolledUpActionGroupStat readyStat1 = increasingGroupStat();
         final RolledUpActionGroupStat readyStat2 = increasingGroupStat();
         final RolledUpActionGroupStat queuedStat = increasingGroupStat();
+        final int mgmtUnitSubgroup = 1;
 
         final ActionGroup readyAg1 = mock(ActionGroup.class);
         final ActionGroupKey key1 = mock(ActionGroupKey.class);
@@ -334,13 +355,13 @@ public class LiveActionStatReaderTest {
         when(key3.getActionState()).thenReturn(ActionState.QUEUED);
         when(queuedAg.key()).thenReturn(key3);
 
-        final Map<ActionGroup, RolledUpActionGroupStat> statsByGroup = ImmutableMap.of(
-            readyAg1, readyStat1,
-            readyAg2, readyStat2,
-            queuedAg, queuedStat);
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+            readyAg1, ImmutableMap.of(mgmtUnitSubgroup, readyStat1),
+            readyAg2, ImmutableMap.of(mgmtUnitSubgroup, readyStat2),
+            queuedAg, ImmutableMap.of(mgmtUnitSubgroup, queuedStat));
 
         final CombinedStatsBuckets buckets =
-            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_STATE, statsByGroup);
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_STATE, 1, statsByGroup);
         final List<ActionDTO.ActionStat> stats = buckets.toActionStats()
             .collect(Collectors.toList());
         assertThat(stats.size(), is(2));
@@ -349,5 +370,77 @@ public class LiveActionStatReaderTest {
                 .setActionState(ActionState.READY)),
             combinedIncreasingStats(1, ActionDTO.ActionStat.newBuilder()
                 .setActionState(ActionState.QUEUED))));
+    }
+
+    @Test
+    public void testBucketsCombineMgmtUnitSubgroups() {
+        final ActionGroup ag1 = mock(ActionGroup.class);
+        final RolledUpActionGroupStat increasingStat = increasingGroupStat();
+        final int mgmtUnitSubgroup1 = 1;
+        final int mgmtUnitSubgroup2 = 2;
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+            ag1, ImmutableMap.of(
+                mgmtUnitSubgroup1, increasingStat,
+                mgmtUnitSubgroup2, increasingStat));
+        final CombinedStatsBuckets buckets =
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.NONE, 1, statsByGroup);
+        final List<ActionDTO.ActionStat> stats = buckets.toActionStats()
+            .collect(Collectors.toList());
+        assertThat(stats.size(), is(1));
+        assertThat(stats.get(0), is(ActionDTO.ActionStat.newBuilder()
+            .setActionCount(
+                Value.newBuilder()
+                .setMin(increasingStat.minActionCount() * 2)
+                .setAvg(increasingStat.avgActionCount() * 2)
+                .setMax(increasingStat.maxActionCount() * 2)
+                // Total is avg * num snapshots, which is 1
+                .setTotal(increasingStat.avgActionCount() * 2)
+            )
+            .setEntityCount(
+                Value.newBuilder()
+                    .setMin(increasingStat.minEntityCount() * 2)
+                    .setAvg(increasingStat.avgEntityCount() * 2)
+                    .setMax(increasingStat.maxEntityCount() * 2)
+                    // Total is avg * num snapshots, which is 1
+                    .setTotal(increasingStat.avgEntityCount() * 2)
+            )
+            .setSavings(
+                Value.newBuilder()
+                    .setMin(increasingStat.minSavings() * 2)
+                    .setAvg(increasingStat.avgSavings() * 2)
+                    .setMax(increasingStat.maxSavings() * 2)
+                    // Total is avg * num snapshots, which is 1
+                    .setTotal(increasingStat.avgSavings() * 2)
+            )
+            .setInvestments(
+                Value.newBuilder()
+                    .setMin(increasingStat.minInvestment() * 2)
+                    .setAvg(increasingStat.avgInvestment() * 2)
+                    .setMax(increasingStat.maxInvestment() * 2)
+                    // Total is avg * num snapshots, which is 1
+                    .setTotal(increasingStat.avgInvestment() * 2)
+            )
+            .build()));
+    }
+
+    @Test
+    public void testBucketsTotal() {
+        final ActionGroup ag1 = mock(ActionGroup.class);
+        final RolledUpActionGroupStat increasingStat = increasingGroupStat();
+        final int mgmtUnitSubgroup1 = 1;
+        final int numSnapshots = 3;
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+            ag1, ImmutableMap.of(
+                mgmtUnitSubgroup1, increasingStat));
+        final CombinedStatsBuckets buckets =
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.NONE, numSnapshots, statsByGroup);
+        final List<ActionDTO.ActionStat> stats = buckets.toActionStats()
+            .collect(Collectors.toList());
+        assertThat(stats.size(), is(1));
+        ActionDTO.ActionStat stat = stats.get(0);
+        assertThat(stat.getActionCount().getTotal(), is(increasingStat.avgActionCount() * 3));
+        assertThat(stat.getEntityCount().getTotal(), is(increasingStat.avgEntityCount() * 3));
+        assertThat(stat.getSavings().getTotal(), is(increasingStat.avgSavings() * 3));
+        assertThat(stat.getInvestments().getTotal(), is(increasingStat.avgInvestment() * 3));
     }
 }
