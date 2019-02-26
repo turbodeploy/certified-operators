@@ -21,7 +21,7 @@ public class DiscoveredWorkflowInterpreter {
     /**
      * Scan the given list of Workflow DTOs, and create a WorkflowInfo object from each
      *
-     * @param workflows a list of Workflow DTOs from a discovery response to be scanned
+     * @param workflows a list of {@link Workflow} DTOs from a discovery response to be scanned
      * @param targetId the OID of the target from which these workflows were discovered
      * @return a list consisting of a WorkflowInfo object corresponding to each WORKFLOW DTO in the input list
      */

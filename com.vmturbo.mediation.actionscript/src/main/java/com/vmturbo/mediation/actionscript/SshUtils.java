@@ -9,6 +9,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,24 +55,36 @@ public class SshUtils {
      */
     @FunctionalInterface
     public interface RemoteCommand<T> {
+        /**
+         * Encapsulates code to be executed within an established SSH session.
+         *
+         * @param accountValues   {@link ActionScriptProbeAccount} values from the target
+         * @param session         {@link ClientSession} over which the code will be executed
+         * @param actionExecution {@link ActionExecutionDTO} defining the action being performed.
+         *                        This can be null if there is no action being performed (e.g. during discovery)
+         * @return result computed by code (of whatever type is appropriate)
+         * @throws RemoteExecutionException if there's a problem with the execution
+         */
         T execute(ActionScriptProbeAccount accountValues,
                   ClientSession session,
-                  ActionExecutionDTO actionExecution) throws RemoteExecutionException;
+                  @Nullable ActionExecutionDTO actionExecution) throws RemoteExecutionException;
     }
 
     /**
      * Run code in an SSH session and return a result.
      *
-     * @param accountValues to use for creating the connection
-     * @param remoteCommand the command to execute once the connection is established
-     * @param <T> a generic return type, allowing this method to return whatever remoteCommand returns
+     * @param accountValues   to use for creating the connection
+     * @param remoteCommand   the command to execute once the connection is established
+     * @param actionExecution the {@link ActionExecutionDTO} defining the action being performed,
+     *                        or null if this is not part an action execution.
+     * @param <T>             a generic return type, allowing this method to return whatever remoteCommand returns
      * @return the result of executing the remote command
      * @throws KeyValidationException   if a valid SSH private key cannot be retrieved from accountValues
      * @throws RemoteExecutionException if an IO Exception occurs while executing the remote command
      */
     public static <T> T runInSshSession(@Nonnull final ActionScriptProbeAccount accountValues,
                                         @Nonnull final RemoteCommand<? extends T> remoteCommand,
-                                        final ActionExecutionDTO actionExecution)
+                                        @Nullable final ActionExecutionDTO actionExecution)
         throws KeyValidationException, RemoteExecutionException {
 
         final String host = accountValues.getNameOrAddress();
@@ -128,12 +141,28 @@ public class SshUtils {
         return SecurityUtils.loadKeyPairIdentity(null, privateKeyStream, null);
     }
 
-    public static String getRemoteFileContent(final String path, ActionScriptProbeAccount accountValues, ActionExecutionDTO actionExecution) throws RemoteExecutionException, KeyValidationException {
+    /**
+     * Retrieve the content of a text file from the execution server.
+     *
+     * @param path            absolute path of the file on the execution server
+     * @param accountValues   {@link ActionScriptProbeAccount} values for the target
+     * @param actionExecution {@link ActionExecutionDTO} defining the currently executing action, or
+     *                        null if this is not part of an action execution.
+     * @return file content as text
+     * @throws RemoteExecutionException if there's a problem obtaining the content
+     * @throws KeyValidationException   if the key provided in accountValues is not valid
+     */
+    public static String getRemoteFileContent(final String path,
+                                              ActionScriptProbeAccount accountValues,
+                                              @Nullable ActionExecutionDTO actionExecution) throws RemoteExecutionException, KeyValidationException {
         RemoteCommand<String> cmd = (a, session, ae) -> {
             try {
                 SftpClient sftp = null;
                 sftp = SftpClientFactory.instance().createSftpClient(session);
-                return new String(IOUtils.readFully(sftp.read(path), -1, true));
+
+                return new String(IOUtils.readFully(sftp.read(path),
+                    Integer.MAX_VALUE, // read to end of stream
+                    true)); // this arg is ignored when prior is -1 or MAX_VALUE
             } catch (IOException e) {
                 throw new RemoteExecutionException("Failed to fetch remote file", e);
             }
@@ -142,7 +171,20 @@ public class SshUtils {
         return runInSshSession(accountValues, cmd, actionExecution);
     }
 
-    public static Attributes getRemoteFileAttributes(final String path, ActionScriptProbeAccount accountValues, ActionExecutionDTO actionExecution) throws RemoteExecutionException, KeyValidationException {
+    /**
+     * Perform an lstat on a file that resides on the execution server
+     *
+     * @param path            absolute path of the file on the server
+     * @param accountValues   {@link ActionScriptProbeAccount} values for the target
+     * @param actionExecution {@link ActionExecutionDTO} defining the currently executing action,
+     *                        or null if this is not part of an action execution.
+     *                        * @return
+     * @throws RemoteExecutionException if there's a problem obtaining the file attributes
+     * @throws KeyValidationException if the key provided in the accountValues is not valid
+     * */
+    public static Attributes getRemoteFileAttributes(final String path,
+                                                     ActionScriptProbeAccount accountValues,
+                                                     @Nullable ActionExecutionDTO actionExecution) throws RemoteExecutionException, KeyValidationException {
         RemoteCommand<Attributes> cmd = (a, session, ae) -> {
             SftpClient sftp = null;
             try {

@@ -43,8 +43,10 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                                 DiscoveryResponse.Builder::addAllDerivedTarget)
                         .addRepeatedField(DiscoveryResponse::getCostDTOList,
                                 DiscoveryResponse.Builder::addAllCostDTO)
+                        .addRepeatedField(DiscoveryResponse::getWorkflowList,
+                            DiscoveryResponse.Builder::addAllWorkflow)
                         .addRepeatedField(DiscoveryResponse::getNonMarketEntityDTOList,
-                                DiscoveryResponse.Builder::addAllNonMarketEntityDTO)
+                            DiscoveryResponse.Builder::addAllNonMarketEntityDTO)
                         .addField(DiscoveryResponse::hasPriceTable,
                                 DiscoveryResponse::getPriceTable,
                                 DiscoveryResponse.Builder::setPriceTable)

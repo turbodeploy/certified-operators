@@ -15,11 +15,29 @@
 
     <properties>
         <!--
-        Set this parameter to true to allow password authentication for ssh during script discovery or execution.
-        This is useful in testing to get around difficulties supplying private keys via the UI.
+        Use the password-auth profile to set this parameter to true to allow password authentication
+        for ssh during script discovery or execution. This is useful in testing to get around
+        difficulties supplying private keys via the UI.
+
+        Can't just override this param on command line, because that doesn't pass through to
+        modules when building an aggregator. Profile activations do!
         -->
         <ssh-allow-password-auth>false</ssh-allow-password-auth>
     </properties>
+
+    <profiles>
+        <profile>
+            <id>password-auth</id>
+            <properties>
+                <!--
+                This causes maven to expand maven property references into their values when copying
+                the covered resources. It's how we make the ssh-allow-password-auth setting available
+                to the code at runtime.
+                -->
+                <ssh-allow-password-auth>true</ssh-allow-password-auth>
+            </properties>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>

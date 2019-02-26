@@ -130,10 +130,15 @@ public class ActionScriptDiscoveryTest extends Assert {
         final ActionScriptDiscovery discovery = new ActionScriptDiscovery(accountValues);
         discovery.validateManifestFile();
         final DiscoveryResponse results = discovery.discoverActionScripts();
-        assertEquals(3, results.getWorkflowCount());
-        checkScriptValues(results, 0, "valid-in-default-dir", "/scripts/val-default.sh", "valid script in default directory", EntityType.PHYSICAL_MACHINE, ActionType.MOVE, ActionScriptPhase.REPLACE, "foo", "bar");
-        checkScriptValues(results, 1, "valid-in-other-dir", "/otherscripts/val-other.sh", null, null, null, null);
-        checkScriptValues(results, 2, "valid-in-rel-dir", "/otherscripts/val-rel.sh", null, null, null, null);
+        assertEquals(4, results.getWorkflowCount());
+        checkScriptValues(results, 0, "valid-in-default-dir", "/scripts/execByAll-valid-in-default-dir.sh",
+            "valid script in default directory", EntityType.PHYSICAL_MACHINE, ActionType.MOVE, ActionScriptPhase.REPLACE);
+        checkScriptValues(results, 1, "valid-in-other-dir", "/otherscripts/execByAll-valid-in-other-path.sh",
+            null, null, null, null);
+        checkScriptValues(results, 2, "valid-in-rel-dir", "/otherscripts/execByAll-valid-in-relative-path.sh",
+            null, null, null, null);
+        checkScriptValues(results, 3, "valid-owner-exec", "/scripts/execByOwner-valid-in-default-dir.sh",
+            null, null, null, null);
         assertEquals(4, results.getErrorDTOCount());
         checkErrorValues(results, 0, accountValues.getNameOrAddress(), "missing-script", "/no/scripts/here/script.sh");
         checkErrorValues(results, 1, accountValues.getNameOrAddress(), null, "/scripts/no-name.sh");
@@ -201,6 +206,7 @@ public class ActionScriptDiscoveryTest extends Assert {
         ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         String prefix = ActionScriptDiscoveryTest.class.getPackage().getName().replaceAll("[.]", "/") + "/remoteFiles";
         File root = tempFolder.getRoot();
+        logger.info("Copying test files to {}", root);
         for (Resource resource : resolver.getResources("classpath*:" + prefix + "/**/*")) {
             if (resource.exists() && !resource.getFile().isDirectory()) {
                 String path = resource.getFile().toString();
@@ -212,13 +218,17 @@ public class ActionScriptDiscoveryTest extends Assert {
                         IOUtils.copy(in, out);
                     }
                 }
-                if (dest.getName().startsWith("val-")) {
+                // Scripts that are supposed to pass validation must be named "val-". Here we ensure that they are executable.
+                if (dest.getName().startsWith("exec")) {
                     final Set<PosixFilePermission> perms = Files.getPosixFilePermissions(dest.toPath());
                     perms.removeAll(Arrays.asList(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.GROUP_EXECUTE, PosixFilePermission.OTHERS_EXECUTE));
-                    if (dest.getName().startsWith("val-owner-")) {
+                    // If the script name starts with "val-owner-" then it is intended to be executable by owner; else we make it executable by all
+                    if (dest.getName().startsWith("execByOwner-")) {
                         perms.add(PosixFilePermission.OWNER_EXECUTE);
-                    } else {
+                    } else if (dest.getName().startsWith("execByAll-")) {
                         perms.add(PosixFilePermission.OTHERS_EXECUTE);
+                    } else {
+                        throw new IllegalArgumentException("Remote file resource name starts with 'exec' followed by neither 'ByOnwer-' nor 'ByAllUsers-'");
                     }
                     Files.setPosixFilePermissions(dest.toPath(), perms);
                 }

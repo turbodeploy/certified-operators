@@ -59,7 +59,8 @@ public class ActionScriptDiscovery {
      * @return a ValidationResponse, containing any validation errors
      */
     public ValidationResponse validateManifestFile() {
-        String extension = FileUtils.getFileExtension(new File(accountValues.getManifestPath()));
+        final String manifestPath = accountValues.getManifestPath();
+        final String extension = FileUtils.getFileExtension(new File(manifestPath));
         ErrorDTO errorDTO = null;
         ObjectMapper mapper = null;
         switch (extension.toLowerCase()) {
@@ -76,7 +77,7 @@ public class ActionScriptDiscovery {
         }
         if (mapper != null) {
             try {
-                String fileContent = SshUtils.getRemoteFileContent(accountValues.getManifestPath(), accountValues, null);
+                String fileContent = SshUtils.getRemoteFileContent(manifestPath, accountValues, null);
                 this.manifest = mapper.readValue(fileContent, ActionScriptsManifest.class);
                 manifest.setManifestFilePath(accountValues.getManifestPath());
             } catch (RemoteExecutionException | KeyValidationException | IOException e) {
@@ -97,45 +98,50 @@ public class ActionScriptDiscovery {
      */
     public DiscoveryResponse discoverActionScripts() {
         DiscoveryResponse.Builder response = DiscoveryResponse.newBuilder();
-        if (manifest != null) {
+        final ValidationResponse validation = validateManifestFile();
+        if (validation.getErrorDTOCount() == 0) {
             for (ActionScriptDeclaration script : manifest.getScripts()) {
                 try {
                     response.addWorkflow(validateScriptDeclaration(script));
-                } catch (Exception e) {
-                    response.addErrorDTO(createAndLogErrorDTO(generateWorkflowID(script), "Failed to validate action script " + script.getName() + ": " + e.getLocalizedMessage(),
-                        // some script validations cause a RuntimeException to be thrown, but we really don't want to include an
-                        // underlying exception in this case; we just want the message.
-                        e.getClass() != RuntimeException.class ? e : null));
+                } catch (InvalidActionScriptException e) {
+                    response.addErrorDTO(createAndLogErrorDTO(generateWorkflowID(script), "Failed to validate action script " + script.getName() + ": " + e.getLocalizedMessage(), e));
                 }
             }
         } else {
-            response.addErrorDTO(createAndLogErrorDTO(null,"Action scripts manifest must be loaded prior to discovery.", null));
+            response.addAllErrorDTO(validation.getErrorDTOList());
         }
         return response.build();
     }
 
-    private Workflow validateScriptDeclaration(ActionScriptDeclaration script) throws RemoteExecutionException, KeyValidationException {
+    private Workflow validateScriptDeclaration(ActionScriptDeclaration script) throws InvalidActionScriptException {
         if (script.getName() == null) {
-            throw new RuntimeException("Action script display name is missing");
+            throw new InvalidActionScriptException("Action script display name is missing");
         }
         if (script.getScriptPath() == null) {
-            throw new RuntimeException("Action script path is missing");
+            throw new InvalidActionScriptException("Action script path is missing");
         }
         String path = script.getScriptPath(manifest);
-        if (isExecutableFile(path)) {
-            return generateWorkflow(script);
-        } else {
-            throw new RuntimeException("Script path does not refer to an executable file on the execution server");
+        try {
+            if (isExecutableFile(path)) {
+                return generateWorkflow(script);
+            } else {
+                throw new InvalidActionScriptException("Script path does not refer to an executable file on the execution server");
+            }
+        } catch (RemoteExecutionException | KeyValidationException e) {
+            throw new InvalidActionScriptException("Unable to check executability of action script", e);
         }
     }
+
+    private static final int OWNER_EXECUTABLE_MASK = 0100;
+    private static final int ALL_USERS_EXECUTABLE_MASK = 0001;
 
     private boolean isExecutableFile(String path) throws RemoteExecutionException, KeyValidationException {
         Attributes attrs = SshUtils.getRemoteFileAttributes(path, accountValues, null);
         int perms = attrs.getPermissions();
         String owner = attrs.getOwner();
-        boolean userEx = owner != null && owner.equals(accountValues.getUserid()) && (perms & 0100) != 0;
-        boolean allEx = (perms & 0001) != 0;
-        return attrs.isRegularFile() && (userEx || allEx);
+        boolean ownerExecutable = owner != null && owner.equals(accountValues.getUserid()) && (perms & OWNER_EXECUTABLE_MASK) != 0;
+        boolean allUsersExecutable = (perms & ALL_USERS_EXECUTABLE_MASK) != 0;
+        return attrs.isRegularFile() && (ownerExecutable || allUsersExecutable);
     }
 
     /**
@@ -152,7 +158,7 @@ public class ActionScriptDiscovery {
     }
 
     @VisibleForTesting
-    static String generateWorkflowID(@Nonnull String host, @Nonnull String name,  @Nonnull String path) {
+    static String generateWorkflowID(@Nonnull String host, @Nonnull String name, @Nonnull String path) {
         return String.join(":", WORKFLOW_PREFIX, host != null ? host : "", name != null ? name : "", path != null ? path : "");
     }
 
@@ -210,5 +216,18 @@ public class ActionScriptDiscovery {
             builder.setEntityUuid(entityUuid);
         }
         return builder.build();
+    }
+
+    /**
+     * Class to report script validation errors.
+     */
+    private static class InvalidActionScriptException extends RuntimeException {
+        public InvalidActionScriptException(final String message) {
+            super(message);
+        }
+
+        public InvalidActionScriptException(final String message, final Throwable cause) {
+            super(message + (cause != null ? ":" + cause.getMessage() : ""), cause);
+        }
     }
 }

@@ -66,11 +66,10 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
     public DiscoveryResponse discoverTarget(@Nonnull ActionScriptProbeAccount accountValues) {
         final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning discovery of ActionScript target {}", targetName);
-        final DiscoveryResponse response =
-                getActionScriptDiscovery(accountValues).discoverActionScripts();
+        final DiscoveryResponse response = new ActionScriptDiscovery(accountValues).discoverActionScripts();
         logger.info("Discovery completed for target {} with {} workflows discovered and {} errors.",
                 targetName,
-                response.getNonMarketEntityDTOCount(),
+                response.getWorkflowCount(),
                 response.getErrorDTOCount());
         return response;
     }
@@ -105,8 +104,7 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         // Check to see that the filesystem folder for the ActionScripts exists and is usable.
         final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning validation of ActionScript target {} ", targetName);
-        final ValidationResponse response =
-                getActionScriptDiscovery(accountValues).validateManifestFile();
+        final ValidationResponse response =new ActionScriptDiscovery(accountValues).validateManifestFile();
         logger.info("Validation completed for target {} with {} errors.",
                 targetName,
                 response.getErrorDTOCount());
@@ -120,11 +118,9 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
                                       @Nullable final Map<String, AccountValue> secondaryAccountValuesMap,
                                       @Nonnull final IProgressTracker progressTracker)
         throws InterruptedException {
-//        try (ActionScriptActionExecutor actionExecutor = new ActionScriptActionExecutor() {
-//            probeContext)) {
-//            return actionExecutor.executeAction(actionExecutionDto, accountValues, progressTracker);
-//        }
-        return null;
+        try (ActionScriptActionExecutor actionExecutor = new ActionScriptActionExecutor()) {
+            return actionExecutor.executeAction(actionExecutionDto, accountValues, progressTracker);
+        }
     }
 
     @Nonnull
@@ -133,10 +129,4 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         return Sets.newHashSet();
     }
 
-    private ActionScriptDiscovery getActionScriptDiscovery(ActionScriptProbeAccount accountValues) {
-        if (actionScriptDiscovery == null) {
-            actionScriptDiscovery = new ActionScriptDiscovery(accountValues);
-        }
-        return actionScriptDiscovery;
-    }
 }

@@ -272,7 +272,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param workflowInfo the information describing this Workflow, including ID, displayName,
      *                     and defining data - parameters and properties.
-     * @return a newly created Workflow DTO
+     * @return a newly created {@link }Workflow} DTO
      */
     private Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
         return Workflow.newBuilder()

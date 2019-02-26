@@ -42,7 +42,7 @@ import com.vmturbo.platform.sdk.probe.IProgressTracker;
  * <p/>
  * We will need to decide what progress messages will be returned.
  * <p>
- * TODO: implement the script execution, status update, and 'destroy()' functionality.
+ * TODO: status update, and 'destroy()' functionality.
  **/
 public class ActionScriptActionExecutor implements AutoCloseable {
 
@@ -146,8 +146,6 @@ public class ActionScriptActionExecutor implements AutoCloseable {
                     }
                 }
 
-                // TODO: Replace this logic after the ActionScript manifest is done (OM-42083)
-                // This is a terrible hack, but we are fixing it!
                 final String actionCommand = workflow.getScriptPath() + "\n";
 
                 executeRemoteShellCommand("echo 'Beginning execution of ActionScript.'\n", teeOut, channel);
@@ -191,10 +189,6 @@ public class ActionScriptActionExecutor implements AutoCloseable {
             throws IOException {
         outputStream.write(shellCommand.getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
-        // Wait for the command to complete
-//        Collection<ClientChannelEvent> result = channel.waitFor(
-//            EnumSet.of(ClientChannelEvent.EXIT_SIGNAL), TimeUnit.SECONDS.toMillis(15L));
-//        return channel.getExitStatus();
         return 0;
     }
 }
