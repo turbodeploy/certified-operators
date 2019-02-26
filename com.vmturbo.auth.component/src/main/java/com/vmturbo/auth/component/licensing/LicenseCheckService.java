@@ -180,6 +180,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // set of licenses will have changed.
         logger.info("Triggering license summary update on license manager event: {}", event.getType().name());
         updateLicenseSummary();
+        checkLicensesForNotification();
     }
 
     /**
@@ -221,6 +222,34 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     }
 
     /**
+     * Check license status and will trigger sending out notification if needed.
+     */
+    @VisibleForTesting
+    void checkLicensesForNotification() {
+        logger.info("Checking license status.");
+        try {
+            // get all the licenses from licenseManager
+            final Collection<LicenseDTO> licenseDTOs = licenseManagerService.getLicenses();
+
+            // if no licenses at this point, use the "no license" summary
+            if (licenseDTOs.isEmpty()) {
+                notifyUI(TURBONOMIC_LICENSE_IS_MISSING,
+                    LICENSE_IS_MISSING);
+            } else {
+                // we have licenses -- convert them to model licenses, validate them, and merge them together.
+                final License aggregateLicense = LicenseDTOUtils.combineLicenses(licenseDTOs);
+
+                // get the workload count
+                boolean isOverLimit = populateWorkloadCount(aggregateLicense);
+                publishNotification(isOverLimit, licenseDTOs);
+            }
+        } catch (IOException ioe) {
+            // error getting the licenses
+            logger.warn("Error getting licenses from license manager. Will not send out notification.", ioe);
+        }
+    }
+
+    /**
      * Update the license summary info. Synchronized since we may (in unusual cases) have multiple
      * threads at once, such as if a live topology notification is sent from the repository at the
      * same time the daily license summary update is scheduled.
@@ -243,8 +272,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         if (licenseDTOs.isEmpty()) {
             lastSummary = NO_LICENSES_SUMMARY;
             publishNewLicenseSummary(lastSummary);
-            notifyUI(TURBONOMIC_LICENSE_IS_MISSING,
-                    LICENSE_IS_MISSING);
             return;
         }
 
@@ -260,7 +287,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                 = LicenseDTOUtils.licenseToLicenseSummary(aggregateLicense, isOverLimit);
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
-        publishNotification(isOverLimit, licenseDTOs);
     }
 
     /**
@@ -426,7 +452,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     }
 
     /**
-     * Set up scheduled license check updates:
+     * Set up scheduled license check updates and send notification:
      * 1) The first one should happen soon so we have a license summary to offer.
      * 2) There should be one daily, at the start of a new day.
      * 3) updates will also be triggered when licenses are added/removed -- this is handled as a
@@ -436,7 +462,10 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private void scheduleUpdates() {
         logger.info("Scheduling license summary updates.");
         // schedule the first one almost immediately.
-        scheduler.schedule(this::updateLicenseSummary, 5, TimeUnit.SECONDS);
+        scheduler.schedule(() -> {
+            updateLicenseSummary();
+            checkLicensesForNotification();
+        }, 5, TimeUnit.SECONDS);
 
         // schedule the others as a recurring daily event at midnight.
         LocalDateTime now = LocalDateTime.now();
@@ -446,10 +475,10 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
         // If we want more long-term precision, we should periodically reschedule to account for
         // some drifts in number of seconds per day.
-        scheduler.scheduleAtFixedRate(this::updateLicenseSummaryPeriodically,
-                secondsUntilMidnight,
-                TimeUnit.DAYS.toSeconds(1),
-                TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(() -> {
+                updateLicenseSummaryPeriodically();
+                checkLicensesForNotification();
+            }, secondsUntilMidnight, TimeUnit.DAYS.toSeconds(1), TimeUnit.SECONDS);
     }
 
     /**

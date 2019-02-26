@@ -295,7 +295,7 @@ public class LicenseCheckServiceTest {
     public void testEmptyLicense() throws IOException,
             CommunicationException, InterruptedException, MailException, MailConfigException {
         when(licenseManagerService.getLicenses()).thenReturn(Collections.emptyList());
-        licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
+        licenseCheckService.checkLicensesForNotification();
         final long notificationTime = clock.millis();
         final Builder builder = SystemNotification.newBuilder();
         builder.setBroadcastId(1L)
@@ -309,6 +309,31 @@ public class LicenseCheckServiceTest {
                 .setGenerationTime(notificationTime);
 
         verify(systemNotificationIMessageSender).sendMessage(builder.build());
+        verify(mailManager, never()).sendMail(anyList(), any(), any());
+    }
+
+    /**
+     * Test after source topology is available, system doesn't send out notification.
+     * Note: system will still send out notification for daily check.
+     */
+    @Test
+    public void testStopSendingNotificationAfterTopologyBroadcast() throws IOException,
+        CommunicationException, InterruptedException, MailException, MailConfigException {
+        when(licenseManagerService.getLicenses()).thenReturn(Collections.emptyList());
+        licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
+        final long notificationTime = clock.millis();
+        final Builder builder = SystemNotification.newBuilder();
+        builder.setBroadcastId(1L)
+            .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder()
+                .build())
+                .build())
+            .setDescription(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING)
+            .setShortDescription(LicenseCheckService.LICENSE_IS_MISSING)
+            .setSeverity(Severity.CRITICAL)
+            .setState(State.NOTIFY)
+            .setGenerationTime(notificationTime);
+
+        verify(systemNotificationIMessageSender, never()).sendMessage(builder.build());
         verify(mailManager, never()).sendMail(anyList(), any(), any());
     }
 
