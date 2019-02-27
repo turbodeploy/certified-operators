@@ -58,11 +58,11 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -165,7 +165,7 @@ public class GroupMapperTest {
         // Verify the first search parameters are byName search for PM
         assertEquals("displayName", groupInfo.getSearchParametersCollection().getSearchParameters(0)
                 .getSearchFilter(0).getPropertyFilter().getPropertyName());
-        assertEquals("PM#1", groupInfo.getSearchParametersCollection().getSearchParameters(0)
+        assertEquals("^PM#1$", groupInfo.getSearchParametersCollection().getSearchParameters(0)
                 .getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
     }
 
@@ -207,7 +207,7 @@ public class GroupMapperTest {
         // Verify the first search parameters are byName search for VM
         assertEquals("displayName", firstSearchParameters.getSearchFilter(0)
                 .getPropertyFilter().getPropertyName());
-        assertEquals("VM#1", firstSearchParameters.getSearchFilter(0).getPropertyFilter()
+        assertEquals("^VM#1$", firstSearchParameters.getSearchFilter(0).getPropertyFilter()
                 .getStringFilter().getStringPropertyRegex());
         // Verify the second search parameters' starting filter is PM entity
         assertEquals("entityType", secondSearchParameters.getStartingFilter().getPropertyName());
@@ -216,7 +216,7 @@ public class GroupMapperTest {
         // Verify the first search filter is ByName search for PM
         assertEquals("displayName", secondSearchParameters.getSearchFilter(0)
                 .getPropertyFilter().getPropertyName());
-        assertEquals("PM#2", secondSearchParameters.getSearchFilter(0).getPropertyFilter()
+        assertEquals("^PM#2$", secondSearchParameters.getSearchFilter(0).getPropertyFilter()
                 .getStringFilter().getStringPropertyRegex());
         // Verify the second search filter is traversal search and hops number is 1
         assertEquals(TraversalDirection.PRODUCES, secondSearchParameters.getSearchFilter(1)
@@ -375,7 +375,7 @@ public class GroupMapperTest {
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("guestOsType")
                                         .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("Linux")
+                                                .setStringPropertyRegex("^Linux$")
                                                 .setMatch(true)
                                                 .setCaseSensitive(false)
                                                 .build())
@@ -476,7 +476,7 @@ public class GroupMapperTest {
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
-        assertEquals(FOO, byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
+        assertEquals("^"+ FOO + "$", byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
         assertFalse(byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getMatch());
     }
 
@@ -490,7 +490,7 @@ public class GroupMapperTest {
         Assert.assertEquals(1, parameters.size());
         Assert.assertEquals(TYPE_IS_VM, parameters.get(0).getStartingFilter());
         Assert.assertEquals("state", propertyFilter.getPropertyName());
-        Assert.assertEquals("IDLE", propertyFilter.getStringFilter().getStringPropertyRegex());
+        Assert.assertEquals("^IDLE$", propertyFilter.getStringFilter().getStringPropertyRegex());
     }
 
     @Test
@@ -503,7 +503,7 @@ public class GroupMapperTest {
         Assert.assertEquals(1, parameters.size());
         Assert.assertEquals(TYPE_IS_PM, parameters.get(0).getStartingFilter());
         Assert.assertEquals("state", propertyFilter.getPropertyName());
-        Assert.assertEquals("ACTIVE", propertyFilter.getStringFilter().getStringPropertyRegex());
+        Assert.assertEquals("^ACTIVE$", propertyFilter.getStringFilter().getStringPropertyRegex());
     }
 
     /**
@@ -519,13 +519,13 @@ public class GroupMapperTest {
         SearchParameters firstByName = parameters.get(0);
         assertEquals(TYPE_IS_VM, firstByName.getStartingFilter());
         assertEquals(1, firstByName.getSearchFilterCount());
-        assertEquals(FOO, firstByName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
+        assertEquals("^" + FOO + "$", firstByName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
         assertFalse(firstByName.getSearchFilter(0).getPropertyFilter().getStringFilter().getMatch());
 
         SearchParameters secondByName = parameters.get(1);
         assertEquals(TYPE_IS_PM, secondByName.getStartingFilter());
         assertEquals(3, secondByName.getSearchFilterCount());
-        assertEquals(BAR, secondByName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
+        assertEquals("^" + BAR + "$", secondByName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
         assertFalse(secondByName.getSearchFilter(0).getPropertyFilter().getStringFilter().getMatch());
     }
 
@@ -690,7 +690,7 @@ public class GroupMapperTest {
         assertTrue(param.getSearchFilter(0).hasClusterMembershipFilter());
         ClusterMembershipFilter clusterMembershipFilter = param.getSearchFilter(0).getClusterMembershipFilter();
         // verify that we are looking for clusters with name FOO
-        assertEquals(FOO, clusterMembershipFilter.getClusterSpecifier().getStringFilter().getStringPropertyRegex());
+        assertEquals("^" + FOO + "$", clusterMembershipFilter.getClusterSpecifier().getStringFilter().getStringPropertyRegex());
 
         // test conversion from GroupApiDTO back to FilterApiDTO
         groupDto.setDisplayName("TestGroupDto");
@@ -712,11 +712,12 @@ public class GroupMapperTest {
     public void testVmsWithNameQuery() {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE);
         List<SearchParameters> parameters = groupMapper.convertToSearchParameters(groupDto, groupDto.getClassName(), FOO);
-        assertEquals(1, parameters.size());
+        assertThat(parameters.size(), is(1));
         SearchParameters param = parameters.get(0);
-        assertEquals(TYPE_IS_VM, param.getStartingFilter());
-        assertEquals(1, param.getSearchFilterCount());
-        assertEquals(DISPLAYNAME_IS_FOO, param.getSearchFilter(0));
+        assertThat(param.getStartingFilter(), is(TYPE_IS_VM));
+        assertThat(param.getSearchFilterCount(), is(1));
+        assertThat(param.getSearchFilter(0),
+            is(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(".*" + FOO + ".*"))));
     }
 
     /**

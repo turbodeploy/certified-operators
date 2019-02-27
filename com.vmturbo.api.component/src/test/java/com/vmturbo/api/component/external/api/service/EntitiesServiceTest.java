@@ -1,12 +1,16 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -15,14 +19,13 @@ import org.junit.Test;
 import org.mockito.Matchers;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -31,18 +34,19 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
-import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -73,95 +77,78 @@ public class EntitiesServiceTest {
     private ProbeInfo probeInfo;
 
     // mocked gRPC services
-    private final EntitySeverityServiceImplBase entitySeverityService =
-            new EntitySeverityServiceImplBase() {};
-    private final ActionsServiceImplBase actionsService = new ActionsServiceImplBase() {};
-    private final MockSearchService searchService = new MockSearchService();
-    private final GroupServiceImplBase groupService = new GroupServiceImplBase() {};
+    private final EntitySeverityServiceMole entitySeverityService =
+            spy(new EntitySeverityServiceMole());
+    private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
+    private final SearchServiceMole searchService = spy(new SearchServiceMole());
+    private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
 
     // gRPC servers
     @Rule
-    public final GrpcTestServer entitySeverityServer = GrpcTestServer.newServer(entitySeverityService);
-    @Rule
-    public final GrpcTestServer actionsServer = GrpcTestServer.newServer(actionsService);
-    @Rule
-    public final GrpcTestServer groupsServer = GrpcTestServer.newServer(groupService);
-    @Rule
-    public final GrpcTestServer searchServer = GrpcTestServer.newServer(searchService);
+    public final GrpcTestServer grpcServer =
+        GrpcTestServer.newServer(entitySeverityService, actionsService, searchService, groupService);
 
     // a sample topology ST -> PM -> VM
-    private static final long contextId = 777777L;
-    private static final long targetId = 7L;
-    private static final String targetDisplayName = "target";
-    private static final long probeId = 70L;
-    private static final String probeType = "probe";
-    private static final long vmId = 1L;
-    private static final String vmDisplayName = "vm";
-    private static final EntityState vmState = EntityState.POWERED_OFF;
-    private static final String tagKey = "tagKey";
-    private static final List<String> tagValues = ImmutableList.of("tagValue1", "tagValue2");
-    private static final long pmId = 2L;
-    private static final String pmDisplayName = "pm";
-    private static final EntityState pmState = EntityState.POWERED_ON;
-    private static final long stId = 3L;
-    private static final String stDisplayName = "st";
-    private static final EntityState stState = EntityState.POWERED_ON;
-    private static final long nonExistentId = 999L;
-    private static final TopologyEntityDTO vm =
+    private static final long CONTEXT_ID = 777777L;
+    private static final long TARGET_ID = 7L;
+    private static final String TARGET_DISPLAY_NAME = "target";
+    private static final long PROBE_ID = 70L;
+    private static final String PROBE_TYPE = "probe";
+    private static final long VM_ID = 1L;
+    private static final String VM_DISPLAY_NAME = "VM";
+    private static final EntityState VM_STATE = EntityState.POWERED_OFF;
+    private static final String TAG_KEY = "TAG_KEY";
+    private static final List<String> TAG_VALUES = ImmutableList.of("tagValue1", "tagValue2");
+    private static final long PM_ID = 2L;
+    private static final String PM_DISPLAY_NAME = "PM";
+    private static final EntityState PM_STATE = EntityState.POWERED_ON;
+    private static final long ST_ID = 3L;
+    private static final String ST_DISPLAY_NAME = "ST";
+    private static final EntityState ST_STATE = EntityState.POWERED_ON;
+    private static final long NON_EXISTENT_ID = 999L;
+    private static final TopologyEntityDTO VM =
         TopologyEntityDTO.newBuilder()
-            .setOid(vmId)
-            .setDisplayName(vmDisplayName)
+            .setOid(VM_ID)
+            .setDisplayName(VM_DISPLAY_NAME)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setEntityState(vmState)
+            .setEntityState(VM_STATE)
             .setOrigin(
                 Origin.newBuilder()
                     .setDiscoveryOrigin(
                         DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(targetId)
+                            .addDiscoveringTargetIds(TARGET_ID)
                             .build())
                     .build())
-            .putTags(tagKey, TagValuesDTO.newBuilder().addAllValues(tagValues).build())
+            .putTags(TAG_KEY, TagValuesDTO.newBuilder().addAllValues(TAG_VALUES).build())
             .build();
-    private static final TopologyEntityDTO pm =
+    private static final TopologyEntityDTO PM =
         TopologyEntityDTO.newBuilder()
-            .setOid(pmId)
-            .setDisplayName(pmDisplayName)
+            .setOid(PM_ID)
+            .setDisplayName(PM_DISPLAY_NAME)
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .setEntityState(pmState)
+            .setEntityState(PM_STATE)
             .setOrigin(
                 Origin.newBuilder()
                     .setDiscoveryOrigin(
                         DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(targetId)
+                            .addDiscoveringTargetIds(TARGET_ID)
                             .build())
                     .build())
             .build();
-    private static final TopologyEntityDTO st =
+    private static final TopologyEntityDTO ST =
         TopologyEntityDTO.newBuilder()
-            .setOid(stId)
-            .setDisplayName(stDisplayName)
+            .setOid(ST_ID)
+            .setDisplayName(ST_DISPLAY_NAME)
             .setEntityType(EntityType.STORAGE_VALUE)
-            .setEntityState(stState)
+            .setEntityState(ST_STATE)
             .setOrigin(
                 Origin.newBuilder()
                     .setDiscoveryOrigin(
                         DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(targetId)
+                            .addDiscoveringTargetIds(TARGET_ID)
                             .build())
                     .build())
             .build();
-    private static ImmutableMap<Long, TopologyEntityDTO> topology =
-        ImmutableMap.of(vmId, vm, pmId, pm, stId, st);
-    private static ImmutableMap<Long, Set<TopologyEntityDTO>> producesRelation =
-        ImmutableMap.of(
-            vmId, ImmutableSet.of(),
-            pmId, ImmutableSet.of(vm),
-            stId, ImmutableSet.of(pm));
-    private static ImmutableMap<Long, Set<TopologyEntityDTO>> consumesRelation =
-        ImmutableMap.of(
-            vmId, ImmutableSet.of(pm),
-            pmId, ImmutableSet.of(st),
-            stId, ImmutableSet.of());
 
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
@@ -172,28 +159,28 @@ public class EntitiesServiceTest {
     public void setUp() throws Exception {
         // mock target and probe info
         final AccountValue accountValue =
-            new InputField("nameOrAddress", targetDisplayName, Optional.empty());
+            new InputField("nameOrAddress", TARGET_DISPLAY_NAME, Optional.empty());
         targetInfo = mock(TargetInfo.class);
         probeInfo = mock(ProbeInfo.class);
-        when(targetInfo.getId()).thenReturn(targetId);
-        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getId()).thenReturn(TARGET_ID);
+        when(targetInfo.getProbeId()).thenReturn(PROBE_ID);
         when(targetInfo.getAccountData()).thenReturn(Collections.singleton(accountValue));
-        when(probeInfo.getId()).thenReturn(probeId);
-        when(probeInfo.getType()).thenReturn(probeType);
+        when(probeInfo.getId()).thenReturn(PROBE_ID);
+        when(probeInfo.getType()).thenReturn(PROBE_TYPE);
 
         // Create service
         service =
             new EntitiesService(
-                ActionsServiceGrpc.newBlockingStub(actionsServer.getChannel()),
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(ActionSpecMapper.class),
-                contextId,
+                CONTEXT_ID,
                 mock(SupplyChainFetcherFactory.class),
                 mock(PaginationMapper.class),
-                SearchServiceGrpc.newBlockingStub(searchServer.getChannel()),
-                GroupServiceGrpc.newBlockingStub(groupsServer.getChannel()),
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(EntityAspectMapper.class),
                 topologyProcessor,
-                EntitySeverityServiceGrpc.newBlockingStub(entitySeverityServer.getChannel()),
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(StatsService.class));
     }
 
@@ -206,35 +193,65 @@ public class EntitiesServiceTest {
     @Test
     public void testGetEntityByUuid() throws Exception {
         // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(targetId))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(probeId))).thenReturn(probeInfo);
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        doAnswer(invocation -> {
+            Optional<TopologyEntityDTO> retEntity = Optional.empty();
+            final SearchTopologyEntityDTOsRequest req = invocation.getArgumentAt(0, SearchTopologyEntityDTOsRequest.class);
+            if (req.getEntityOidCount() > 0) {
+                retEntity = Optional.of(PM);
+            } else if (req.getSearchParametersCount() == 1) {
+                switch (req.getSearchParameters(0).getSearchFilter(0).getTraversalFilter().getTraversalDirection()) {
+                    case CONSUMES:
+                        retEntity = Optional.of(ST);
+                        break;
+                    case PRODUCES:
+                        retEntity = Optional.of(VM);
+                        break;
+                }
+            }
+            return retEntity.map(entity -> SearchTopologyEntityDTOsResponse.newBuilder()
+                .addTopologyEntityDtos(entity)
+                .build()).orElse(SearchTopologyEntityDTOsResponse.getDefaultInstance());
+        }).when(searchService).searchTopologyEntityDTOs(any());
 
         // call service
-        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(pmId), false);
+        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(PM_ID), false);
+
+        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addEntityOid(PM_ID)
+            .build());
+        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addSearchParameters(SearchMapper.neighbors(PM_ID, TraversalDirection.CONSUMES))
+            .build());
+        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addSearchParameters(SearchMapper.neighbors(PM_ID, TraversalDirection.PRODUCES))
+            .build());
 
         // check basic information
-        Assert.assertEquals(Long.toString(pmId), result.getUuid());
-        Assert.assertEquals(pmDisplayName, result.getDisplayName());
+        Assert.assertEquals(Long.toString(PM_ID), result.getUuid());
+        Assert.assertEquals(PM_DISPLAY_NAME, result.getDisplayName());
         Assert.assertEquals(
             EntityType.PHYSICAL_MACHINE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
-        Assert.assertEquals(pmState, UIEntityState.fromString(result.getState()).toEntityState());
+        Assert.assertEquals(PM_STATE, UIEntityState.fromString(result.getState()).toEntityState());
 
         // check target information
         final TargetApiDTO resultTargetInfo = result.getDiscoveredBy();
-        Assert.assertEquals(targetId, (long)Long.valueOf(resultTargetInfo.getUuid()));
-        Assert.assertEquals(targetDisplayName, resultTargetInfo.getDisplayName());
-        Assert.assertEquals(probeType, resultTargetInfo.getType());
+        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(resultTargetInfo.getUuid()));
+        Assert.assertEquals(TARGET_DISPLAY_NAME, resultTargetInfo.getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, resultTargetInfo.getType());
 
         // check providers and consumers
         final List<BaseApiDTO> providers = result.getProviders();
         Assert.assertEquals(1, providers.size());
-        Assert.assertEquals(stId, (long)Long.valueOf(providers.get(0).getUuid()));
-        Assert.assertEquals(stDisplayName, providers.get(0).getDisplayName());
+        Assert.assertEquals(ST_ID, (long)Long.valueOf(providers.get(0).getUuid()));
+        Assert.assertEquals(ST_DISPLAY_NAME, providers.get(0).getDisplayName());
         Assert.assertEquals(UIEntityType.STORAGE.getValue(), providers.get(0).getClassName());
         final List<BaseApiDTO> consumers = result.getConsumers();
         Assert.assertEquals(1, consumers.size());
-        Assert.assertEquals(vmId, (long)Long.valueOf(consumers.get(0).getUuid()));
-        Assert.assertEquals(vmDisplayName, consumers.get(0).getDisplayName());
+        Assert.assertEquals(VM_ID, (long)Long.valueOf(consumers.get(0).getUuid()));
+        Assert.assertEquals(VM_DISPLAY_NAME, consumers.get(0).getDisplayName());
         Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.getValue(), consumers.get(0).getClassName());
 
         // check tags
@@ -246,14 +263,14 @@ public class EntitiesServiceTest {
      *
      * @throws Exception expected: for entity not found.
      */
-    @Test(expected = OperationFailedException.class)
+    @Test(expected = UnknownObjectException.class)
     public void testGetEntityByUuidNonExistent() throws Exception {
         // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(targetId))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(probeId))).thenReturn(probeInfo);
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
 
         // call service and fail
-        service.getEntityByUuid(Long.toString(nonExistentId), false);
+        service.getEntityByUuid(Long.toString(NON_EXISTENT_ID), false);
     }
 
     /**
@@ -265,30 +282,42 @@ public class EntitiesServiceTest {
     @Test
     public void testGetEntityByUuidMissingTarget() throws Exception {
         // error while fetching the target
-        when(topologyProcessor.getTarget(Matchers.eq(targetId)))
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID)))
             .thenThrow(new TopologyProcessorException("boom"));
 
+        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
+            .addTopologyEntityDtos(ST)
+            .build()).when(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+                .addEntityOid(ST_ID)
+                .build());
+
+
         // call service
-        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(stId), false);
+        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(ST_ID), false);
+
+        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addEntityOid(ST_ID)
+            .build());
+
+        // For the purpose of this test we don't really care if the consumers/providers got set -
+        // we just make sure to check that the RPC calls got made.
+        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addSearchParameters(SearchMapper.neighbors(ST_ID, TraversalDirection.CONSUMES))
+            .build());
+        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addSearchParameters(SearchMapper.neighbors(ST_ID, TraversalDirection.PRODUCES))
+            .build());
+
 
         // check basic information
-        Assert.assertEquals(Long.toString(stId), result.getUuid());
-        Assert.assertEquals(stDisplayName, result.getDisplayName());
+        Assert.assertEquals(Long.toString(ST_ID), result.getUuid());
+        Assert.assertEquals(ST_DISPLAY_NAME, result.getDisplayName());
         Assert.assertEquals(
             EntityType.STORAGE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
-        Assert.assertEquals(stState, UIEntityState.fromString(result.getState()).toEntityState());
+        Assert.assertEquals(ST_STATE, UIEntityState.fromString(result.getState()).toEntityState());
 
         // there should be no target information; not even an empty record
         Assert.assertNull(result.getDiscoveredBy());
-
-        // check providers and consumers
-        final List<BaseApiDTO> providers = result.getProviders();
-        Assert.assertEquals(0, providers.size());
-        final List<BaseApiDTO> consumers = result.getConsumers();
-        Assert.assertEquals(1, consumers.size());
-        Assert.assertEquals(pmId, (long)Long.valueOf(consumers.get(0).getUuid()));
-        Assert.assertEquals(pmDisplayName, consumers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.PHYSICAL_MACHINE.getValue(), consumers.get(0).getClassName());
 
         // check tags
         Assert.assertEquals(0, result.getTags().size());
@@ -304,27 +333,40 @@ public class EntitiesServiceTest {
     @Test
     public void testGetEntityByUuidMissingProducers() throws Exception {
         // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(targetId))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(probeId))).thenReturn(probeInfo);
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
 
         // pretend that traversal queries will not work
-        searchService.breakTraversals();
+        doAnswer(invocation -> {
+            final SearchTopologyEntityDTOsRequest req =
+                invocation.getArgumentAt(0, SearchTopologyEntityDTOsRequest.class);
+            if (req.getSearchParametersCount() > 0) {
+                return Optional.of(Status.INTERNAL.withDescription("traversal query failed")
+                        .asException());
+            } else {
+                return Optional.empty();
+            }
+        }).when(searchService).searchTopologyEntityDTOsError(any());
+
+        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
+            .addTopologyEntityDtos(VM)
+            .build()).when(searchService).searchTopologyEntityDTOs(any());
 
         // call service
-        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(vmId), false);
+        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(VM_ID), false);
 
         // check basic information
-        Assert.assertEquals(Long.toString(vmId), result.getUuid());
-        Assert.assertEquals(vmDisplayName, result.getDisplayName());
+        Assert.assertEquals(Long.toString(VM_ID), result.getUuid());
+        Assert.assertEquals(VM_DISPLAY_NAME, result.getDisplayName());
         Assert.assertEquals(
                 EntityType.VIRTUAL_MACHINE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
-        Assert.assertEquals(vmState, UIEntityState.fromString(result.getState()).toEntityState());
+        Assert.assertEquals(VM_STATE, UIEntityState.fromString(result.getState()).toEntityState());
 
         // check target information
         final TargetApiDTO resultTargetInfo = result.getDiscoveredBy();
-        Assert.assertEquals(targetId, (long)Long.valueOf(resultTargetInfo.getUuid()));
-        Assert.assertEquals(targetDisplayName, resultTargetInfo.getDisplayName());
-        Assert.assertEquals(probeType, resultTargetInfo.getType());
+        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(resultTargetInfo.getUuid()));
+        Assert.assertEquals(TARGET_DISPLAY_NAME, resultTargetInfo.getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, resultTargetInfo.getType());
 
         // there should no provider or consumer information; not even empty lists
         Assert.assertNull(result.getConsumers());
@@ -332,7 +374,7 @@ public class EntitiesServiceTest {
 
         // check tags
         Assert.assertEquals(1, result.getTags().size());
-        Assert.assertArrayEquals(tagValues.toArray(), result.getTags().get(tagKey).toArray());
+        Assert.assertArrayEquals(TAG_VALUES.toArray(), result.getTags().get(TAG_KEY).toArray());
     }
 
     /**
@@ -343,16 +385,22 @@ public class EntitiesServiceTest {
     @Test
     public void testGetTags() throws Exception {
         // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(targetId))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(probeId))).thenReturn(probeInfo);
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
+            .addTopologyEntityDtos(VM)
+            .build()).when(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+                .addEntityOid(VM_ID)
+                .build());
 
         // call service
-        final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(vmId));
+        final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(VM_ID));
 
         // check tags
         Assert.assertEquals(1, result.size());
-        Assert.assertEquals(tagKey, result.get(0).getKey());
-        Assert.assertArrayEquals(tagValues.toArray(), result.get(0).getValues().toArray());
+        Assert.assertEquals(TAG_KEY, result.get(0).getKey());
+        Assert.assertArrayEquals(TAG_VALUES.toArray(), result.get(0).getValues().toArray());
     }
 
     /**
@@ -363,80 +411,19 @@ public class EntitiesServiceTest {
     @Test
     public void testGetEmptyTags() throws Exception {
         // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(targetId))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(probeId))).thenReturn(probeInfo);
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
+            .addTopologyEntityDtos(PM)
+            .build()).when(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
+            .addEntityOid(PM_ID)
+            .build());
 
         // call service
-        final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(pmId));
+        final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(PM_ID));
 
         // check tags
         Assert.assertEquals(0, result.size());
-    }
-
-    private static class MockSearchService extends SearchServiceImplBase {
-        /**
-         * When this flag is true, the mock search service fails to answer traversals.
-         */
-        private boolean brokenTraversals = false;
-
-        /**
-         * Break traversal queries.
-         */
-        public void breakTraversals() {
-            brokenTraversals = true;
-        }
-
-        @Override
-        public void searchTopologyEntityDTOs(
-                SearchTopologyEntityDTOsRequest request,
-                StreamObserver<SearchTopologyEntityDTOsResponse> response) {
-            if (request.getEntityOidCount() != 0) {
-                // this request is looking for specific entities
-                final SearchTopologyEntityDTOsResponse.Builder resultBuilder =
-                    SearchTopologyEntityDTOsResponse.newBuilder();
-                request.getEntityOidList().stream()
-                    .map(topology::get)
-                    .forEach(resultBuilder::addTopologyEntityDtos);
-                response.onNext(resultBuilder.build());
-                response.onCompleted();
-                return;
-            }
-
-            if (request.getSearchParametersCount() != 0) {
-                // this request is a general search request
-                // we assume that this is a "neighbors" request, i.e.,
-                // it requests all the producers or consumers of a specific entity
-                if (brokenTraversals) {
-                    response.onError(new OperationFailedException("traversal query failed"));
-                    return;
-                }
-
-                final long startingEntityId =
-                    Long.valueOf(
-                        request
-                            .getSearchParameters(0)
-                            .getStartingFilter()
-                            .getStringFilter()
-                            .getStringPropertyRegex());
-                final TraversalDirection traversalDirection =
-                    request
-                        .getSearchParameters(0)
-                        .getSearchFilter(0)
-                        .getTraversalFilter()
-                        .getTraversalDirection();
-                final Set<TopologyEntityDTO> responseSet =
-                    (traversalDirection == TraversalDirection.CONSUMES ? consumesRelation : producesRelation)
-                        .get(startingEntityId);
-                response.onNext(
-                    SearchTopologyEntityDTOsResponse.newBuilder()
-                        .addAllTopologyEntityDtos(responseSet)
-                        .build());
-                response.onCompleted();
-                return;
-            }
-
-            // no other requests are supported by this mock service
-            response.onError(new OperationFailedException("not supported"));
-        }
     }
 }

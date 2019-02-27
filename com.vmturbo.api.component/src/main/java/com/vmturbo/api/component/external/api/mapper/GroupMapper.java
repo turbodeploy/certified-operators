@@ -15,15 +15,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
@@ -53,7 +53,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
@@ -494,7 +493,8 @@ public class GroupMapper {
         PropertyFilter byType = SearchMapper.entityTypeFilter(entityType);
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder().setStartingFilter(byType);
         if (!StringUtils.isEmpty(nameQuery)) {
-            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(nameQuery)));
+            // For the query string, we want to use a "contains"-type query.
+            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(".*" + nameQuery + ".*")));
         }
         return searchParameters.build();
     }
@@ -625,19 +625,14 @@ public class GroupMapper {
             switch (inputType) {
                 case "*":
                     // string comparison
-                    listFilter.setStringFilter(StringFilter.newBuilder()
-                            .setStringPropertyRegex(filter.getExpVal())
-                            .setMatch(filter.getExpType().equals(EQUAL))
-                            .setCaseSensitive(false)
-                            .build());
+                    listFilter.setStringFilter(SearchMapper.stringFilter(filter.getExpVal(),
+                        filter.getExpType().equals(EQUAL)));
                     break;
                 case "#":
                     // numeric comparison
-                    listFilter.setNumericFilter(NumericFilter.newBuilder()
-                            .setValue(Long.valueOf(filter.getExpVal()))
-                            .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(
-                                    filter.getExpType()))
-                            .build());
+                    listFilter.setNumericFilter(SearchMapper.numericFilter(
+                        Long.valueOf(filter.getExpVal()),
+                            COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType())));
                     break;
                 default:
                     throw new UnsupportedOperationException("Input type: " + inputType +
@@ -684,11 +679,8 @@ public class GroupMapper {
                             .build());
                 } else if (criteria.contains("=")) {
                     // if no # provided, it means string by default, for example: "type=VMem"
-                    // wrap value with "^...$" so the string will match exactly "VMem", not "VMemBlah"
-                    // for PM Mem capacity case, we only want to compare the capacity of Mem, but
-                    // not MemProvisioned or MemAllocation
                     String[] keyValue = criteria.split("=");
-                    objectFilter.addFilters(SearchMapper.stringFilter(keyValue[0], "^" + keyValue[1] + "$"));
+                    objectFilter.addFilters(SearchMapper.stringPropertyFilter(keyValue[0], keyValue[1]));
                 } else {
                     // if no "=", it means this is final field, whose comparison operator and value
                     // are provided by UI in FilterApiDTO, for example: capacity
@@ -723,7 +715,7 @@ public class GroupMapper {
         switch (inputType) {
             case "*":
                 // string comparison
-                currentFieldPropertyFilter = SearchMapper.stringFilter(lastField,
+                currentFieldPropertyFilter = SearchMapper.stringPropertyFilter(lastField,
                         filter.getExpVal(), filter.getExpType().equals(EQUAL));
                 break;
             case "#":

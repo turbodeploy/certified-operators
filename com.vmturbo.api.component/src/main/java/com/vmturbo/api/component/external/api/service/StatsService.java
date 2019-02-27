@@ -38,6 +38,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
+import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -646,36 +647,26 @@ public class StatsService implements IStatsService {
      * Return the count of VMs + Database + DatabaseServers in the cloud.
      */
     private StatApiDTO getNumWorkloadStatSnapshot() {
-        CountEntitiesRequest request =
-            CountEntitiesRequest.newBuilder()
-                .addSearchParameters(
-                        SearchParameters.newBuilder()
-                                .setStartingFilter(PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("VirtualMachine")
-                                                .setStringPropertyRegex("^VirtualMachine$|^DatabaseServer$|^Database$")
-                                                .build())
-                                        .build())
-                                .addSearchFilter(SearchFilter.newBuilder()
-                                        .setPropertyFilter(PropertyFilter.newBuilder()
-                                                .setPropertyName("environmentType")
-                                                .setStringFilter(StringFilter.newBuilder()
-                                                        .setStringPropertyRegex("CLOUD"))))
-                                .build())
-                .build();
-            float numCloudVMs = (float) searchServiceClient.countEntities(request).getEntityCount();
-            final StatApiDTO statApiDTO = new StatApiDTO();
-            statApiDTO.setName(StringConstants.NUM_WORKLOADS);
-            statApiDTO.setValue(numCloudVMs);
-            final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-            statValueApiDTO.setAvg(numCloudVMs);
-            statValueApiDTO.setMax(numCloudVMs);
-            statValueApiDTO.setMin(numCloudVMs);
-            statValueApiDTO.setTotal(numCloudVMs);
-            statApiDTO.setValues(statValueApiDTO);
+        CountEntitiesRequest request = CountEntitiesRequest.newBuilder()
+            .addSearchParameters(SearchParameters.newBuilder()
+                .setStartingFilter(SearchMapper.stringPropertyFilter("entityType",
+                    "^VirtualMachine$|^DatabaseServer$|^Database$"))
+                .addSearchFilter(SearchFilter.newBuilder()
+                    .setPropertyFilter(SearchMapper.stringPropertyFilter("environmentType",
+                        "CLOUD"))))
+            .build();
+        float numCloudVMs = (float) searchServiceClient.countEntities(request).getEntityCount();
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName(StringConstants.NUM_WORKLOADS);
+        statApiDTO.setValue(numCloudVMs);
+        final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+        statValueApiDTO.setAvg(numCloudVMs);
+        statValueApiDTO.setMax(numCloudVMs);
+        statValueApiDTO.setMin(numCloudVMs);
+        statValueApiDTO.setTotal(numCloudVMs);
+        statApiDTO.setValues(statValueApiDTO);
 
-            return statApiDTO;
+        return statApiDTO;
     }
 
     private StatApiDTO createRIComputeStatApiSnapshot(StatRecord cloudCostStatRecord) {
