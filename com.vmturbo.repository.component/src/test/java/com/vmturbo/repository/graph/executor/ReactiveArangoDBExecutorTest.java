@@ -58,8 +58,8 @@ public class ReactiveArangoDBExecutorTest {
 
     @Test
     public void testFluxify() {
-        final List<ScopedEntity> entities = List.of(new ScopedEntity(VM_TYPE, "VM-1", 1L),
-                                                    new ScopedEntity(PM_TYPE, "PM-1", 2L));
+        final List<ScopedEntity> entities = List.of(new ScopedEntity(VM_TYPE, "VM-1", "1"),
+                                                    new ScopedEntity(PM_TYPE, "PM-1", "2"));
         final ArangoDBCursorTestData<ScopedEntity> cursorTestData = ImmutableArangoDBCursorTestData.<ScopedEntity>builder()
                 .data(entities)
                 .klass(ScopedEntity.class)

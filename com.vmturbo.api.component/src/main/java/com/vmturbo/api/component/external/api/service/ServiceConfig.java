@@ -364,6 +364,7 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 communicationConfig.groupExpander(),
                 communicationConfig.supplyChainFetcher(),
+                communicationConfig.topologyProcessor(),
                 mapperConfig.groupMapper(),
                 mapperConfig.paginationMapper(),
                 mapperConfig.groupUseCaseParser(),

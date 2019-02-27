@@ -429,13 +429,17 @@ public class AwsCloudDiscoveryConverterTest {
 
             // check unmodified fields
             assertEquals(oldEntity.getDisplayName(), newEntity.getDisplayName());
-            assertEquals(oldEntity.getBusinessAccountData(), newEntity.getBusinessAccountData());
 
             // master account owns sub account
             if (newEntity.getId().equals(masterAccountId)) {
                 assertThat(newEntity.getConsistsOfList(), containsInAnyOrder("323871187550",
                         "001844731978"));
             }
+
+            // check that dataDiscovered field is cleared if it is false
+            assertTrue(newEntity.hasBusinessAccountData());
+            assertEquals(oldEntity.getBusinessAccountData().getDataDiscovered(),
+                newEntity.getBusinessAccountData().hasDataDiscovered());
         });
     }
 

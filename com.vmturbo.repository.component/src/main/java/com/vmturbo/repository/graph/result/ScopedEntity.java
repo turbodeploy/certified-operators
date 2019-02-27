@@ -2,6 +2,7 @@ package com.vmturbo.repository.graph.result;
 
 import com.google.common.base.MoreObjects;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -10,10 +11,16 @@ import java.util.Objects;
 public class ScopedEntity {
     private String entityType;
     private String displayName;
-    private long oid;
+    private String oid;
     private String state;
+    // todo: if we use Long here, target "Long" ids will be returned as short id (not sure if it
+    // was converted from long to integer or something else is wrong) This doesn't happen for
+    // targetIds in "ServiceEntityRepoDTO", but it happens here. The oid is returned fine, but
+    // targetIds are returned wrong. If I tried the query through ArangoDB UI, it is returning
+    // correct ids for both. Probably something is wrong with jackson or vpack deserializer.
+    private List<String> targetIds;
 
-    public ScopedEntity(String entityType, String displayName, long oid) {
+    public ScopedEntity(String entityType, String displayName, String oid) {
         this.entityType = entityType;
         this.displayName = displayName;
         this.oid = oid;
@@ -37,11 +44,11 @@ public class ScopedEntity {
         this.displayName = displayName;
     }
 
-    public long getOid() {
+    public String getOid() {
         return oid;
     }
 
-    public void setOid(long oid) {
+    public void setOid(String oid) {
         this.oid = oid;
     }
 
@@ -54,6 +61,14 @@ public class ScopedEntity {
         this.state = state;
     }
 
+    public List<String> getTargetIds() {
+        return targetIds;
+    }
+
+    public void setTargetIds(List<String> targetIds) {
+        this.targetIds = targetIds;
+    }
+
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
@@ -61,6 +76,7 @@ public class ScopedEntity {
                 .add("displayName", displayName)
                 .add("oid", oid)
                 .add("state", state)
+                .add("targetIds", targetIds)
                 .toString();
     }
 
@@ -69,14 +85,15 @@ public class ScopedEntity {
         if (this == o) return true;
         if (!(o instanceof ScopedEntity)) return false;
         ScopedEntity that = (ScopedEntity) o;
-        return oid == that.oid &&
+        return Objects.equals(oid, that.oid) &&
                 Objects.equals(entityType, that.entityType) &&
                 Objects.equals(displayName, that.displayName) &&
-                Objects.equals(state, that.state);
+                Objects.equals(state, that.state) &&
+                Objects.equals(targetIds, that.targetIds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entityType, displayName, oid, state);
+        return Objects.hash(entityType, displayName, oid, state, targetIds);
     }
 }

@@ -177,6 +177,7 @@ public class StringConstants {
     public static final String ACCOUNTID = "accountID";
     public static final String NUM_RI = "numRIs";
     public static final String RI_COUPON_UTILIZATION = "RICouponUtilization";
+    public static final String BILLING_FAMILY = "BillingFamily";
 
     public static final String NUM_ENTITIES = "numEntities";
 	public static final String NUM_HOSTS = "numHosts";

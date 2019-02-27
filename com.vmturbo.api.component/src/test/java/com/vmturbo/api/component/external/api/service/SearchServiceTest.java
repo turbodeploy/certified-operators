@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -13,6 +14,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -52,6 +55,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -82,7 +86,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
 /**
  * Unit test for {@link SearchService}.
@@ -98,6 +104,7 @@ public class SearchServiceTest {
     private final GroupMapper groupMapper = mock(GroupMapper.class);
     private final GroupUseCaseParser groupUseCaseParser = mock(GroupUseCaseParser.class);
     private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
+    private final TopologyProcessorClient topologyProcessor = mock(TopologyProcessorClient.class);
     private final UuidMapper uuidMapper = new UuidMapper(7777777L);
     private final GroupExpander groupExpander = mock(GroupExpander.class);
     private final PaginationMapper paginationMapperSpy = spy(new PaginationMapper());
@@ -108,6 +115,11 @@ public class SearchServiceTest {
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
     private StatsHistoryServiceMole historyServiceSpy = Mockito.spy(new StatsHistoryServiceMole());
+
+    private final long targetId1 = 111L;
+    private final long targetId2 = 112L;
+    private final String probeType1 = SDKProbeType.AWS.getProbeType();
+    private final String probeType2 = SDKProbeType.AZURE.getProbeType();
 
     @Before
     public void setUp() throws Exception {
@@ -122,7 +134,7 @@ public class SearchServiceTest {
                 StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         EntitySeverityServiceBlockingStub severityGrpcStub =
                 EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        searchService = new SearchService(
+        searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
                 groupsService,
@@ -132,6 +144,7 @@ public class SearchServiceTest {
                 statsHistoryServiceStub,
                 groupExpander,
                 supplyChainFetcherFactory,
+                topologyProcessor,
                 groupMapper,
                 paginationMapperSpy,
                 groupUseCaseParser,
@@ -140,7 +153,12 @@ public class SearchServiceTest {
                 repositoryClient,
                 businessUnitMapper,
                 777777
-        );
+        ));
+
+        doReturn(ImmutableMap.of(
+            targetId1, probeType1,
+            targetId2, probeType2
+        )).when(searchService).fetchTargetIdToProbeTypeMap();
     }
 
     /**
@@ -151,22 +169,71 @@ public class SearchServiceTest {
     @Test
     public void testGetSearchResults() throws Exception {
 
-        getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM, null);
         Mockito.verify(groupsService, Mockito.times(1)).getGroups();
 
-        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null);
         Mockito.verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
-        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null);
         Mockito.verify(targetsService).getTargets(null);
 
-        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD);
+        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null);
         Mockito.verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
     }
 
     @Test
+    public void testGetSearchEntitiesByProbeTypes() throws Exception {
+        List<ServiceEntityApiDTO> regions = Lists.newArrayList(
+            supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1),
+            supplyChainTestUtils.createServiceEntityApiDTO(2L, targetId1),
+            supplyChainTestUtils.createServiceEntityApiDTO(3L, targetId2)
+        );
+        List<String> types = Lists.newArrayList("Region");
+        when(repositoryApi.getSearchResults(null, types, UuidMapper.UI_REAL_TIME_MARKET_STR, null,
+            null)).thenReturn(regions);
+
+        // filter by AWS
+        Collection<BaseApiDTO> regions_aws = getSearchResults(searchService, null,
+            Lists.newArrayList("Region"), null, null, null, null,
+            Lists.newArrayList(probeType1));
+        assertThat(regions_aws.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
+
+        // filter by Azure
+        Collection<BaseApiDTO> regions_azure = getSearchResults(searchService, null,
+            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
+            Lists.newArrayList(probeType2));
+        assertThat(regions_azure.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(3L));
+
+        // filter by both AWS and Azure
+        Collection<BaseApiDTO> regions_all = getSearchResults(searchService, null,
+            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
+            Lists.newArrayList(probeType1, probeType2));
+        assertThat(regions_all.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+
+        // filter by a vc probe type
+        Collection<BaseApiDTO> regions_vc = getSearchResults(searchService, null,
+            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
+            Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()));
+        assertThat(regions_vc, empty());
+
+        // filter by null probeTypes
+        Collection<BaseApiDTO> regions_null_probeType = getSearchResults(searchService, null,
+            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD, null);
+        assertThat(regions_null_probeType.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+    }
+
+    @Test
     public void testGetSearchGroup() throws Exception {
-        getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM, null);
         Mockito.verify(groupsService).getGroups();
         Mockito.verify(targetsService, Mockito.never()).getTargets(null);
         Mockito.verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
@@ -183,11 +250,11 @@ public class SearchServiceTest {
         GroupApiDTO clusterGroup = new GroupApiDTO();
         clusterGroup.setMemberUuidList(Lists.newArrayList("1", "2", "3", "4"));
         List<ServiceEntityApiDTO> searchResultDTOs = Lists.newArrayList(
-                supplyChainTestUtils.createServiceEntityApiDTO(999),
-                supplyChainTestUtils.createServiceEntityApiDTO(1),
-                supplyChainTestUtils.createServiceEntityApiDTO(2),
-                supplyChainTestUtils.createServiceEntityApiDTO(3),
-                supplyChainTestUtils.createServiceEntityApiDTO(4));
+                supplyChainTestUtils.createServiceEntityApiDTO(999, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(1, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(2, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(3, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(4, targetId1));
 
         List<String> scopes = Lists.newArrayList(CLUSTER_OID);
         Set<String> scopesSet = Sets.newHashSet(scopes);
@@ -198,10 +265,10 @@ public class SearchServiceTest {
 
         SupplychainEntryDTO pmSupplyChainEntryDTO = new SupplychainEntryDTO();
         pmSupplyChainEntryDTO.setInstances(ImmutableMap.of(
-                "1", supplyChainTestUtils.createServiceEntityApiDTO(1),
-                "2", supplyChainTestUtils.createServiceEntityApiDTO(2),
-                "3", supplyChainTestUtils.createServiceEntityApiDTO(3),
-                "4", supplyChainTestUtils.createServiceEntityApiDTO(4)));
+                "1", supplyChainTestUtils.createServiceEntityApiDTO(1, targetId1),
+                "2", supplyChainTestUtils.createServiceEntityApiDTO(2, targetId1),
+                "3", supplyChainTestUtils.createServiceEntityApiDTO(3, targetId1),
+                "4", supplyChainTestUtils.createServiceEntityApiDTO(4, targetId1)));
 
         SupplychainApiDTO mockSupplychainApiDto = supplyChainTestUtils.createSupplychainApiDTO();
         mockSupplychainApiDto.getSeMap().put("PhysicalMachine", pmSupplyChainEntryDTO);
@@ -228,7 +295,7 @@ public class SearchServiceTest {
         when(groupExpander.expandUuids(eq(scopesSet))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 
         // Act
-        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null);
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null);
 
         // Assert
         Mockito.verify(groupsService, Mockito.never()).getGroups();
@@ -261,7 +328,7 @@ public class SearchServiceTest {
 
         // Act
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
-                null, null, null);
+                null, null, null, null);
 
         // Assert
         assertThat(results, hasItems(groupApiDTO));
@@ -327,7 +394,7 @@ public class SearchServiceTest {
         GroupApiDTO request = new GroupApiDTO();
         request.setCriteriaList(Collections.emptyList());
         Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(1L,
-                Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L)));
+                Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1)));
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
         when(searchServiceSpy.searchEntityOids(any())).thenReturn(SearchEntityOidsResponse.newBuilder()
@@ -350,6 +417,7 @@ public class SearchServiceTest {
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());
         assertEquals("Critical", ((ServiceEntityApiDTO) results.get(0)).getSeverity());
+        verifyDiscoveredBy(results.get(0), targetId1, probeType1);
     }
 
     @Test
@@ -358,7 +426,7 @@ public class SearchServiceTest {
         request.setClassName("PhysicalMachine");
         request.setCriteriaList(Collections.emptyList());
         Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(1L,
-                Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L)));
+                Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId2)));
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 10, true, SearchOrderBy.UTILIZATION.name());
         when(historyServiceSpy.getEntityStats(any())).thenReturn(
@@ -372,14 +440,15 @@ public class SearchServiceTest {
         assertEquals(1, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());
+        verifyDiscoveredBy(results.get(0), targetId2, probeType2);
     }
 
     @Test
     public void testGetMembersBasedOnFilterQuery() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
         final List<Entity> entities = Arrays.asList(
-                Entity.newBuilder().setOid(1).setDisplayName("afoobar").setType(0).build(),
-                Entity.newBuilder().setOid(4).setDisplayName("Foo").setType(0).build()
+                Entity.newBuilder().setOid(1).setDisplayName("afoobar").setType(0).addTargetIds(targetId1).build(),
+                Entity.newBuilder().setOid(4).setDisplayName("Foo").setType(0).addTargetIds(targetId2).build()
         );
         when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
             .addAllEntities(entities)
@@ -403,8 +472,23 @@ public class SearchServiceTest {
                 .map(Long::parseLong)
                 .collect(Collectors.toList());
 
+        final Map<Long, BaseApiDTO> resultById = resultCaptor.getValue().stream()
+            .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), Function.identity()));
+
         assertThat(resultIds.size(), is(2));
-        assertThat(resultIds, containsInAnyOrder(1L, 4L));
+        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L));
+        verifyDiscoveredBy(resultById.get(1L), targetId1, probeType1);
+        verifyDiscoveredBy(resultById.get(4L), targetId2, probeType2);
+    }
+
+    /**
+     * Verify that the given ServiceEntityApiDTO's discoveredBy field is set correctly and matching
+     * the given targetId and probeType.
+     */
+    private void verifyDiscoveredBy(BaseApiDTO se, Long targetId, String probeType) {
+        TargetApiDTO targetApiDTO = ((ServiceEntityApiDTO)se).getDiscoveredBy();
+        assertThat(targetApiDTO.getUuid(), is(String.valueOf(targetId)));
+        assertThat(targetApiDTO.getType(), is(probeType));
     }
 
     /**

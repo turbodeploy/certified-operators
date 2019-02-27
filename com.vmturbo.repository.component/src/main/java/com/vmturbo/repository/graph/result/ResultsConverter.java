@@ -10,10 +10,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
@@ -58,7 +60,27 @@ public class ResultsConverter {
             serviceEntityApiDTO.setEnvironmentType(EnvironmentType.valueOf(envType.getApiEnumStringValue()));
         }
 
+        // set discoveredBy
+        serviceEntityApiDTO.setDiscoveredBy(createDiscoveredBy(repoDTO.getTargetIds()));
+
         return serviceEntityApiDTO;
+    }
+
+    /**
+     * Create the discoveredBy field based on given targetIds of the se. Currently, only target id
+     * is set, probe type will be handled separately in API component.
+     *
+     * @param targetIds associated target ids for the entity
+     * @return TargetApiDTO representing the discoveredBy field of serviceEntityApiDTO
+     */
+    public static TargetApiDTO createDiscoveredBy(@Nullable List<String> targetIds) {
+        TargetApiDTO targetApiDTO = new TargetApiDTO();
+        if (targetIds != null && targetIds.size() > 0) {
+            // an entity may be discovered by multiple targets, just pick one of them.
+            // if the entity is discovered by different probe types, it will be a random one
+            targetApiDTO.setUuid(targetIds.get(0));
+        }
+        return targetApiDTO;
     }
 
     /**

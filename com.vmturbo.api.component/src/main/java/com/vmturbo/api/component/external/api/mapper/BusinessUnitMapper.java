@@ -1,8 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +28,7 @@ import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityDiscountDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
+import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -47,6 +50,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -450,7 +454,7 @@ public class BusinessUnitMapper {
                     .flatMap(apiDTO -> response.getEntitiesList()
                             .stream()
                             .filter(dto -> dto.getOid() == Long.parseLong(apiDTO.getUuid()))
-                            .map(tpDto -> buildDiscoveredBusinessUintApiDTO(apiDTO, tpDto, normalize(type), targetsService))
+                            .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(apiDTO, tpDto, normalize(type), targetsService))
                             .filter(Optional::isPresent)
                             .map(Optional::get)
                     ).collect(Collectors.toList());
@@ -480,7 +484,7 @@ public class BusinessUnitMapper {
      * @param targetsService    target service to get the account's target
      * @return BusinessUnitApiDTO
      */
-    private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUintApiDTO(@Nonnull final BaseApiDTO baseApiDTO,
+    private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUnitApiDTO(@Nonnull final BaseApiDTO baseApiDTO,
                                                                            @Nonnull final TopologyEntityDTO topologyEntityDTO,
                                                                            @Nonnull final CloudType cloudType,
                                                                            @Nonnull final ITargetsService targetsService) {
@@ -507,7 +511,8 @@ public class BusinessUnitMapper {
                 .collect(Collectors.toList()));
         businessUnitApiDTO.setCloudType(cloudType);
         businessUnitApiDTO.setDisplayName(topologyEntityDTO.getDisplayName());
-        businessUnitApiDTO.setHasRelatedTarget(accounts.size() > 0);
+        businessUnitApiDTO.setHasRelatedTarget(
+            topologyEntityDTO.getTypeSpecificInfo().getBusinessAccount().getHasAssociatedTarget());
         businessUnitApiDTO.setMaster(accounts.size() > 0);
         if (accounts.size() > 0) {
             final List<TargetApiDTO> targetApiDTOS = topologyEntityDTO
@@ -545,6 +550,29 @@ public class BusinessUnitMapper {
             logger.error(e.getMessage());
             return new TargetApiDTO();
         }
+    }
+
+    /**
+     * Convert a {@link BusinessUnitApiDTO} to {@link BillingFamilyApiDTO}.
+     *
+     * @param masterAccount the master BusinessAccount to convert
+     * @param accountIdToDisplayName map from account id to its displayName
+     * @return the converted BillingFamilyApiDTO for the given BusinessUnitApiDTO
+     */
+    public BillingFamilyApiDTO businessUnitToBillingFamily(@Nonnull BusinessUnitApiDTO masterAccount,
+                                                           @Nonnull Map<String, String> accountIdToDisplayName) {
+        BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
+        billingFamilyApiDTO.setMasterAccountUuid(masterAccount.getUuid());
+        Map<String, String> uuidToName = new HashMap<>();
+        uuidToName.put(masterAccount.getUuid(), masterAccount.getDisplayName());
+        masterAccount.getChildrenBusinessUnits().forEach(subAccountId ->
+            uuidToName.put(subAccountId, accountIdToDisplayName.get(subAccountId)));
+        billingFamilyApiDTO.setUuidToNameMap(uuidToName);
+        billingFamilyApiDTO.setMembersCount(masterAccount.getChildrenBusinessUnits().size());
+        billingFamilyApiDTO.setClassName(StringConstants.BILLING_FAMILY);
+        billingFamilyApiDTO.setDisplayName(masterAccount.getDisplayName());
+        billingFamilyApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        return billingFamilyApiDTO;
     }
 
     /**

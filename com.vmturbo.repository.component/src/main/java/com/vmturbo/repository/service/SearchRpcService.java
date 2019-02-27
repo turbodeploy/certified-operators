@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRespons
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.graph.result.ResultsConverter;
 import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
@@ -320,12 +321,13 @@ public class SearchRpcService extends SearchServiceImplBase {
     private static ServiceEntityApiDTO convert(ScopedEntity se) {
         ServiceEntityApiDTO dto = new ServiceEntityApiDTO();
 
-        dto.setUuid(Long.toString(se.getOid()));
+        dto.setUuid(se.getOid());
         dto.setDisplayName(se.getDisplayName());
         dto.setClassName(se.getEntityType());
         dto.setState(se.getState());
         // XL-only - assume ON_PREM for now
         dto.setEnvironmentType(EnvironmentType.ONPREM);
+        dto.setDiscoveredBy(ResultsConverter.createDiscoveredBy(se.getTargetIds()));
 
         return dto;
     }

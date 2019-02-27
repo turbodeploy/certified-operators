@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.mediation.aws.client.AwsAccount;
@@ -93,6 +94,7 @@ public class AwsConversionProbe extends AwsProbe {
                         .setMergedEntityMetaData(createMergedEntityMetadataBuilder()
                                 .mergedField("displayName", Collections.emptyList())
                                 .mergedField("consistsOf", Collections.emptyList())
+                                .mergedField("dataDiscovered", Lists.newArrayList("business_account_data"))
                                 .build())
                         .build());
             } else {

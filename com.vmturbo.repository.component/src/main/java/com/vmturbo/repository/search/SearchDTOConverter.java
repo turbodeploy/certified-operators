@@ -11,10 +11,11 @@ import javax.annotation.Nonnull;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -151,10 +152,18 @@ public class SearchDTOConverter {
         final int state = UIEntityState.fromString(serviceEntityRepoDTO.getState()).toEntityState().getNumber();
         final int type = RepoObjectType.toTopologyEntityType(serviceEntityRepoDTO.getEntityType());
 
-        return Search.Entity.newBuilder().setDisplayName(serviceEntityRepoDTO.getDisplayName())
-                                         .setOid(Long.parseLong(serviceEntityRepoDTO.getOid()))
-                                         .setState(state)
-                                         .setType(type)
-                                         .build();
+        Entity.Builder entityBuilder = Search.Entity.newBuilder()
+            .setDisplayName(serviceEntityRepoDTO.getDisplayName())
+            .setOid(Long.parseLong(serviceEntityRepoDTO.getOid()))
+            .setState(state)
+            .setType(type);
+
+        if (serviceEntityRepoDTO.getTargetIds() != null) {
+            entityBuilder.addAllTargetIds(serviceEntityRepoDTO.getTargetIds().stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toList()));
+        }
+
+        return entityBuilder.build();
     }
 }

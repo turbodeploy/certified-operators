@@ -13,6 +13,7 @@ import com.google.common.collect.Maps;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 
 public class SupplyChainTestUtils {
     public SupplyChainTestUtils() {
@@ -27,6 +28,14 @@ public class SupplyChainTestUtils {
         answer.setUuid(Long.toString(id));
         answer.setClassName(entityType);
         return answer;
+    }
+
+    public ServiceEntityApiDTO createServiceEntityApiDTO(long id, long targetId) {
+        ServiceEntityApiDTO se = createServiceEntityApiDTO(id);
+        TargetApiDTO targetApiDTO = new TargetApiDTO();
+        targetApiDTO.setUuid(String.valueOf(targetId));
+        se.setDiscoveredBy(targetApiDTO);
+        return se;
     }
 
     public SupplychainEntryDTO createSupplyChainEntryDTO(

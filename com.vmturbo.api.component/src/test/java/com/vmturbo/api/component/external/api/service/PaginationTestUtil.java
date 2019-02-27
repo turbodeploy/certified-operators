@@ -45,7 +45,8 @@ public class PaginationTestUtil {
                                                           List<String> scopes,
                                                           String state,
                                                           String groupType,
-                                                          EnvironmentType envType) throws Exception {
+                                                          EnvironmentType envType,
+                                                          List<String> probeTypes) throws Exception {
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
                 ArgumentCaptor.forClass((Class)List.class);
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
@@ -60,7 +61,8 @@ public class PaginationTestUtil {
                 envType,
                 null,
                 paginationRequest,
-                null);
+                null,
+                probeTypes);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }

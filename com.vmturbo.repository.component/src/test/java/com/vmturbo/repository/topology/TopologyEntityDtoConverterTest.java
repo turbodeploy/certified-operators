@@ -129,7 +129,7 @@ public class TopologyEntityDtoConverterTest {
         connectedEntityRepoDTO.setConnectedEntityType(EntityType.PHYSICAL_MACHINE.getNumber());
         connectedEntityRepoDTO.setConnectedEntityId(pmTopoDTO.getOid());
         vmServiceEntity.setConnectedEntityList(Lists.newArrayList(connectedEntityRepoDTO));
-        vmServiceEntity.setTargetIds(Lists.newArrayList(1111L));
+        vmServiceEntity.setTargetIds(Lists.newArrayList("1111"));
     }
 
     @Test
@@ -274,7 +274,9 @@ public class TopologyEntityDtoConverterTest {
 
         // check target ids
         if (seRepoDTO.getTargetIds() != null) {
-            assertTrue(seRepoDTO.getTargetIds().containsAll(
+            assertTrue(seRepoDTO.getTargetIds().stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toList()).containsAll(
                     seTopoDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()));
         }
     }

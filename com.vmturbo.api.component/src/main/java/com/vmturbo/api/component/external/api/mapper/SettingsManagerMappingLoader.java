@@ -29,6 +29,7 @@ import com.google.gson.Gson;
 
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -300,7 +301,13 @@ public class SettingsManagerMappingLoader {
 
             // Fill in the value if it's present.
             if (realSetting.getValue() != null) {
-                final String convertedValue = uiToXlValueConversion.inverse().get(realSetting.getValue());
+                // ui passes fully-uppercased setting to plan api, such as "AUTOMATIC", it was
+                // converted to camel case (Automatic) in SettingsMapper (due to the conversion
+                // upperUnderScoreToMixedSpaces which is needed to show camel case in UI), however
+                // uiToXlValueConversion is still using "AUTOMATIC", so we need to do a reverse
+                // conversion "mixedSpacesToUpperUnderScore" here to get correct value
+                final String convertedValue = uiToXlValueConversion.inverse().get(
+                    ActionDTOUtil.mixedSpacesToUpperUnderScore(realSetting.getValue()));
                 if (convertedValue == null) {
                     throw new IllegalArgumentException("Illegal value " + realSetting.getValue() +
                             " for setting " + realSetting.getUuid() + "meant to be converted to a" +

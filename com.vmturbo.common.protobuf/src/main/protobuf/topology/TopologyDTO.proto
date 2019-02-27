@@ -21,6 +21,7 @@ message TypeSpecificInfo {
         ApplicationInfo application = 1;
         VirtualMachineInfo virtual_machine = 10;
         PhysicalMachineInfo physical_machine = 14;
+        BusinessAccountInfo business_account = 28;
         DatabaseInfo database = 46;
         ComputeTierInfo compute_tier = 56;
         VirtualVolumeInfo virtual_volume = 60;
@@ -66,6 +67,15 @@ message TypeSpecificInfo {
 
         // The timezone of this host
         optional string timezone = 5;
+    }
+
+    message BusinessAccountInfo {
+        // target for a master BA can discover multiple BAs (master BA + sub BAs), only master BA
+        // has associated target, but not sub BAs. They all have discovering target ids (which is
+        // the target for master BA), but sub BAs are not added as targets. So we need this field to
+        // indicate whether there is an associated target for this BA (equivalent to that whether
+        // entities for this BA are discovered or not)
+        optional bool has_associated_target = 1 [default = false];
     }
 
     // specific data for compute tier

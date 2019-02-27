@@ -99,6 +99,8 @@ public class ServiceEntityRepoDTOConverter {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualMachineInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getVirtualVolumeInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualVolumeInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO();
         }
 
         // if present, convert this RepoDTO type specific info into Topology TypeSpecificInfo oneof
@@ -112,7 +114,10 @@ public class ServiceEntityRepoDTOConverter {
         Optional.ofNullable(serviceEntityRepoDTO.getTargetIds()).ifPresent(targetIds ->
                 topologyEntityBuilder.setOrigin(Origin.newBuilder()
                         .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                .addAllDiscoveringTargetIds(serviceEntityRepoDTO.getTargetIds())
+                                .addAllDiscoveringTargetIds(
+                                    serviceEntityRepoDTO.getTargetIds().stream()
+                                        .map(Long::valueOf)
+                                        .collect(Collectors.toList()))
                                 .build())
                         .build())
         );

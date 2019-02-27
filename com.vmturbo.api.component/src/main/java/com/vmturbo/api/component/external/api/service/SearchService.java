@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -99,7 +100,12 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Service entry points to search the Repository.
@@ -142,6 +148,8 @@ public class SearchService implements ISearchService {
 
     private BusinessUnitMapper businessUnitMapper;
 
+    private TopologyProcessor topologyProcessor;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -151,6 +159,7 @@ public class SearchService implements ISearchService {
                   @Nonnull final StatsHistoryServiceBlockingStub statsHistoryServiceRpc,
                   @Nonnull GroupExpander groupExpander,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                  @Nonnull final TopologyProcessor topologyProcessor,
                   @Nonnull final GroupMapper groupMapper,
                   @Nonnull final PaginationMapper paginationMapper,
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
@@ -171,6 +180,7 @@ public class SearchService implements ISearchService {
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.groupUseCaseParser = groupUseCaseParser;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+        this.topologyProcessor = topologyProcessor;
         this.uuidMapper = uuidMapper;
         this.tagsService = tagsService;
         this.repositoryClient = repositoryClient;
@@ -208,12 +218,13 @@ public class SearchService implements ISearchService {
                                                      List<String> types,
                                                      List<String> scopes,
                                                      String state,
-                                                     List <String> groupTypes,
+                                                     List<String> groupTypes,
                                                      EnvironmentType environmentType,
                                                      // Ignored for now.
                                                      @Nullable EntityDetailType entityDetailType,
                                                      SearchPaginationRequest paginationRequest,
-                                                     List <String> entityTypes)
+                                                     List<String> entityTypes,
+                                                     List<String> probeTypes)
             throws Exception {
         // temporally hack to accommodate signature changes.
         final String groupType = (groupTypes != null && groupTypes.size() > 0) ? groupTypes.get(0) : null;
@@ -263,6 +274,8 @@ public class SearchService implements ISearchService {
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessUnitMapper.getAndConvertDiscoveredBusinessUnits(this, targetsService, repositoryClient);
                 result = Lists.newArrayList(businessAccounts);
+            } else if (types.contains(StringConstants.BILLING_FAMILY)) {
+                result = fetchBillingFamilyApiDTOs();
             }
             // if this one of the specific service queries, return the result.
             if (!CollectionUtils.isEmpty(result)) {
@@ -271,11 +284,12 @@ public class SearchService implements ISearchService {
         }
 
         // Must be a search for a ServiceEntity
+        final Stream<ServiceEntityApiDTO> entitiesResult;
         if (scopes == null || scopes.size() <= 0 ||
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
-            result = Lists.newArrayList(repositoryApi.getSearchResults(query, types,
-                    UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType));
+            entitiesResult = repositoryApi.getSearchResults(query, types,
+                UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType).stream();
         } else {
             // Fetch service entities matching the given specs
             Collection<ServiceEntityApiDTO> serviceEntities = repositoryApi.getSearchResults(query,
@@ -299,12 +313,52 @@ public class SearchService implements ISearchService {
             });
 
             // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
-            result = serviceEntities.stream()
-                    .filter(se -> scopeServiceEntityIds.contains(se.getUuid()))
-                    .collect(Collectors.toList());
+            entitiesResult = serviceEntities.stream()
+                    .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
         }
 
+        // set discoveredBy and filter by probe types
+        final Map<Long, String> targetIdToProbeType = fetchTargetIdToProbeTypeMap();
+        result = entitiesResult
+            .peek(se -> se.setDiscoveredBy(SearchMapper.createDiscoveredBy(
+                    se.getDiscoveredBy().getUuid(), targetIdToProbeType)))
+            .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
+                probeTypes.contains(se.getDiscoveredBy().getType()))
+            .collect(Collectors.toList());
         return paginationRequest.allResultsResponse(result);
+    }
+
+    /**
+     * Find master business accounts and convert them to BillingFamilyApiDTO.
+     *
+     * @return list of BillingFamilyApiDTOs
+     */
+    private List<BaseApiDTO> fetchBillingFamilyApiDTOs() throws Exception {
+        final List<BusinessUnitApiDTO> businessAccounts =
+            businessUnitMapper.getAndConvertDiscoveredBusinessUnits(this, targetsService, repositoryClient);
+        final Map<String, String> accountIdToDisplayName = businessAccounts.stream()
+            .collect(Collectors.toMap(BusinessUnitApiDTO::getUuid, BusinessUnitApiDTO::getDisplayName));
+        return businessAccounts.stream()
+            .filter(BusinessUnitApiDTO::isMaster)
+            .map(masterAccount -> businessUnitMapper.businessUnitToBillingFamily(masterAccount,
+                accountIdToDisplayName))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Create a map from targetId to related probeType.
+     */
+    @VisibleForTesting
+    public Map<Long, String> fetchTargetIdToProbeTypeMap() {
+        try {
+            final Map<Long, String> probeIdToType = topologyProcessor.getAllProbes().stream()
+                .collect(Collectors.toMap(ProbeInfo::getId, ProbeInfo::getType));
+            return topologyProcessor.getAllTargets().stream()
+                .collect(Collectors.toMap(TargetInfo::getId, targetInfo ->
+                    probeIdToType.get(targetInfo.getProbeId())));
+        } catch (CommunicationException e) {
+            return Collections.emptyMap();
+        }
     }
 
     // Populate severity for group DTO.
@@ -403,20 +457,21 @@ public class SearchService implements ISearchService {
             allEntityOids.addAll(expandedIds);
         }
 
+        final Map<Long, String> targetIdToProbeType = fetchTargetIdToProbeTypeMap();
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
                     .build();
             return getServiceEntityPaginatedWithSeverity(inputDTO, nameQuery, paginationRequest,
-                    expandedIds, searchOidsRequest);
+                    expandedIds, searchOidsRequest, targetIdToProbeType);
         } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
                     .build();
             return getServiceEntityPaginatedWithUtilization(inputDTO, nameQuery, paginationRequest,
-                    expandedIds, searchOidsRequest, isGlobalScope);
+                    expandedIds, searchOidsRequest, isGlobalScope, targetIdToProbeType);
         } else {
             final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
@@ -425,8 +480,8 @@ public class SearchService implements ISearchService {
                     .build();
             final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
-                    .map(SearchMapper::seDTO)
-                    .collect(Collectors.toList());
+                .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
+                .collect(Collectors.toList());
             SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
             return buildPaginationResponse(entities,
                     response.getPaginationResponse(), paginationRequest);
@@ -456,7 +511,8 @@ public class SearchService implements ISearchService {
             @Nullable final String nameQuery,
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
-            @Nonnull final Search.SearchEntityOidsRequest searchEntityOidsRequest) {
+            @Nonnull final Search.SearchEntityOidsRequest searchEntityOidsRequest,
+            @Nonnull final Map<Long, String> targetIdToProbeType) {
         final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds,
                 searchEntityOidsRequest);
         /*
@@ -491,8 +547,11 @@ public class SearchService implements ISearchService {
                         .filter(serviceEntityMap::containsKey)
                         .map(serviceEntityMap::get)
                         .collect(Collectors.toList());
-        entities.forEach(entity -> entity.setSeverity(paginatedEntitySeverities.get(Long.valueOf(entity.getUuid()))));
-
+        entities.forEach(entity -> {
+            entity.setSeverity(paginatedEntitySeverities.get(Long.valueOf(entity.getUuid())));
+            entity.setDiscoveredBy(SearchMapper.createDiscoveredBy(
+                entity.getDiscoveredBy().getUuid(), targetIdToProbeType));
+        });
         return buildPaginationResponse(entities,
                 entitySeveritiesResponse.getPaginationResponse(), paginationRequest);
     }
@@ -517,7 +576,8 @@ public class SearchService implements ISearchService {
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
             @Nonnull final Search.SearchEntityOidsRequest searchRequest,
-            @Nonnull final boolean isGlobalScope) {
+            @Nonnull final boolean isGlobalScope,
+            @Nonnull final Map<Long, String> targetIdToProbeType) {
         // if it is global scope and there is no other search criteria, it means all service entities
         // of same entity type are search candidates.
         final boolean isGlobalEntities =
@@ -557,6 +617,9 @@ public class SearchService implements ISearchService {
                 .map(serviceEntityMap::get)
                 .collect(Collectors.toList());
         SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
+        // set discoveredBy
+        entities.forEach(entity -> entity.setDiscoveredBy(SearchMapper.createDiscoveredBy(
+                entity.getDiscoveredBy().getUuid(), targetIdToProbeType)));
         return buildPaginationResponse(entities, response.getPaginationResponse(), paginationRequest);
     }
 

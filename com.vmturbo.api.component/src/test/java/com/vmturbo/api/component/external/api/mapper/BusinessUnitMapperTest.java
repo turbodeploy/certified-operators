@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
@@ -42,6 +43,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -114,14 +117,16 @@ public class BusinessUnitMapperTest {
 
     @Before
     public void setup() throws Exception {
-
         final RetrieveTopologyEntitiesResponse response = RetrieveTopologyEntitiesResponse.newBuilder()
-                .addEntities(TopologyEntityDTO.newBuilder()
-                        .setOid(ENTITY_OID)
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2).build()).build())
-                        .build())
-                .build();
+            .addEntities(TopologyEntityDTO.newBuilder()
+                .setOid(ENTITY_OID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                    DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+                    BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+                .build())
+            .build();
         when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong())).thenReturn(response);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(TARGET_UUID);
@@ -183,6 +188,7 @@ public class BusinessUnitMapperTest {
         assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
         assertEquals(CloudType.AWS, businessUnitApiDTOs.get(0).getCloudType());
         assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
+        assertTrue(businessUnitApiDTOs.get(0).isHasRelatedTarget());
     }
 
     @Test

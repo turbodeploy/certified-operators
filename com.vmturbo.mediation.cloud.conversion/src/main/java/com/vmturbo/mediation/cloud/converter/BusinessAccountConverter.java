@@ -30,6 +30,12 @@ public class BusinessAccountConverter implements IEntityConverter {
             if (converter.isSubAccountTarget()) {
                 entity.clearDisplayName();
             }
+
+            // clear the dataDiscovered field in BusinessAccountData if it is false, so that
+            // dataDiscovered is set correctly during stitching process
+            if (!entity.getBusinessAccountData().getDataDiscovered()) {
+                entity.getBusinessAccountDataBuilder().clearDataDiscovered();
+            }
         }
         return true;
     }

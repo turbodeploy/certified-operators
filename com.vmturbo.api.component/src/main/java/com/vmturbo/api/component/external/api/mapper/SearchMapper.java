@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -13,6 +14,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.Entity;
@@ -286,13 +288,34 @@ public class SearchMapper {
      * @param entity the entity to convert
      * @return the to resulting service entity API DTO.
      */
-    public static ServiceEntityApiDTO seDTO(Entity entity) {
+    public static ServiceEntityApiDTO seDTO(@Nonnull Entity entity,
+                                            @Nonnull Map<Long, String> targetIdToProbeType) {
         ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
         seDTO.setDisplayName(entity.getDisplayName());
         seDTO.setState(UIEntityState.fromEntityState(EntityState.forNumber(entity.getState())).getValue());
         seDTO.setClassName(ServiceEntityMapper.toUIEntityType(entity.getType()));
         seDTO.setUuid(String.valueOf(entity.getOid()));
+        // set discoveredBy
+        if (entity.getTargetIdsCount() > 0) {
+            seDTO.setDiscoveredBy(createDiscoveredBy(String.valueOf(entity.getTargetIdsList().get(0)),
+                targetIdToProbeType));
+        }
         return seDTO;
+    }
+
+    /**
+     * Create a discoveredBy for the se, based on the given target id and probe type map.
+     *
+     * @param targetId id of the target
+     * @param targetIdToProbeType the map from target id to probe type
+     * @return TargetApiDTO which represents the discoveredBy field of se
+     */
+    public static TargetApiDTO createDiscoveredBy(@Nonnull String targetId,
+                                                  @Nonnull Map<Long, String> targetIdToProbeType) {
+        final TargetApiDTO discoveredBy = new TargetApiDTO();
+        discoveredBy.setUuid(targetId);
+        discoveredBy.setType(targetIdToProbeType.get(Long.valueOf(targetId)));
+        return discoveredBy;
     }
 
     private static final ImmutableList<UIEntityType> EXCLUDE_FROM_SEARCH_ALL =

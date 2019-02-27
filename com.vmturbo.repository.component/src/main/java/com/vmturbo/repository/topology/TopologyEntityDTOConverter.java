@@ -21,6 +21,7 @@ import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
+import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.DatabaseInfoRepoDTO;
@@ -41,6 +42,7 @@ class TopologyEntityDTOConverter {
     private static final Map<TypeCase, Class> TYPE_TO_REPO_DTO_CLASS_MAP =
             new ImmutableMap.Builder<TypeCase, Class>()
                     .put(TypeCase.APPLICATION, ApplicationInfoRepoDTO.class)
+                    .put(TypeCase.BUSINESS_ACCOUNT, BusinessAccountInfoRepoDTO.class)
                     .put(TypeCase.DATABASE, DatabaseInfoRepoDTO.class)
                     .put(TypeCase.COMPUTE_TIER, ComputeTierInfoRepoDTO.class)
                     .put(TypeCase.STORAGE, StorageInfoRepoDTO.class)
@@ -96,7 +98,9 @@ class TopologyEntityDTOConverter {
 
         // save discovering target ids
         if (t.hasOrigin() && t.getOrigin().hasDiscoveryOrigin()) {
-            se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
+            se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
+                .map(String::valueOf)
+                .collect(Collectors.toList()));
         }
 
         if (t.hasTypeSpecificInfo()) {

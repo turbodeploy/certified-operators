@@ -262,6 +262,9 @@ message Entity {
     optional string displayName = 3;
 
     optional int32 state = 4;
+
+    // ids of the targets from which this entity was discovered
+    repeated int64 target_ids = 5;
 }
 
 message SearchEntitiesRequest {

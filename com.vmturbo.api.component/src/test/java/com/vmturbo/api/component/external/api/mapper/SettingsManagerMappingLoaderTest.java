@@ -159,7 +159,7 @@ public class SettingsManagerMappingLoaderTest {
 
     @Test
     public void testPlanSettingsOutbound() {
-        final String json = "{ \"uiToXlValueConversion\" : { \"true\" : \"foo\", \"false\" : \"bar\" }," +
+        final String json = "{ \"uiToXlValueConversion\" : { \"true\" : \"FOO\", \"false\" : \"BAR\" }," +
                 " \"supportedSettingDefaults\" : { \"VirtualMachine\" : { \"setting\" : \"true\" } } }";
         final PlanSettingInfo planSettingInfo = GSON.fromJson(json, PlanSettingInfo.class);
         final SettingApiDTO realSetting = new SettingApiDTO();
@@ -178,7 +178,7 @@ public class SettingsManagerMappingLoaderTest {
 
     @Test
     public void testPlanSettingsInbound() {
-        final String json = "{ \"uiToXlValueConversion\" : { \"true\" : \"foo\", \"false\" : \"bar\" }," +
+        final String json = "{ \"uiToXlValueConversion\" : { \"true\" : \"FOO\", \"false\" : \"BAR\" }," +
                 " \"supportedSettingDefaults\" : { \"VirtualMachine\" : { \"setting\" : \"true\" } } }";
         final PlanSettingInfo planSettingInfo = GSON.fromJson(json, PlanSettingInfo.class);
 
@@ -192,7 +192,7 @@ public class SettingsManagerMappingLoaderTest {
         assertThat(realSetting.getUuid(), is(realSetting.getUuid()));
         assertThat(realSetting.getEntityType(), is(realSetting.getEntityType()));
         assertThat(realSetting.getDisplayName(), is(realSetting.getDisplayName()));
-        assertThat(realSetting.getValue(), is("bar"));
+        assertThat(realSetting.getValue(), is("BAR"));
     }
 
     @Test

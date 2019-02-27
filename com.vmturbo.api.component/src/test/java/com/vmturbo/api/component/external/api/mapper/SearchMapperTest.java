@@ -2,6 +2,8 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.*;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -95,7 +97,7 @@ public class SearchMapperTest {
                     .setDisplayName(displayName)
                     .setType(vmType)
                     .build();
-        ServiceEntityApiDTO seDTO = SearchMapper.seDTO(entity);
+        ServiceEntityApiDTO seDTO = SearchMapper.seDTO(entity, Collections.emptyMap());
         assertEquals(displayName, seDTO.getDisplayName());
         assertEquals(String.valueOf(oid), seDTO.getUuid());
         assertEquals("MAINTENANCE", seDTO.getState());

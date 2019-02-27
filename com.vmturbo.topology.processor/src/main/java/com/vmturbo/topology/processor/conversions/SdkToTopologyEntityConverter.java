@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.APPLICATION_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.BUSINESS_ACCOUNT_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.COMPUTE_TIER_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.PHYSICAL_MACHINE_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_DATA;
@@ -50,6 +51,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.PhysicalMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper;
@@ -72,7 +74,7 @@ public class SdkToTopologyEntityConverter {
     private static final Map<EntityDataCase, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
             ImmutableMap.<EntityDataCase, TypeSpecificInfoMapper>builder()
                     .put(APPLICATION_DATA, new ApplicationInfoMapper())
-                    // BUSINESS_ACCOUNT_DATA
+                    .put(BUSINESS_ACCOUNT_DATA, new BusinessAccountInfoMapper())
                     .put(COMPUTE_TIER_DATA, new ComputeTierInfoMapper())
                     // CONTAINER_DATA
                     // CONTAINER_POD_DATA

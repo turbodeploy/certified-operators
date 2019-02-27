@@ -146,7 +146,13 @@ public class ArangoDBQueries {
     static final String SCOPED_ENTITIES_BY_OID =
             "FOR se IN ${collection}\n" +
             "FILTER TO_NUMBER(se.oid) IN [${oids}]\n" +
-            "RETURN { oid: se.oid, displayName: se.displayName, entityType: se.entityType, state: se.state }";
+            "RETURN { " +
+                "oid: se.oid, " +
+                "displayName: se.displayName, " +
+                "entityType: se.entityType, " +
+                "state: se.state, " +
+                "targetIds: se.targetIds" +
+            " }";
 
     /**
      *
