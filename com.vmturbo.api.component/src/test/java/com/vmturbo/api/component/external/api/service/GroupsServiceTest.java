@@ -17,6 +17,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,14 +28,8 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
-import io.grpc.Channel;
 import io.grpc.Status;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -52,6 +50,8 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
@@ -127,12 +127,14 @@ public class GroupsServiceTest {
 
     private ActionsServiceMole actionServiceSpy = spy(new ActionsServiceMole());
 
+    private EntitySeverityServiceMole entitySeverityServiceSpy = spy(new EntitySeverityServiceMole());
+
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
 
     @Rule
     public GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy);
+        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy, entitySeverityServiceSpy);
 
     @Before
     public void init() throws Exception {
@@ -152,7 +154,8 @@ public class GroupsServiceTest {
                 TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 entityAspectMapper,
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                actionStatsQueryExecutor);
+                actionStatsQueryExecutor,
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);
@@ -495,5 +498,4 @@ public class GroupsServiceTest {
         assertEquals(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name(), groupApiDTO.getClassName());
         assertEquals("2", groupApiDTO.getUuid());
     }
-
 }

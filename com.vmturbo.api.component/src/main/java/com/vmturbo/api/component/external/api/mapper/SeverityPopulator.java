@@ -94,6 +94,7 @@ public class SeverityPopulator {
     /**
      * Calculate the highest severity for the passed in entity OIDs.
      * TODO: to improve performance, move the calculation to Group component, and cache results.
+     * TODO: Created OM-43416 for this change.
      *
      * @param entitySeverityRpc The action orchestrator to use to retrieve severities.
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.

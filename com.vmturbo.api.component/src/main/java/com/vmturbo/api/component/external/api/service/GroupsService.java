@@ -14,13 +14,14 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -35,6 +36,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -79,6 +81,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRespon
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -113,7 +116,6 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
  * Service implementation of Groups functionality.
@@ -159,6 +161,8 @@ public class GroupsService implements IGroupsService {
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
+    private final EntitySeverityServiceBlockingStub entitySeverityServiceStub;
+
     private final Logger logger = LogManager.getLogger();
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -173,7 +177,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final TemplateServiceBlockingStub templateService,
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
-                  @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor) {
+                  @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
+                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceStub) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -187,6 +192,7 @@ public class GroupsService implements IGroupsService {
         this.entityAspectMapper = entityAspectMapper;
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
+        this.entitySeverityServiceStub = Objects.requireNonNull(entitySeverityServiceStub);
     }
 
     @Override
@@ -671,7 +677,7 @@ public class GroupsService implements IGroupsService {
         } else if (STORAGE_CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
             return getClusters(ClusterInfo.Type.STORAGE);
         } else if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
-            return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+            return getGroupApiDTOSwithSeverities(GetGroupsRequest.newBuilder()
                     .setTypeFilter(Group.Type.GROUP)
                     .setOriginFilter(Origin.USER)
                     .build());
@@ -810,6 +816,33 @@ public class GroupsService implements IGroupsService {
                 .filter(group -> !isHiddenGroup(group))
                 .map(groupMapper::toGroupApiDto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Similar to {@link #getGroupApiDTOS}, but adds group severity information to the results.
+     *
+     * Since getting severity information involves additional RPC calls, it's advised to stick to
+     * {@link #getGroupApiDTOS} unless youj know you need the additional severity information.
+     *
+     * @param getGroupsRequest a request to specify, optionally, a name-matching regex
+     * @return a list of {@link GroupApiDTO}s, with severities, satisfying the given request
+     */
+    public List<GroupApiDTO> getGroupApiDTOSwithSeverities(GetGroupsRequest getGroupsRequest) {
+        List<GroupApiDTO> groups = getGroupApiDTOS(getGroupsRequest);
+        // populate the severity field on the groups that were retrieved.
+        for (GroupApiDTO group : groups) {
+            if (StringUtils.isEmpty(group.getSeverity()) && group.getMembersCount() > 0) {
+                // calculate the severity for this group.
+                // unfortunately, the GroupApiDTO object encodes members as string uuids rather than
+                // longs, so we will need to convert them here.
+                Set<Long> memberOids = group.getMemberUuidList().stream()
+                        .map(Long::valueOf)
+                        .collect(Collectors.toSet());
+                SeverityPopulator.calculateSeverity(entitySeverityServiceStub, realtimeTopologyContextId, memberOids)
+                    .ifPresent(severity -> group.setSeverity(severity.name()));
+            }
+        }
+        return groups;
     }
 
     /**

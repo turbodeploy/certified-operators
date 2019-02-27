@@ -230,7 +230,8 @@ public class ServiceConfig {
                 communicationConfig.templateServiceBlockingStub(),
                 mapperConfig.entityAspectMapper(),
                 communicationConfig.searchServiceBlockingStub(),
-                actionStatsQueryExecutor());
+                actionStatsQueryExecutor(),
+                communicationConfig.entitySeverityService());
     }
 
     @Bean
