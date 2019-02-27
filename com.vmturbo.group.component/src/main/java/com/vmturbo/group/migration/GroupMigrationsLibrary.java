@@ -19,12 +19,8 @@ public class GroupMigrationsLibrary {
 
     private final DSLContext dslContext;
 
-    private final GroupStore groupStore;
-
-    public GroupMigrationsLibrary(@Nonnull final DSLContext dslContext,
-                                  @Nonnull final GroupStore groupStore) {
+    public GroupMigrationsLibrary(@Nonnull final DSLContext dslContext) {
         this.dslContext = Objects.requireNonNull(dslContext);
-        this.groupStore = Objects.requireNonNull(groupStore);
     }
 
     /**
@@ -38,8 +34,6 @@ public class GroupMigrationsLibrary {
                  new V_01_00_00__Group_Table_Add_Entity_Type(dslContext))
             .put(V_01_00_01__Drop_Discovered_Groups_Policies.class.getSimpleName(),
                     new V_01_00_01__Drop_Discovered_Groups_Policies(dslContext))
-            .put(V_01_00_02__String_Filters_Replace_Contains_With_Full_Match.class.getSimpleName(),
-                new V_01_00_02__String_Filters_Replace_Contains_With_Full_Match(groupStore))
             .build();
     }
 }

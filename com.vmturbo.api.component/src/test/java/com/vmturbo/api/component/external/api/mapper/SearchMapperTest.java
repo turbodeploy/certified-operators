@@ -1,15 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.*;
 
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
-
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.Entity;
@@ -35,14 +30,14 @@ public class SearchMapperTest {
     public void testNameFilter() {
         PropertyFilter fooSearch = SearchMapper.nameFilter(FOO);
         assertEquals("displayName", fooSearch.getPropertyName());
-        assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
+        assertEquals(FOO, fooSearch.getStringFilter().getStringPropertyRegex());
     }
 
     @Test
     public void testNameFilterWithMatch() {
         PropertyFilter fooSearch = SearchMapper.nameFilter(FOO, false);
         assertEquals("displayName", fooSearch.getPropertyName());
-        assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
+        assertEquals(FOO, fooSearch.getStringFilter().getStringPropertyRegex());
         assertFalse(fooSearch.getStringFilter().getMatch());
     }
 
@@ -56,25 +51,9 @@ public class SearchMapperTest {
 
     @Test
     public void testPropertyFilter() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilter(BAR, FOO);
+        PropertyFilter fooBar = SearchMapper.stringFilter(BAR, FOO);
         assertEquals(BAR, fooBar.getPropertyName());
-        assertEquals("^" + FOO + "$", fooBar.getStringFilter().getStringPropertyRegex());
-    }
-
-    @Test
-    public void testStringFilterNoDoublePrefix() {
-        assertThat(
-            SearchMapper.stringFilter("^val", true).getStringPropertyRegex(),
-            // No extra "^" prefix.
-            is("^val$"));
-    }
-
-    @Test
-    public void testStringFilterNoDoubleSuffix() {
-        assertThat(
-            SearchMapper.stringFilter("val$", true).getStringPropertyRegex(),
-            // No extra "$" suffix.
-            is("^val$"));
+        assertEquals(FOO, fooBar.getStringFilter().getStringPropertyRegex());
     }
 
     @Test
@@ -89,7 +68,7 @@ public class SearchMapperTest {
 
     @Test
     public void testSearchProperty() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilter(BAR, FOO);
+        PropertyFilter fooBar = SearchMapper.stringFilter(BAR, FOO);
         SearchFilter searchFilter = SearchMapper.searchFilterProperty(fooBar);
         assertEquals(fooBar, searchFilter.getPropertyFilter());
     }
