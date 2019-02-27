@@ -307,7 +307,7 @@ public class StatsService implements IStatsService {
      * {@link StatPeriodApiInputDTO} query parameter which modifies the stats search. A group is
      * expanded and the stats averaged over the group contents.
      *
-     * @param originalUuid         unique ID of the Entity for which the stats should be gathered
+     * @param uuid         unique ID of the Entity for which the stats should be gathered
      * @param encodedQuery a uuencoded structure for the {@link StatPeriodApiInputDTO} to modify the
      *                     stats search
      * @return a List of {@link StatSnapshotApiDTO} responses containing the time-based stats
@@ -361,6 +361,10 @@ public class StatsService implements IStatsService {
     @Override
     public List<StatSnapshotApiDTO> getStatsByEntityQuery(String originalUuid, StatPeriodApiInputDTO inputDto)
             throws Exception {
+        // NOTE: to anyone updating this method, Gary Z. is offering a *generous* reward to any who can
+        // refactor this function into smaller and simpler pieces, as it is getting cumbersome. Please
+        // submit proof of your success by adding him to your review request.
+
         final String uuid = magicScopeGateway.enter(originalUuid);
 
         logger.debug("fetch stats for {} requestInfo: {}", uuid, inputDto);
@@ -401,11 +405,15 @@ public class StatsService implements IStatsService {
             final boolean fullMarketRequest = UuidMapper.isRealtimeMarket(uuid);
             final Optional<Group> groupOptional = groupExpander.getGroup(uuid);
 
+            // track if this is a plan or not.
+            final boolean isPlanRequest;
+
             // determine the list of entity OIDs to query for this operation
             final Set<Long> entityStatOids;
             if (fullMarketRequest || isDefaultCloudGroupUuid) {
                 // An empty set means a request for the full market.
                 entityStatOids = Collections.emptySet();
+                isPlanRequest = false;
             } else {
                 final Set<Long> expandedOidsList = groupOptional.isPresent() ?
                         groupExpander.expandUuid(uuid) : Sets.newHashSet(Long.valueOf(uuid));
@@ -419,6 +427,8 @@ public class StatsService implements IStatsService {
                 if (entityStatOids.isEmpty()) {
                     return Collections.emptyList();
                 }
+                // check if this is a plan
+                isPlanRequest = getRequestedPlanInstance(uuid).isPresent();
             }
 
             final StatRequestParsedResultTuple requestStatsParsedResultPair = parseStats(inputDto);
@@ -428,8 +438,10 @@ public class StatsService implements IStatsService {
             // results in the UI.
             long currentStatsTimeWindowStart = clockTimeNow - liveStatsRetrievalWindow.toMillis();
             long currentStatsTimeWindowEnd = clockTimeNow + liveStatsRetrievalWindow.toMillis();
-            if (requestStatsParsedResultPair.hasNonCostStat && inputDto.getEndDate() != null
-                    && DateTimeUtil.parseTime(inputDto.getEndDate()) > currentStatsTimeWindowEnd) {
+            if (requestStatsParsedResultPair.hasNonCostStat
+                    && inputDto.getEndDate() != null
+                    && DateTimeUtil.parseTime(inputDto.getEndDate()) > currentStatsTimeWindowEnd
+                    && (!isPlanRequest)) {
                 ProjectedStatsResponse response =
                         statsServiceRpc.getProjectedStats(statsMapper.toProjectedStatsRequest(entityStatOids,
                                 inputDto));
@@ -852,9 +864,13 @@ public class StatsService implements IStatsService {
         }
         // check for a plan uuid
         String scopeUuid = inputDto.getScopes().iterator().next();
-        long scopeOid;
+        return getRequestedPlanInstance(scopeUuid);
+    }
+
+    private Optional<PlanInstance> getRequestedPlanInstance(@Nonnull String possiblePlanUuid) {
+        long oid;
         try {
-            scopeOid = Long.valueOf(scopeUuid);
+            oid = Long.valueOf(possiblePlanUuid);
         } catch (NumberFormatException e) {
             // not a number, so cannot be a plan UUID
             return Optional.empty();
@@ -863,7 +879,7 @@ public class StatsService implements IStatsService {
         // fetch plan from plan orchestrator
         PlanDTO.OptionalPlanInstance planInstanceOptional =
                 planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
-                        .setPlanId(scopeOid)
+                        .setPlanId(oid)
                         .build());
         if (!planInstanceOptional.hasPlanInstance()) {
             return Optional.empty();

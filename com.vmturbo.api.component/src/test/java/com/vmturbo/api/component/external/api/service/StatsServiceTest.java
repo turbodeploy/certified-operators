@@ -20,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
@@ -34,18 +35,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -95,8 +96,10 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
@@ -732,6 +735,30 @@ public class StatsServiceTest {
 
         // The returned stats will be all filtered out.
         assertEquals(0, resp.size());
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryForPlanId() throws Exception {
+        // verify that a request for plan stats does NOT request projected stats or cost stats, only
+        // averaged entity stats.
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        inputDto.setEndDate("1M"); // the UI is sending an end date now -- we need to make sure this
+        // does NOT result in requesting projected realtime stats or cost stats
+
+        // configure the mock plan info
+        String planIdString = "111";
+        long planId = 111L;
+        when(groupExpander.getGroup(planIdString)).thenReturn(Optional.empty());
+        when(planServiceSpy.getPlan(PlanId.newBuilder().setPlanId(planId).build()))
+                .thenReturn(OptionalPlanInstance.newBuilder()
+                        .setPlanInstance(PlanInstance.newBuilder()
+                                .setPlanId(planId)
+                                .setStatus(PlanStatus.SUCCEEDED))
+                        .build());
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(planIdString, inputDto);
+        verify(statsHistoryServiceSpy, never()).getProjectedStats(any());
+        verifyZeroInteractions(costServiceSpy);
+        verify(statsHistoryServiceSpy, times(1)).getAveragedEntityStats(any());
     }
 
     @Test
