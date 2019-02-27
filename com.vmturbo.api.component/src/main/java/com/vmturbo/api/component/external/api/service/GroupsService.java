@@ -40,10 +40,10 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
-import com.vmturbo.api.component.external.api.util.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -78,8 +78,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -532,8 +530,6 @@ public class GroupsService implements IGroupsService {
                 !inputDto.getGroupBy().isEmpty() &&
                 // For this special query we expect and support a specific way to group results.
                 inputDto.getGroupBy().get(0).equals(StringConstants.RISK_SUB_CATEGORY);
-            final boolean historicalQuery =
-                inputDto.getStartTime() != null && inputDto.getEndTime() != null;
             // Handle cloud stats
             if (specialCloudStatsQuery) {
                 GetActionCategoryStatsResponse response =
@@ -564,32 +560,13 @@ public class GroupsService implements IGroupsService {
                 }
                 return statSnapshotApiDTOS;
             } else {
-                final List<StatSnapshotApiDTO> results = new ArrayList<>();
-                if (historicalQuery) {
-                    // (roman, Jan 16 2019): We only support historical action stats for clusters, so
-                    // all other groups will not return anything.
-                    final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
-                    results.addAll(actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
-                        .scope(apiScopeId)
+                final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
+                final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
+                    actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
+                        .scopes(Collections.singleton(apiScopeId))
                         .actionInput(inputDto)
-                        .build()));
-                }
-                // Get the most recent stats.
-                //
-                // We do this after the historical queries, so that the live actions get appended
-                // to the end of the historical list.
-                //
-                // TODO (roman, Jan 28 2019) OM-42500: Migrate to a single "live" action stats endpoint,
-                // and move the "live" call to be part of ActionStatsQueryExecutor.
-                final ActionQueryFilter filter =
-                    actionSpecMapper.createLiveActionFilter(inputDto, getMemberIds(uuid));
-                final GetActionCountsResponse response =
-                    actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setFilter(filter)
                         .build());
-                results.addAll(ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList()));
-                return results;
+                return retStats.getOrDefault(apiScopeId, Collections.emptyList());
             }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {

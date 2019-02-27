@@ -38,7 +38,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActi
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.TableInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 

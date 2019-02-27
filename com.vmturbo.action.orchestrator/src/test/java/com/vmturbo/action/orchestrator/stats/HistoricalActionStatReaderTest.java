@@ -23,9 +23,9 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader.CombinedStatsBuckets;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader.CombinedStatsBucketsFactory;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBuckets;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
@@ -44,15 +44,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat.Value;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats.ActionStatSnapshot;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.ActionGroupFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.GroupBy;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.MgmtUnitSubgroupFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.ActionGroupFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 
-public class LiveActionStatReaderTest {
+public class HistoricalActionStatReaderTest {
 
     private final ActionGroupStore actionGroupStore =
         mock(ActionGroupStore.class);
@@ -73,7 +73,7 @@ public class LiveActionStatReaderTest {
 
     @Test
     public void testReadActionStats() {
-        final LiveActionStatReader reader = new LiveActionStatReader(actionGroupStore,
+        final HistoricalActionStatReader reader = new HistoricalActionStatReader(actionGroupStore,
             mgmtUnitSubgroupStore, timeFrameCalculator, tablesForTimeFrame, statsBucketsFactory);
 
         final MgmtUnitSubgroupFilter muFilter = MgmtUnitSubgroupFilter.newBuilder()
@@ -88,7 +88,7 @@ public class LiveActionStatReaderTest {
             .build();
         final LocalDateTime retStatTime = LocalDateTime.ofEpochSecond(1, 0, ZoneOffset.UTC);
         final GroupBy groupBy = GroupBy.ACTION_CATEGORY;
-        final HistoricalActionCountsQuery query = HistoricalActionCountsQuery.newBuilder()
+        final HistoricalActionStatsQuery query = HistoricalActionStatsQuery.newBuilder()
             .setMgmtUnitSubgroupFilter(muFilter)
             .setActionGroupFilter(agFilter)
             .setTimeRange(timeRange)
@@ -155,7 +155,7 @@ public class LiveActionStatReaderTest {
 
     @Test
     public void testReadActionStatsZeroValues() {
-        final LiveActionStatReader reader = new LiveActionStatReader(actionGroupStore,
+        final HistoricalActionStatReader reader = new HistoricalActionStatReader(actionGroupStore,
             mgmtUnitSubgroupStore, timeFrameCalculator, tablesForTimeFrame, statsBucketsFactory);
 
         final MgmtUnitSubgroupFilter muFilter = MgmtUnitSubgroupFilter.newBuilder()
@@ -170,7 +170,7 @@ public class LiveActionStatReaderTest {
             .build();
         final LocalDateTime retStatTime = LocalDateTime.ofEpochSecond(1, 0, ZoneOffset.UTC);
         final GroupBy groupBy = GroupBy.ACTION_CATEGORY;
-        final HistoricalActionCountsQuery query = HistoricalActionCountsQuery.newBuilder()
+        final HistoricalActionStatsQuery query = HistoricalActionStatsQuery.newBuilder()
             .setMgmtUnitSubgroupFilter(muFilter)
             .setActionGroupFilter(agFilter)
             .setTimeRange(timeRange)

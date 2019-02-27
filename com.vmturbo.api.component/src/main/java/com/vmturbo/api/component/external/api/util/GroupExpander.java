@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import static com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -56,6 +57,10 @@ public class GroupExpander {
         }
     }
 
+    public boolean isGroup(@Nonnull final String uuid) {
+        return getGroup(uuid).isPresent();
+    }
+
     /**
      * Process a UUID, expanding if a Group or Cluster uuid into the list of
      * elements. If the UUID is neither, it is simply included in the output list.
@@ -87,9 +92,7 @@ public class GroupExpander {
      * groupServiceGrpc call tp getMembers().
      */
     public @Nonnull Set<Long> expandUuids(@Nonnull Set<String> uuidSet) {
-        Set<Long> answer = Sets.newHashSet();
-
-        boolean isEntity = false;
+        final Set<Long> oids = new HashSet<>();
         for (String uuidString : uuidSet) {
             // sanity-check the uuidString
             if (StringUtils.isEmpty(uuidString)) {
@@ -100,17 +103,26 @@ public class GroupExpander {
                 return Collections.emptySet();
             }
 
-            // If it's group, try to fetch the members for a Group with the given OID
-            long oid = Long.valueOf(uuidString);
+            oids.add(Long.valueOf(uuidString));
+        }
+        return expandOids(oids);
+    }
+
+    @Nonnull
+    public Set<Long> expandOids(@Nonnull final Set<Long> oidSet) {
+        Set<Long> answer = Sets.newHashSet();
+
+        boolean isEntity = false;
+        for (final Long oid : oidSet) {
             // Assume it's group type at the beginning
             // For subsequent items, if it's group type, we continue the RPC call to Group component.
             // If not, we know it's entity type, and will just add oids to return set.
             if (!isEntity) {
                 // If we know it's group, we can further optimize the codes to do multi olds RPC call.
                 GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                        .setId(oid)
-                        .setExpectPresent(false)
-                        .build();
+                    .setId(oid)
+                    .setExpectPresent(false)
+                    .build();
                 GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
 
                 if (groupMembersResp.hasMembers()) {

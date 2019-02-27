@@ -301,7 +301,7 @@ public class SearchService implements ISearchService {
                     .topologyContextId(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR).oid())
                     .addSeedUuids(scopeServiceEntityIds)
                     .entityTypes(types)
-                    .environmentType(environmentType)
+                    .apiEnvironmentType(environmentType)
                     .includeHealthSummary(false)
                     .entityDetailType(EntityDetailType.entity)
                     .fetch();

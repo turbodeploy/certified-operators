@@ -36,7 +36,6 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
-import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -45,9 +44,9 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.util.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -81,8 +80,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -574,51 +571,14 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO actionApiInputDTO) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        // if the user is scoped, we should use their scope set as the filter. This might make for
-        // a very inefficient filter though at scale. :(
-        final EntityAccessScope userScope = userSessionContext.getUserAccessScope();
-        final Optional<Set<Long>> includedOids = userScope.containsAll()
-                ? Optional.empty()
-                : Optional.of(userScope.getScopeGroupMembers().toSet());
-
-        final boolean historicalQuery =
-            actionApiInputDTO.getStartTime() != null &&
-                actionApiInputDTO.getEndTime() != null;
         try {
-            final List<StatSnapshotApiDTO> results = new ArrayList<>();
-            if (historicalQuery) {
-                if (!userScope.containsAll()) {
-                    logger.warn("Scoped user (scope: {}) requested historical action stats." +
-                        "Returning empty.", userScope.toString());
-                } else {
-                    results.addAll(actionStatsQueryExecutor.retrieveActionStats(
-                        ImmutableActionStatsQuery.builder()
-                            .scope(apiId)
-                            .actionInput(actionApiInputDTO)
-                            .build()));
-                }
-            }
-
-            // Add the most recent stats.
-            //
-            // We do this after the historical queries, so that the live actions get appended
-            // to the end of the historical list.
-            //
-            // TODO (roman, Jan 28 2019) OM-42500: Migrate to a single "live" action stats endpoint,
-            // and move the "live" call to be part of ActionStatsQueryExecutor.
-            {
-                final ActionQueryFilter filter =
-                    actionSpecMapper.createLiveActionFilter(actionApiInputDTO, includedOids);
-                // if UI doesn't provide start and end date, will call ActionRpcService#getActionCounts
-                final GetActionCountsResponse actionCountsResponse =
-                    actionRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
-                        .setTopologyContextId(apiId.oid())
-                        .setFilter(filter)
+            final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
+                actionStatsQueryExecutor.retrieveActionStats(
+                    ImmutableActionStatsQuery.builder()
+                        .scopes(Collections.singleton(apiId))
+                        .actionInput(actionApiInputDTO)
                         .build());
-                results.addAll(ActionCountsMapper.countsByTypeToApi(
-                    actionCountsResponse.getCountsByTypeList()));
-            }
-            return results;
+            return retStats.getOrDefault(apiId, Collections.emptyList());
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();

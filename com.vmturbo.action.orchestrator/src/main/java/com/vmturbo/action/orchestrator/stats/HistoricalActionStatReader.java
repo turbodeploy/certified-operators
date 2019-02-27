@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats.ActionStatSnapshot;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.GroupBy;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -40,7 +40,7 @@ import com.vmturbo.proactivesupport.DataMetricCounter;
  * Responsible for handling historical action stats queries for the "live" (or realtime)
  * topology context.
  */
-public class LiveActionStatReader {
+public class HistoricalActionStatReader {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -58,11 +58,11 @@ public class LiveActionStatReader {
 
     private final CombinedStatsBucketsFactory statsBucketsFactory;
 
-    public LiveActionStatReader(@Nonnull final ActionGroupStore actionGroupStore,
-                                @Nonnull final MgmtUnitSubgroupStore mgmtUnitSubgroupStore,
-                                @Nonnull final TimeFrameCalculator timeFrameCalculator,
-                                @Nonnull final Map<TimeFrame, ActionStatTable.Reader> tablesForTimeFrame,
-                                @Nonnull final CombinedStatsBucketsFactory statsBucketsFactory) {
+    public HistoricalActionStatReader(@Nonnull final ActionGroupStore actionGroupStore,
+                                      @Nonnull final MgmtUnitSubgroupStore mgmtUnitSubgroupStore,
+                                      @Nonnull final TimeFrameCalculator timeFrameCalculator,
+                                      @Nonnull final Map<TimeFrame, ActionStatTable.Reader> tablesForTimeFrame,
+                                      @Nonnull final CombinedStatsBucketsFactory statsBucketsFactory) {
         this.actionGroupStore = Objects.requireNonNull(actionGroupStore);
         this.mgmtUnitSubgroupStore = Objects.requireNonNull(mgmtUnitSubgroupStore);
         this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
@@ -80,7 +80,7 @@ public class LiveActionStatReader {
      * @return An {@link ActionStats} protobuf containing all the requested action stats.
      */
     @Nonnull
-    public ActionStats readActionStats(@Nonnull final ActionDTO.HistoricalActionCountsQuery actionCountsQuery) {
+    public ActionStats readActionStats(@Nonnull final ActionDTO.HistoricalActionStatsQuery actionCountsQuery) {
         Metrics.QUERIES_COUNTER.increment();
 
         logger.trace("Reading action stats that match query: {}", actionCountsQuery);
@@ -149,7 +149,7 @@ public class LiveActionStatReader {
      * @param query The query to validate.
      * @return A list of human-readable errors with the query.
      */
-    private List<String> validateQuery(@Nonnull final ActionDTO.HistoricalActionCountsQuery query) {
+    private List<String> validateQuery(@Nonnull final ActionDTO.HistoricalActionStatsQuery query) {
         final List<String> errors = new ArrayList<>();
         if (query.getTimeRange().getStartTime() == 0 ) {
             errors.add("Query has no start time set.");
@@ -364,14 +364,14 @@ public class LiveActionStatReader {
 
     static class Metrics {
         static final DataMetricCounter QUERIES_COUNTER = DataMetricCounter.builder()
-            .withName("ao_action_stat_query_count")
-            .withHelp("Number of query requests received by the LiveActionStatReader")
+            .withName("ao_historical_action_stat_query_count")
+            .withHelp("Number of query requests received by the HistoricalActionStatReader")
             .build()
             .register();
 
         static final DataMetricCounter INVALID_QUERIES_COUNTER = DataMetricCounter.builder()
-            .withName("ao_invalid_action_stat_query_count")
-            .withHelp("Number of invalid query requests received by the LiveActionStatReader")
+            .withName("ao_invalid_historical_action_stat_query_count")
+            .withHelp("Number of invalid query requests received by the HistoricalActionStatReader")
             .build()
             .register();
     }

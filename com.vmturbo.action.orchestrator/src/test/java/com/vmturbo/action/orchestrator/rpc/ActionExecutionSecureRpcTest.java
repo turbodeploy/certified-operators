@@ -33,9 +33,9 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -46,6 +46,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
@@ -95,7 +96,8 @@ public class ActionExecutionSecureRpcTest {
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
-    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
+    private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
+    private final CurrentActionStatReader currentActionStatReader = mock(CurrentActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     // Have the translator pass-through translate all actions.
@@ -111,13 +113,14 @@ public class ActionExecutionSecureRpcTest {
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse,
-                    actionExecutor,
-                    actionTargetSelector,
-                    actionTranslator,
-                    paginatorFactory,
-                    workflowStore,
-                    statReader);
+        new ActionsRpcService(actionStorehouse,
+            actionExecutor,
+            actionTargetSelector,
+            actionTranslator,
+            paginatorFactory,
+            workflowStore,
+            statReader,
+            currentActionStatReader);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;

@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -811,11 +812,8 @@ public class GroupMapperTest {
         apiDTO.setGroupType(VM_TYPE);
         apiDTO.setScope(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
 
-        final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
-        when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.environmentType(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
+        final SupplyChainNodeFetcherBuilder fetcherBuilder =
+            ApiTestUtils.mockNodeFetcherBuilder(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(7L).build())
                 .build()));
@@ -839,14 +837,12 @@ public class GroupMapperTest {
         apiDTO.setGroupType(VM_TYPE);
         apiDTO.setScope(Lists.newArrayList("1"));
 
-        final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
-        when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.environmentType(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
-                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
-                        .addMemberOids(7L).build())
-                .build()));
+        final SupplyChainNodeFetcherBuilder fetcherBuilder =
+            ApiTestUtils.mockNodeFetcherBuilder(
+                ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
+                    .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                            .addMemberOids(7L).build())
+                    .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
 
         TempGroupInfo groupInfo = groupMapper.toTempGroupProto(apiDTO);
@@ -885,11 +881,8 @@ public class GroupMapperTest {
         // 7 should be in the scope, 6 is not in the scope, and foo is an illegal value.
         apiDTO.setMemberUuidList(Lists.newArrayList("7", "6", "foo"));
 
-        final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
-        when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.environmentType(any())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
+        final SupplyChainNodeFetcherBuilder fetcherBuilder =
+            ApiTestUtils.mockNodeFetcherBuilder(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(7L).build())
                 .build()));

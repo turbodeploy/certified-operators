@@ -60,7 +60,8 @@ public class RpcConfig {
                 actionTranslator,
                 actionPaginatorFactory(),
                 workflowConfig.workflowStore(),
-                actionStatsConfig.liveActionStatReader());
+                actionStatsConfig.historicalActionStatReader(),
+                actionStatsConfig.currentActionStatReader());
     }
 
     @Bean

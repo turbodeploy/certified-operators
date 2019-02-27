@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test the construction of {@link ActionApiDTO} with compound moves.
@@ -61,6 +62,10 @@ public class CompoundMoveTest {
     private GrpcTestServer grpcServer;
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
+    private static final int VM = EntityType.VIRTUAL_MACHINE_VALUE;
+    private static final int PM = EntityType.PHYSICAL_MACHINE_VALUE;
+    private static final int ST = EntityType.STORAGE_VALUE;
 
     private static final long TARGET_ID = 10;
     private static final String TARGET_NAME = "vm-1";
@@ -130,7 +135,7 @@ public class CompoundMoveTest {
     public void testSimpleAction()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveStorage = makeAction(TARGET_ID, ST1_ID, ST2_ID, null);
+        ActionDTO.Action moveStorage = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), 77L);
         assertSame(ActionType.CHANGE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
@@ -151,7 +156,7 @@ public class CompoundMoveTest {
     public void testSimpleActionWithResource()
             throws UnknownObjectException, UnsupportedActionException, ExecutionException,
             InterruptedException {
-        ActionDTO.Action moveVolume = makeAction(TARGET_ID, ST1_ID, ST2_ID, VOL1_ID);
+        ActionDTO.Action moveVolume = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), 77L);
         assertSame(ActionType.CHANGE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
@@ -173,7 +178,7 @@ public class CompoundMoveTest {
     public void testCompoundAction1()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveBoth1 = makeAction(TARGET_ID, ST1_ID, ST2_ID, PM1_ID, PM2_ID);
+        ActionDTO.Action moveBoth1 = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(2, apiDto.getCompoundActions().size());
@@ -194,7 +199,8 @@ public class CompoundMoveTest {
     public void testCompoundAction2()
                     throws UnknownObjectException, UnsupportedActionException, ExecutionException,
                     InterruptedException {
-        ActionDTO.Action moveBoth2 = makeAction(TARGET_ID, PM1_ID, PM2_ID, ST1_ID, ST2_ID); // different order
+        ActionDTO.Action moveBoth2 = makeAction(TARGET_ID, VM,
+            PM1_ID, PM, PM2_ID, PM, ST1_ID, ST, ST2_ID, ST); // different order
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(2, apiDto.getCompoundActions().size());
@@ -236,24 +242,31 @@ public class CompoundMoveTest {
             .build();
     }
 
-    private static ActionDTO.Action makeAction(long t, long s1, long d1, Long r1) {
+    private static ActionDTO.Action makeAction(long t, int tType,
+                                               long s1, int s1Type,
+                                               long d1, int d1Type,
+                                               Long r1) {
         return genericActionStuff()
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
-                                .setTarget(ApiUtilsTest.createActionEntity(t))
-                                .addChanges(makeChange(s1, d1, r1))
+                                .setTarget(ApiUtilsTest.createActionEntity(t, tType))
+                                .addChanges(makeChange(s1, s1Type, d1, d1Type, r1))
                                 .build())
                             .build())
                         .build();
     }
 
-    private static ActionDTO.Action makeAction(long t, long s1, long d1, long s2, long d2) {
+    private static ActionDTO.Action makeAction(long t, int tType,
+                                               long s1, int s1Type,
+                                               long d1, int d1Type,
+                                               long s2, int s2Type,
+                                               long d2, int d2Type) {
         return genericActionStuff()
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
-                                .setTarget(ApiUtilsTest.createActionEntity(t))
-                                .addChanges(makeChange(s1, d1, null))
-                                .addChanges(makeChange(s2, d2, null))
+                                .setTarget(ApiUtilsTest.createActionEntity(t, tType))
+                                .addChanges(makeChange(s1, s1Type, d1, d1Type, null))
+                                .addChanges(makeChange(s2, s2Type, d2, d2Type, null))
                                 .build())
                             .build())
                         .build();
@@ -268,10 +281,12 @@ public class CompoundMoveTest {
                         .setExplanation(Explanation.newBuilder().build());
     }
 
-    private static ChangeProvider makeChange(long source, long destination, Long resource) {
+    private static ChangeProvider makeChange(long source, int sourceType,
+                                             long destination, int destType,
+                                             Long resource) {
         Builder changeProviderBuilder = ChangeProvider.newBuilder()
-                        .setSource(ApiUtilsTest.createActionEntity(source))
-                        .setDestination(ApiUtilsTest.createActionEntity(destination));
+                        .setSource(ApiUtilsTest.createActionEntity(source, sourceType))
+                        .setDestination(ApiUtilsTest.createActionEntity(destination, destType));
         if (resource != null) {
             changeProviderBuilder.setResource(ApiUtilsTest.createActionEntity(resource));
         }

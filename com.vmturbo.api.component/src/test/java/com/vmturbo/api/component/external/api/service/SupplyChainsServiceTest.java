@@ -39,11 +39,11 @@ import com.vmturbo.api.component.external.api.service.SupplyChainsService.Filter
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
-import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
-import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -52,7 +52,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
@@ -97,7 +96,7 @@ public class SupplyChainsServiceTest {
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.addSeedUuids(anySetOf(String.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
-        when(supplyChainFetcherOperationBuilderMock.environmentType(any(EnvironmentType.class)))
+        when(supplyChainFetcherOperationBuilderMock.apiEnvironmentType(any(EnvironmentType.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.entityDetailType(any(EntityDetailType.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);

@@ -30,6 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -39,6 +40,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -105,7 +107,7 @@ public class SearchServiceTest {
     private final GroupUseCaseParser groupUseCaseParser = mock(GroupUseCaseParser.class);
     private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
     private final TopologyProcessorClient topologyProcessor = mock(TopologyProcessorClient.class);
-    private final UuidMapper uuidMapper = new UuidMapper(7777777L);
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
     private final GroupExpander groupExpander = mock(GroupExpander.class);
     private final PaginationMapper paginationMapperSpy = spy(new PaginationMapper());
     private final TagsService tagsService = mock(TagsService.class);
@@ -116,6 +118,11 @@ public class SearchServiceTest {
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
     private StatsHistoryServiceMole historyServiceSpy = Mockito.spy(new StatsHistoryServiceMole());
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy,
+        entitySeverityServiceSpy,
+        historyServiceSpy);
+
     private final long targetId1 = 111L;
     private final long targetId2 = 112L;
     private final String probeType1 = SDKProbeType.AWS.getProbeType();
@@ -123,17 +130,12 @@ public class SearchServiceTest {
 
     @Before
     public void setUp() throws Exception {
-
-        GrpcTestServer grpcTestServer = GrpcTestServer.newServer(searchServiceSpy, entitySeverityServiceSpy,
-                historyServiceSpy);
-        grpcTestServer.start();
-
         SearchServiceBlockingStub searchGrpcStub =
-                SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         StatsHistoryServiceBlockingStub statsHistoryServiceStub =
-                StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+                StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         EntitySeverityServiceBlockingStub severityGrpcStub =
-                EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -281,18 +283,12 @@ public class SearchServiceTest {
 
          */
         SupplychainApiDTOFetcherBuilder mockOperationBuilder =
-                mock(SupplychainApiDTOFetcherBuilder.class);
+            ApiTestUtils.mockApiDTOFetcherBuilder(mockSupplychainApiDto);
         when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(mockOperationBuilder);
 
-        // we need to set up these mocks to support the builder pattern
-        when(mockOperationBuilder.topologyContextId(anyLong())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.addSeedUuids(anyObject())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.entityTypes(anyObject())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.environmentType(anyObject())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.includeHealthSummary(anyBoolean())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.entityDetailType(anyObject())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.fetch()).thenReturn(mockSupplychainApiDto);
         when(groupExpander.expandUuids(eq(scopesSet))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
+
+        ApiTestUtils.mockRealtimeId(UuidMapper.UI_REAL_TIME_MARKET_STR, 777777, uuidMapper);
 
         // Act
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null);

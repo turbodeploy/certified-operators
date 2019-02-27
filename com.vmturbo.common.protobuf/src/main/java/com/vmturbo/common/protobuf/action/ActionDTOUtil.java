@@ -6,9 +6,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -27,12 +29,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -60,6 +66,10 @@ public class ActionDTOUtil {
     // the syntax to use for a translatable entry: {entity:oid:field:defaultValue}
     private static final String TRANSLATION_REGEX = "\\{entity:([^:]*?):([^:]*?):([^:]*?)\\}";
     public static final Pattern TRANSLATION_PATTERN = Pattern.compile(TRANSLATION_REGEX);
+
+    public static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
+        EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
+        EntityType.DATABASE_TIER_VALUE);
 
     private ActionDTOUtil() {}
 
@@ -303,6 +313,92 @@ public class ActionDTOUtil {
         }
     }
 
+    /**
+     * Get the "primary" {@link ChangeProvider} for a particular move action.
+     * Only relevant in compound moves. Generally, if a PM move is accompanied by a storage move,
+     * the PM move is considered primary.
+     *
+     * @param move The {@link ActionDTO.Move} action.
+     * @return The primary {@link ChangeProvider}.
+     */
+    @Nonnull
+    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Move move) {
+        return move.getChanges(getPrimaryChangeProviderIdx(move));
+    }
+
+    private static int getPrimaryChangeProviderIdx(@Nonnull final ActionDTO.Move move) {
+        for (int i = 0; i < move.getChangesList().size(); ++i) {
+            final ChangeProvider change = move.getChanges(i);
+            if (change.getDestination().getType() == EntityType.PHYSICAL_MACHINE_VALUE ||
+                PRIMARY_TIER_VALUES.contains(change.getDestination().getType())) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Get the reason commodities for a particular {@link ActionDTO.Action}. These are the
+     * commodities which, in some way, caused the action to happen. e.g. if a VM needs to
+     * be sized up due to a lack of VMem, "VMem" would be the reason commodity.
+     *
+     * @param action The {@link ActionDTO.Action}.
+     * @return A stream of {@link TopologyDTO.CommodityType}s that caused the action. May be an
+     *         empty stream. May contain multiple commodities, depending on the action explanation.
+     */
+    @Nonnull
+    public static Stream<TopologyDTO.CommodityType> getReasonCommodities(@Nonnull final ActionDTO.Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (action.getInfo().getActionTypeCase()) {
+            case MOVE:
+                final ChangeProviderExplanation changeExp = action.getExplanation().getMove()
+                    .getChangeProviderExplanation(getPrimaryChangeProviderIdx(actionInfo.getMove()));
+                switch (changeExp.getChangeProviderExplanationTypeCase()) {
+                    case COMPLIANCE:
+                        return changeExp.getCompliance().getMissingCommoditiesList().stream();
+                    case CONGESTION:
+                        return changeExp.getCongestion().getCongestedCommoditiesList().stream();
+                    case EFFICIENCY:
+                        return Stream.concat(
+                            changeExp.getEfficiency().getCongestedCommoditiesList().stream(),
+                            changeExp.getEfficiency().getUnderUtilizedCommoditiesList().stream());
+                    case EVACUATION:
+                    case INITIALPLACEMENT:
+                    case PERFORMANCE:
+                    default:
+                        return Stream.empty();
+                }
+            case RECONFIGURE:
+                return action.getExplanation().getReconfigure().getReconfigureCommodityList().stream();
+            case PROVISION:
+                final ProvisionExplanation provisionExplanation = action.getExplanation().getProvision();
+                if (provisionExplanation.hasProvisionByDemandExplanation()) {
+                    return provisionExplanation.getProvisionByDemandExplanation()
+                        .getCommodityMaxAmountAvailableList().stream()
+                        .map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
+                        .map(baseType -> TopologyDTO.CommodityType.newBuilder()
+                            .setType(baseType)
+                            .build());
+                } else if (provisionExplanation.hasProvisionBySupplyExplanation()) {
+                    return Stream.of(TopologyDTO.CommodityType.newBuilder()
+                        .setType(provisionExplanation.getProvisionBySupplyExplanation()
+                            .getMostExpensiveCommodity())
+                        .build());
+                } else {
+                    return Stream.empty();
+                }
+            case RESIZE:
+                return Stream.of(actionInfo.getResize().getCommodityType());
+            case ACTIVATE:
+                return action.getInfo().getActivate().getTriggeringCommoditiesList()
+                    .stream();
+            case DEACTIVATE:
+                return action.getInfo().getDeactivate().getTriggeringCommoditiesList()
+                    .stream();
+            default:
+                return Stream.empty();
+        }
+    }
 
 
     /**

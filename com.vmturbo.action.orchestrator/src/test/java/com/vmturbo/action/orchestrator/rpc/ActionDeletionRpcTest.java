@@ -10,14 +10,14 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.Mockito;
 
 import io.grpc.Status.Code;
 
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -38,18 +38,20 @@ public class ActionDeletionRpcTest {
     private final ActionStore actionStore = mock(ActionStore.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
-    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
+    private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
+    private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
 
     private final long topologyContextId = 3;
 
     private ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse,
-                    mock(ActionExecutor.class),
-                    mock(ActionTargetSelector.class),
-                    mock(ActionTranslator.class),
-                    paginatorFactory,
-                    workflowStore,
-                    statReader);
+        new ActionsRpcService(actionStorehouse,
+            mock(ActionExecutor.class),
+            mock(ActionTargetSelector.class),
+            mock(ActionTranslator.class),
+            paginatorFactory,
+            workflowStore,
+            statReader,
+            liveStatReader);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

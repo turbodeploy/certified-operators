@@ -2,11 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.api.component.external.api.mapper.UuidMapper.UI_REAL_TIME_MARKET_STR;
 import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
-import static com.vmturbo.reports.db.StringConstants.RI_COUPON_COVERAGE;
-import static com.vmturbo.reports.db.StringConstants.RI_COUPON_UNITS;
-import static com.vmturbo.reports.db.StringConstants.RI_COUPON_UTILIZATION;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,8 +13,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import com.google.common.collect.Lists;
 
@@ -31,7 +25,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
@@ -45,8 +38,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.reports.db.StringConstants;
 
 public class ReservedInstanceMapper {
 
@@ -57,8 +50,6 @@ public class ReservedInstanceMapper {
     private static final String RESERVED_INSTANCE = "ReservedInstance";
 
     private static final String YEAR = "Year";
-
-    private static final String DOLLARS_PER_HOUR = "$/h";
 
     private static final long NUM_OF_MILLISECONDS_OF_YEAR = 365L * 86400L * 1000L;
 
@@ -117,7 +108,7 @@ public class ReservedInstanceMapper {
                 .getReservedInstanceBoughtCost()
                 .getRecurringCostPerHour()
                 .getAmount());
-        reservedInstanceApiDTO.setCostPrice(createStatApiDTO(DOLLARS_PER_HOUR,
+        reservedInstanceApiDTO.setCostPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR,
                 Optional.empty(), (float) getTotalHourlyCost(reservedInstanceBoughtInfo,
                         reservedInstanceSpec)));
         reservedInstanceApiDTO.setUpFrontCost(reservedInstanceBoughtInfo
@@ -127,8 +118,8 @@ public class ReservedInstanceMapper {
         reservedInstanceApiDTO.setEffectiveHourlyCost(getTotalHourlyCost(reservedInstanceBoughtInfo,
                 reservedInstanceSpec));
         // TODO: need to get on demand price of reserved instance from price table.
-        reservedInstanceApiDTO.setOnDemandPrice(createStatApiDTO(DOLLARS_PER_HOUR, Optional.empty(), 0));
-        reservedInstanceApiDTO.setCoupons(createStatApiDTO(RI_COUPON_UNITS,
+        reservedInstanceApiDTO.setOnDemandPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR, Optional.empty(), 0));
+        reservedInstanceApiDTO.setCoupons(createStatApiDTO(StringConstants.RI_COUPON_UNITS,
                 Optional.of((float) reservedInstanceBought.getReservedInstanceBoughtInfo()
                         .getReservedInstanceBoughtCoupons().getNumberOfCoupons()),
                 (float) reservedInstanceBought.getReservedInstanceBoughtInfo()
@@ -315,7 +306,7 @@ public class ReservedInstanceMapper {
      */
     private StatApiDTO createRIUtilizationStatApiDTO(@Nonnull final ReservedInstanceStatsRecord record,
                                                      final boolean isRICoverage) {
-        final String name = isRICoverage ? RI_COUPON_COVERAGE : RI_COUPON_UTILIZATION;
+        final String name = isRICoverage ? StringConstants.RI_COUPON_COVERAGE : StringConstants.RI_COUPON_UTILIZATION;
         StatApiDTO statsDto = new StatApiDTO();
         StatValueApiDTO statsValueDto = new StatValueApiDTO();
         statsValueDto.setAvg(record.getValues().getAvg());
@@ -329,7 +320,7 @@ public class ReservedInstanceMapper {
         capacityDto.setMin(record.getCapacity().getMin());
         capacityDto.setTotal(record.getCapacity().getTotal());
         statsDto.setCapacity(capacityDto);
-        statsDto.setUnits(RI_COUPON_UNITS);
+        statsDto.setUnits(StringConstants.RI_COUPON_UNITS);
         statsDto.setName(name);
         statsDto.setValue(record.getValues().getAvg());
         return statsDto;

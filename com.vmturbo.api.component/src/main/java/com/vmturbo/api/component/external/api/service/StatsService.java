@@ -619,8 +619,8 @@ public class StatsService implements IStatsService {
             statValueBuilder.setTotal((float) statRecordsList.stream().map(record -> record.getValues().getAvg())
                     .mapToDouble(v -> v).sum());
             statRecordBuilder.setValues(statValueBuilder.build());
-            statRecordBuilder.setName("costPrice");
-            statRecordBuilder.setUnits("$/h");
+            statRecordBuilder.setName(StringConstants.COST_PRICE);
+            statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
             builder.addStatRecords(statRecordBuilder.build());
             return builder.build();
         }).collect(Collectors.toList());
@@ -685,7 +685,7 @@ public class StatsService implements IStatsService {
 
         final StatApiDTO statApiDTO = new StatApiDTO();
         statApiDTO.setName(RI_COMPUTE);
-        statApiDTO.setUnits("$/h");
+        statApiDTO.setUnits(StringConstants.DOLLARS_PER_HOUR);
         statApiDTO.setValue(-1 * cloudCostStatRecord.getValues().getAvg());
         final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
         statValueApiDTO.setAvg(cloudCostStatRecord.getValues().getAvg());

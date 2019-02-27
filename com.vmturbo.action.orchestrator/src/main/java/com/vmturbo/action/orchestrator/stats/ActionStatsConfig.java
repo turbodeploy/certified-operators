@@ -12,15 +12,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
+import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
-import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -53,6 +54,13 @@ public class ActionStatsConfig {
 
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
+
+    /**
+     * Auto-wiring the action store config without an @Import
+     * because of circular dependency.
+     */
+    @Autowired
+    private ActionStoreConfig actionStoreConfig;
 
     @Value("${actionStatsWriteBatchSize}")
     private int actionStatsWriteBatchSize;
@@ -87,19 +95,27 @@ public class ActionStatsConfig {
         return new TimeFrameCalculator(globalConfig.actionOrchestratorClock(),
             rollupConfig.retentionPeriodFetcher());
     }
+
     @Bean
-    public LiveActionStatReader liveActionStatReader() {
+    public HistoricalActionStatReader historicalActionStatReader() {
         final Map<TimeFrame, ActionStatTable.Reader> statReadersForTimeFrame = new HashMap<>();
         statReadersForTimeFrame.put(TimeFrame.LATEST, rollupConfig.latestTable().reader());
         statReadersForTimeFrame.put(TimeFrame.HOUR, rollupConfig.hourlyTable().reader());
         statReadersForTimeFrame.put(TimeFrame.DAY, rollupConfig.dailyTable().reader());
         statReadersForTimeFrame.put(TimeFrame.MONTH, rollupConfig.monthlyTable().reader());
 
-        return new LiveActionStatReader(actionGroupStore(),
+        return new HistoricalActionStatReader(actionGroupStore(),
             mgmtUnitSubgroupStore(),
             timeFrameCalculator(),
             statReadersForTimeFrame,
             new DefaultBucketsFactory());
+    }
+
+    @Bean
+    public CurrentActionStatReader currentActionStatReader() {
+        return new CurrentActionStatReader(globalConfig.realtimeTopologyContextId(),
+            actionStoreConfig.actionStorehouse(),
+            actionTranslationConfig.actionTranslator());
     }
 
     @Bean

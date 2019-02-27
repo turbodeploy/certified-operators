@@ -734,7 +734,7 @@ public class StatsMapperTest {
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(@Nullable CostCategory costCategory, float value, Optional<Long> associatedEntityId) {
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
 
         statRecordBuilder.setAssociatedEntityId(associatedEntityId.orElse(4l));
 

@@ -50,7 +50,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActi
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.StatWithSnapshotCnt;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 

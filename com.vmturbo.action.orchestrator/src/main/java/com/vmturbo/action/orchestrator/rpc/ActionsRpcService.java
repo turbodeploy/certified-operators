@@ -38,21 +38,21 @@ import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
+import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLogEntry;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -84,15 +84,20 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.TimeUtil;
@@ -136,7 +141,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final WorkflowStore workflowStore;
 
-    private final LiveActionStatReader actionStatsReader;
+    private final HistoricalActionStatReader historicalActionStatReader;
+
+    private final CurrentActionStatReader currentActionStatReader;
 
     /**
      * Create a new ActionsRpcService.
@@ -154,14 +161,16 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                              @Nonnull final ActionTranslator actionTranslator,
                              @Nonnull final ActionPaginatorFactory paginatorFactory,
                              @Nonnull final WorkflowStore workflowStore,
-                             @Nonnull final LiveActionStatReader liveActionStatReader) {
+                             @Nonnull final HistoricalActionStatReader historicalActionStatReader,
+                             @Nonnull final CurrentActionStatReader currentActionStatReader) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
         this.workflowStore = Objects.requireNonNull(workflowStore);
-        this.actionStatsReader = Objects.requireNonNull(liveActionStatReader);
+        this.historicalActionStatReader = Objects.requireNonNull(historicalActionStatReader);
+        this.currentActionStatReader = Objects.requireNonNull(currentActionStatReader);
     }
 
     /**
@@ -578,17 +587,44 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     @Override
     public void getHistoricalActionStats(GetHistoricalActionStatsRequest request,
                                          StreamObserver<GetHistoricalActionStatsResponse> responseObserver) {
+        final GetHistoricalActionStatsResponse.Builder respBuilder =
+            GetHistoricalActionStatsResponse.newBuilder();
+        for (GetHistoricalActionStatsRequest.SingleQuery query : request.getQueriesList()) {
+            try {
+                final ActionStats actionStats = historicalActionStatReader.readActionStats(query.getQuery());
+                respBuilder.addResponses(GetHistoricalActionStatsResponse.SingleResponse.newBuilder()
+                    .setQueryId(query.getQueryId())
+                    .setActionStats(actionStats));
+            } catch (DataAccessException e) {
+                logger.error("Failed to read action stats for query {}. Error: {}",
+                    query.getQuery(), e.getMessage());
+                respBuilder.addResponses(GetHistoricalActionStatsResponse.SingleResponse.newBuilder()
+                    .setQueryId(query.getQueryId())
+                    .setError(e.getMessage())
+                    .build());
+            }
+        }
+        responseObserver.onNext(respBuilder.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getCurrentActionStats(GetCurrentActionStatsRequest request,
+                                   StreamObserver<GetCurrentActionStatsResponse> responseObserver) {
+        final GetCurrentActionStatsResponse.Builder respBuilder =
+            GetCurrentActionStatsResponse.newBuilder();
         try {
-            final ActionStats actionStats = actionStatsReader.readActionStats(request.getQuery());
-            responseObserver.onNext(GetHistoricalActionStatsResponse.newBuilder()
-                .setActionStats(actionStats)
-                .build());
+            currentActionStatReader.readActionStats(request).entrySet().stream()
+                .map(entry -> GetCurrentActionStatsResponse.SingleResponse.newBuilder()
+                    .setQueryId(entry.getKey())
+                    .addAllActionStats(entry.getValue()))
+                .forEach(respBuilder::addResponses);
+
+            responseObserver.onNext(respBuilder.build());
             responseObserver.onCompleted();
-        } catch (DataAccessException e) {
-            logger.error("Failed to retrieve historical stats!", e);
-            responseObserver.onError(Status.INTERNAL
-                .withDescription(e.getLocalizedMessage())
-                .asException());
+        } catch (FailedActionQueryException e) {
+            logger.error("Current action query failed. Error: {}", e.getMessage());
+            responseObserver.onError(e.asGrpcException());
         }
     }
 

@@ -19,7 +19,7 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.TimeRange;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**

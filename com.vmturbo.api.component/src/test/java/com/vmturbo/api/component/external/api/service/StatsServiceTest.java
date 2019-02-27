@@ -35,12 +35,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -48,6 +42,13 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -496,8 +497,8 @@ public class StatsServiceTest {
         final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
                 .addStatRecords(StatRecord.newBuilder()
-                        .setName("costPrice")
-                        .setUnits("$/h")
+                        .setName(StringConstants.COST_PRICE)
+                        .setUnits(StringConstants.DOLLARS_PER_HOUR)
                         .setValues(StatValue.newBuilder().setTotal(value1 + value2 + value3)
                                 .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
                         .build())
@@ -570,8 +571,8 @@ public class StatsServiceTest {
         final CloudCostStatRecord expectedCloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(DateTimeUtil.toString(1))
                 .addStatRecords(StatRecord.newBuilder()
-                        .setName("costPrice")
-                        .setUnits("$/h")
+                        .setName(StringConstants.COST_PRICE)
+                        .setUnits(StringConstants.DOLLARS_PER_HOUR)
                         .setValues(StatValue.newBuilder().setTotal(value1 + value2 + value3)
                                 .setMin(value1).setMax(value3).setAvg((value1 + value2 + value3)/3).build())
                         .build())
@@ -589,7 +590,7 @@ public class StatsServiceTest {
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory, float value) {
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
         statRecordBuilder.setAssociatedEntityId(4l);
         statRecordBuilder.setAssociatedEntityType(1);
         statRecordBuilder.setCategory(costCategory);
@@ -815,11 +816,6 @@ public class StatsServiceTest {
 
         final Set<Long> oids = Sets.newHashSet(101L, 102L);
 
-        // set up the supplychainfetcherfactory for DC 7
-        SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
-        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.entityTypes(anyList())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.addSeedUuid(anyString())).thenReturn(fetcherBuilder);
         // set up supply chain result for DC 7
         Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
                 PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
@@ -827,7 +823,10 @@ public class StatsServiceTest {
                             .addAllMemberOids(oids)
                             .build())
                         .build());
-        when(fetcherBuilder.fetch()).thenReturn(supplyChainNodeMap1);
+        // set up the supplychainfetcherfactory for DC 7
+        SupplyChainNodeFetcherBuilder fetcherBuilder =
+            ApiTestUtils.mockNodeFetcherBuilder(supplyChainNodeMap1);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
 
         final GetAveragedEntityStatsRequest request =
                 GetAveragedEntityStatsRequest.getDefaultInstance();
@@ -871,11 +870,6 @@ public class StatsServiceTest {
                 any(), any()))
                 .thenReturn(Lists.newArrayList(se7, se8));
 
-        // set up the supplychainfetcherfactory
-        SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
-        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.entityTypes(anyList())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.addSeedUuid(anyString())).thenReturn(fetcherBuilder);
         // first req, for DC 7, return PMs 101 and 102 for supply chain
         Map<String, SupplyChainProto.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
                 PHYSICAL_MACHINE.getValue(), SupplyChainProto.SupplyChainNode.newBuilder()
@@ -894,8 +888,10 @@ public class StatsServiceTest {
                                 .build())
                         .build()
         );
-        when(fetcherBuilder.fetch()).thenReturn(supplyChainNodeMap1)
-                .thenReturn(supplyChainNodeMap2);
+        // set up the supplychainfetcherfactory
+        SupplyChainNodeFetcherBuilder fetcherBuilder =
+            ApiTestUtils.mockNodeFetcherBuilder(supplyChainNodeMap1, supplyChainNodeMap2);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
 
         final Set<Long> expandedOids = Sets.newHashSet(101L, 102L, 103L, 104L);
         final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
@@ -1260,10 +1256,8 @@ public class StatsServiceTest {
                         .build())
                     .build());
 
-        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
-        when(nodeFetcherBuilder.addSeedUuids(any())).thenReturn(nodeFetcherBuilder);
-        when(nodeFetcherBuilder.entityTypes(any())).thenReturn(nodeFetcherBuilder);
-        when(nodeFetcherBuilder.fetch()).thenReturn(supplyChainQueryResult);
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+            ApiTestUtils.mockNodeFetcherBuilder(supplyChainQueryResult);
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
 
         final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
@@ -1317,14 +1311,11 @@ public class StatsServiceTest {
                 UuidMapper.UI_REAL_TIME_MARKET_STR, null, null))
                 .thenReturn(Collections.singletonList(dcDto));
 
-        final SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
+        final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
+            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.getValue(),
+                // Empty node!
+                SupplyChainNode.getDefaultInstance()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.entityTypes(anyList())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.addSeedUuid(anyString())).thenReturn(fetcherBuilder);
-        when(fetcherBuilder.fetch())
-                .thenReturn(ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.getValue(),
-                        // Empty node!
-                        SupplyChainNode.getDefaultInstance()));
 
         final List<StatSnapshotApiDTO> dto =
                 statsService.getStatsByEntityQuery("1", new StatPeriodApiInputDTO());

@@ -259,4 +259,8 @@ public class StringConstants {
 	public static final String RELATED_TYPE = "related_type";
 	public static final String N_ENTITIES = "n_entities";
     public static final String SAVINGS_UNIT = "savings_unit";
+
+
+    public static final String DOLLARS_PER_HOUR = "$/h";
+    public static final String PROPERTY = "property";
 }

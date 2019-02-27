@@ -1,10 +1,13 @@
 package com.vmturbo.common.protobuf;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -17,15 +20,29 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
 
 /**
@@ -170,6 +187,253 @@ public class ActionDTOUtilTest {
         assertEquals(SOURCE_2, ActionDTOUtil.getSeverityEntity(action));
         // When all sources are STORAGEs, severity entity is SOURCE_1
         assertEquals(SOURCE_1, ActionDTOUtil.getSeverityEntity(action));
+    }
+
+    @Test
+    public void testReasonCommodityMoveCompliance() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setCompliance(Compliance.newBuilder()
+                            .addMissingCommodities(commodity1)
+                            .addMissingCommodities(commodity2)))))
+            .setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(createActionEntity(11))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(createActionEntity(1))
+                        .setDestination(createActionEntity(2)))))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
+    }
+
+    @Test
+    public void testReasonCommodityMoveCongestion() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setCongestion(Congestion.newBuilder()
+                            .addCongestedCommodities(commodity1)
+                            .addCongestedCommodities(commodity2)))))
+            .setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(createActionEntity(11))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(createActionEntity(1))
+                        .setDestination(createActionEntity(2)))))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
+    }
+
+    @Test
+    public void testReasonCommodityMoveEfficiency() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setEfficiency(Efficiency.newBuilder()
+                            .addCongestedCommodities(commodity1)
+                            .addUnderUtilizedCommodities(commodity2)))))
+            .setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(createActionEntity(11))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(createActionEntity(1))
+                        .setDestination(createActionEntity(2)))))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
+    }
+
+    @Test
+    public void testReasonCommodityReconfigure() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder()
+                .setReconfigure(ReconfigureExplanation.newBuilder()
+                    .addReconfigureCommodity(commodity1)
+                    .addReconfigureCommodity(commodity2)))
+            .setInfo(ActionInfo.newBuilder()
+                .setReconfigure(Reconfigure.newBuilder()
+                    .setTarget(createActionEntity(11))))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
+    }
+
+    @Test
+    public void testReasonCommodityProvisionByDemand() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder()
+                .setProvision(ProvisionExplanation.newBuilder()
+                    .setProvisionByDemandExplanation(ProvisionByDemandExplanation.newBuilder()
+                        .setBuyerId(11111)
+                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                            .setMaxAmountAvailable(2)
+                            .setRequestedAmount(3)
+                            .setCommodityBaseType(1))
+                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                            .setMaxAmountAvailable(2)
+                            .setRequestedAmount(3)
+                            .setCommodityBaseType(2)))))
+            .setInfo(ActionInfo.newBuilder()
+                .setProvision(Provision.newBuilder()
+                    .setEntityToClone(createActionEntity(11))))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
+    }
+
+    @Test
+    public void testReasonCommodityProvisionBySupply() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.newBuilder()
+                .setProvision(ProvisionExplanation.newBuilder()
+                    .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
+                        .setMostExpensiveCommodity(1))))
+            .setInfo(ActionInfo.newBuilder()
+                .setProvision(Provision.newBuilder()
+                    .setEntityToClone(createActionEntity(11))))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1));
+    }
+
+    @Test
+    public void testReasonCommodityResize() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.getDefaultInstance())
+            .setInfo(ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(createActionEntity(11))
+                    .setCommodityType(commodity1)))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1));
+    }
+
+    @Test
+    public void testReasonCommodityActivate() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.getDefaultInstance())
+            .setInfo(ActionInfo.newBuilder()
+                .setActivate(Activate.newBuilder()
+                    .setTarget(createActionEntity(11))
+                    .addTriggeringCommodities(commodity1)
+                    .addTriggeringCommodities(commodity2)))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
+    }
+
+    @Test
+    public void testReasonCommodityDeactivate() {
+        final CommodityType commodity1 = CommodityType.newBuilder()
+            .setType(1)
+            .build();
+        final CommodityType commodity2 = CommodityType.newBuilder()
+            .setType(2)
+            .build();
+
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.getDefaultInstance())
+            .setInfo(ActionInfo.newBuilder()
+                .setDeactivate(Deactivate.newBuilder()
+                    .setTarget(createActionEntity(11))
+                    .addTriggeringCommodities(commodity1)
+                    .addTriggeringCommodities(commodity2)))
+            .setImportance(1)
+            .build();
+
+        final List<CommodityType> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList());
+        assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
     }
 
     private static ActionEntity createActionEntity(long id) {

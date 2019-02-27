@@ -909,12 +909,125 @@ message ActionCategoryStats {
     optional double investment = 5;
 }
 
+// A query for current actions (i.e. the most recent actions)
+message CurrentActionStatsQuery {
+
+    // Filter for the kinds of actions to return stats for.
+    // If not present, results for all action kinds will be returned.
+    optional ActionGroupFilter action_group_filter = 1;
+
+    // Filter for the scope to return stats for. If set, will only retrieve actions affecting
+    // entities in the scope. If not set, will retrieve actions affecting any entities in
+    // the realtime topology.
+    optional ScopeFilter scope_filter = 2;
+
+    // Grouping criteria for the action stats.
+    // If not set, action stats for each found time will be combined into a single value.
+    repeated GroupBy group_by = 10;
+
+    // The filter to apply to the actions considered for the counts.
+    //
+    // This is pretty much the same as the one in HistoricalActionCountsQuery, but it's kept
+    // separate for future-proofing. The live version is much more flexible because we're dealing
+    // with in-memory objects. Given the breadth of the API it's very possible that we will need
+    // to add other properties here. However, adding a property here shouldn't confuse users of
+    // the historical interface.
+    message ActionGroupFilter {
+        // Match action groups with any of these action types.
+        // An empty list means match all action types.
+        repeated ActionType action_type = 1;
+
+        // Match action groups with any of these action modes.
+        // An empty list means match all action modes.
+        repeated ActionMode action_mode = 2;
+
+        // Match action groups with any of these action categories.
+        // An empty list means match all action categories.
+        repeated ActionCategory action_category = 3;
+
+        // Match action groups with any of these action states.
+        // An empty list means match all action states.
+        repeated ActionState action_state = 4;
+    }
+
+    // The entities involved in an action must match this filter in order for the action to be
+    // considered for the counts.
+    //
+    // If any entity involved in an action matches this filter, the action will be counted.
+    // However, only the matching entity will be counted towards the "numEntities" in the returned
+    // stats. For example, suppose there is a move of VM 1 from Host 1 to Host 2. If the scope
+    // filter targets VM 1, the returned stats will be:
+    //    numActions: 1
+    //    numEntities: 1 (the VM)
+    // On the other hand, if the scope filter targets all three entities the returned stats will be:
+    //    numActions: 1
+    //    numEntities: 3
+    message ScopeFilter {
+        // The topology context for the scope.
+        // If unset, use the default realtime context - i.e. get the live actions.
+        optional int64 topology_context_id = 1;
+
+        oneof scope {
+            // A subset of entities in the most recent topology for the context.
+            GlobalScope global = 2;
+
+            // A list of entity IDs.
+            EntityScope entity_list = 3;
+        }
+
+        // The scope is all entities in the specific topology context,
+        // with some optional high-level filters to allow targeting a subset of the entities.
+        message GlobalScope {
+            // Restrict to a particular environment type.
+            // If not set, include entities of all environment types.
+            optional .common.EnvironmentType environment_type = 1;
+
+            // Restrict to a particular list of entity types.
+            // If empty, get the value across all entity types.
+            repeated int32 entity_type = 2;
+        }
+
+        // The scope is a specific list of entity IDs.
+        message EntityScope {
+            repeated int64 oids = 1;
+        }
+
+    }
+
+    // Group and aggregate/combine action stats according to this property.
+    // This is similar to the SQL "GROUP BY" statement.
+    enum GroupBy {
+        // No grouping - aggregate all matching action stats into a single set of values.
+        NONE = 0;
+
+        // Group by action state - action stats will be grouped by the action state. For example,
+        // if we have 1 READY "MOVE" action, 1 READY "RESIZE" action, and 1 QUEUED "MOVE" action,
+        // the returned action count will be 2 for the "READY" state and 1 for the "QUEUED" state.
+        ACTION_STATE = 1;
+
+        // Group by action state - action stats will be grouped by the action state. For example,
+        // if we have 1 "MOVE" action and 1 "RESIZE action for performance, and 1 "MOVE" action for
+        // compliance, the returned action count will be 2 for the "performance" category and
+        // 1 for the "compliance" category.
+        ACTION_CATEGORY = 2;
+
+        // Group by action type.
+        ACTION_TYPE = 3;
+
+        // Group by the reason commodity (e.g. VMem, CPU, etc)
+        REASON_COMMODITY = 4;
+
+        // Entity type of the primary entity for the action.
+        TARGET_ENTITY_TYPE = 5;
+    }
+}
+
 // A query for historical action stats.
 //
 // In the historical stat case we support a subset of the criteria we have in "realtime".
 // Also, the target of the query is constrained - we only keep action stats for certain
 // "management units" (e.g. global market, cluster).
-message HistoricalActionCountsQuery {
+message HistoricalActionStatsQuery {
 
     message ActionGroupFilter {
         // Match action groups with any of these action types.
@@ -1042,6 +1155,66 @@ message ActionStats {
     }
 }
 
+// Action stats for the most recent set of actions the action orchestrator knows about.
+message CurrentActionStat {
+
+    // If the "group_by" in the query was non-empty, this message contains the values of the
+    // grouping criteria that a particular "CurrentActionStat" aggregated across.
+    // For example, if the "group_by" was "ACTION_STATE" and "ACTION_TYPE" and there were four
+    // matching actions:
+    //     - An IN-PROGRESS move action for performance
+    //     - An IN-PROGRESS move action for compliance
+    //     - A READY move action
+    //     - A READY resize action
+    //
+    // There would be three returned "CurrentActionStat" messages:
+    //     - One with StatGroup : { action_state : "IN_PROGRESS", action_type : "MOVE" }
+    //           and action_count : 2
+    //     - One with StatGroup : { action_state : "READY", action_type : "MOVE" }
+    //           and action_count : 1
+    //     - One with StatGroup : { action_state : "READY", action_type : "RESIZE" }
+    //           and action_count : 1
+    message StatGroup {
+        // The state for this action stat, only present if the "group_by" in the query contained
+        // "ACTION_STATE."
+        optional ActionState action_state = 1;
+
+        // The category for this action stat, only present if the "group_by" in the query contained
+        // "ACTION_CATEGORY."
+        optional ActionCategory action_category = 2;
+
+        // The type for this action stat, only present if the "group_by" in the query contained
+        // "ACTION_TYPE."
+        optional ActionType action_type = 3;
+
+        // The target entity type, only present if the "group_by" in the query contained
+        // "TARGET_ENTITY_TYPE".
+        optional int32 target_entity_type = 4;
+
+        // The base type of the commodity that is "most responsible" for the action. Only present if
+        // the "group_by" in the query contained "REASON_COMMODITY".
+        optional int32 reason_commodity_base_type = 5;
+    }
+
+    // The stat group this action stat is in.
+    // See the "StatGroup" documentation.
+    optional StatGroup stat_group = 1;
+
+    // The number of actions affecting the mgmt unit subgroups that matched the query.
+    optional int32 action_count = 20;
+
+    // The number of affected entities in the mgmt unit subgroups that matched the query.
+    optional int32 entity_count = 21;
+
+    // The amount saved by actions in the mgmt unit subgroups that matched the query.
+    optional double savings = 25;
+
+    // The amount of investment required for actions in the mgmt unit subgroups that matched
+    // the query.
+    // Note - We keep investments separate from savings so that we can see both separately.
+    optional double investments = 26;
+}
+
 // An action stat for a particular management unit at a particular time.
 message ActionStat {
     message Value {
@@ -1075,11 +1248,76 @@ message ActionStat {
 }
 
 message GetHistoricalActionStatsRequest {
-    optional HistoricalActionCountsQuery query = 1;
+
+    // A batch of queries.
+    repeated SingleQuery queries = 2;
+
+    // No longer used, in favour of the "batch" interface.
+    optional HistoricalActionStatsQuery __deprecated_query__ = 1 [deprecated = true];
+
+    message SingleQuery {
+        // The ID of the query. This is opaque to the action orchestrator - it's used so that the
+        // caller can identify which response refers to which query.
+        optional int64 query_id = 1;
+
+        optional HistoricalActionStatsQuery query = 2;
+    }
+
 }
 
 message GetHistoricalActionStatsResponse {
-    optional ActionStats action_stats = 1;
+
+    // One response for every query in the request.
+    repeated SingleResponse responses = 2;
+
+    // No longer used, in favour of the "batch" interface.
+    optional ActionStats __deprecated_action_stat__ = 1 [deprecated = true];
+
+    message SingleResponse {
+        // The ID of the query in the request that this response refers to.
+        optional int64 query_id = 1;
+
+        oneof result {
+            // If the query was executed successfully, this is the result.
+            ActionStats action_stats = 2;
+
+            // If the query failed - most notably due to some databae issue - this is
+            // the error.
+            string error = 3;
+        }
+    }
+}
+
+message GetCurrentActionStatsRequest {
+
+    message SingleQuery {
+        // The ID of the query. This is opaque to the action orchestrator - it's used so that the
+        // caller can identify which response refers to which query.
+        optional int64 query_id = 1;
+
+        optional CurrentActionStatsQuery query = 2;
+    }
+
+    // A list of queries to execute.
+
+    // Batched for efficiency - all queries targetting the same topology context will be
+    // executed with one pass through the actions.
+    repeated SingleQuery queries = 1;
+}
+
+message GetCurrentActionStatsResponse {
+    message SingleResponse {
+        // The ID of the query in the request that this response refers to.
+        optional int64 query_id = 1;
+
+        // The number of action stats depends on the group_by criteria in the query.
+        // There will be one CurrentActionStat for each distinct CurrentActionStat.stat_group.
+        //
+        // See: CurrentActionStat.StatGroup
+        repeated CurrentActionStat action_stats = 2;
+    }
+
+    repeated SingleResponse responses = 1;
 }
 
 // A service responsible for getting information about accepting actions and getting action information.
@@ -1128,6 +1366,9 @@ service ActionsService {
     // GetActionCountsByDateRequest.topology_context_id.
     rpc GetActionCountsByDate(GetActionCountsRequest) returns (GetActionCountsByDateResponse);
 
+    // Return the stats grouped by Action Category.
+    rpc GetActionCategoryStats(GetActionCategoryStatsRequest) returns (GetActionCategoryStatsResponse);
+
     // Get probe priorities for some specific action type (if request provides action type)
     // or for all action types.
     rpc GetActionPriorities(GetActionPrioritiesRequest) returns (GetActionPrioritiesResponse);
@@ -1139,9 +1380,11 @@ service ActionsService {
     // cancel such actions.
     rpc CancelQueuedActions(CancelQueuedActionsRequest) returns (CancelQueuedActionsResponse);
 
-    // Return the stats grouped by Action Category.
-    rpc GetActionCategoryStats(GetActionCategoryStatsRequest) returns (GetActionCategoryStatsResponse);
 
-    // Get historical action stats. Live action stats supports more filtering and grouping options.
+    // Get historical action stats. Current action stats supports more filtering and grouping options.
     rpc GetHistoricalActionStats(GetHistoricalActionStatsRequest) returns (GetHistoricalActionStatsResponse);
+
+    // Get current action stats. This call is separate from the historical action stats call
+    // because it supports additional filtering/grouping options, and may return more data.
+    rpc GetCurrentActionStats(GetCurrentActionStatsRequest) returns (GetCurrentActionStatsResponse);
 }

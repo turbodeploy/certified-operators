@@ -89,8 +89,8 @@ public class ClassicEnumMapper {
      * Mappings between commodityType enum values in SDK DTO's to strings that are stored
      * in Classic OpsManager topology files.
      */
-    public static final ImmutableMap<String, CommodityType> COMMODITY_TYPE_MAPPINGS =
-        new ImmutableMap.Builder<String, CommodityType>()
+    public static final ImmutableBiMap<String, CommodityType> COMMODITY_TYPE_MAPPINGS =
+        new ImmutableBiMap.Builder<String, CommodityType>()
             .put("IOThroughput",                CommodityType.IO_THROUGHPUT)
             .put("NetThroughput",               CommodityType.NET_THROUGHPUT)
             .put("VMem",                        CommodityType.VMEM)

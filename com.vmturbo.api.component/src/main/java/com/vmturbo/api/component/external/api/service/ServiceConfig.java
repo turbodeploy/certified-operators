@@ -22,7 +22,7 @@ import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
@@ -147,7 +147,6 @@ public class ServiceConfig {
                                   mapperConfig.actionSpecMapper(),
                                   communicationConfig.repositoryApi(),
                                   communicationConfig.getRealtimeTopologyContextId(),
-                                  communicationConfig.groupExpander(),
                                   actionStatsQueryExecutor(),
                                   mapperConfig.uuidMapper());
     }
@@ -492,7 +491,12 @@ public class ServiceConfig {
 
     @Bean
     public ActionStatsQueryExecutor actionStatsQueryExecutor() {
-        return new ActionStatsQueryExecutor(communicationConfig.actionsRpcService(),
-            mapperConfig.actionSpecMapper());
+        return new ActionStatsQueryExecutor(Clock.systemUTC(),
+            communicationConfig.actionsRpcService(),
+            mapperConfig.actionSpecMapper(),
+            mapperConfig.uuidMapper(),
+            communicationConfig.groupExpander(),
+            communicationConfig.supplyChainFetcher(),
+            userSessionContext());
     }
 }

@@ -1,22 +1,28 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,21 +30,22 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import io.grpc.stub.StreamObserver;
-
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -47,15 +54,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 
 /**
@@ -75,8 +80,6 @@ public class ActionsServiceTest {
     private ActionsService actionsServiceUnderTest;
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
-
-    private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
     private ActionStatsQueryExecutor actionStatsQueryExecutor = mock(ActionStatsQueryExecutor.class);
 
@@ -105,7 +108,7 @@ public class ActionsServiceTest {
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
-            repositoryApi, REALTIME_TOPOLOGY_ID, groupExpander,
+            repositoryApi, REALTIME_TOPOLOGY_ID,
             actionStatsQueryExecutor, uuidMapper);
     }
 
@@ -141,159 +144,53 @@ public class ActionsServiceTest {
 
     @Test
     public void testGetActionTypeCountStatsByUuidsQuery() throws Exception {
-        final Set<Long> entityIds = Sets.newHashSet(1L, 2L);
         final ServiceEntityApiDTO serviceEntityOne = new ServiceEntityApiDTO();
         serviceEntityOne.setDisplayName("First Entity");
         serviceEntityOne.setClassName("VM #1");
         serviceEntityOne.setUuid("1");
-        final ServiceEntityApiDTO serviceEntityTwo = new ServiceEntityApiDTO();
-        serviceEntityTwo.setDisplayName("Second Entity");
-        serviceEntityTwo.setClassName("PM");
-        serviceEntityTwo.setUuid("2");
-        final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap =
-            ImmutableMap.of(1L, Optional.of(serviceEntityOne),
-                2L, Optional.of(serviceEntityTwo));
-        final ActionScopesApiInputDTO actionScopesApiInputDTO = new ActionScopesApiInputDTO();
-        final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
-        actionApiInputDTO.setGroupBy(Lists.newArrayList("actionTypes"));
-        actionScopesApiInputDTO.setScopes(Lists.newArrayList("1", "2"));
-        actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
-
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .setVisible(true)
-            .setInvolvedEntities(InvolvedEntities.newBuilder()
-                .addOids(1L)
-                .addOids(2L))
-            .build();
-
-        when(actionsServiceBackend.getActionCountsByEntity(any()))
-            .thenReturn(GetActionCountsByEntityResponse.newBuilder()
-                .addActionCountsByEntity(ActionCountsByEntity.newBuilder()
-                    .setEntityId(1L)
-                    .addCountsByType(TypeCount.newBuilder()
-                            .setCount(2)
-                            .setType(ActionType.MOVE))
-                    .addCountsByType(TypeCount.newBuilder()
-                            .setCount(1)
-                            .setType(ActionType.DEACTIVATE)))
-                .build());
-
-        when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(serviceEntityMap);
-
-        when(actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(entityIds)))
-            .thenReturn(filter);
-
-        when(groupExpander.expandUuid("1")).thenReturn(Sets.newHashSet(1L));
-        when(groupExpander.expandUuid("2")).thenReturn(Sets.newHashSet(2L));
-
-        final List<EntityStatsApiDTO> entityStatsApiDTOS =
-            actionsServiceUnderTest.getActionStatsByUuidsQuery(actionScopesApiInputDTO);
-
-        assertEquals(2, entityStatsApiDTOS.size());
-        assertEquals(1, entityStatsApiDTOS.get(0).getStats().size());
-        assertTrue(entityStatsApiDTOS.get(1).getStats().isEmpty());
-        final List<StatSnapshotApiDTO> statSnapshotApiDTOS = entityStatsApiDTOS.get(0).getStats();
-        assertEquals(2, statSnapshotApiDTOS.get(0).getStatistics().size());
-        final List<StatApiDTO> statApiDTOS = statSnapshotApiDTOS.get(0).getStatistics();
-        assertEquals("MOVE", statApiDTOS.get(0).getFilters().get(0).getValue());
-        assertEquals(2.0f, statApiDTOS.get(0).getValue(), 0.000000001);
-        assertEquals("SUSPEND", statApiDTOS.get(1).getFilters().get(0).getValue());
-        assertEquals(1.0f, statApiDTOS.get(1).getValue(), 0.000000001);
-
-    }
-
-    @Test
-    public void testGetActionTypeCountStatsByUuidsQueryWithGroupUuid() throws Exception {
-        final ServiceEntityApiDTO serviceEntityOne = new ServiceEntityApiDTO();
-        serviceEntityOne.setDisplayName("First Entity");
-        serviceEntityOne.setClassName("VM #1");
-        serviceEntityOne.setUuid("1");
-        final ServiceEntityApiDTO serviceEntityTwo = new ServiceEntityApiDTO();
-        serviceEntityTwo.setDisplayName("Second Entity");
-        serviceEntityTwo.setClassName("PM #1");
-        serviceEntityTwo.setUuid("2");
         final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap =
             ImmutableMap.of(1L, Optional.of(serviceEntityOne));
-        final ActionScopesApiInputDTO actionScopesApiInputDTO = new ActionScopesApiInputDTO();
-        final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
-        actionApiInputDTO.setGroupBy(Lists.newArrayList("actionTypes"));
-        // Set scope with one uuid of VM and other of cluster
-        // (VM has uuid "1" and cluster has uuid "3")
-        actionScopesApiInputDTO.setScopes(Lists.newArrayList("1", "3"));
-        actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
-
-        // For VM : Set MOVE, DEACTIVATE to be returned by service.
-        when(actionsServiceBackend.getActionCountsByEntity(any()))
-            .thenReturn(GetActionCountsByEntityResponse.newBuilder()
-                .addActionCountsByEntity(ActionCountsByEntity.newBuilder()
-                    .setEntityId(1L)
-                    .addCountsByType(TypeCount.newBuilder()
-                            .setCount(2)
-                            .setType(ActionType.MOVE))
-                    .addCountsByType(TypeCount.newBuilder()
-                            .setCount(1)
-                            .setType(ActionType.DEACTIVATE)))
-                .build());
-
-     // For Cluster's member PM : Set PROVISION, RECONFIGURE to be returned by service.
-        when(actionsServiceBackend.getActionCounts(any()))
-        .thenReturn(GetActionCountsResponse.newBuilder()
-            .addCountsByType(TypeCount.newBuilder()
-                        .setCount(1)
-                        .setType(ActionType.PROVISION))
-                .addCountsByType(TypeCount.newBuilder()
-                        .setCount(1)
-                        .setType(ActionType.RECONFIGURE))
-                .build());
 
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(serviceEntityMap);
 
-        // Create a filter object to be by for actionSpecMapper.
-        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
-            .setVisible(true)
-            .setInvolvedEntities(InvolvedEntities.newBuilder()
-                .addOids(1L))
-            .build();
-        when(actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(Sets.newHashSet(1L))))
-            .thenReturn(filter);
-        when(actionSpecMapper.createLiveActionFilter(actionApiInputDTO, Optional.of(Sets.newHashSet(2L))))
-        .thenReturn(filter);
+        final ActionScopesApiInputDTO actionScopesApiInputDTO = new ActionScopesApiInputDTO();
+        final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
+        actionScopesApiInputDTO.setScopes(Lists.newArrayList("1", "3"));
 
-        // Make VM (uuid : 1) return its own uuid via group expander.
-        when(groupExpander.expandUuid("1")).thenReturn(Sets.newHashSet(1L));
-        // Make Cluster (uuid : 2) return its member's uuid(PMs uuid : 2) via group expander.
-        when(groupExpander.expandUuid("3")).thenReturn(Sets.newHashSet(2L));
+        final ApiId scope1 = ApiTestUtils.mockEntityId("1", uuidMapper);
+        final ApiId scope2 = ApiTestUtils.mockGroupId("3", uuidMapper);
+        actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
+        actionScopesApiInputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
 
-        final List<EntityStatsApiDTO> entityStatsApiDTOS =
-            actionsServiceUnderTest.getActionStatsByUuidsQuery(actionScopesApiInputDTO);
+        final ActionStatsQuery expectedQuery = ImmutableActionStatsQuery.builder()
+                .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .actionInput(actionApiInputDTO)
+                .addScopes(scope1)
+                .addScopes(scope2)
+                .build();
 
-        assertEquals(2, entityStatsApiDTOS.size());
-        assertEquals(1, entityStatsApiDTOS.get(0).getStats().size());
-        assertEquals(1, entityStatsApiDTOS.get(1).getStats().size());
+        final List<StatSnapshotApiDTO> scope1Snapshots = Arrays.asList(new StatSnapshotApiDTO());
+        final List<StatSnapshotApiDTO> scope2Snapshots = Arrays.asList(new StatSnapshotApiDTO(), new StatSnapshotApiDTO());
 
-        // Analyze response for Cluster (uuid : 3) stats.
-        // It will contain stats for its member PM (uuid : 3)
-        assertEquals("3", entityStatsApiDTOS.get(0).getUuid());
-        final List<StatSnapshotApiDTO> firstStatSnapshotApiDTOS = entityStatsApiDTOS.get(0).getStats();
-        assertEquals(2, firstStatSnapshotApiDTOS.get(0).getStatistics().size());
-        final List<StatApiDTO> secondStatApiDTOS = firstStatSnapshotApiDTOS.get(0).getStatistics();
-        assertEquals("PROVISION", secondStatApiDTOS.get(0).getFilters().get(0).getValue());
-        assertEquals(1.0f, secondStatApiDTOS.get(0).getValue(), 0.000000001);
-        assertEquals("RECONFIGURE", secondStatApiDTOS.get(1).getFilters().get(0).getValue());
-        assertEquals(1.0f, secondStatApiDTOS.get(1).getValue(), 0.000000001);
+        when(actionStatsQueryExecutor.retrieveActionStats(any()))
+            .thenReturn(ImmutableMap.of(scope1, scope1Snapshots, scope2, scope2Snapshots));
 
-        // Analyze response for VM (uuid : 1) stats.
-        // It should contain stats for itself.
-        assertEquals("1", entityStatsApiDTOS.get(1).getUuid());
-        final List<StatSnapshotApiDTO> secondStatSnapshotApiDTOS = entityStatsApiDTOS.get(1).getStats();
-        assertEquals(2, secondStatSnapshotApiDTOS.get(0).getStatistics().size());
-        final List<StatApiDTO> statApiDTOS = secondStatSnapshotApiDTOS.get(0).getStatistics();
-        assertEquals("MOVE", statApiDTOS.get(0).getFilters().get(0).getValue());
-        assertEquals(2.0f, statApiDTOS.get(0).getValue(), 0.000000001);
-        assertEquals("SUSPEND", statApiDTOS.get(1).getFilters().get(0).getValue());
-        assertEquals(1.0f, statApiDTOS.get(1).getValue(), 0.000000001);
+        final Map<String, EntityStatsApiDTO> statsByUuid =
+            actionsServiceUnderTest.getActionStatsByUuidsQuery(actionScopesApiInputDTO).stream()
+                .collect(Collectors.toMap(EntityStatsApiDTO::getUuid, Function.identity()));
+
+        verify(actionStatsQueryExecutor).retrieveActionStats(expectedQuery);
+        verify(repositoryApi).getServiceEntitiesById(
+                ServiceEntitiesRequest.newBuilder(Collections.singleton(1L))
+                    .build());
+
+        assertThat(statsByUuid.keySet(), containsInAnyOrder("1", "3"));
+        assertThat(statsByUuid.get("1").getStats(), is(scope1Snapshots));
+        assertThat(statsByUuid.get("1").getDisplayName(), is(serviceEntityOne.getDisplayName()));
+        assertThat(statsByUuid.get("1").getClassName(), is(serviceEntityOne.getClassName()));
+
+        assertThat(statsByUuid.get("3").getStats(), is(scope2Snapshots));
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {

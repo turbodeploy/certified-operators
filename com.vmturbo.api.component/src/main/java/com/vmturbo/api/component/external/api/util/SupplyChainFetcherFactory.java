@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.util;
 
 import java.net.NoRouteToHostException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,7 +11,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -39,7 +37,6 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -51,9 +48,11 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsRespon
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -219,7 +218,7 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> entityTypes = Sets.newHashSet();
 
-        protected EnvironmentType environmentType = null;
+        protected Optional<EnvironmentTypeEnum.EnvironmentType> environmentType = Optional.empty();
 
         /**
          * Synchronously fetch the supply chain with the parameters specified in the builder.
@@ -292,10 +291,19 @@ public class SupplyChainFetcherFactory {
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
         @Nonnull
-        public B environmentType(@Nullable final EnvironmentType environmentType) {
+        public B apiEnvironmentType(@Nullable final com.vmturbo.api.enums.EnvironmentType environmentType) {
+            // If the desired environment type is "HYBRID", we're looking for cloud OR on-prem,
+            // which is the same as looking for all.
             if (environmentType != null) {
-                this.environmentType = environmentType;
+                this.environmentType = UIEnvironmentType.fromString(
+                    environmentType.name()).toEnvType();
             }
+            return (B)this;
+        }
+
+        @Nonnull
+        public B environmentType(@Nullable final EnvironmentType environmentType) {
+            this.environmentType = Optional.ofNullable(environmentType);
             return (B)this;
         }
 
@@ -325,17 +333,13 @@ public class SupplyChainFetcherFactory {
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
-                                   @Nullable final EnvironmentType environmentType,
+                                   @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
                                    @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
                                    @Nonnull GroupExpander groupExpander) {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
-            if (environmentType == null) {
-                this.environmentType = Optional.empty();
-            } else {
-                this.environmentType = UIEnvironmentType.fromString(environmentType.name()).toEnvType();
-            }
+            this.environmentType = environmentType;
             this.supplyChainRpcService = supplyChainRpcService;
             this.groupExpander = groupExpander;
         }
@@ -449,7 +453,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainNodeFetcher(final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
                                        @Nullable final Set<String> entityTypes,
-                                       @Nullable final EnvironmentType environmentType,
+                                       @Nonnull final Optional<EnvironmentType> environmentType,
                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                        @Nonnull final GroupExpander groupExpander) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
@@ -491,7 +495,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainApiDTOFetcher(final long topologyContextId,
                                          @Nullable final Set<String> seedUuids,
                                          @Nullable final Set<String> entityTypes,
-                                         @Nullable final EnvironmentType environmentType,
+                                         @Nonnull final Optional<EnvironmentType> environmentType,
                                          @Nullable final EntityDetailType entityDetailType,
                                          final boolean includeHealthSummary,
                                          @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,

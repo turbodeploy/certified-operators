@@ -14,17 +14,17 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -44,13 +44,13 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.components.common.utils.StringConstants;
 
 public class SupplyChainsService implements ISupplyChainsService {
     private static final Logger logger = LogManager.getLogger();
@@ -95,7 +95,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         final SupplychainApiDTOFetcherBuilder fetcherBuilder =
             supplyChainFetcherFactory.newApiDtoFetcher()
                 .entityTypes(entityTypes)
-                .environmentType(environmentType)
+                .apiEnvironmentType(environmentType)
                 .entityDetailType(entityDetailType)
                 .includeHealthSummary(includeHealthSummary);
 
@@ -242,19 +242,20 @@ public class SupplyChainsService implements ISupplyChainsService {
             supplyChainFetcher.entityTypes(types);
         }
         if (environmentType != null) {
-            supplyChainFetcher.environmentType(environmentType);
+            supplyChainFetcher.apiEnvironmentType(environmentType);
         }
         final SupplychainApiDTO supplyChainResponse = supplyChainFetcher.fetch();
 
         // count Service Entities with each unique set of filter/value for all the filters
-        Map<FilterSet, Long> entityCountMap = Maps.newHashMap();
+        // analyze the counts
+        final List<StatApiDTO> stats = Lists.newArrayList();
+        final Map<FilterSet, Long> entityCountMap = Maps.newHashMap();
         if (onlyGroupBySeverity) {
             supplyChainResponse.getSeMap().values().stream()
                     .flatMap(supplyChainDTO -> supplyChainDTO.getHealthSummary().entrySet().stream())
                     .forEach(severityEntrySet ->
                             generateFilterSetForSeverity(severityEntrySet, entityCountMap));
-        }
-        else if (!criteriaToGroupBy.isEmpty()) {
+        } else if (!criteriaToGroupBy.isEmpty()) {
             supplyChainResponse.getSeMap().forEach((entityType, supplychainDTO) -> {
                 // get the filter sets for all entities of this type
                 List<FilterSet> filtersForEntities = calculateFilters(supplychainDTO,
@@ -265,15 +266,22 @@ public class SupplyChainsService implements ISupplyChainsService {
                         entityCountMap.put(filterSet,
                                 entityCountMap.getOrDefault(filterSet, 0L) + 1));
             });
+        } else {
+            // If we're not grouping by anything, just add a single stat for
+            // all the entities in the supply chain query.
+            StatApiDTO stat = new StatApiDTO();
+            stat.setName(StringConstants.ENTITIES);
+            stat.setValue((float)supplyChainResponse.getSeMap().values().stream()
+                .mapToInt(SupplychainEntryDTO::getEntitiesCount)
+                .sum());
+            stats.add(stat);
         }
 
-        // analyze the counts
-        List<StatApiDTO> stats = Lists.newArrayList();
         entityCountMap.forEach((filterSet, count) -> {
             StatApiDTO stat = new StatApiDTO();
             filterSet.forEach(filter -> stat.addFilter(filter.getType(),
                     filter.getValue()));
-            stat.setName("entities");
+            stat.setName(StringConstants.ENTITIES);
             stat.setValue((float)count);
             stats.add(stat);
         });

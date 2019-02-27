@@ -30,12 +30,12 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -47,6 +47,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -90,7 +91,9 @@ public class ActionExecutionRpcTest {
 
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
 
-    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
+    private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
+
+    private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
 
     private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
@@ -103,13 +106,14 @@ public class ActionExecutionRpcTest {
     private static final long ACTION_ID = 9999;
 
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse,
-                    actionExecutor,
-                    actionTargetSelector,
-                    actionTranslator,
-                    paginatorFactory,
-                    workflowStore,
-                    statReader);
+        new ActionsRpcService(actionStorehouse,
+            actionExecutor,
+            actionTargetSelector,
+            actionTranslator,
+            paginatorFactory,
+            workflowStore,
+            statReader,
+            liveStatReader);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);

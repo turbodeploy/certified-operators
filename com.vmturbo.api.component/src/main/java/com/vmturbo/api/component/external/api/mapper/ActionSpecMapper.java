@@ -52,8 +52,6 @@ import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -69,6 +67,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -646,7 +646,7 @@ public class ActionSpecMapper {
         wrapperDto.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(move.getTarget().getId())));
 
-        ChangeProvider primaryChange = primaryChange(move, context);
+        ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(move);
         final boolean hasPrimarySource = !initialPlacement && primaryChange.getSource().hasId();
         if (hasPrimarySource) {
             long primarySourceId = primaryChange.getSource().getId();
@@ -665,29 +665,6 @@ public class ActionSpecMapper {
         }
         wrapperDto.addCompoundActions(actions);
         wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto, primaryChange, context));
-    }
-
-    /**
-     * Provider change to be used in wrapper action DTO details and in the
-     * currentEntity/newEntity.
-     *
-     * @param move a Move action with one or more provider changes
-     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
-     * @return a host change if exists, first change otherwise
-     */
-    private ChangeProvider primaryChange(Move move, ActionSpecMappingContext context)
-                    throws ExecutionException, InterruptedException {
-        for (ChangeProvider change : move.getChangesList()) {
-            if (isHost(context.getOptionalEntity(change.getDestination().getId()))) {
-                return change;
-            }
-        }
-        return move.getChanges(0);
-    }
-
-    private boolean isHost(Optional<ServiceEntityApiDTO> entity) {
-        return entity.isPresent() && (PRIMARY_TIER_VALUES.contains(entity.get().getClassName()) ||
-                PHYSICAL_MACHINE_VALUE.contains(entity.get().getClassName()));
     }
 
     private ActionApiDTO singleMove(Move move, ActionApiDTO compoundDto,

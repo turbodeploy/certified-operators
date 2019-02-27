@@ -48,7 +48,8 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionVie
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.stats.LiveActionStatReader;
+import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
@@ -76,8 +77,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery;
-import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionCountsQuery.GroupBy;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
@@ -106,7 +107,8 @@ public class ActionQueryRpcTest {
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
-    private final LiveActionStatReader statReader = mock(LiveActionStatReader.class);
+    private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
+    private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
     private final ActionTranslator actionTranslator = new ActionTranslator(actionStream ->
         actionStream.map(action -> {
             action.getActionTranslation().setPassthroughTranslationSuccess();
@@ -128,12 +130,12 @@ public class ActionQueryRpcTest {
     private ActionsRpcService actionsRpcService = new ActionsRpcService(
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslator, paginatorFactory,
-            workflowStore, statReader);
+            workflowStore, historicalStatReader, liveStatReader);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslatorWithFailedTranslation, paginatorFactory,
-            workflowStore, statReader);
+            workflowStore, historicalStatReader, liveStatReader);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -815,22 +817,41 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetHistoricalActionStats() {
-        final HistoricalActionCountsQuery query = HistoricalActionCountsQuery.newBuilder()
+        final HistoricalActionStatsQuery query1 = HistoricalActionStatsQuery.newBuilder()
             .setGroupBy(GroupBy.ACTION_CATEGORY)
             .build();
-        final ActionStats actionStats = ActionStats.newBuilder()
+        final HistoricalActionStatsQuery query2 = HistoricalActionStatsQuery.newBuilder()
+            .setGroupBy(GroupBy.ACTION_STATE)
+            .build();
+        final ActionStats actionStats1 = ActionStats.newBuilder()
             .setMgmtUnitId(7)
             .build();
-        when(statReader.readActionStats(query)).thenReturn(actionStats);
+        final ActionStats actionStats2 = ActionStats.newBuilder()
+            .setMgmtUnitId(8)
+            .build();
+
+        when(historicalStatReader.readActionStats(query1)).thenReturn(actionStats1);
+        when(historicalStatReader.readActionStats(query2)).thenReturn(actionStats2);
 
         final GetHistoricalActionStatsResponse response =
             actionOrchestratorServiceClient.getHistoricalActionStats(
                 GetHistoricalActionStatsRequest.newBuilder()
-                    .setQuery(query)
+                    .addQueries(GetHistoricalActionStatsRequest.SingleQuery.newBuilder()
+                        .setQueryId(1)
+                        .setQuery(query1)
+                        .build())
+                    .addQueries(GetHistoricalActionStatsRequest.SingleQuery.newBuilder()
+                        .setQueryId(2)
+                        .setQuery(query2)
+                        .build())
                     .build());
 
-        verify(statReader).readActionStats(query);
-        assertThat(response.getActionStats(), is(actionStats));
+        verify(historicalStatReader).readActionStats(query1);
+        verify(historicalStatReader).readActionStats(query2);
+        final Map<Long, ActionStats> statsByQueryId = response.getResponsesList().stream()
+            .collect(Collectors.toMap(resp -> resp.getQueryId(), resp -> resp.getActionStats()));
+        assertThat(statsByQueryId.get(1L), is(actionStats1));
+        assertThat(statsByQueryId.get(2L), is(actionStats2));
     }
 
 

@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,6 +52,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -62,7 +64,8 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.util.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
@@ -209,6 +212,8 @@ public class MarketsServiceTest {
     public void testGetMarketById() throws Exception {
         final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
         final PlanInstance plan2 = PlanInstance.newBuilder(planDefault).setPlanId(2).build();
+        ApiTestUtils.mockPlanId("1", testConfig.uuidMapper());
+        ApiTestUtils.mockPlanId("2", testConfig.uuidMapper());
         testConfig.planService().addInstance(plan1);
         testConfig.planService().addInstance(plan2);
 
@@ -233,6 +238,8 @@ public class MarketsServiceTest {
         // the uuid "Market" is what the UI uses to distinguish the live market
         String runPlanUri = "/markets/Market/scenarios/1";
 
+        ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
+
         final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post(runPlanUri)
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -250,6 +257,7 @@ public class MarketsServiceTest {
                 .setPlanId(TEST_PLAN_OVER_PLAN_ID)
                 .setStatus(PlanStatus.SUCCEEDED)
                 .build();
+        ApiTestUtils.mockPlanId(Long.toString(TEST_PLAN_OVER_PLAN_ID), testConfig.uuidMapper());
         testConfig.planService().addInstance(plan1);
 
         // the market UUID is the ID of the Plan Spec to start from
@@ -312,7 +320,7 @@ public class MarketsServiceTest {
 
         @Bean
         public UuidMapper uuidMapper() {
-            return new UuidMapper(REALTIME_CONTEXT_ID);
+            return Mockito.mock(UuidMapper.class);
         }
 
         @Bean
