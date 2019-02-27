@@ -75,8 +75,8 @@ public class SearchMapper {
      * @param value the value to search for
      * @return a property filter
      */
-    public static PropertyFilter stringFilter(String propName, String value) {
-        return stringFilter(propName, value, true);
+    public static PropertyFilter stringPropertyFilter(String propName, String value) {
+        return stringPropertyFilter(propName, value, true);
     }
 
     /**
@@ -90,18 +90,42 @@ public class SearchMapper {
      *              when the match fails.
      * @return a property filter
      */
-    public static PropertyFilter stringFilter(String propName, String value, boolean match) {
+    @Nonnull
+    public static PropertyFilter stringPropertyFilter(String propName, String value, boolean match) {
         return PropertyFilter.newBuilder()
             .setPropertyName(propName)
-            .setStringFilter(StringFilter.newBuilder()
-                    .setStringPropertyRegex(value)
-                    .setMatch(match)
-                    // Always do a case-insensitive search when looking for strings.
-                    // Note - we may want to switch to a smart-case search, where the search
-                    // is case-sensitive if the regex contains an uppercase letter, and
-                    // case-insensitive otherwise.
-                    .setCaseSensitive(false)
-                    .build())
+            .setStringFilter(stringFilter(value, match))
+            .build();
+    }
+
+    /**
+     * Create a {@link StringFilter} for a particular search regex.
+     * The resulting regex will attempt to match the whole regex against the value of the property
+     * - i.e. if the regex is "Val" it will only match "Val", not "Valerion" or "aVal".
+     *
+     * @param regex The regex to search for. This should be a regex.
+     * @param match If true, the property should match.
+     * @return A {@link SearchFilter}.
+     */
+    @Nonnull
+    public static StringFilter stringFilter(@Nonnull final String regex,
+                                            final boolean match) {
+        // It's generally harmless to double-up on the "^" prefix or the "$" suffix, but we avoid
+        // doing so for clarity.
+        //
+        // Note - surrounding all input regexes with "^" and "$" may slightly alter the meaning
+        // of complex regex's, but we take that risk since we expect property regex's to be fairly
+        // straightforward.
+        final String prefix = regex.startsWith("^") ? "" : "^";
+        final String suffix = regex.endsWith("$") ? "" : "$";
+        return StringFilter.newBuilder()
+            .setStringPropertyRegex(prefix + regex + suffix)
+            .setMatch(match)
+            // Always do a case-insensitive search when looking for strings.
+            // Note - we may want to switch to a smart-case search, where the search
+            // is case-sensitive if the regex contains an uppercase letter, and
+            // case-insensitive otherwise.
+            .setCaseSensitive(false)
             .build();
     }
 
@@ -111,15 +135,24 @@ public class SearchMapper {
      * @param value the value to search for
      * @return a property filter
      */
-    public static PropertyFilter numericPropertyFilter(String propName, long value,
-            ComparisonOperator comparisonOperator) {
+    @Nonnull
+    public static PropertyFilter numericPropertyFilter(
+            @Nonnull String propName,
+            final long value,
+            @Nonnull final ComparisonOperator comparisonOperator) {
         return PropertyFilter.newBuilder()
-                        .setPropertyName(propName)
-                        .setNumericFilter(NumericFilter.newBuilder()
-                            .setValue(value)
-                            .setComparisonOperator(comparisonOperator)
-                            .build())
-                        .build();
+            .setPropertyName(propName)
+            .setNumericFilter(numericFilter(value, comparisonOperator))
+            .build();
+    }
+
+    @Nonnull
+    public static NumericFilter numericFilter(final long value,
+                                              @Nonnull final ComparisonOperator comparisonOperator) {
+        return NumericFilter.newBuilder()
+            .setValue(value)
+            .setComparisonOperator(comparisonOperator)
+            .build();
     }
 
     /**
@@ -213,7 +246,7 @@ public class SearchMapper {
      * @return a property filter
      */
     public static PropertyFilter nameFilter(String displayName, boolean match) {
-        return stringFilter(DISPLAY_NAME_PROPERTY, displayName, match);
+        return stringPropertyFilter(DISPLAY_NAME_PROPERTY, displayName, match);
     }
 
     /**
@@ -225,7 +258,7 @@ public class SearchMapper {
      */
     @Nonnull
     public static PropertyFilter stateFilter(@Nonnull String state, boolean match) {
-        return stringFilter(STATE_PROPERTY, state, match);
+        return stringPropertyFilter(STATE_PROPERTY, state, match);
     }
 
     /**
