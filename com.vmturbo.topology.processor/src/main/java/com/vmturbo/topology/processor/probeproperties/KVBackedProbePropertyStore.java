@@ -62,7 +62,14 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
      * mediation message, i.e., their keys conform to the format "probe.probeName.propertyName".
      */
     private static final Map<String, Map<String, String>> HARD_CODED_PROBE_PROPERTIES =
-        ImmutableMap.of("vCenter", ImmutableMap.of("probe.vCenter.listener.enabled", "false"));
+        ImmutableMap.<String, Map<String, String>>builder()
+            .put("vCenter", ImmutableMap.of("probe.vCenter.listener.enabled", "false"))
+            // Disable saving the cost.usage.report for AWS and Azure. The SDK probes won't be
+            // able to write the report to disk (because it's a read-only volume), so enabling
+            // these will break discovery.
+            .put("AWS Billing", ImmutableMap.of("probe.AWS Billing.save.cost.usage.report", "false"))
+            .put("Azure", ImmutableMap.of("probe.Azure.save.cost.usage.report", "false"))
+            .build();
 
     /**
      * Create a probe property store.  Access to a probe store and a target store is given, so that
