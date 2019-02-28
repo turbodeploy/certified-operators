@@ -56,6 +56,7 @@ public class ServiceEntityMapper {
         AVAILABILITY_ZONE("AvailabilityZone"),
         REGION("Region"),
         VIRTUAL_VOLUME("VirtualVolume"),
+        PROCESSOR_POOL("ProcessorPool"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -124,6 +125,7 @@ public class ServiceEntityMapper {
             .put(EntityType.AVAILABILITY_ZONE.getNumber(),      UIEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION.getNumber(),                 UIEntityType.REGION)
             .put(EntityType.VIRTUAL_VOLUME.getNumber(),         UIEntityType.VIRTUAL_VOLUME)
+            .put(EntityType.PROCESSOR_POOL.getNumber(),         UIEntityType.PROCESSOR_POOL)
             .put(EntityType.UNKNOWN.getNumber(),                UIEntityType.UNKNOWN)
             .build();
 

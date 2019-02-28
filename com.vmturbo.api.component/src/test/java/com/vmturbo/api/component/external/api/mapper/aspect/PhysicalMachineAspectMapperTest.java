@@ -5,7 +5,6 @@ import static com.vmturbo.api.component.external.api.mapper.aspect.DiskArrayAspe
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertNotNull;
 import static junit.framework.TestCase.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.when;
 

@@ -119,7 +119,8 @@ public class SdkToTopologyEntityConverterTest {
         VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
         assertNotNull(vmInfo);
         assertEquals(Tenancy.DEFAULT, vmInfo.getTenancy());
-        assertEquals(OSType.LINUX, vmInfo.getGuestOsType());
+        assertEquals(OSType.LINUX, vmInfo.getGuestOsInfo().getGuestOsType());
+        assertEquals(OSType.LINUX.name(), vmInfo.getGuestOsInfo().getGuestOsName());
         List<IpAddress> ipAddress = vmInfo.getIpAddressesList();
         assertEquals(1, ipAddress.size());
         assertEquals("10.0.1.15", ipAddress.get(0).getIpAddress());

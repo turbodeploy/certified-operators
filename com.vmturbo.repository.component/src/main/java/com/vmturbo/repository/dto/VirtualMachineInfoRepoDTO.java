@@ -5,7 +5,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -13,9 +12,9 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -24,7 +23,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 @JsonInclude(Include.NON_EMPTY)
 public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
-    private String guestOsType;
+    private GuestOSRepoDTO guestOsInfo;
 
     private String tenancy;
 
@@ -32,16 +31,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Integer numCpus;
 
-    public VirtualMachineInfoRepoDTO(@Nullable final String guestOsType,
-                                     final String tenancy,
-                                     @Nullable final List<IpAddressRepoDTO> ipAddressInfoList) {
-        this.guestOsType = guestOsType;
-        this.tenancy = tenancy;
-        this.ipAddressInfoList = ipAddressInfoList;
-    }
-
     public VirtualMachineInfoRepoDTO() {
-        guestOsType = null;
+        guestOsInfo = null;
         tenancy = null;
         ipAddressInfoList = Lists.newArrayList();
     }
@@ -54,7 +45,10 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
 
-        setGuestOsType(vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null);
+        setGuestOsInfo(vmInfo.hasGuestOsInfo()
+            ? new GuestOSRepoDTO(vmInfo.getGuestOsInfo().getGuestOsType(),
+                vmInfo.getGuestOsInfo().getGuestOsName())
+            : null);
         setTenancy(vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null);
         setIpAddressInfoList(vmInfo.getIpAddressesList().stream()
                 .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
@@ -78,9 +72,11 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                             .build())
                     .forEach(vmBuilder::addIpAddresses);
         }
-        if (getGuestOsType() != null) {
-            vmBuilder.setGuestOsType(OSType.valueOf(
-                    getGuestOsType()));
+        if (getGuestOsInfo() != null) {
+            final GuestOSRepoDTO guestOsRepoDTO = getGuestOsInfo();
+            vmBuilder.setGuestOsInfo(OS.newBuilder()
+                .setGuestOsType(guestOsRepoDTO.getGuestOsType())
+                .setGuestOsName(guestOsRepoDTO.getGuestOsName()).build());
         }
         if (getTenancy() != null) {
             vmBuilder.setTenancy(Tenancy.valueOf(
@@ -95,8 +91,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     }
 
 
-    public String getGuestOsType() {
-        return guestOsType;
+    public GuestOSRepoDTO getGuestOsInfo() {
+        return guestOsInfo;
     }
 
     public String getTenancy() {
@@ -111,8 +107,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return numCpus;
     }
 
-    public void setGuestOsType(String guestOsType) {
-        this.guestOsType = guestOsType;
+    public void setGuestOsInfo(GuestOSRepoDTO guestOsInfo) {
+        this.guestOsInfo = guestOsInfo;
     }
 
     public void setTenancy(String tenancy) {
@@ -130,7 +126,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this).omitNullValues()
-                .add("guestOsType", guestOsType)
+                .add("guestOsInfo", guestOsInfo)
                 .add("tenancy", tenancy)
                 .add("ipAddressInfo", ipAddressInfoList)
                 .add("numCpus", numCpus)
@@ -143,7 +139,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         final VirtualMachineInfoRepoDTO that = (VirtualMachineInfoRepoDTO) o;
 
-        return Objects.equals(guestOsType, that.guestOsType) &&
+        return Objects.equals(guestOsInfo, that.guestOsInfo) &&
                 Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
                 Objects.equals(tenancy, that.tenancy) &&
                 Objects.equals(numCpus, that.numCpus);
@@ -151,6 +147,6 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     @Override
     public int hashCode() {
-        return Objects.hash(guestOsType, tenancy, ipAddressInfoList, numCpus);
+        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus);
     }
 }

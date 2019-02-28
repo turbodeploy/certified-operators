@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -106,7 +106,9 @@ public class TopologyEntityCloudTopologyTest {
                     .setVolumeId(VOLUME.getOid()))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                            .setGuestOsType(OSType.LINUX)
+                            .setGuestOsInfo(OS.newBuilder()
+                                    .setGuestOsType(OSType.LINUX)
+                                    .setGuestOsName(OSType.LINUX.name()))
                             .setTenancy(Tenancy.DEFAULT)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(AZ.getEntityType())

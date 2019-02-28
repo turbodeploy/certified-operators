@@ -1,12 +1,14 @@
 package com.vmturbo.cost.calculation.topology;
 
-import org.junit.Test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 
 import java.util.Optional;
 
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -26,7 +28,9 @@ public class TopologyEntityInfoExtractorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                            .setGuestOsType(OSType.LINUX)
+                            .setGuestOsInfo(OS.newBuilder()
+                                    .setGuestOsType(OSType.LINUX)
+                                    .setGuestOsName(OSType.LINUX.name()))
                             .setTenancy(Tenancy.DEFAULT)))
             .build();
 

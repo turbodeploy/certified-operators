@@ -3,7 +3,10 @@
     "entityType": 10,
     "typeSpecificInfo": {
       "virtualMachine": {
-        "guestOsType": "LINUX",
+        "guestOsInfo": {
+          "guestOsType" : "LINUX",
+          "guestOsName" : "LINUX"
+        },
         "tenancy": "DEFAULT"
       }
     },

@@ -4,7 +4,10 @@
   "displayName": "cirros1",
   "typeSpecificInfo": {
     "virtualMachine": {
-      "guestOsType": "LINUX",
+      "guestOsInfo": {
+        "guestOsType" : "LINUX",
+        "guestOsName" : "LINUX"
+      },
       "tenancy": "DEFAULT",
       "ipAddresses": [
         {

@@ -34,8 +34,8 @@ message TypeSpecificInfo {
     }
 
     message VirtualMachineInfo {
-        // The OS type.
-        optional .common_dto.OSType guest_os_type = 1 [default = UNKNOWN_OS];
+        // The OS info.
+        optional OS guest_os_info = 1;
 
         // If set, the tenancy of the VM. This is only applicable
         // in a cloud environment (in an on-prem environment you're always on a host).
@@ -44,7 +44,7 @@ message TypeSpecificInfo {
         // List of IP addresses for the VM.
         repeated IpAddress ip_addresses = 3;
 
-        // Total number of CPUs for the VM
+        // Total number of CPUs for the VM.
         optional int32 num_cpus = 4;
 
         // This specifies if the VM is using a spot instance or not.
@@ -690,6 +690,14 @@ message IpAddress {
 
     // true if the ipAddress is elastic.  This is relevant for cloud targets only.
     optional bool is_elastic = 2;
+}
+
+message OS {
+    // The OS type for cloud cost calculation.
+    optional .common_dto.OSType guest_os_type = 1 [default = UNKNOWN_OS];
+
+    // The original OS name.
+    optional string guest_os_name = 2;
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

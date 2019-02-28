@@ -21,8 +21,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -333,8 +331,8 @@ public class TopologyFilterFactory {
                         StringFilter stringFilter = filter.getStringFilter();
                         return new PropertyFilter(entity -> hasVirtualMachineInfoPredicate().test(entity) &&
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                                topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
-                                                        .getVirtualMachine().getGuestOsType().toString(),
+                                        topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
+                                                .getVirtualMachine().getGuestOsInfo().getGuestOsName(),
                                 !stringFilter.getMatch(),
                                 stringFilter.getCaseSensitive()).test(entity));
                     case VM_INFO_NUM_CPUS:

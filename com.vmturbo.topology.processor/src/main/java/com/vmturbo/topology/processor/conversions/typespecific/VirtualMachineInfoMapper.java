@@ -11,10 +11,10 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -37,10 +37,9 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         VirtualMachineInfo.Builder vmInfo = VirtualMachineInfo.newBuilder()
                 // We're not currently sending tenancy via the SDK
                 .setTenancy(Tenancy.DEFAULT)
-                .setGuestOsType(parseOsType(vmData.getGuestName()))
+                .setGuestOsInfo(parseGuestName(vmData.getGuestName()))
                 .setBillingType(vmData.getBillingType())
                 .addAllIpAddresses(parseIpAddressInfo(vmData));
-
         // "numCpus" is supposed to be set in VirtualMachineData, but currently most probes
         // set it in "entityProperties" (like vc, aws...), we should also try to find from the map
         if (vmData.hasNumCpus()) {
@@ -73,18 +72,14 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
     }
 
     @Nonnull
-    private static OSType parseOsType(@Nonnull final String guestName) {
-        // These should come from the OSType enum in com.vmturbo.mediation.hybrid.cloud.utils.
-        // Really, the SDK should be setting the num.
-        // This is actually a problem for non cloud targets as the guestName coming in will
-        // not match  OSType and hence all guestNames will match OSType.OTHER.
-        // TODO Add smarter logic here to convert the guestName properly.   See OM-39287
+    private static OS.Builder parseGuestName(@Nonnull final String guestName) {
+        final OS.Builder os = OS.newBuilder();
         final String upperCaseOsName = guestName.toUpperCase();
         try {
-            return OSType.valueOf(upperCaseOsName);
+            return os.setGuestOsType(OSType.valueOf(upperCaseOsName)).setGuestOsName(guestName);
         } catch (IllegalArgumentException e) {
-            return OSType.UNKNOWN_OS;
+            // for On-prem OS type, we pass the OS name with UNKNOWN Cloud type
+            return os.setGuestOsType(OSType.UNKNOWN_OS).setGuestOsName(guestName);
         }
     }
-
 }

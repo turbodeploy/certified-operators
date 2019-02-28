@@ -54,6 +54,7 @@ public class RepoObjectType {
         AVAILABILITY_ZONE("AvailabilityZone"),
         REGION("Region"),
         VIRTUAL_VOLUME("VirtualVolume"),
+        PROCESSOR_POOL("ProcessorPool"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -123,6 +124,7 @@ public class RepoObjectType {
             .put(EntityType.AVAILABILITY_ZONE,      RepoEntityType.AVAILABILITY_ZONE)
             .put(EntityType.REGION,                 RepoEntityType.REGION)
             .put(EntityType.VIRTUAL_VOLUME,         RepoEntityType.VIRTUAL_VOLUME)
+            .put(EntityType.PROCESSOR_POOL,         RepoEntityType.PROCESSOR_POOL)
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)
             .build();
 

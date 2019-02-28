@@ -20,6 +20,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
+import com.vmturbo.repository.dto.GuestOSRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
@@ -70,7 +71,8 @@ public class ConvertToTopologyDTOTest {
         repoIpAddressDTO.setIpAddress(TEST_IP_ADDRESS);
         repoIpAddressDTO.setElastic(TEST_IP_ELASTIC);
         virtualMachineInfoRepoDTO.setIpAddressInfoList(Collections.singletonList(repoIpAddressDTO));
-        virtualMachineInfoRepoDTO.setGuestOsType(OSType.UNKNOWN_OS.name());
+        virtualMachineInfoRepoDTO.setGuestOsInfo(new GuestOSRepoDTO(OSType.UNKNOWN_OS,
+            OSType.UNKNOWN_OS.name()));
         virtualMachineInfoRepoDTO.setTenancy(Tenancy.DEDICATED.name());
 
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(virtualMachineInfoRepoDTO);

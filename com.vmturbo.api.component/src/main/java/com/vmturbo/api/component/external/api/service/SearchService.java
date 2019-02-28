@@ -111,6 +111,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  * Service entry points to search the Repository.
  **/
 public class SearchService implements ISearchService {
+
     private static final Logger logger = LogManager.getLogger();
 
     private final RepositoryApi repositoryApi;

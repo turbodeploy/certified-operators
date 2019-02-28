@@ -2,9 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +16,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -33,10 +32,6 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TargetInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class ReservedInstanceCoverageUpdateTest {
 
@@ -115,7 +110,9 @@ public class ReservedInstanceCoverageUpdateTest {
                     .setProviderEntityType(COMPUTE_TIER.getEntityType()))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                            .setGuestOsType(OSType.LINUX)
+                            .setGuestOsInfo(OS.newBuilder()
+                                .setGuestOsType(OSType.LINUX)
+                                .setGuestOsName(OSType.LINUX.name()))
                             .setTenancy(Tenancy.DEFAULT)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(REGION.getEntityType())
@@ -133,7 +130,9 @@ public class ReservedInstanceCoverageUpdateTest {
                     .setProviderEntityType(COMPUTE_TIER.getEntityType()))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                            .setGuestOsType(OSType.LINUX)
+                            .setGuestOsInfo(OS.newBuilder()
+                                .setGuestOsType(OSType.LINUX)
+                                .setGuestOsName(OSType.LINUX.name()))
                             .setTenancy(Tenancy.DEFAULT)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(AZ.getEntityType())

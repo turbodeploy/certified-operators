@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -26,7 +27,9 @@ public class VirtualMachineInfoMapperTest {
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                        .setGuestOsType(OSType.UNKNOWN_OS)
+                        .setGuestOsInfo(OS.newBuilder()
+                            .setGuestOsType(OSType.UNKNOWN_OS)
+                            .setGuestOsName(""))
                         .setTenancy(Tenancy.DEFAULT)
                         .setNumCpus(4)
                         .setBillingType(VirtualMachineData.VMBillingType.BIDDING)

@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,7 +28,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -192,7 +190,7 @@ public class ComputeTierDemandStatsWriter {
                 }
                 TopologyDTO.TypeSpecificInfo.VirtualMachineInfo vmInfo =
                         vmDTO.getTypeSpecificInfo().getVirtualMachine();
-                byte platform = (byte) vmInfo.getGuestOsType().getNumber();
+                byte platform = (byte) vmInfo.getGuestOsInfo().getGuestOsType().getNumber();
                 byte tenancy = (byte) vmInfo.getTenancy().getNumber();
                 Long targetId = workloadIdToBusinessAccountIdMap.get(vmId);
                 if (targetId == null) {

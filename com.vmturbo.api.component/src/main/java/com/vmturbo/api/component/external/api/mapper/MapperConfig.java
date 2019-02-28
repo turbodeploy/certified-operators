@@ -192,7 +192,7 @@ public class MapperConfig {
 
     @Bean
     public VirtualMachineAspectMapper virtualMachineMapper() {
-        return new VirtualMachineAspectMapper();
+        return new VirtualMachineAspectMapper(communicationConfig.searchServiceBlockingStub());
     }
 
     @Bean

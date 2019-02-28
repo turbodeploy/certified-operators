@@ -30,11 +30,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
+import com.vmturbo.repository.dto.GuestOSRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
@@ -86,7 +88,7 @@ public class TopologyEntityDtoConverterTest {
         virtualMachineInfoRepoDTO.setIpAddressInfoList(ImmutableList.of(ipAddressRepoDTO,
                 ipAddressRepoDTO2, ipAddressRepoDTO3));
         virtualMachineInfoRepoDTO.setTenancy("DEFAULT");
-        virtualMachineInfoRepoDTO.setGuestOsType("WINDOWS");
+        virtualMachineInfoRepoDTO.setGuestOsInfo(new GuestOSRepoDTO(OSType.WINDOWS, OSType.WINDOWS.name()));
         vmServiceEntity.setVirtualMachineInfoRepoDTO(virtualMachineInfoRepoDTO);
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
@@ -239,8 +241,10 @@ public class TopologyEntityDtoConverterTest {
             VirtualMachineInfo vmInfo = seTopoDTO.getTypeSpecificInfo().getVirtualMachine();
             assertEquals(seRepoDTO.getVirtualMachineInfoRepoDTO().getTenancy(),
                     vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null);
-            assertEquals(seRepoDTO.getVirtualMachineInfoRepoDTO().getGuestOsType(),
-                    vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null);
+            assertEquals(seRepoDTO.getVirtualMachineInfoRepoDTO().getGuestOsInfo(),
+                    vmInfo.hasGuestOsInfo()
+                        ? new GuestOSRepoDTO(vmInfo.getGuestOsInfo().getGuestOsType(),
+                            vmInfo.getGuestOsInfo().getGuestOsName()) : null);
             if (seRepoDTO.getVirtualMachineInfoRepoDTO().getIpAddressInfoList() != null) {
                 // remove null Ip Address entries Repo DTO since those would have been skipped
                 // when converting to TopologyEntityDTO

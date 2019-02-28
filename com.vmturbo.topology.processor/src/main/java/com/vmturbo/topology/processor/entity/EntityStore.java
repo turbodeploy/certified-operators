@@ -83,6 +83,12 @@ public class EntityStore {
      */
     private final TargetStore targetStore;
 
+    /**
+     * All the probes which support convert layered over to connected to relationship.
+     */
+    private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBES = ImmutableSet.of(
+        SDKProbeType.AWS, SDKProbeType.AZURE, SDKProbeType.VC_STORAGE_BROWSE);
+
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
                        @Nonnull final Clock clock) {
@@ -187,25 +193,28 @@ public class EntityStore {
 
             // This will populate the stitching data map.
             entityMap.entrySet().stream()
-                    .forEach(entry -> {
-                        final Long oid = entry.getKey();
-                        entry.getValue().getPerTargetInfo().stream()
-                                .map(targetInfoEntry ->
-                                        StitchingEntityData.newBuilder(targetInfoEntry.getValue().getEntityInfo().toBuilder())
-                                                .oid(oid)
-                                                .targetId(targetInfoEntry.getKey())
-                                                .lastUpdatedTime(getTargetLastUpdatedTime(targetInfoEntry.getKey()).orElse(0L))
-                                                .supportsConnectedTo(supportsConnectedTo(targetInfoEntry.getKey()))
-                                                .build())
-                                .forEach(stitchingDataMap::put);
+                .forEach(entry -> {
+                    final Long oid = entry.getKey();
+                    entry.getValue().getPerTargetInfo().stream()
+                        .map(targetInfoEntry ->
+                            StitchingEntityData.newBuilder(targetInfoEntry.getValue()
+                                .getEntityInfo().toBuilder())
+                                    .oid(oid)
+                                    .targetId(targetInfoEntry.getKey())
+                                    .lastUpdatedTime(getTargetLastUpdatedTime(
+                                        targetInfoEntry.getKey()).orElse(0L))
+                                    .supportsConnectedTo(supportsConnectedTo(
+                                        targetInfoEntry.getKey()))
+                                .build())
+                        .forEach(stitchingDataMap::put);
                     });
         }
 
         stitchingDataMap.allStitchingData()
-                .forEach(stitchingEntityData -> builder.addEntity(
-                        stitchingEntityData,
-                        stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
-                ));
+            .forEach(stitchingEntityData -> builder.addEntity(
+                stitchingEntityData,
+                stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
+            ));
 
         return builder.build();
     }
@@ -218,17 +227,11 @@ public class EntityStore {
      * entity. This logic can be removed once EntityDTO itself supports connected relationship.
      *
      * @param targetId the id of the target
-     * @return true if the target is AWS, Azure, or VC_STORAGE_BROWSE otherwise false
+     * @return true if the target is in {@link SUPPORTED_CONNECTED_TO_PROBES} otherwise false
      */
     private boolean supportsConnectedTo(long targetId) {
-        Optional<SDKProbeType> optionalProbeType = targetStore.getProbeTypeForTarget(targetId);
-        if (optionalProbeType.isPresent()) {
-            final SDKProbeType probeType = optionalProbeType.get();
-            // include VC_STORAGE_BROWSE here since it also uses layeredOver with VirtualVolumes
-            return probeType == SDKProbeType.AWS || probeType == SDKProbeType.AZURE ||
-                    probeType == SDKProbeType.VC_STORAGE_BROWSE;
-        }
-        return false;
+        return targetStore.getProbeTypeForTarget(targetId)
+            .map(SUPPORTED_CONNECTED_TO_PROBES::contains).orElse(false);
     }
 
     /**
