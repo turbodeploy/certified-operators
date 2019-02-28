@@ -22,10 +22,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
@@ -33,6 +29,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -71,6 +71,8 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -107,8 +109,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRes
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -211,6 +211,8 @@ public class StatsService implements IStatsService {
 
     private final MagicScopeGateway magicScopeGateway;
 
+    private final UserSessionContext userSessionContext;
+
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
     // with an extra entry for headroom vm's, which is also a cluster-level stat calculated in the
@@ -256,7 +258,8 @@ public class StatsService implements IStatsService {
                  @Nonnull final SearchService searchService,
                  @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                  @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
-                 @Nonnull final MagicScopeGateway magicScopeGateway) {
+                 @Nonnull final MagicScopeGateway magicScopeGateway,
+                 @Nonnull final UserSessionContext userSessionContext) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -275,6 +278,7 @@ public class StatsService implements IStatsService {
         this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.magicScopeGateway = Objects.requireNonNull(magicScopeGateway);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -372,7 +376,7 @@ public class StatsService implements IStatsService {
         // Create a default Stat period, if one is not specified in the request
         if (inputDto == null) {
             inputDto = getDefaultStatPeriodApiInputDto();
-            }
+        }
 
         // If it is a request for reserved instance coverage, then get the stats from cost component.
         if (isRequestForReservedInstanceCoverageStats(inputDto)) {
@@ -396,6 +400,13 @@ public class StatsService implements IStatsService {
         final boolean isDefaultCloudGroupUuid = isDefaultCloudGroupUuid(uuid);
         if (!isDefaultCloudGroupUuid && isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
             // uuid belongs to a cluster. Call Stats service to retrieve cluster related stats.
+            // we are enforcing the user scope here, because we have the handy groupExpander at our
+            // disposal and it may avoid an extra batch of network calls. If necessary in the future,
+            // we can move this check into the history component stats service instead.
+            if (userSessionContext.isUserScoped()) {
+                // this will throw an "access denied" exception if any cluster members are out of scope
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), groupExpander.expandUuid(uuid));
+            }
             ClusterStatsRequest clusterStatsRequest = statsMapper.toClusterStatsRequest(uuid, inputDto);
             Iterator<StatSnapshot> statSnapshotIterator = statsServiceRpc.getClusterStats(clusterStatsRequest);
             while (statSnapshotIterator.hasNext()) {
@@ -410,11 +421,18 @@ public class StatsService implements IStatsService {
 
             // determine the list of entity OIDs to query for this operation
             final Set<Long> entityStatOids;
+
             if (fullMarketRequest || isDefaultCloudGroupUuid) {
-                // An empty set means a request for the full market.
-                entityStatOids = Collections.emptySet();
+                // if the user is scoped, request their scope group members
+                if (userSessionContext.isUserScoped()) {
+                    entityStatOids = userSessionContext.getUserAccessScope().getScopeGroupMembers().toSet();
+                } else {
+                    // default case for market and cloud group - request all entities
+                    entityStatOids = Collections.emptySet();
+                }
                 isPlanRequest = false;
             } else {
+                // this request should be for either a group or a specific entity
                 final Set<Long> expandedOidsList = groupOptional.isPresent() ?
                         groupExpander.expandUuid(uuid) : Sets.newHashSet(Long.valueOf(uuid));
                 // expand any ServiceEntities that should be replaced by related ServiceEntities,
@@ -427,6 +445,10 @@ public class StatsService implements IStatsService {
                 if (entityStatOids.isEmpty()) {
                     return Collections.emptyList();
                 }
+
+                // if the user is scoped, we need to check if the user has access to the resulting
+                // entity set.
+                UserScopeUtils.checkAccess(userSessionContext, entityStatOids);
                 // check if this is a plan
                 isPlanRequest = getRequestedPlanInstance(uuid).isPresent();
             }
@@ -498,7 +520,7 @@ public class StatsService implements IStatsService {
                                     .collect(Collectors.toList());
                     statsFilters.addAll(currentStatFilters);
                 }
-                final Optional<Integer> tempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
+                final Optional<Integer> globalTempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
 
                 // convert the stats snapshots to the desired ApiDTO and return them. Also, insert
                 // them before any projected stats in the output collection, since the UI expects
@@ -586,8 +608,12 @@ public class StatsService implements IStatsService {
                 // Return if the input DTO has stats other than "cloudCost", retrieve them from other components, e.g. History
                 // TODO: combine both Cloud cost and non-Cloud stats for plan when plan is enabled in Cost component.
                 if ((uuid != null && !isDefaultCloudGroupUuid) || requestStatsParsedResultPair.hasNonCostStat) {
+                    // we are only passing the possible global temp group type if the user is not scoped
+                    // -- scoped users need to retrieve based on specific entities, rather than a global
+                    // temp group
                     final GetAveragedEntityStatsRequest request =
-                            statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
+                            statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto,
+                                    userSessionContext.isUserScoped() ? Optional.empty() : globalTempGroupEntityType);
 
                     final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
 
@@ -971,6 +997,12 @@ public class StatsService implements IStatsService {
         final List<EntityStatsApiDTO> results = new ArrayList<>();
         groups.forEachRemaining(group -> {
             if (group.hasCluster()) {
+                // verify the user has access to the cluster members. If any are inaccessible, this
+                // method will propagate an AccessDeniedException.
+                if (userSessionContext.isUserScoped() && group.getCluster().hasMembers()) {
+                    UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
+                            group.getCluster().getMembers().getStaticMemberOidsList());
+                }
                 final EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
                 final String uuid = String.valueOf(group.getId());
                 statsDTO.setUuid(String.valueOf(uuid));
@@ -1029,12 +1061,23 @@ public class StatsService implements IStatsService {
                         "Market without specifying 'relatedType'");
             }
 
-            final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
-                    .entityTypes(Collections.singletonList(relatedType.get()))
-                    .fetch();
-            final SupplyChainNode relatedTypeNode = result.get(relatedType.get());
-            expandedUuids = relatedTypeNode == null ?
-                    Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
+            // if the user is scoped, we will request the subset of entity oids in the user scope
+            // that match the related type.
+            if (userSessionContext.isUserScoped()) {
+                expandedUuids = userSessionContext.getUserAccessScope()
+                        .getAccessibleOidsByEntityType(relatedType.get())
+                        .toSet();
+                logger.debug("getExpandedScope() using cached oids for scoped user. found {} oids for related entity type {}",
+                        expandedUuids.size(), relatedType.get());
+            } else {
+                // otherwise, use a supply chain query to get them
+                final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
+                        .entityTypes(Collections.singletonList(relatedType.get()))
+                        .fetch();
+                final SupplyChainNode relatedTypeNode = result.get(relatedType.get());
+                expandedUuids = relatedTypeNode == null ?
+                        Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
+            }
         } else {
             // Expand scopes list to determine the list of entity OIDs to query for this operation
             final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
@@ -1055,6 +1098,9 @@ public class StatsService implements IStatsService {
             } else {
                 expandedUuids = groupExpander.expandUuids(seedUuids);
             }
+            // if the user is scoped, we need to double-check that the user has access to all of these
+            // entities
+            UserScopeUtils.checkAccess(userSessionContext, expandedUuids);
         }
         return expandedUuids;
     }
@@ -1088,21 +1134,44 @@ public class StatsService implements IStatsService {
                         "Market without specifying 'relatedType'");
             }
 
-            entityStatsScope.setEntityType(ServiceEntityMapper.fromUIEntityType(relatedType.get()));
+            // if the user is scoped, set this request to the set of in-scope entities of the
+            // requested 'relatedType'
+            if (userSessionContext.isUserScoped()) {
+                entityStatsScope.setEntityList(EntityList.newBuilder()
+                        .addAllEntities(userSessionContext.getUserAccessScope()
+                                .getAccessibleOidsByEntityType(relatedType.get()))
+                        .build());
+            } else {
+                // Otherwise, just set the entityType field on the stats scope.
+                entityStatsScope.setEntityType(ServiceEntityMapper.fromUIEntityType(relatedType.get()));
+            }
         } else if (inputDto.getScopes().size() == 1) {
             // Check if we can do the global entity type optimization.
             final Optional<Integer> globalEntityType =
                     getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
             final Optional<Integer> relatedTypeInt =
                     relatedType.map(ServiceEntityMapper::fromUIEntityType);
-            if (globalEntityType.isPresent() &&
+            if (globalEntityType.isPresent()
                     // We can only do the global entity type optimization if the related type
                     // is unset, or is the same as the global entity type. Why? Because the
                     // topology graph may not be connected. For example, suppose global entity type
                     // is PM and related type is VM. We can't just set the entity stats scope to
                     // VM, because there may be VMs not connected to PMs (e.g. in the cloud).
-                    (!relatedTypeInt.isPresent() || relatedTypeInt.equals(globalEntityType))) {
-                entityStatsScope.setEntityType(globalEntityType.get());
+                    && (!relatedTypeInt.isPresent() || relatedTypeInt.equals(globalEntityType))
+            ) {
+                // if the user is scoped, set this request to the set of in-scope entities of the
+                // requested 'relatedType'. Note that this is different than classic, which applies
+                // the regular scope check to the global temp group, resulting in "no access".
+                // TODO: Perhaps we should do the same, but it feels like a bug.
+                if (userSessionContext.isUserScoped()) {
+                    entityStatsScope.setEntityList(EntityList.newBuilder()
+                            .addAllEntities(userSessionContext.getUserAccessScope()
+                                    .getAccessibleOidsByEntityType(
+                                            ServiceEntityMapper.toUIEntityType(globalEntityType.get())))
+                            .build());
+                } else {
+                    entityStatsScope.setEntityType(globalEntityType.get());
+                }
             } else {
                 entityStatsScope.setEntityList(EntityList.newBuilder()
                         .addAllEntities(getExpandedScope(inputDto)));
@@ -1337,7 +1406,7 @@ public class StatsService implements IStatsService {
      * @return a set of ServiceEntity OIDs with types that should be expanded replaced by the
      * "constituent" ServiceEntity OIDs as computed by the supply chain.
      */
-    private Set<Long> expandGroupingServiceEntities(Set<Long> entityOidsToExpand) {
+    private Set<Long> expandGroupingServiceEntities(Collection<Long> entityOidsToExpand) {
         // Early return if the input is empty, to prevent making
         // the initial RPC call.
         if (entityOidsToExpand.isEmpty()) {

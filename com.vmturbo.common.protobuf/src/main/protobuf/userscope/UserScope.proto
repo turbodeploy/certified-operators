@@ -7,9 +7,14 @@ message EntityAccessScopeContents {
     // the "seed" oids are the set of seed entities used in the supply chain calculation that defines
     // the access scope. Although technically possible, this should not be "all oids".
     optional OidSetDTO seed_oids = 1;
+
     // the "accessible" oids represent the entities that are in the resulting supply chain that
     // defines the entity access scope.
     optional OidSetDTO accessible_oids = 2;
+
+    // a map of accessible oids, split by entity type. Using string entity type since that's what
+    // we get from the supply chain
+    map<string, OidSetDTO> accessible_oids_by_entity_type = 3;
 
     // An explicit hash for the accessible oids set. Used for cache sync.
     optional int32 hash = 10;

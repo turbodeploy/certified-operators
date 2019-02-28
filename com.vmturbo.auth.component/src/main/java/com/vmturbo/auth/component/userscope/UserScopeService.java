@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
@@ -283,16 +282,22 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         }
 
         response.getSupplyChainNodesList().stream()
-            .flatMap(node -> node.getMembersByStateMap().values().stream())
-            .map(MemberList::getMemberOidsList)
-            .forEach(accessibleEntities::addAll);
+                .forEach(node -> {
+                    // add all of these members into both the type-specific oid set as well as the
+                    // global set of accessible oids
+                    OidSetDTO.Builder typeSetBuilder = OidSetDTO.newBuilder();
+                    node.getMembersByStateMap().values().stream()
+                            .forEach(memberList -> {
+                                typeSetBuilder.getArrayBuilder().addAllOids(memberList.getMemberOidsList());
+                                accessibleEntities.addAll(memberList.getMemberOidsList());
+                            });
+                    contentsBuilder.putAccessibleOidsByEntityType(node.getEntityType(), typeSetBuilder.build());
+                });
 
         // convert the set to a primitive array, which we will both cache and send back to the caller
         OidArray.Builder accessibleOidArrayBuilder = OidArray.newBuilder();
-        long[] accessibleOids = new long[accessibleEntities.size()];
         int x = 0;
         for (Long oid : accessibleEntities) {
-            accessibleOids[x++] = oid;
             accessibleOidArrayBuilder.addOids(oid);
         }
         contentsBuilder.setAccessibleOids(OidSetDTO.newBuilder().setArray(accessibleOidArrayBuilder));
@@ -308,7 +313,7 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         }
         contentsBuilder.setSeedOids(OidSetDTO.newBuilder().setArray(scopeGroupMemberOidsBuilder));
         // the hash is only based on the accessible oids
-        contentsBuilder.setHash(accessibleOids.hashCode());
+        contentsBuilder.setHash(accessibleEntities.hashCode());
 
         return new AccessScopeDataCacheEntry(contentsBuilder.build());
     }
@@ -400,7 +405,9 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
                 estimatedBytes += scopeContents.getSeedOids().getArray().getOidsCount() * ESTIMATED_BYTES_PER_OID;
             }
             if (scopeContents.getAccessibleOids().hasArray()) {
-                estimatedBytes += scopeContents.getAccessibleOids().getArray().getOidsCount() * ESTIMATED_BYTES_PER_OID;
+                // we are going to roughly double the estimate based on total accessible oids since
+                // we've added the per-entity-type map. This is an under-approximation.
+                estimatedBytes += (2 * scopeContents.getAccessibleOids().getArray().getOidsCount() * ESTIMATED_BYTES_PER_OID);
             }
             estimatedSizeInBytes = estimatedBytes;
         }

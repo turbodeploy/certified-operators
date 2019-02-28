@@ -27,7 +27,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import io.jsonwebtoken.lang.Collections;
 
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.auth.api.authorization.scoping.OidSet;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;

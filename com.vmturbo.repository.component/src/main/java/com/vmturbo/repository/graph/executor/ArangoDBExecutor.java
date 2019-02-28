@@ -122,6 +122,8 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         if (!inclusionEntityTypes.isEmpty()) {
             template.add("hasInclusionEntityTypes", true);
             template.add("inclusionEntityTypes", entityTypesListToAQL(inclusionEntityTypes));
+        } else {
+            template.add("hasInclusionEntityTypes", false);
         }
 
         // filter the path by the exclusion entity types, which means it will not traverse the
@@ -130,6 +132,8 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         if (!exclusionEntityTypes.isEmpty()) {
             template.add("hasExclusionEntityTypes", true);
             template.add("exclusionEntityTypes", entityTypesListToAQL(exclusionEntityTypes));
+        } else {
+            template.add("hasExclusionEntityTypes", false);
         }
 
         return template.render();

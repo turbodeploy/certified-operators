@@ -261,7 +261,8 @@ public class CommunicationConfig {
 
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyChannel());
+        return StatsHistoryServiceGrpc.newBlockingStub(historyChannel())
+                .withInterceptors(new JwtClientInterceptor());
     }
 
     @Bean

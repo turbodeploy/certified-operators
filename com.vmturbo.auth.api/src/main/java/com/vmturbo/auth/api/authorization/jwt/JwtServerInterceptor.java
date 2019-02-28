@@ -89,7 +89,7 @@ public class JwtServerInterceptor implements ServerInterceptor {
         }
 
         try {
-            logger.debug("Received JWT token: " + jwt);
+            logger.debug("Received JWT token: {} on call {}", jwt, call.getMethodDescriptor().getFullMethodName());
             JWTAuthorizationToken token = new JWTAuthorizationToken(jwt);
             Claims claims = Jwts.parser()
                     .setAllowedClockSkewSeconds(ALLOWED_CLOCK_SKEW_SECONDS)

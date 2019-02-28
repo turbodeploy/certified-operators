@@ -3,14 +3,15 @@ package com.vmturbo.history.stats;
 import java.time.Clock;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableList;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.collect.ImmutableList;
-
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
@@ -38,8 +39,7 @@ import com.vmturbo.history.utils.SystemLoadHelper;
  * Spring configuration for Stats RPC service related objects.
  **/
 @Configuration
-@Import({HistoryDbConfig.class,
-    GroupClientConfig.class})
+@Import({HistoryDbConfig.class, GroupClientConfig.class})
 public class StatsConfig {
 
     @Autowired

@@ -380,23 +380,23 @@ public class StatsMapper {
      *
      * @param entityIds gather stats for the entities with these IDs.
      * @param statApiInput a {@link StatApiInputDTO} specifying query options for this /stats query
-     * @param tempGroupEntityType a optional entity type of temp group, if present, means it will query
-     *                          stats from market stats table to speed up query.
+     * @param globalTempGroupEntityType a optional entity type of a global temp group. if present, means
+     *                            it will query stats from market stats table to speed up query.
      * @return a new instance of {@link GetAveragedEntityStatsRequest} protobuf with fields set from the given statApiInput
      */
     @Nonnull
     public GetAveragedEntityStatsRequest toAveragedEntityStatsRequest(
                 final Set<Long> entityIds,
                 @Nullable final StatPeriodApiInputDTO statApiInput,
-                @Nonnull final Optional<Integer> tempGroupEntityType) {
+                @Nonnull final Optional<Integer> globalTempGroupEntityType) {
         final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
             GetAveragedEntityStatsRequest.newBuilder()
-                .setFilter(newPeriodStatsFilter(statApiInput, tempGroupEntityType));
+                .setFilter(newPeriodStatsFilter(statApiInput, globalTempGroupEntityType));
 
         // If the stats query is for global temp group, we can speed up the query by setting entity
         // list as empty and set the related entity type which will query the pre-aggregated
         // market stats table. The related entity type should get set in the stats filter.
-        if (!tempGroupEntityType.isPresent()) {
+        if (!globalTempGroupEntityType.isPresent()) {
             entityStatsRequest.addAllEntities(entityIds);
         }
         return entityStatsRequest.build();

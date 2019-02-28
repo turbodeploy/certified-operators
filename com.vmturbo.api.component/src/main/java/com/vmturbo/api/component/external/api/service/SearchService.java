@@ -26,15 +26,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import io.grpc.StatusRuntimeException;
 
@@ -70,6 +70,7 @@ import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
@@ -147,6 +148,8 @@ public class SearchService implements ISearchService {
 
     private BusinessUnitMapper businessUnitMapper;
 
+    private final UserSessionContext userSessionContext;
+
     private TopologyProcessor topologyProcessor;
 
     SearchService(@Nonnull final RepositoryApi repositoryApi,
@@ -166,7 +169,8 @@ public class SearchService implements ISearchService {
                   @Nonnull TagsService tagsService,
                   @Nonnull RepositoryClient repositoryClient,
                   @Nonnull BusinessUnitMapper businessUnitMapper,
-                  final long realtimeTopologyContextId) {
+                  final long realtimeTopologyContextId,
+                  @Nonnull final UserSessionContext userSessionContext) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -185,6 +189,7 @@ public class SearchService implements ISearchService {
         this.repositoryClient = repositoryClient;
         this.businessUnitMapper = businessUnitMapper;
         this.realtimeContextId = realtimeTopologyContextId;
+        this.userSessionContext = userSessionContext;
     }
 
     @Override

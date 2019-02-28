@@ -24,7 +24,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
-import com.vmturbo.auth.api.authorization.scoping.OidSet;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;

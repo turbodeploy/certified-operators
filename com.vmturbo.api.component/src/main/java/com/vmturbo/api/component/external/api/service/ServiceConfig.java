@@ -371,7 +371,8 @@ public class ServiceConfig {
                 tagsService(),
                 repositoryClientConfig.repositoryClient(),
                 mapperConfig.businessUnitMapper(),
-                communicationConfig.getRealtimeTopologyContextId());
+                communicationConfig.getRealtimeTopologyContextId(),
+                userSessionContext());
     }
 
     @Bean
@@ -406,7 +407,8 @@ public class ServiceConfig {
                 searchService(),
                 communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
                 mapperConfig.reservedInstanceMapper(),
-                magicScopeGateway());
+                magicScopeGateway(),
+                userSessionContext());
     }
 
     @Bean

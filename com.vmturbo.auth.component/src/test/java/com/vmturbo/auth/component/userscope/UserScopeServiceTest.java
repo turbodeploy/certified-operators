@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
@@ -18,8 +20,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-
-import com.google.common.collect.ImmutableList;
 
 import io.grpc.stub.StreamObserver;
 
@@ -60,6 +60,7 @@ public class UserScopeServiceTest {
 
     private static final SupplyChain TEST_SUPPLY_CHAIN = SupplyChain.newBuilder()
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
+            .setEntityType("TestType")
             .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
                 .addAllMemberOids(TEST_SUPPLY_CHAIN_OIDS)
                 .build()))
@@ -158,6 +159,8 @@ public class UserScopeServiceTest {
         Assert.assertTrue(seedOids.hasArray());
         Assert.assertThat(seedOids.getArray().getOidsList(),
                 Matchers.containsInAnyOrder(2L));
+
+
     }
 
     // test that an empty group list results in an unrestricted access scope.

@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -21,28 +22,27 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
-
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
-import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -74,24 +74,24 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.live.SystemLoadWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
-import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 
 /**
  * Handles incoming RPC calls to History Component to return Stats information.
@@ -704,7 +704,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      */
     private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
                                        @Nonnull final StatsFilter statsFilter,
-                                       @Nonnull List<Long> entities,
+                                       @Nonnull Collection<Long> entities,
                                        @Nonnull Optional<String> relatedEntityType) throws VmtDbException {
 
         // get a full list of stats that satisfy this request, depending on the entity request

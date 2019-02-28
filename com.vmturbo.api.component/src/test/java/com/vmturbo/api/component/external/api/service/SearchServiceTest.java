@@ -9,8 +9,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -29,16 +27,16 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -62,6 +60,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
@@ -113,6 +112,7 @@ public class SearchServiceTest {
     private final TagsService tagsService = mock(TagsService.class);
     private final RepositoryClient repositoryClient = mock(RepositoryClient.class);
     private final BusinessUnitMapper businessUnitMapper = mock(BusinessUnitMapper.class);
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -136,6 +136,7 @@ public class SearchServiceTest {
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         EntitySeverityServiceBlockingStub severityGrpcStub =
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        when(userSessionContext.isUserScoped()).thenReturn(false);
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -154,7 +155,8 @@ public class SearchServiceTest {
                 tagsService,
                 repositoryClient,
                 businessUnitMapper,
-                777777
+                777777,
+                userSessionContext
         ));
 
         doReturn(ImmutableMap.of(
@@ -355,6 +357,48 @@ public class SearchServiceTest {
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
         assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
     }
+
+    /* Patrick: parking this test for now, since I temporarily removed the user scope changes from the search service
+    @Test
+    public void testClusterFiltersWithUserScope() throws Exception {
+        GroupApiDTO cluster1 = new GroupApiDTO();
+        cluster1.setDisplayName("Cluster1");
+        cluster1.setGroupType("PhysicalMachine");
+        cluster1.setIsStatic(true);
+        cluster1.setLogicalOperator("AND");
+        cluster1.setMemberUuidList(Arrays.asList("1","2"));
+        GroupApiDTO cluster2 = new GroupApiDTO();
+        cluster2.setDisplayName("Cluster2");
+        cluster2.setGroupType("PhysicalMachine");
+        cluster2.setIsStatic(true);
+        cluster2.setLogicalOperator("AND");
+        cluster2.setMemberUuidList(Arrays.asList("1"));
+
+        // create a SearchParams for members of Cluster1
+        SearchParameters params = SearchParameters.newBuilder()
+                .addSearchFilter(SearchFilter.newBuilder()
+                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                                .setClusterSpecifier(PropertyFilter.newBuilder()
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("Cluster1|Cluster2"))
+                                        .setPropertyName("displayName"))))
+                .build();
+        when(groupsService.getGroupApiDTOS(anyObject())).thenReturn(Arrays.asList(cluster1,cluster2));
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        // create a user access scope with access to only entity 1.
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
+
+        // we should only get the members of cluster 2 in the resolved filter, since this user cannot
+        // access entity 2.
+        StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
+        assertEquals("^1$", stringFilter.getStringPropertyRegex());
+    }
+    */
 
     /**
      * For search by cluster filter, make sure resolveClusterFilters method is invoked.

@@ -3,10 +3,18 @@ package com.vmturbo.auth.api.authorization.scoping;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import org.springframework.security.access.AccessDeniedException;
+
+import com.vmturbo.components.common.identity.OidFilter;
+import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
+import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 
 /**
  * EntityAccessScope models an access restriction list based on an "entity scope". The "access scope"
@@ -36,18 +44,23 @@ public class EntityAccessScope implements OidFilter {
     @Nonnull
     private final OidFilter accessFilter;
 
+    // a breakdown of accessible oids by entity type. Only really relevant for non-empty and non-all scopes.
+    private final Map<String, OidSet> accessibleOidsByEntityType;
+
     // create a scope with no restrictions
     private EntityAccessScope() {
         this.accessFilter = DEFAULT_ACCESS_FILTER;
         this.scopeGroupIds = Collections.EMPTY_LIST;
         this.scopeGroupMemberOids = OidSet.EMPTY_OID_SET;
+        this.accessibleOidsByEntityType = Collections.EMPTY_MAP;
     }
 
     public EntityAccessScope(@Nullable List<Long> groupIds, @Nullable OidSet scopeGroupMemberOids,
-                             @Nullable OidFilter accessFilter) {
+                             @Nullable OidFilter accessFilter, @Nullable Map<String, OidSet> oidsByEntityType) {
         this.scopeGroupIds = groupIds != null ? groupIds : Collections.EMPTY_LIST;
         this.scopeGroupMemberOids = scopeGroupMemberOids != null ? scopeGroupMemberOids : OidSet.EMPTY_OID_SET;
         this.accessFilter = accessFilter != null ? accessFilter : DEFAULT_ACCESS_FILTER;
+        this.accessibleOidsByEntityType = oidsByEntityType != null ? oidsByEntityType : Collections.EMPTY_MAP;
     }
 
     @Nonnull
@@ -100,6 +113,23 @@ public class EntityAccessScope implements OidFilter {
             return (OidSet) accessFilter;
         }
         throw new IllegalStateException("iterator only available on non-empty access scopes.");
+    }
+
+    /**
+     * Get an OidSet of the accessible oids for the specified entity type. This set is only relevant
+     * if EntityAccessScope.containsAll() is false -- if the scope contains "all" entities then this
+     * method will just return an {@link AllOidsSet} that is not iterable.
+     *
+     * @param entityType The string entity type to look for
+     * @return an {@link OidSet} of entity oids of the requested type in the accessible set.
+     */
+    public OidSet getAccessibleOidsByEntityType(String entityType) {
+        // special case for "all oids".
+        if (accessFilter.containsAll()) {
+            return AllOidsSet.ALL_OIDS_SET;
+        }
+
+        return accessibleOidsByEntityType.getOrDefault(entityType, OidSet.EMPTY_OID_SET);
     }
 
     public String toString() {

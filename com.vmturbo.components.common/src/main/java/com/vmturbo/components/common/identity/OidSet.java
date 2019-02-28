@@ -1,4 +1,4 @@
-package com.vmturbo.auth.api.authorization.scoping;
+package com.vmturbo.components.common.identity;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -14,7 +14,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
  * OidSet extends OidFilter by adding the ability to iterate over the members, perform union
  * operations, as well as get a count of the number of members.
  */
-public interface OidSet extends OidFilter {
+public interface OidSet extends OidFilter, Iterable<Long> {
     public static final OidSet EMPTY_OID_SET = new EmptyOidSet();
 
     /**

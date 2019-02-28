@@ -119,6 +119,7 @@
         <docker.image.prefix>turbonomic</docker.image.prefix>
 
         <immutables.version>2.7.3</immutables.version>
+        <roaringbitmap.version>[0.7,)</roaringbitmap.version>
     </properties>
 
     <prerequisites>
@@ -2333,6 +2334,11 @@
                 <groupId>org.skyscreamer</groupId>
                 <artifactId>jsonassert</artifactId>
                 <version>1.5.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.roaringbitmap</groupId>
+                <artifactId>RoaringBitmap</artifactId>
+                <version>${roaringbitmap.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

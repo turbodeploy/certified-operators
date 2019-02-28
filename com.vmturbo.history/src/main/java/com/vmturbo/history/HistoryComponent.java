@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.history.api.ApiSecurityConfig;
@@ -30,7 +32,8 @@ import com.vmturbo.history.topology.TopologyListenerConfig;
 
 @Configuration("theComponent")
 @Import({HistoryDbConfig.class, TopologyListenerConfig.class, MarketListenerConfig.class,
-        StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class})
+        StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class, SpringSecurityConfig.class,
+})
 public class HistoryComponent extends BaseVmtComponent {
 
     private final static Logger log = LogManager.getLogger();
@@ -43,6 +46,9 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @Autowired
     private StatsConfig statsConfig;
+
+    @Autowired
+    private SpringSecurityConfig springSecurityConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -74,8 +80,11 @@ public class HistoryComponent extends BaseVmtComponent {
         final MonitoringServerInterceptor monitoringInterceptor =
             MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
 
+        // gRPC JWT token interceptor
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(springSecurityConfig.apiAuthKVStore());
+
         return Optional.of(builder
-            .addService(ServerInterceptors.intercept(statsConfig.statsRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(statsConfig.statsRpcService(), jwtInterceptor, monitoringInterceptor))
             .build());
     }
 }

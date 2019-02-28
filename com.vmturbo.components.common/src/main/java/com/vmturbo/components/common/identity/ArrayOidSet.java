@@ -1,4 +1,4 @@
-package com.vmturbo.auth.api.authorization.scoping;
+package com.vmturbo.components.common.identity;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -8,6 +8,9 @@ import java.util.PrimitiveIterator.OfLong;
 import java.util.Set;
 import java.util.stream.LongStream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * An {@link OidFilter} that is backed by a simple long array. This array is sorted for search
  * efficiency.
@@ -15,6 +18,7 @@ import java.util.stream.LongStream;
  * The array shouldn't contain any negative value, and the entries should be unique.
  */
 public class ArrayOidSet implements OidSet {
+    private static final Logger logger = LogManager.getLogger();
 
     private long[] oids;
 
@@ -102,6 +106,10 @@ public class ArrayOidSet implements OidSet {
 
     @Override
     public OidSet filter(final OidSet inputSet) {
+        if (inputSet == null) {
+            return EMPTY_OID_SET;
+        }
+
         // we're going to do a copy / truncate as we did in the long[] version of filter(). Can
         // optimize later if needed.
         long[] temp = new long[inputSet.size()];
@@ -116,18 +124,6 @@ public class ArrayOidSet implements OidSet {
         // copy the matched set to the final output and return
         return new ArrayOidSet(Arrays.copyOf(temp, numMatches));
     }
-
-    @Override
-    public Set<Long> filter(final Set<Long> inputOids) {
-        Set<Long> retVal = new HashSet<>();
-        for (Long oid : inputOids) {
-            if (contains(oid)) {
-                retVal.add(oid);
-            }
-        }
-        return retVal;
-    }
-
 
     @Override
     public PrimitiveIterator.OfLong iterator() {
@@ -153,12 +149,29 @@ public class ArrayOidSet implements OidSet {
             return EMPTY_OID_SET;
         }
 
-        int tempSize = size() + other.size();
+        // this would overflow if the combined array would be greater than maxint. This means we'd
+        // have input arrays greater than 2 billion members in length though, which is hopefully
+        // not very likely to happen.
+        if ((long) size() + other.size() > Integer.MAX_VALUE) {
+            logger.warn("Performing union on two sets that may exceed {} entries.", Integer.MAX_VALUE);
+        }
+        int tempSize = Math.min(size() + other.size(), Integer.MAX_VALUE);
         long[] temp = Arrays.copyOf(oids, tempSize);
         // concat the oids from the other set into the temp array
         PrimitiveIterator.OfLong iterator = other.iterator();
-        for (int x = size(); x < tempSize; x++) {
-            temp[x] = iterator.nextLong();
+        for (long x = size(); x < tempSize; x++) {
+            if (x > tempSize) {
+                // throw an error. Technically we could attempt to avoid this by deduplicating members
+                // earlier. This would mean the size should only grow to the number of unique members,
+                // rather than the total size of both sets as in the current naive implementation.
+                // But I'm not going to worry about it for now, since we'll be looking at other set
+                // structures for handling very large sets.
+                logger.error("Union operation overflowed ArrayOidSet length limit");
+                // we are going to let the union operation finish for now. But we need to know that
+                // this is an error condition -- the union results will be incorrect.
+                break;
+            }
+            temp[(int) x] = iterator.nextLong();
         }
         // sort the concatenated arrays.
         Arrays.sort(temp);

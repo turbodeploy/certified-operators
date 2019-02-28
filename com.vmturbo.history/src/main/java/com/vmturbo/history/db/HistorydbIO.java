@@ -45,6 +45,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -84,6 +85,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -581,15 +583,17 @@ public class HistorydbIO extends BasedbIO {
                                     final Timestamp timestamp,
                                     final TimeFrame tFrame,
                                     final EntityStatsPaginationParams paginationParams) throws VmtDbException {
-        final EntityType entityType;
         // This will be an empty list if entity list is not set.
         // This should NOT be an empty list if the entity list is set (we should filter out
         // those requests earlier on).
-        final Set<String> requestedIdSet = Sets.newHashSet(Collections2.transform(
-                entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
+        Preconditions.checkArgument(entityScope.hasEntityType()
+                || (entityScope.hasEntityList() && entityScope.getEntityList().getEntitiesCount() > 0));
+        final EntityType entityType;
+        final Set<String> requestedIdSet;
         // Make sure the layers that call this method filtered out invalid arguments.
-        Preconditions.checkArgument(entityScope.hasEntityType() || !requestedIdSet.isEmpty());
         if (entityScope.hasEntityList()) {
+            requestedIdSet = Sets.newHashSet(Collections2.transform(
+                    entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
             final List<String> entityTypes = getTypesForEntities(requestedIdSet).values().stream()
                     .distinct()
                     .collect(Collectors.toList());
@@ -605,6 +609,7 @@ public class HistorydbIO extends BasedbIO {
             entityType = EntityType.getTypeForName(entityTypes.get(0))
                     .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
         } else {
+            requestedIdSet = Collections.emptySet();
             entityType = getEntityType(entityScope.getEntityType())
                     .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
         }

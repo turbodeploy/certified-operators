@@ -278,7 +278,8 @@ public class LiveStatsReader {
             while(entityIndex < numberOfEntitiesToPersist) {
                 final int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
                 final List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
-                final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(entityIdChunk, statsTableByTimeFrame(entityType.get(), timeRange.getTimeFrame()),
+                final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(entityIdChunk,
+                        statsTableByTimeFrame(entityType.get(), timeRange.getTimeFrame()),
                         statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;

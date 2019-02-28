@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -17,17 +18,16 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.auth.api.authorization.scoping.ArrayOidSet;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.auth.api.authorization.scoping.OidSet;
-import com.vmturbo.auth.api.authorization.scoping.OidSet.AllOidsSet;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
-import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.OidArray;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
+import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
+import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -141,7 +141,6 @@ public class UserSessionContext implements AutoCloseable {
 
         // if a user has a scope, use the slower caching mechanism
         return getCachedUserAccessScope(currentUserScopeGroups);
-
     }
 
     private void purgeExpiredScopes() {
@@ -237,14 +236,7 @@ public class UserSessionContext implements AutoCloseable {
         if (oidSetDTO.hasAllOids()) {
             return AllOidsSet.ALL_OIDS_SET;
         }
-        // must be an array == copy these to a primitive array that we will use in the access
-        // scope.
-        OidArray protoOidArray = oidSetDTO.getArray();
-        long[] oidArray = new long[protoOidArray.getOidsCount()];
-        for (int x = 0 ; x < protoOidArray.getOidsCount() ; x++) {
-            oidArray[x] = protoOidArray.getOids(x);
-        }
-        return new ArrayOidSet(oidArray);
+        return new RoaringBitmapOidSet(oidSetDTO.getArray().getOidsList());
     }
 
     /**
@@ -258,8 +250,10 @@ public class UserSessionContext implements AutoCloseable {
         // convert the seed oid list
         final OidSet seedOids = toOidSet(contents.getSeedOids());
         final OidSet accessibleOids = toOidSet(contents.getAccessibleOids());
+        final Map<String, OidSet> oidsByEntityType = contents.getAccessibleOidsByEntityTypeMap().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> toOidSet(entry.getValue())));
 
-        return new EntityAccessScope(scopeGroupOids, seedOids, accessibleOids);
+        return new EntityAccessScope(scopeGroupOids, seedOids, accessibleOids, oidsByEntityType);
     }
 
     private class EntityAccessScopeCacheEntry {

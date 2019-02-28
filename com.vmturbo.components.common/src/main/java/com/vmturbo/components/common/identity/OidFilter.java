@@ -1,6 +1,7 @@
-package com.vmturbo.auth.api.authorization.scoping;
+package com.vmturbo.components.common.identity;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -46,6 +47,31 @@ public interface OidFilter {
      */
     boolean contains(Collection<Long> oids);
 
+
+    /**
+     * Utility function for checking "contains" on a collection of oids represented as strings. If
+     * any entry cannot be converted, the result will be "false". Otherwise, the result will be
+     * as described in the contains(Collection<Long>) method.
+     *
+     * @param stringOids
+     * @return
+     */
+    default boolean containsStringOids(Collection<String> stringOids) {
+        // convert each string to a long and check contains(). If there are any parsing/conversion
+        // errors, return false.
+        try {
+            for (String stringOid : stringOids) {
+                if (!contains(Long.valueOf(stringOid))) {
+                    return false;
+                }
+            }
+
+        } catch (NumberFormatException nfe) {
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Given an array of oids, return an array of oids that pass the filter.
      *
@@ -72,7 +98,15 @@ public interface OidFilter {
      * @param inputOids
      * @return
      */
-    Set<Long> filter(Set<Long> inputOids);
+    default Set<Long> filter(Set<Long> inputOids) {
+        Set<Long> retVal = new HashSet<>();
+        for (Long oid : inputOids) {
+            if (contains(oid)) {
+                retVal.add(oid);
+            }
+        }
+        return retVal;
+    }
 
     /**
      * The AllOidsFilter doesn't filter any oids out. It's basically a no-op filter.
@@ -97,7 +131,7 @@ public interface OidFilter {
 
         @Override
         public OidSet filter(final long[] inputOids) {
-            return new ArrayOidSet(inputOids);
+            return new RoaringBitmapOidSet(inputOids);
         }
 
         /**

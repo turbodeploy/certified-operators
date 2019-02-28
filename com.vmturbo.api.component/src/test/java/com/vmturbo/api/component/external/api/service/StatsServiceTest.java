@@ -29,24 +29,30 @@ import java.rmi.activation.UnknownObjectException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.runners.MockitoJUnitRunner;
+import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -74,6 +80,8 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
@@ -92,6 +100,8 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -134,7 +144,10 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
@@ -178,6 +191,8 @@ public class StatsServiceTest {
     private ReservedInstanceMapper reservedInstanceMapper = Mockito.mock(ReservedInstanceMapper.class);
 
     private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
+
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private final String oid1 = "1";
     private final ApiId apiId1 = mock(ApiId.class);
@@ -234,7 +249,7 @@ public class StatsServiceTest {
                 repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
                 targetsService, groupService, Duration.ofSeconds(60), costService, searchService,
                         riUtilizationCoverageRpcService,
-                        reservedInstanceMapper, magicScopeGateway);
+                        reservedInstanceMapper, magicScopeGateway, userSessionContext);
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);
@@ -585,6 +600,39 @@ public class StatsServiceTest {
 
         // verify retrieving stats from history component
         verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithUserScope() throws Exception {
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(apiId1.oid())), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // verify that the request will not get interrupted on a request for entity 1
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final List<StatSnapshotApiDTO> response = statsService.getStatsByEntityQuery(oid1, inputDto);
+        Assert.assertEquals(0, response.size());
+    }
+
+    @Test(expected = AccessDeniedException.class)
+    public void testGetStatsByEntityQueryBlockedByUserScope() throws Exception {
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid(), apiId2.oid());
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(apiId1.oid())), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // verify that the request for for oid 2 will result in an AccessDeniedException
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final List<StatSnapshotApiDTO> response = statsService.getStatsByEntityQuery(oid2, inputDto);
     }
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory, float value) {
@@ -1480,5 +1528,76 @@ public class StatsServiceTest {
 
         // Act
         getStatsByUuidsQuery(statsService, inputDto);
+    }
+
+    @Test(expected = AccessDeniedException.class)
+    public void testGetStatsByUuidsQueryBlockedByUserScope() throws Exception {
+        // Arrange
+        // configure the user to only have access to entity 1
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // not a temp group and has an entity that's out of scope
+        when(groupExpander.getGroup(eq("2"))).thenReturn(
+                Optional.of(Group.newBuilder()
+                    .setGroup(GroupInfo.newBuilder()
+                    .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                        .addStaticMemberOids(2L)))
+                    .build()));
+
+        Set<Long> groupMembers = new HashSet<>(Arrays.asList(2L));
+        when(groupExpander.expandUuids(eq(new HashSet<>(Arrays.asList("2"))))).thenReturn(
+                groupMembers);
+
+        // request scope 2
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(null);
+        inputDto.setScopes(Lists.newArrayList("2"));
+
+        // Act
+        // request will fail with access denied because group member 2 is out of scope
+        getStatsByUuidsQuery(statsService, inputDto);
+    }
+
+    // test that a temp group request for a scoped user is translated to an entity-specific request.
+    @Test
+    public void testGetStatsByUuidsQueryTempGroupWithUserScope() throws Exception {
+        // Arrange
+        // configure the user to only have access to entity 1 of entity type "VirtualMachine"
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        Map<String, OidSet> oidsByEntityType = new HashMap<>();
+        oidsByEntityType.put("VirtualMachine", new ArrayOidSet(Arrays.asList(1L)));
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), oidsByEntityType);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+
+        // not a temp group and has an entity that's out of scope
+        when(groupExpander.getGroup(eq("temp"))).thenReturn(
+                Optional.of(Group.newBuilder()
+                        .setTempGroup(TempGroupInfo.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setIsGlobalScopeGroup(true))
+                        .build()));
+
+        // the temp group will have oids 1 and 2
+        Set<Long> groupMembers = new HashSet<>(Arrays.asList(1L,2L));
+        when(groupExpander.expandUuids(eq(new HashSet<>(Arrays.asList("temp"))))).thenReturn(
+                groupMembers);
+
+        // request scope 2
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(null);
+        inputDto.setScopes(Lists.newArrayList("temp"));
+
+        final ArgumentCaptor<EntityStatsScope> argumentCaptor = ArgumentCaptor.forClass(EntityStatsScope.class);
+        // Act
+        // request should get scoped to only entity 1, even though 2 is also in the temp group
+        getStatsByUuidsQuery(statsService, inputDto);
+        verify(statsMapper).toEntityStatsRequest(argumentCaptor.capture(), any(), any());
+        EntityList entityList = argumentCaptor.getValue().getEntityList();
+        Assert.assertEquals(1, entityList.getEntitiesCount());
+        Assert.assertEquals(1, entityList.getEntities(0));
     }
 }
