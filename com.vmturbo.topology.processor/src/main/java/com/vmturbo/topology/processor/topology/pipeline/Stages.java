@@ -69,7 +69,9 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -1057,4 +1059,28 @@ public class Stages {
         }
     }
 
+    /**
+     * Stage to apply changes to properties based on action capabilities.
+     */
+    public static class ProbeActionCapabilitiesApplicatorStage extends PassthroughStage<TopologyGraph> {
+        private final ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor;
+
+        public ProbeActionCapabilitiesApplicatorStage(@Nonnull ProbeActionCapabilitiesApplicatorEditor editor) {
+            this.probeActionCapabilitiesApplicatorEditor = editor;
+        }
+
+        @Override
+        public Status passthrough(@Nonnull TopologyGraph graph) {
+            final EditorSummary editorSummary = probeActionCapabilitiesApplicatorEditor
+                .applyPropertiesEdits(graph);
+            final String statusSummary =
+                "Total movables set to true are: " + editorSummary.getMovableToTrueCounter() +
+                "\nTotal movables set to false are: " + editorSummary.getMovableToFalseCounter() +
+                "\nTotal cloneable set to true are: " + editorSummary.getCloneableToTrueCounter() +
+                "\nTotal cloneable set to false are: " + editorSummary.getCloneableToFalseCounter() +
+                "\nTotal suspendable set to true are: " + editorSummary.getSuspendableToTrueCounter() +
+                "\nTotal suspendable set to false are: " + editorSummary.getSuspendableToFalseCounter();
+            return Status.success(statusSummary);
+        }
+    }
 }

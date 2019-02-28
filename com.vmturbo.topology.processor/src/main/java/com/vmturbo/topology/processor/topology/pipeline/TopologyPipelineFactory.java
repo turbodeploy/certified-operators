@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -63,6 +64,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
@@ -126,6 +128,8 @@ public class TopologyPipelineFactory {
 
     private final HistoricalEditor historicalEditor;
 
+    private final ProbeActionCapabilitiesApplicatorEditor applicatorEditor;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -149,7 +153,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                    @Nonnull final ControllableManager controllableManager,
                                    @Nonnull final CommoditiesEditor commoditiesEditor,
-                                   @Nonnull final HistoricalEditor historicalEditor) {
+                                   @Nonnull final HistoricalEditor historicalEditor,
+                                   @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -174,6 +179,7 @@ public class TopologyPipelineFactory {
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
+        this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
     }
 
     /**
@@ -228,6 +234,7 @@ public class TopologyPipelineFactory {
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
+                .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(managers))
                 .build();
     }

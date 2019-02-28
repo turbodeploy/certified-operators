@@ -173,7 +173,8 @@ public class TopologyConfig {
                 applicationCommodityKeyChanger(),
                 controllableConfig.controllableManager(),
                 commoditiesEditor(),
-                historicalEditor()
+                historicalEditor(),
+                probeActionCapabilitiesApplicatorEditor()
         );
     }
 
@@ -209,5 +210,10 @@ public class TopologyConfig {
     @Bean
     public HistoricalEditor historicalEditor() {
         return new HistoricalEditor(historicalUtilizationDatabase(), Executors.newSingleThreadExecutor());
+    }
+
+    @Bean
+    public ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor() {
+        return new ProbeActionCapabilitiesApplicatorEditor(probeConfig.probeStore(), targetConfig.targetStore());
     }
 }
