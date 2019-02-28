@@ -21,6 +21,7 @@ import org.mockito.stubbing.Answer;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -63,6 +64,8 @@ public class ActionSupportResolverTest {
 
     private ProbeActionCapabilitiesServiceMole actionCapabilitiesSvc;
 
+    private ActionModeCalculator actionModeCalculator;
+
     private GrpcTestServer testServer;
 
     private ActionSupportResolver filter;
@@ -74,13 +77,14 @@ public class ActionSupportResolverTest {
     @Before
     public void setup() throws Exception {
         actionTargetSelector = Mockito.mock(ActionTargetSelector.class);
+        actionModeCalculator = Mockito.mock(ActionModeCalculator.class);
         actionCapabilitiesSvc = Mockito.spy(new ProbeActionCapabilitiesServiceMole());
         testServer = GrpcTestServer.newServer(actionCapabilitiesSvc);
         testServer.start();
         final ActionCapabilitiesStore actionCapabilitiesStore = new ProbeActionCapabilitiesStore(
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(testServer.getChannel()));
-        filter = new ActionSupportResolver(actionCapabilitiesStore, actionTargetSelector);
-        actionFactory = new ActionFactory();
+        filter = new ActionSupportResolver(actionCapabilitiesStore, actionTargetSelector, actionModeCalculator);
+        actionFactory = new ActionFactory(actionModeCalculator);
         Mockito.when(actionTargetSelector.getProbeIdsForActions(Mockito.any()))
                 .thenAnswer(new Answer<Object>() {
                     @Override

@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator;
 
+import static org.mockito.Mockito.mock;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -10,8 +12,10 @@ import org.junit.Assert;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -38,9 +42,12 @@ public class ActionOrchestratorTestUtils {
 
     private static final int DEFAULT_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
 
+    private static ActionTranslator actionTranslator = mock(ActionTranslator.class);
+    private static ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+
     @Nonnull
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
-        return new Action(createMoveRecommendation(actionId), actionPlanId);
+        return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator);
     }
 
     @Nonnull

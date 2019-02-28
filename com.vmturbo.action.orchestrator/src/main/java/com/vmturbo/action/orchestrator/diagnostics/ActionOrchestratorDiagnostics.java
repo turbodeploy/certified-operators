@@ -26,6 +26,7 @@ import io.prometheus.client.CollectorRegistry;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
@@ -55,12 +56,16 @@ public class ActionOrchestratorDiagnostics {
 
     private final DiagnosticsWriter diagnosticsWriter;
 
+    private final ActionModeCalculator actionModeCalculator;
+
     public ActionOrchestratorDiagnostics(@Nonnull final ActionStorehouse actionStorehouse,
                                          @Nonnull final IActionFactory actionFactory,
-                                         @Nonnull final DiagnosticsWriter diagnosticsWriter) {
+                                         @Nonnull final DiagnosticsWriter diagnosticsWriter,
+                                         @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
+        this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }
 
     public void dump(@Nonnull final ZipOutputStream zipOutputStream) {
@@ -111,7 +116,7 @@ public class ActionOrchestratorDiagnostics {
             storeData -> {
                 final IActionStoreFactory actionStoreFactory = Objects.requireNonNull(actionStorehouse.getActionStoreFactory());
                 final List<Action> actions = storeData.getActions().stream()
-                    .map(Action::new)
+                    .map(action -> new Action(action, actionModeCalculator))
                     .collect(Collectors.toList());
                 final ActionStore store = actionStorehouse
                     .getStore(storeData.getTopologyContextId())

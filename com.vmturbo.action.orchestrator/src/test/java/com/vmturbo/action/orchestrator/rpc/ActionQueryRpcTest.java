@@ -41,6 +41,7 @@ import io.grpc.Status.Code;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
@@ -114,6 +115,7 @@ public class ActionQueryRpcTest {
             action.getActionTranslation().setPassthroughTranslationSuccess();
             return action;
         }));
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     private final ActionTranslator actionTranslatorWithFailedTranslation = new ActionTranslator(actionStream ->
             actionStream.map(action -> {
@@ -253,7 +255,7 @@ public class ActionQueryRpcTest {
     public void testGetAllActionWithResizeActionWithFailedTranslation() throws Exception {
         ActionView resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, 11l,
-                        CommodityType.VCPU, 4000, 2500), actionPlanId);
+                        CommodityType.VCPU, 4000, 2500), actionPlanId, actionModeCalculator);
         resizeAction.getActionTranslation().setTranslationFailure();
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
                 resizeAction.getId(), resizeAction               );
@@ -280,7 +282,7 @@ public class ActionQueryRpcTest {
         final long id = 11l;
         ActionView resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, id, CommodityType.VCPU, 5000,
-                        2500), actionPlanId);
+                        2500), actionPlanId, actionModeCalculator);
         final Resize newResize = ActionDTO.Resize.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU.getNumber()))
                 .setOldCapacity((float)5)
@@ -586,7 +588,7 @@ public class ActionQueryRpcTest {
         // Need to add "moveActions" to the ID to avoid having ovelapping IDs.
         LongStream.range(0, resizeActions).map(actionNum -> moveActions + actionNum).forEach(i -> {
             final ActionView actionView = new Action(
-                ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM), actionPlanId);
+                ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM), actionPlanId, actionModeCalculator);
             actionViews.put(actionView.getId(), actionView);
         });
 
@@ -626,7 +628,7 @@ public class ActionQueryRpcTest {
     public void testGetAllActionCountsWithResizeActionWithFailedTranslation() throws Exception {
         ActionView resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, 11l,
-                        CommodityType.VCPU, 4000, 2500), actionPlanId);
+                        CommodityType.VCPU, 4000, 2500), actionPlanId, actionModeCalculator);
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
                 resizeAction.getId(), resizeAction);
         when(actionStore.getActionViews()).thenReturn(actionViews);
@@ -692,9 +694,9 @@ public class ActionQueryRpcTest {
     public void testGetActionCountsByEntity() throws Exception {
         final long actionPlanId = 10;
         final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                1, 7, 77, 1, 777, 1), actionPlanId));
+                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId));
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
                 invisibleAction.getId(), invisibleAction);
@@ -754,17 +756,17 @@ public class ActionQueryRpcTest {
         final LocalDateTime date = LocalDateTime.now();
         final LocalDateTime startOfDay = date.toLocalDate().atStartOfDay();
         final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                1, 7, 77, 1, 777, 1), actionPlanId));
+                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
         when(visibleAction.getRecommendationTime())
                .thenReturn(date);
         final ActionView visibleQueuedAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                3, 7, 77, 1, 777, 1), actionPlanId));
+                3, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
         when(visibleQueuedAction.getRecommendationTime())
                 .thenReturn(date);
         when(visibleQueuedAction.getState())
                 .thenReturn(ActionState.QUEUED);
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId));
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
                 visibleQueuedAction.getId(), visibleQueuedAction,

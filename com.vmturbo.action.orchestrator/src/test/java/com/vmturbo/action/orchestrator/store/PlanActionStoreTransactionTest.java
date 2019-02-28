@@ -17,12 +17,14 @@ import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Test transaction failures with the {@link PlanActionStore}.
@@ -42,8 +44,9 @@ public class PlanActionStoreTransactionTest {
         .setTopologyContextId(topologyContextId)
         .addAllAction(recommendations)
         .build();
+    private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
 
-    private final IActionFactory actionFactory = new ActionFactory();
+    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private PlanActionStore actionStore;
 
     @Test

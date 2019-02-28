@@ -115,6 +115,7 @@ public class LiveActionStore implements ActionStore {
      * @param actionSupportResolver used to determine action capabilities.
      * @param entitySettingsCache caches the entity capabilities per entity
      * @param actionHistoryDao obtains history of actions
+     * @param liveActionsStatistician calculates stats on actions in the LiveActionStore
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,

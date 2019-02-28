@@ -38,6 +38,8 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
@@ -84,27 +86,31 @@ public class LiveActionStoreTest {
         @Nonnull
         @Override
         public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId) {
-            return spy(new Action(recommendation, actionPlanId));
+            return spy(new Action(recommendation, actionPlanId, actionModeCalculator));
         }
 
         @Nonnull
         @Override
         public Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                                @Nonnull final EntitySettingsCache entitySettingsMap,
-                                long actionPlanId) {
-            return spy(new Action(recommendation, entitySettingsMap, actionPlanId));
+                                @Nonnull final EntitySettingsCache entitySettingsMap, long actionPlanId) {
+            return spy(new Action(recommendation, entitySettingsMap, actionPlanId, actionModeCalculator));
         }
 
         @Nonnull
         @Override
-        public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime, long actionPlanId) {
-            return spy(new Action(recommendation, recommendationTime, actionPlanId));
+        public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
+                                long actionPlanId) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator));
         }
     }
 
     private static final long TOPOLOGY_CONTEXT_ID = 123456;
 
-    private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
+    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
+            actionStream.map(action -> {
+                action.getActionTranslation().setPassthroughTranslationSuccess();
+                return action;
+            })));
 
     private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
@@ -114,6 +120,8 @@ public class LiveActionStoreTest {
     private ActionStore actionStore;
 
     private LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
+
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     @SuppressWarnings("unchecked")
     @Before
@@ -125,9 +133,6 @@ public class LiveActionStoreTest {
                 -> invocationOnMock.getArguments()[0]);
         filter.resolveActionsSupporting(new LinkedList<>());
         IdentityGenerator.initPrefix(0);
-
-        when(actionTranslator.translate(any(Stream.class))).thenAnswer(invocationOnMock ->
-            invocationOnMock.getArguments()[0]);
     }
 
     private static ActionDTO.Action.Builder move(long targetId,
@@ -190,7 +195,7 @@ public class LiveActionStoreTest {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
         ActionStore actionStore =
-                new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter,
+                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID, filter,
                         entitySettingsCache, actionHistoryDao, actionsStatistician);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
@@ -535,7 +540,7 @@ public class LiveActionStoreTest {
         ActionDTO.Action move5 =
                 move(vm2, hostA, vmType, hostB, vmType).build();
 
-        ActionFactory actionFactory = new ActionFactory();
+        ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         List<Action> actions = ImmutableList.of(move1, move2, move3, move4, move5)
                 .stream()
                 .map(action -> actionFactory.newAction(action, firstPlanId))

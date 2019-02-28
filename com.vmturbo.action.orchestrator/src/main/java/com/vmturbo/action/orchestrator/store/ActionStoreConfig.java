@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
@@ -65,12 +66,17 @@ public class ActionStoreConfig {
 
     @Bean
     public IActionFactory actionFactory() {
-        return new ActionFactory();
+        return new ActionFactory(actionModeCalculator());
     }
 
     @Bean
     public EntitySettingsCache entitySettingsCache() {
         return new EntitySettingsCache(groupClientConfig.groupChannel());
+    }
+
+    @Bean
+    public ActionModeCalculator actionModeCalculator() {
+        return new ActionModeCalculator(actionTranslationConfig.actionTranslator());
     }
 
     @Bean
@@ -90,30 +96,30 @@ public class ActionStoreConfig {
             actionHistory(),
             actionSupportResolver(),
             entitySettingsCache(),
-            actionStatsConfig.actionsStatistician());
+            actionStatsConfig.actionsStatistician(), actionModeCalculator());
     }
 
     @Bean
     public ActionSupportResolver actionSupportResolver() {
         return new ActionSupportResolver(actionExecutionConfig.actionCapabilitiesStore(),
-            actionExecutionConfig.actionTargetSelector());
+            actionExecutionConfig.actionTargetSelector(), actionModeCalculator());
     }
 
     @Bean
     public IActionStoreLoader actionStoreLoader() {
         // For now, only plan action stores (kept in PersistentImmutableActionStores)
         // need to be re-loaded at startup.
-        return new PlanActionStore.StoreLoader(databaseConfig.dsl(), actionFactory());
+        return new PlanActionStore.StoreLoader(databaseConfig.dsl(), actionFactory(), actionModeCalculator());
     }
 
     @Bean
     public ActionStorehouse actionStorehouse() {
         return new ActionStorehouse(actionStoreFactory(), automatedActionExecutor(),
-                actionStoreLoader());
+                actionStoreLoader(), actionModeCalculator());
     }
 
     @Bean
     public ActionHistoryDao actionHistory() {
-        return new ActionHistoryDaoImpl(databaseConfig.dsl());
+        return new ActionHistoryDaoImpl(databaseConfig.dsl(), actionModeCalculator());
     }
 }

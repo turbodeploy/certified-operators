@@ -39,6 +39,7 @@ import com.google.gson.Gson;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnostics;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnosticsTest;
 import com.vmturbo.action.orchestrator.diagnostics.DiagnosticsController;
@@ -53,6 +54,7 @@ import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
 
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -93,23 +95,28 @@ public class DiagnosticsControllerTest {
 
         @Bean
         public ActionStorehouse actionStorehouse() {
-            return Mockito.mock(ActionStorehouse.class);
+            return mock(ActionStorehouse.class);
         }
 
         @Bean
         public ActionExecutor actionExecutor() {
-            return Mockito.mock(ActionExecutor.class);
+            return mock(ActionExecutor.class);
         }
 
         @Bean
         public IActionFactory actionFactory() {
-            return new ActionFactory();
+            return new ActionFactory(actionModeCalculator());
+        }
+
+        @Bean
+        public ActionModeCalculator actionModeCalculator() {
+            return mock(ActionModeCalculator.class);
         }
 
         @Bean
         public ActionOrchestratorDiagnostics diagnostics() {
             return Mockito.spy(new ActionOrchestratorDiagnostics(actionStorehouse(),
-                    actionFactory(), diagnosticsWriter()));
+                    actionFactory(), diagnosticsWriter(), actionModeCalculator()));
         }
 
         @Bean
@@ -128,8 +135,9 @@ public class DiagnosticsControllerTest {
     private ActionStorehouse actionStorehouse;
     private IActionFactory actionFactory;
 
-    private ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
+    private ActionStore actionStore = mock(ActionStore.class);
+    private EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
+    private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final long realtimeTopologyContextId = 1234L;
     private DiagnosticsWriter diagnosticsWriter;
 
@@ -154,7 +162,7 @@ public class DiagnosticsControllerTest {
         Mockito.when(actionStorehouse.getStore(realtimeTopologyContextId))
             .thenReturn(Optional.of(actionStore));
         Mockito.when(actionStorehouse.getActionStoreFactory())
-            .thenReturn(Mockito.mock(IActionStoreFactory.class));
+            .thenReturn(mock(IActionStoreFactory.class));
     }
 
     /**
@@ -169,7 +177,7 @@ public class DiagnosticsControllerTest {
                 ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
 
         Mockito.when(actionStore.getActions()).thenReturn(ImmutableMap.of(action.getId(), action));
-        Mockito.when(actionStore.getEntitySeverityCache()).thenReturn(Mockito.mock(EntitySeverityCache.class));
+        Mockito.when(actionStore.getEntitySeverityCache()).thenReturn(mock(EntitySeverityCache.class));
 
         getThenPost();
 
