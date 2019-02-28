@@ -13,12 +13,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -40,6 +42,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Tests for the {@link QueryFilter} class.
  */
 public class QueryFilterTest {
+    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private static final long ACTION_PLAN_ID = 9876;
 
     private final ActionStore actionStore = mock(ActionStore.class);
@@ -63,6 +67,11 @@ public class QueryFilterTest {
             .addStates(ActionState.READY)
             .setVisible(true)
             .build();
+
+    @Before
+    public void setup() {
+        when(actionTranslator.translate(any(ActionView.class))).thenReturn(true);
+    }
 
     @Test
     public void testEmptyFilter() throws Exception {
@@ -179,7 +188,7 @@ public class QueryFilterTest {
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
-        final ActionView actionView = new Action(action, ACTION_PLAN_ID);
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
         assertTrue(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.EFFICIENCY_IMPROVEMENT)
                 .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
@@ -196,7 +205,7 @@ public class QueryFilterTest {
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                 .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
-        final ActionView actionView = new Action(action, ACTION_PLAN_ID);
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
         assertFalse(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.COMPLIANCE)
                 .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
@@ -372,7 +381,7 @@ public class QueryFilterTest {
                 .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                 .build();
 
-        return spy(new Action(action, ACTION_PLAN_ID));
+        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
     }
 
     private ActionView notExecutableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
@@ -384,6 +393,6 @@ public class QueryFilterTest {
                         .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                         .build();
 
-        return spy(new Action(action, ACTION_PLAN_ID));
+        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
     }
 }

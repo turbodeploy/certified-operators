@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -41,6 +42,7 @@ public class ActionStorehouse {
     private final AutomatedActionExecutor automatedExecutor;
     // Stores the task futures/promises of the actions which have been submitted for execution.
     private final List<ActionExecutionTask> actionExecutionFutures = new ArrayList<>();
+    private final ActionModeCalculator actionModeCalculator;
 
     private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
         .withName("ao_populate_store_duration_seconds")
@@ -64,11 +66,13 @@ public class ActionStorehouse {
      */
     public ActionStorehouse(@Nonnull final IActionStoreFactory actionStoreFactory,
                             @Nonnull final AutomatedActionExecutor automatedActionExecutor,
-                            @Nonnull final IActionStoreLoader storeLoader) {
+                            @Nonnull final IActionStoreLoader storeLoader,
+                            @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.actionStoreFactory = actionStoreFactory;
         this.storehouse = new HashMap<>();
         this.automatedExecutor = automatedActionExecutor;
         storeLoader.loadActionStores().forEach(store -> storehouse.put(store.getTopologyContextId(), store));
+        this.actionModeCalculator = actionModeCalculator;
 
         logger.info("ActionStorehouse initialized with data for {} action stores", size());
     }

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 
 /**
@@ -12,7 +13,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
  */
 public class ActionFactory implements IActionFactory {
 
-    public ActionFactory() {
+    private final ActionModeCalculator actionModeCalculator;
+    public ActionFactory(ActionModeCalculator actionModeCalculator) {
+        this.actionModeCalculator = actionModeCalculator;
     }
 
     /**
@@ -22,7 +25,7 @@ public class ActionFactory implements IActionFactory {
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             final long actionPlanId) {
-        return new Action(recommendation, actionPlanId);
+        return new Action(recommendation, actionPlanId, actionModeCalculator);
     }
 
     /**
@@ -33,7 +36,7 @@ public class ActionFactory implements IActionFactory {
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             final EntitySettingsCache entitySettingsCache,
                             final long actionPlanId) {
-        return new Action(recommendation, entitySettingsCache, actionPlanId);
+        return new Action(recommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
     }
 
     /**
@@ -44,6 +47,6 @@ public class ActionFactory implements IActionFactory {
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             @Nonnull final LocalDateTime recommendationTime,
                             final long actionPlanId) {
-        return new Action(recommendation, recommendationTime, actionPlanId);
+        return new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator);
     }
 }

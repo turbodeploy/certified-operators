@@ -27,6 +27,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
@@ -70,23 +71,23 @@ public class ActionExecutionRpcTest {
 
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
-    private final IActionFactory actionFactory = new ActionFactory();
+    // Have the translator pass-through translate all actions.
+    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
+            actionStream.map(action -> {
+                action.getActionTranslation().setPassthroughTranslationSuccess();
+                return action;
+            })));
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader);
-
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
-    // Have the translator pass-through translate all actions.
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-        actionStream.map(action -> {
-            action.getActionTranslation().setPassthroughTranslationSuccess();
-            return action;
-        })));
+    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+            executor, actionStoreLoader, actionModeCalculator);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
@@ -310,14 +311,43 @@ public class ActionExecutionRpcTest {
             .setActionId(ACTION_ID)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
+        // We use a new actionTranslator for this test. This spy translator does not do the
+        // translation successfully.
+        // Since wthis test uses a new actionTranslator, all the dependent objects are
+        // created again - actionModeCalculator, actionStoreHouse, actionsRpcService, grpcServer,
+        // actionOrchestratorServiceClient, LiveActionStore
+        final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
+                actionStream.map(action -> {
+                    return action;
+                })));
+        ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+        final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+                executor, actionStoreLoader, actionModeCalculator);
+        final ActionsRpcService actionsRpcService =
+                new ActionsRpcService(actionStorehouse,
+                        actionExecutor,
+                        actionTargetSelector,
+                        actionTranslator,
+                        paginatorFactory,
+                        workflowStore,
+                        statReader,
+                        liveStatReader);
+        GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+        grpcServer.start();
+        ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
+                grpcServer.getChannel());
+        IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+        actionStoreSpy =
+                Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                        filter, entitySettingsCache, actionHistoryDao, statistician));
+        when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);
         when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
         doReturn(false).when(actionTranslator).translate(any(Action.class));
-
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
-
-        assertThat(response.getError(), CoreMatchers.containsString("Failed to translate action"));
+        assertThat(response.getError(), CoreMatchers.containsString("Unauthorized to accept action in mode RECOMMEND"));
+        grpcServer.close();
     }
 
     private static ActionPlan actionPlan(ActionDTO.Action recommendation) {

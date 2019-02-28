@@ -12,18 +12,23 @@ import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -43,6 +48,12 @@ public class ActionStateUpdaterTest {
     private final ActionOrchestratorNotificationSender notificationSender = mock(ActionOrchestratorNotificationSender.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final long realtimeTopologyContextId = 0;
+    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
+            actionStream.map(action -> {
+                action.getActionTranslation().setPassthroughTranslationSuccess();
+                return action;
+            })));
+    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private final ActionStateUpdater actionStateUpdater =
         new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,  realtimeTopologyContextId);
 
@@ -61,7 +72,7 @@ public class ActionStateUpdaterTest {
 
     @Before
     public void setup() {
-        testAction = new Action(recommendation, entitySettingsCache, 4);
+        testAction = new Action(recommendation, entitySettingsCache, 4, actionModeCalculator);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());

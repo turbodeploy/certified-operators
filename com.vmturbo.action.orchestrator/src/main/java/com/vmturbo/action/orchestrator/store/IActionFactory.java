@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 
 /**
@@ -35,8 +36,7 @@ public interface IActionFactory {
      */
     @Nonnull
     Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                     final EntitySettingsCache entitySettingsCache,
-                     final long actionPlanId);
+                     final EntitySettingsCache entitySettingsCache, final long actionPlanId);
 
     /**
      * Create a new Action instance.
@@ -48,6 +48,5 @@ public interface IActionFactory {
      */
     @Nonnull
     Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                     @Nonnull final LocalDateTime recommendationTime,
-                     final long actionPlanId);
+                     @Nonnull final LocalDateTime recommendationTime, final long actionPlanId);
 }

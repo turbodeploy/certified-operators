@@ -95,6 +95,8 @@ public class Action implements ActionView {
      */
     private final LocalDateTime recommendationTime;
 
+    private final ActionModeCalculator actionModeCalculator;
+
     /**
      * The decision applied to this action. Initially there is no decision.
      * Once a decision is made, it cannot be overwritten.
@@ -159,8 +161,10 @@ public class Action implements ActionView {
      * Create an action from a state object that was used to serialize the state of the action.
      *
      * @param savedState A state object that was used to serialize the state of the action.
+     * @param actionModeCalculator used to calculate the automation mode of the action
      */
-    public Action(@Nonnull final SerializationState savedState) {
+    public Action(@Nonnull final SerializationState savedState,
+                  @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = savedState.recommendation;
         this.actionPlanId = savedState.actionPlanId;
         this.executableStep = Optional.ofNullable(ExecutableStep.fromExecutionStep(savedState.executionStep));
@@ -173,11 +177,12 @@ public class Action implements ActionView {
         this.actionTranslation = savedState.actionTranslation;
         this.entitySettings = null;
         this.actionCategory = savedState.actionCategory;
+        this.actionModeCalculator = actionModeCalculator;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
-                  final long actionPlanId) {
+                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -188,12 +193,13 @@ public class Action implements ActionView {
         this.entitySettings = null;
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
+        this.actionModeCalculator = actionModeCalculator;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
                   @Nonnull final EntitySettingsCache entitySettings,
-                  final long actionPlanId) {
+                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -204,9 +210,11 @@ public class Action implements ActionView {
         this.entitySettings = Objects.requireNonNull(entitySettings);
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
+        this.actionModeCalculator = actionModeCalculator;
     }
 
-    public Action(Action prototype, SupportLevel supportLevel) {
+    public Action(Action prototype, SupportLevel supportLevel,
+                  @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = prototype.recommendation;
         this.actionTranslation = prototype.actionTranslation;
         this.actionPlanId = prototype.actionPlanId;
@@ -218,17 +226,18 @@ public class Action implements ActionView {
         this.entitySettings = prototype.entitySettings;
         this.stateMachine = ActionStateMachine.newInstance(this, prototype.getState());
         this.actionCategory = prototype.actionCategory;
+        this.actionModeCalculator = actionModeCalculator;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
-                  final long actionPlanId) {
-        this(recommendation, LocalDateTime.now(), actionPlanId);
+                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
+        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final EntitySettingsCache entitySettings,
-                  final long actionPlanId) {
-        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId);
+                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
+        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId, actionModeCalculator);
     }
 
     /**
@@ -343,14 +352,8 @@ public class Action implements ActionView {
      */
     @Override
     public ActionMode getMode() {
-        // To avoid holding the lock for a long time, save the reference to the recommendation at
-        // the time the method is called. Note that the underlying protobuf is immutable.
-        final ActionDTO.Action curRecommendation;
-        synchronized (recommendationLock) {
-            curRecommendation = recommendation;
-        }
-        return ActionModeCalculator.calculateWorkflowActionMode(curRecommendation, entitySettings)
-                .orElseGet(() -> getClippedActionMode(curRecommendation));
+        return actionModeCalculator.calculateWorkflowActionMode(this, entitySettings)
+                .orElseGet(() -> getClippedActionMode());
     }
 
     /**
@@ -364,19 +367,19 @@ public class Action implements ActionView {
      * @return The {@link ActionMode} that currently applies to the action.
      * @throws IllegalArgumentException if the Action SupportLevel is not supported.
      */
-    private ActionMode getClippedActionMode(@Nonnull final ActionDTO.Action recommendation) {
-        switch (recommendation.getSupportingLevel()) {
+    private ActionMode getClippedActionMode() {
+        switch (getRecommendation().getSupportingLevel()) {
             case UNSUPPORTED:
                 return ActionMode.DISABLED;
             case SHOW_ONLY:
-                final ActionMode mode = ActionModeCalculator.calculateActionMode(
-                        recommendation, entitySettings);
+                final ActionMode mode = actionModeCalculator.calculateActionMode(
+                        this, entitySettings);
                 return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
                         ? ActionMode.RECOMMEND
                         : mode;
             case SUPPORTED:
-                return ActionModeCalculator.calculateActionMode(
-                        recommendation, entitySettings);
+                return actionModeCalculator.calculateActionMode(
+                        this, entitySettings);
             default:
                 throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
         }
