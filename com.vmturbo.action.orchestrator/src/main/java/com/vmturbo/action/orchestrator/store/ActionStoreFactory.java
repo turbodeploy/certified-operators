@@ -7,7 +7,6 @@ import javax.annotation.Nonnull;
 import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 
 /**
@@ -36,8 +35,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final LiveActionsStatistician actionsStatistician;
 
-    private final ActionModeCalculator actionModeCalculator;
-
     /**
      * Create a new ActionStoreFactory.
      */
@@ -47,8 +44,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final ActionHistoryDao actionHistoryDao,
                               @Nonnull final ActionSupportResolver actionSupportResolver,
                               @Nonnull final EntitySettingsCache entitySettingsCache,
-                              @Nonnull final LiveActionsStatistician actionsStatistician,
-                              @Nonnull final ActionModeCalculator actionModeCalculator) {
+                              @Nonnull final LiveActionsStatistician actionsStatistician) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -56,7 +52,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionSupportResolver = actionSupportResolver;
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
-        this.actionModeCalculator = actionModeCalculator;
     }
 
     /**

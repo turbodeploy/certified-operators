@@ -24,7 +24,7 @@ public class ActionOrchestratorDiagnosticsConfig {
     @Bean
     public ActionOrchestratorDiagnostics diagnostics() {
         return new ActionOrchestratorDiagnostics(storeConfig.actionStorehouse(),
-                storeConfig.actionFactory(), diagnosticsWriter(), storeConfig.actionModeCalculator());
+                storeConfig.actionFactory(), diagnosticsWriter());
     }
 
     @Bean

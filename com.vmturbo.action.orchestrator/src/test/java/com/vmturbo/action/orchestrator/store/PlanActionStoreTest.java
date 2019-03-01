@@ -7,7 +7,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -36,10 +35,8 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -70,14 +67,8 @@ public class PlanActionStoreTest {
     private final long secondContextId = 0xFEED;
 
     private final LocalDateTime actionRecommendationTime = LocalDateTime.now();
-    private final IActionFactory actionFactory = mock(IActionFactory.class);
+    private final IActionFactory actionFactory = Mockito.mock(IActionFactory.class);
     private PlanActionStore actionStore;
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     @Before
     public void setup() throws Exception {
@@ -96,8 +87,7 @@ public class PlanActionStoreTest {
                 any(LocalDateTime.class), anyLong())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
-                return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator);
+                return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2]);
             });
     }
 
@@ -224,8 +214,7 @@ public class PlanActionStoreTest {
     @Test
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
-            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                    firstPlanId))
+            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime, firstPlanId))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(actionList);
@@ -245,8 +234,7 @@ public class PlanActionStoreTest {
 
         final int numOverwriteActions = 2;
         final List<Action> overwriteActions = actionList(numOverwriteActions).stream()
-            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                    firstPlanId))
+            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime, firstPlanId))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(overwriteActions);
@@ -288,7 +276,7 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -299,7 +287,7 @@ public class PlanActionStoreTest {
         actionStore.populateRecommendedActions(actionPlan);
 
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory).loadActionStores();
         assertEquals(1, loadedStores.size());
         assertEquals(2, loadedStores.get(0).size());
         assertEquals(firstContextId, loadedStores.get(0).getTopologyContextId());

@@ -19,7 +19,6 @@ import io.grpc.Status.Code;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -37,7 +36,6 @@ public class ActionsDebugRpcTest {
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private final ActionModeCalculator actionModeCalculator = Mockito.mock(ActionModeCalculator.class);
 
     private static final long TOPOLOGY_CONTEXT_ID = 3;
 
@@ -66,7 +64,7 @@ public class ActionsDebugRpcTest {
     @Test
     public void testOverwriteActions() throws Exception {
         when(actionStorehouse.storeActions(eq(actionPlan))).thenReturn(actionStore);
-        final ActionView actionView = new Action(actionPlan.getActionList().get(0), actionPlan.getId(), actionModeCalculator);
+        final ActionView actionView = new Action(actionPlan.getActionList().get(0), actionPlan.getId());
         when(actionStore.getActionViews()).thenReturn(ImmutableMap.of(actionView.getId(), actionView));
 
         final GetActionCountsResponse response = actionOrchestratorServiceClient.overrideActionPlan(actionPlan);

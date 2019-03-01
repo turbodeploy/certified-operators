@@ -49,16 +49,13 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
      */
     private final DSLContext dsl;
 
-    private final ActionModeCalculator actionModeCalculator;
-
     /**
      * Constructs action history DAO.
      *
      * @param dsl database access context
      */
-    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl, @Nonnull ActionModeCalculator actionModeCalculator) {
+    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl) {
         this.dsl = Objects.requireNonNull(dsl);
-        this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }
 
     /**
@@ -126,6 +123,6 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                         actionHistory.getActionDecision(),
                         actionHistory.getExecutionStep(),
                         ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
-                        new ActionTranslation(actionHistory.getRecommendation())), actionModeCalculator);
+                        new ActionTranslation(actionHistory.getRecommendation())));
     }
 }

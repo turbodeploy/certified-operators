@@ -1,16 +1,12 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -19,11 +15,9 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -38,13 +32,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateRespons
  */
 public class ActionsRpcServiceTest {
     private static final long ACTION_PLAN_ID = 9876;
-    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
-
-    @Before
-    public void setup() {
-        when(actionTranslator.translate(any(ActionView.class))).thenReturn(true);
-    }
 
     @Test
     public void testGetActionCountsByDateResponseBuilder() throws Exception {
@@ -120,7 +107,7 @@ public class ActionsRpcServiceTest {
                 ExecutionStep.getDefaultInstance(),
                 state,
                 new ActionTranslation(action));
-        return spy(new Action(orchesratorAction, actionModeCalculator));
+        return spy(new Action(orchesratorAction));
     }
 
     private ActionView executableActivateAction(long id, long targetId) {
@@ -136,6 +123,6 @@ public class ActionsRpcServiceTest {
                         .build())
                 .build();
 
-        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
+        return spy(new Action(action, ACTION_PLAN_ID));
     }
 }

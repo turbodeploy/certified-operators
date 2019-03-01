@@ -2,8 +2,6 @@ package com.vmturbo.action.orchestrator.store;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-
 /**
  * An interface for factories that create action stores.
  */

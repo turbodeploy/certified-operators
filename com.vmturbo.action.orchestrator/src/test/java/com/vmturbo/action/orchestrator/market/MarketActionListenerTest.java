@@ -14,7 +14,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -33,9 +32,8 @@ public class MarketActionListenerTest {
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
-    private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+            executor, actionStoreLoader);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
     private final ActionPlanAssessor actionPlanAssessor = mock(ActionPlanAssessor.class);

@@ -27,7 +27,6 @@ import com.google.common.collect.Iterators;
 import io.prometheus.client.Summary;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
@@ -414,14 +413,11 @@ public class PlanActionStore implements ActionStore {
     public static class StoreLoader implements IActionStoreLoader {
         private final DSLContext dsl;
         private final IActionFactory actionFactory;
-        private final ActionModeCalculator actionModeCalculator;
 
         public StoreLoader(@Nonnull final DSLContext dsl,
-                           @Nonnull final IActionFactory actionFactory,
-                           @Nonnull final ActionModeCalculator actionModeCalculator) {
+                           @Nonnull final IActionFactory actionFactory) {
             this.dsl = Objects.requireNonNull(dsl);
             this.actionFactory = Objects.requireNonNull(actionFactory);
-            this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
         }
 
         /**

@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -21,11 +20,9 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -40,10 +37,8 @@ public class EntitySeverityCacheTest {
 
     private final QueryFilter queryFilter = QueryFilter.VISIBILITY_FILTER;
     private final EntitySeverityCache entitySeverityCache = new EntitySeverityCache(queryFilter);
-    private final ActionStore actionStore = mock(ActionStore.class);
-    private ActionTranslator actionTranslator = mock(ActionTranslator.class);
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
-    private final ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
+    private final ActionFactory actionFactory = new ActionFactory();
     private static final long DEFAULT_SOURCE_ID = 1;
     private static final long ACTION_PLAN_ID = 9876;
 

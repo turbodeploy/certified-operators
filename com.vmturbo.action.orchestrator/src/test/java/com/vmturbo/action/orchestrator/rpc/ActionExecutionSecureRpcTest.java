@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.rpc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -31,7 +30,6 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import com.vmturbo.action.orchestrator.ActionOrchestratorComponent;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
@@ -91,24 +89,22 @@ public class ActionExecutionSecureRpcTest {
     private final static long ACTION_PLAN_ID = 2;
     private final static long TOPOLOGY_CONTEXT_ID = 3;
     private final static long ACTION_ID = 9999;
-
-    // Have the translator pass-through translate all actions.
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.peek(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-            })));
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
-    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final IActionFactory actionFactory = new ActionFactory();
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
+    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+            executor, actionStoreLoader);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader currentActionStatReader = mock(CurrentActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+    // Have the translator pass-through translate all actions.
+    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
+            actionStream.peek(action -> {
+                action.getActionTranslation().setPassthroughTranslationSuccess();
+            })));
     private final ActionSupportResolver filter = mock
             (ActionSupportResolver.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);

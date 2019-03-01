@@ -40,8 +40,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -49,7 +47,6 @@ import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.components.common.DiagnosticsWriter;
@@ -62,18 +59,13 @@ public class ActionOrchestratorDiagnosticsTest {
     private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
-    private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final IActionFactory actionFactory = new ActionFactory();
     private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
     private final DiagnosticsWriter diagnosticsWriter = Mockito.spy(new DiagnosticsWriter());
+
     private final ActionOrchestratorDiagnostics diagnostics =
-            new ActionOrchestratorDiagnostics(actionStorehouse, actionFactory, diagnosticsWriter, actionModeCalculator);
+            new ActionOrchestratorDiagnostics(actionStorehouse, actionFactory, diagnosticsWriter);
     private final long realtimeTopologyContextId = 1234L;
 
     @Captor

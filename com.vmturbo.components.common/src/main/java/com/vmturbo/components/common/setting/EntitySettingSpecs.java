@@ -45,84 +45,6 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
     /**
-     * Resize action automation mode for vcpu resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuAboveMaxThreshold("resizeVcpuAboveMaxThreshold", "VCPU Resize Above Max Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-
-    /**
-     * Resize action automation mode for vcpu resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuMinThreshold}.
-     */
-    ResizeVcpuBelowMinThreshold("resizeVcpuBelowMinThreshold", "VCPU Resize Below Min Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-    /**
-     * Resize action automation mode for vcpu resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuUpInBetweenThresholds("resizeVcpuUpInBetweenThresholds", "VCPU Resize Up In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-    /**
-     * Resize action automation mode for vcpu resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuDownInBetweenThresholds("resizeVcpuDownInBetweenThresholds", "VCPU Resize Down In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-
-    /**
-     * The minimum number of vcpu cores which is the threshold to decide automation mode.
-     *
-     */
-    ResizeVcpuMinThreshold("resizeVcpuMinThreshold", "VCPU Resize Min Threshold (in Cores)",
-            Collections.emptyList(), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000, 1), true),
-
-    /**
-     * The maximum number of vcpu cores which is the threshold to decide automation mode.
-     */
-    ResizeVcpuMaxThreshold("resizeVcpuMaxThreshold", "VCPU Resize Max Threshold (in Cores)",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000, 64), true),
-
-    /**
-     * Resize action automation mode for vmem resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemAboveMaxThreshold("resizeVmemAboveMaxThreshold", "VMEM Resize Above Max Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-
-    /**
-     * Resize action automation mode for vmem resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemMinThreshold}.
-     */
-    ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMEM Resize Below Min Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-    /**
-     * Resize action automation mode for vmem resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemUpInBetweenThresholds("resizeVmemUpInBetweenThresholds", "VMEM Resize Up In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-    /**
-     * Resize action automation mode for vmem resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemDownInBetweenThresholds("resizeVmemDownInBetweenThresholds", "VMEM Resize Down In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
-
-    /**
-     * The minimum number of vmem cores which is the threshold to decide automation mode.
-     *
-     */
-    ResizeVmemMinThreshold("resizeVmemMinThreshold", "VMEM Resize Min Threshold (in MB)",
-            Collections.emptyList(), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 512), true),
-
-    /**
-     * The maximum number of vmem cores which is the threshold to decide automation mode.
-     */
-    ResizeVmemMaxThreshold("resizeVmemMaxThreshold", "VMEM Resize Max Threshold (in MB)",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
-
-    /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -257,7 +179,7 @@ public enum EntitySettingSpecs {
      */
     ResizeTargetUtilizationVcpu("resizeTargetUtilizationVcpu", "Scaling Target VCPU Utilization",
             //path is needed for the UI to display this setting in a separate category
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION, EntityType.APPLICATION_SERVER, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
@@ -267,7 +189,7 @@ public enum EntitySettingSpecs {
      */
     ResizeTargetUtilizationVmem("resizeTargetUtilizationVmem", "Scaling Target VMEM Utilization",
             //path is needed for the UI to display this setting in a separate category
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION, EntityType.APPLICATION_SERVER, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
@@ -487,15 +409,7 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.Reconfigure.name,
             EntitySettingSpecs.Resize.name,
             EntitySettingSpecs.StorageMove.name,
-            EntitySettingSpecs.Suspend.name,
-            EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
-            EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,
-            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name,
-            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.name,
-            EntitySettingSpecs.ResizeVmemAboveMaxThreshold.name,
-            EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
-            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
-            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name);
+            EntitySettingSpecs.Suspend.name);
 
     /**
      * Default value for a String-type SettingDataStructure = empty String.

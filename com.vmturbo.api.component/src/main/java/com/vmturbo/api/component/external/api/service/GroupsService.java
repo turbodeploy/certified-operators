@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
-import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -31,7 +30,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -198,11 +196,9 @@ public class GroupsService implements IGroupsService {
     @Override
     public List<GroupApiDTO> getGroups()  {
         // Currently, we have only user-created groups.
-        return
-            getGroupApiDTOSwithSeverities(
-                GetGroupsRequest.newBuilder()
-                    .setTypeFilter(Type.GROUP)
-                    .build());
+        return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                .setTypeFilter(Type.GROUP)
+                .build());
     }
 
 
@@ -236,9 +232,7 @@ public class GroupsService implements IGroupsService {
                 .setId(id)
                 .build());
         if (groupRes.hasGroup()) {
-            final GroupApiDTO result = groupMapper.toGroupApiDto(groupRes.getGroup());
-            fetchGroupSeverity(result);
-            return result;
+            return groupMapper.toGroupApiDto(groupRes.getGroup());
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -479,19 +473,12 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public void deleteGroup(String uuid)  throws UnknownObjectException, InvalidOperationException {
-        try {
-            final DeleteGroupResponse response =
-                groupServiceRpc.deleteGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
-            if (!response.getDeleted()) {
-                throw new InvalidOperationException("Failed to delete group with uuid " + uuid);
-            }
-        } catch (StatusRuntimeException e) {
-            logger.error("Error while deleting group " + uuid, e);
-            if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
-                throw new UnknownObjectException(e.getMessage());
-            } else {
-                throw new InvalidOperationException(e.getMessage());
-            }
+        final DeleteGroupResponse res = groupServiceRpc.deleteGroup(
+                            GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
+        // FIXME Add detailed information to the {@link DeleteGroupResponse} structure about the deletion group status
+        // And throw out the correct exceptions declared in the controller groups
+        if (!res.getDeleted()) {
+            throw new InvalidOperationException("Failed to delete group with uuid " + uuid);
         }
     }
 
@@ -819,27 +806,20 @@ public class GroupsService implements IGroupsService {
      */
     public List<GroupApiDTO> getGroupApiDTOSwithSeverities(GetGroupsRequest getGroupsRequest) {
         List<GroupApiDTO> groups = getGroupApiDTOS(getGroupsRequest);
-        groups.forEach(this::fetchGroupSeverity);
-        return groups;
-    }
-
-    /**
-     * Fetch severity information about a group, by calling an AO gRPC.
-     *
-     * @param group the {@link GroupApiDTO} object to add severity information to.
-     *              There should be no severity set in the object.
-     *              The list of members of the groups should be available in the object.
-     *              The severity is set in place; no new group object is created.
-     */
-    private void fetchGroupSeverity(@Nonnull GroupApiDTO group) {
-        if (StringUtils.isEmpty(group.getSeverity()) &&
-                group.getMembersCount() != null && group.getMembersCount() > 0) {
-            final Set<Long> memberOids =
-                group.getMemberUuidList().stream().map(Long::valueOf).collect(Collectors.toSet());
-            SeverityPopulator
-                .calculateSeverity(entitySeverityServiceStub, realtimeTopologyContextId, memberOids)
-                .ifPresent(severity -> group.setSeverity(severity.name()));
+        // populate the severity field on the groups that were retrieved.
+        for (GroupApiDTO group : groups) {
+            if (StringUtils.isEmpty(group.getSeverity()) && group.getMembersCount() > 0) {
+                // calculate the severity for this group.
+                // unfortunately, the GroupApiDTO object encodes members as string uuids rather than
+                // longs, so we will need to convert them here.
+                Set<Long> memberOids = group.getMemberUuidList().stream()
+                        .map(Long::valueOf)
+                        .collect(Collectors.toSet());
+                SeverityPopulator.calculateSeverity(entitySeverityServiceStub, realtimeTopologyContextId, memberOids)
+                    .ifPresent(severity -> group.setSeverity(severity.name()));
+            }
         }
+        return groups;
     }
 
     /**

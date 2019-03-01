@@ -31,23 +31,13 @@ public class ExceptionMapper {
     // The goal of OM-42959 is to fix this design (for example by creating an checked ApiException
     // as a superclass of all exceptions that the API is expected to throw)
     public static Exception translateStatusException(@Nonnull StatusRuntimeException statusException) {
-        final Throwable cause = statusException.getCause();
         switch (statusException.getStatus().getCode()) {
             case NOT_FOUND:
-                if (cause != null) {
-                    return new UnknownObjectException(statusException.getCause());
-                } else {
-                    return new UnknownObjectException(statusException.getMessage());
-                }
+                return new UnknownObjectException(statusException.getCause());
             case UNAUTHENTICATED:
                 return new UnauthorizedObjectException(statusException.getMessage());
             case PERMISSION_DENIED:
-                if (cause != null) {
-                    return
-                        new AccessDeniedException(statusException.getMessage(), statusException.getCause());
-                } else {
-                    return new AccessDeniedException(statusException.getMessage());
-                }
+                return new AccessDeniedException(statusException.getMessage(), statusException.getCause());
             case CANCELLED:
                 return new InterruptedException(statusException.getMessage());
             default:

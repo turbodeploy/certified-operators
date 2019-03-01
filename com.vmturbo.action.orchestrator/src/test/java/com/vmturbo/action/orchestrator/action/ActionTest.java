@@ -5,7 +5,6 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -17,7 +16,6 @@ import java.util.Map;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -25,7 +23,6 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -61,12 +58,6 @@ public class ActionTest {
     private ActionDTO.Action reconfigureRecommendation;
     private Action reconfigureAction;
     private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     @Before
     public void setup() {
@@ -89,14 +80,14 @@ public class ActionTest {
             .thenReturn(Collections.emptyMap());
 
 
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        resizeAction = new Action(resizeRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        deactivateAction = new Action(deactivateRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        activateAction = new Action(activateRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        resizeAction = new Action(resizeRecommendation, entitySettingsCache, actionPlanId);
+        deactivateAction = new Action(deactivateRecommendation, entitySettingsCache, actionPlanId);
+        activateAction = new Action(activateRecommendation, entitySettingsCache, actionPlanId);
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
         reconfigureAction =
-                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
     }
 
     @Test
@@ -165,7 +156,7 @@ public class ActionTest {
     public void testDetermineExecutabilityNotExecutable() {
         final ActionDTO.Action recommendation = moveAction.getRecommendation().toBuilder()
             .setExecutable(false).build();
-        final Action notExecutable = new Action(recommendation, 1, actionModeCalculator);
+        final Action notExecutable = new Action(recommendation, 1);
 
         assertFalse(notExecutable.determineExecutability());
     }
@@ -187,24 +178,24 @@ public class ActionTest {
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.SHOW_ONLY).build();
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         resizeRecommendation =
                 makeRec(makeResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
-        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.SHOW_ONLY).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SHOW_ONLY).build();
-        reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
                 .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
@@ -231,24 +222,24 @@ public class ActionTest {
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.UNSUPPORTED).build();
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
-        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.UNSUPPORTED).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.UNSUPPORTED).build();
         reconfigureAction =
-                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
                 .put("resize", makeSetting("resize", ActionMode.RECOMMEND))

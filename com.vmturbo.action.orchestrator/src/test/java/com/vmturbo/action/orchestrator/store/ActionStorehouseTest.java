@@ -29,7 +29,6 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
@@ -49,11 +48,10 @@ public class ActionStorehouseTest {
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
-    private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final long topologyContextId = 0xCAFE;
 
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+            executor, actionStoreLoader);
     private final Action moveAction = Action.newBuilder()
         .setId(9999L)
         .setImportance(0)
@@ -216,7 +214,7 @@ public class ActionStorehouseTest {
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.singletonList(persistedStore));
 
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, actionModeCalculator);
+                executor, actionStoreLoader);
         assertEquals(1, actionStorehouse.size());
         assertEquals(persistedStore, actionStorehouse.getStore(topologyContextId).get());
     }

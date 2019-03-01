@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -47,23 +46,15 @@ public class ActionSupportResolver {
     private final ActionTargetSelector actionTargetSelector;
 
     /**
-     * For determining the action automation mode.
-     */
-    private final ActionModeCalculator actionModeCalculator;
-
-    /**
      * Class which determines whether action executed by probe or not.
      *
      * @param actionCapabilitiesStore store to get action capabilities for probes
      * @param actionTargetSelector for determining which probe would execute an action
-     * @param actionModeCalculator for determining the automation mode of an action
      */
     public ActionSupportResolver(@Nonnull final ActionCapabilitiesStore actionCapabilitiesStore,
-                                 @Nonnull final ActionTargetSelector actionTargetSelector,
-                                 @Nonnull final ActionModeCalculator actionModeCalculator) {
+                                 @Nonnull final ActionTargetSelector actionTargetSelector) {
         this.actionCapabilitiesStore = Objects.requireNonNull(actionCapabilitiesStore);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
-        this.actionModeCalculator = actionModeCalculator;
     }
 
     /**
@@ -115,7 +106,7 @@ public class ActionSupportResolver {
         if (newLevel == action.getSupportLevel()) {
             return action;
         } else {
-            return new Action(action, newLevel, actionModeCalculator);
+            return new Action(action, newLevel);
         }
     }
 

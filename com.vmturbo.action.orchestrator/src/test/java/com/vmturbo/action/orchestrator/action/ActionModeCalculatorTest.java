@@ -2,20 +2,14 @@ package com.vmturbo.action.orchestrator.action;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.joda.time.DateTime;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -41,12 +35,6 @@ public class ActionModeCalculatorTest {
             .setId(10289)
             .setExplanation(Explanation.getDefaultInstance())
             .setImportance(0);
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
-            actionStream.map(action -> {
-                action.getActionTranslation().setPassthroughTranslationSuccess();
-                return action;
-            })));
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     @Test
     public void testSettingHostMove() {
@@ -61,7 +49,6 @@ public class ActionModeCalculatorTest {
                                         // Move to host
                                         .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
         when(entitySettingsCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(EntitySettingSpecs.Move.getSettingName(),
                         Setting.newBuilder()
@@ -70,7 +57,7 @@ public class ActionModeCalculatorTest {
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
         // Should use the value from settings.
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -87,8 +74,7 @@ public class ActionModeCalculatorTest {
                                 // Move to host
                                 .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -112,9 +98,8 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
         // Should use the value from settings.
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -131,8 +116,7 @@ public class ActionModeCalculatorTest {
                                         // Move to host
                                         .setType(EntityType.STORAGE_VALUE)))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -169,9 +153,8 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.MANUAL.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
         // Should choose the more conservative one.
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.MANUAL));
     }
 
@@ -198,9 +181,8 @@ public class ActionModeCalculatorTest {
         final ActionMode hostMoveDefaultMode =
                 ActionMode.valueOf(EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault());
         final ActionMode expectedDefaultMode = storageMoveDefaultMode.compareTo(hostMoveDefaultMode) < 0 ? storageMoveDefaultMode : hostMoveDefaultMode;
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
 
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(expectedDefaultMode));
     }
 
@@ -219,8 +201,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -232,8 +213,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
             is(ActionMode.valueOf(EntitySettingSpecs.Resize.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -252,8 +232,7 @@ public class ActionModeCalculatorTest {
                             .setEnumSettingValue(EnumSettingValue.newBuilder()
                                             .setValue(ActionMode.AUTOMATIC.name()))
                             .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -265,8 +244,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Reconfigure.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -285,8 +263,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -298,8 +275,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Provision.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -318,8 +294,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -331,8 +306,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Activate.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -351,8 +325,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitySettingsCache),
+        assertThat(ActionModeCalculator.calculateActionMode(action, entitySettingsCache),
                 is(ActionMode.AUTOMATIC));
     }
 
@@ -364,8 +337,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+        assertThat(ActionModeCalculator.calculateActionMode(action, null),
                 is(ActionMode.valueOf(EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault())));
     }
 
@@ -373,12 +345,6 @@ public class ActionModeCalculatorTest {
     public void testUnsetActionType() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder())
                 .build();
-        Action aoAction = new Action(action, 1l, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null), is(ActionMode.RECOMMEND));
-    }
-
-    @Test
-    public void testRangeAware() {
-        //ActionModeCalculator.calculateActionMode()
+        assertThat(ActionModeCalculator.calculateActionMode(action, null), is(ActionMode.RECOMMEND));
     }
 }

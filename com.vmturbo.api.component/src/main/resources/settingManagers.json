@@ -26,15 +26,7 @@
         "provision",
         "activate",
         "reconfigure",
-        "storageMove",
-        "resizeVcpuAboveMaxThreshold",
-        "resizeVcpuBelowMinThreshold",
-        "resizeVcpuUpInBetweenThresholds",
-        "resizeVcpuDownInBetweenThresholds",
-        "resizeVmemAboveMaxThreshold",
-        "resizeVmemBelowMinThreshold",
-        "resizeVmemUpInBetweenThresholds",
-        "resizeVmemDownInBetweenThresholds"
+        "storageMove"
       ],
       // Automation settings are pretty specific in the API/UI,
       // and the design is not finalized. So we put them in
@@ -100,11 +92,7 @@
         "collectionTimeUtilization",
         "RATE_OF_RESIZE",
         "resizeTargetUtilizationVcpu",
-        "resizeTargetUtilizationVmem",
-        "resizeVcpuMinThreshold",
-        "resizeVcpuMaxThreshold",
-        "resizeVmemMinThreshold",
-        "resizeVmemMaxThreshold"
+        "resizeTargetUtilizationVmem"
       ]
     },
     "storagesettingsmanager": {
