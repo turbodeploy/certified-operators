@@ -285,15 +285,15 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void deleteGroup(GroupID gid, StreamObserver<DeleteGroupResponse> responseObserver) {
         if (!gid.hasId()) {
-            final String errMsg = "Invalid GroupID input for delete a group: No group ID specified";
+            final String errMsg = "While deleting group: No group ID specified";
             logger.error(errMsg);
-            responseObserver.onError(Status.ABORTED.withDescription(errMsg).asRuntimeException());
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
             return;
         }
 
         final long groupId = gid.getId();
 
-        logger.info("Deleting a group: {}", groupId);
+        logger.info("Deleting group {}", groupId);
         final Optional<Group> group = tempGroupCache.delete(groupId);
         if (group.isPresent()) {
             // If the group was a temporary group, it shouldn't have been in any policies, so
@@ -306,12 +306,12 @@ public class GroupRpcService extends GroupServiceImplBase {
                 responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
                 responseObserver.onCompleted();
             } catch (ImmutableGroupUpdateException e) {
-                logger.error("Failed to update group {} due to error: {}",
+                logger.error("Failed to delete group {} due to error: {}",
                         gid.getId(), e.getLocalizedMessage());
                 responseObserver.onError(Status.INVALID_ARGUMENT
                         .withDescription(e.getLocalizedMessage()).asException());
             } catch (GroupNotFoundException e) {
-                logger.error("Failed to update group {} because it doesn't exist.",
+                logger.error("Failed to delete group {} because it doesn't exist.",
                         gid.getId(), e.getLocalizedMessage());
                 responseObserver.onError(Status.NOT_FOUND
                         .withDescription(e.getLocalizedMessage()).asException());

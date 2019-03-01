@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -30,6 +31,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -473,12 +475,19 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public void deleteGroup(String uuid)  throws UnknownObjectException, InvalidOperationException {
-        final DeleteGroupResponse res = groupServiceRpc.deleteGroup(
-                            GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
-        // FIXME Add detailed information to the {@link DeleteGroupResponse} structure about the deletion group status
-        // And throw out the correct exceptions declared in the controller groups
-        if (!res.getDeleted()) {
-            throw new InvalidOperationException("Failed to delete group with uuid " + uuid);
+        try {
+            final DeleteGroupResponse response =
+                groupServiceRpc.deleteGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
+            if (!response.getDeleted()) {
+                throw new InvalidOperationException("Failed to delete group with uuid " + uuid);
+            }
+        } catch (StatusRuntimeException e) {
+            logger.error("Error while deleting group " + uuid, e);
+            if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
+                throw new UnknownObjectException(e.getMessage());
+            } else {
+                throw new InvalidOperationException(e.getMessage());
+            }
         }
     }
 
