@@ -198,9 +198,11 @@ public class GroupsService implements IGroupsService {
     @Override
     public List<GroupApiDTO> getGroups()  {
         // Currently, we have only user-created groups.
-        return getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.GROUP)
-                .build());
+        return
+            getGroupApiDTOSwithSeverities(
+                GetGroupsRequest.newBuilder()
+                    .setTypeFilter(Type.GROUP)
+                    .build());
     }
 
 
@@ -234,7 +236,9 @@ public class GroupsService implements IGroupsService {
                 .setId(id)
                 .build());
         if (groupRes.hasGroup()) {
-            return groupMapper.toGroupApiDto(groupRes.getGroup());
+            final GroupApiDTO result = groupMapper.toGroupApiDto(groupRes.getGroup());
+            fetchGroupSeverity(result);
+            return result;
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -815,20 +819,27 @@ public class GroupsService implements IGroupsService {
      */
     public List<GroupApiDTO> getGroupApiDTOSwithSeverities(GetGroupsRequest getGroupsRequest) {
         List<GroupApiDTO> groups = getGroupApiDTOS(getGroupsRequest);
-        // populate the severity field on the groups that were retrieved.
-        for (GroupApiDTO group : groups) {
-            if (StringUtils.isEmpty(group.getSeverity()) && group.getMembersCount() > 0) {
-                // calculate the severity for this group.
-                // unfortunately, the GroupApiDTO object encodes members as string uuids rather than
-                // longs, so we will need to convert them here.
-                Set<Long> memberOids = group.getMemberUuidList().stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toSet());
-                SeverityPopulator.calculateSeverity(entitySeverityServiceStub, realtimeTopologyContextId, memberOids)
-                    .ifPresent(severity -> group.setSeverity(severity.name()));
-            }
-        }
+        groups.forEach(this::fetchGroupSeverity);
         return groups;
+    }
+
+    /**
+     * Fetch severity information about a group, by calling an AO gRPC.
+     *
+     * @param group the {@link GroupApiDTO} object to add severity information to.
+     *              There should be no severity set in the object.
+     *              The list of members of the groups should be available in the object.
+     *              The severity is set in place; no new group object is created.
+     */
+    private void fetchGroupSeverity(@Nonnull GroupApiDTO group) {
+        if (StringUtils.isEmpty(group.getSeverity()) &&
+                group.getMembersCount() != null && group.getMembersCount() > 0) {
+            final Set<Long> memberOids =
+                group.getMemberUuidList().stream().map(Long::valueOf).collect(Collectors.toSet());
+            SeverityPopulator
+                .calculateSeverity(entitySeverityServiceStub, realtimeTopologyContextId, memberOids)
+                .ifPresent(severity -> group.setSeverity(severity.name()));
+        }
     }
 
     /**
