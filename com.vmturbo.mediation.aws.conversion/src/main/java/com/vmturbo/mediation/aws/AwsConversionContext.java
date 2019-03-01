@@ -7,6 +7,10 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -34,6 +38,8 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  * The conversion context provided by AWS probe which contains logic specific to AWS.
  */
 public class AwsConversionContext implements CloudProviderConversionContext {
+
+    private final Logger logger = LogManager.getLogger();
 
     // converters for different entity types
     private static final Map<EntityType, IEntityConverter> AWS_ENTITY_CONVERTERS;
@@ -121,7 +127,12 @@ public class AwsConversionContext implements CloudProviderConversionContext {
 
     @Nonnull
     @Override
-    public Optional<String> getVolumeIdFromStorageFilePath(@Nonnull String regionName, @Nonnull String filePath) {
+    public Optional<String> getVolumeIdFromStorageFilePath(@Nullable String regionName,
+                                                           @Nonnull String filePath) {
+        if (regionName == null) {
+            logger.error("Null region name for file {}", filePath);
+            return Optional.empty();
+        }
         return Optional.of("aws::" + regionName + "::VL::" + filePath);
     }
 

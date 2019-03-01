@@ -8,6 +8,9 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.cloud.util.CloudService;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -23,6 +26,17 @@ public interface CloudProviderConversionContext {
      */
     @Nonnull
     String getStorageTierId(@Nonnull String storageTierName);
+
+    /**
+     * Get the storage tier from the EntityDTO of a storage.
+     *
+     * @param storageDTO {@link EntityDTO} of a storage.
+     * @return StorageTier corresponding to the storage
+     */
+    @Nonnull
+    default String getStorageTier(@Nonnull EntityDTO.Builder storageDTO) {
+        return storageDTO.getStorageData().getStorageTier();
+    }
 
     /**
      * Get the region id based on the zone id. This should be implemented by different probes.
@@ -76,4 +90,18 @@ public interface CloudProviderConversionContext {
      * @return new optional entity type to create EntityDTO
      */
     Optional<EntityType> getCloudEntityTypeForProfileType(@Nonnull EntityType entityType);
+
+    /**
+     * Get AvailabilityZone string from storage entity DTO.
+     *
+     * @param entity The Builder for the EntityDTO of a storage.
+     * @return String giving the availability zone or an analagous String for cloud providers that
+     * don't use availability zones.
+     */
+    default Optional<String> getAvailabilityZone(Builder entity) {
+        return entity.getCommoditiesSoldList().stream()
+            .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
+            .map(commodityDTO -> CloudDiscoveryConverter.keyToUuid(commodityDTO.getKey()))
+            .findAny();
+    }
 }

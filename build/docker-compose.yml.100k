@@ -457,6 +457,15 @@ services:
 #      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
+#
+#  mediation-azure-volumes:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-azure-volumes-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep
 
   mediation-oneview:
     extends:

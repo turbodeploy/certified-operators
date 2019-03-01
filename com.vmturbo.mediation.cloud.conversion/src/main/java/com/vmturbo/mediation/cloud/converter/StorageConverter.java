@@ -41,53 +41,51 @@ public class StorageConverter implements IEntityConverter {
             return false;
         }
 
-        String storageTier = entity.getStorageData().getStorageTier();
+        String storageTier = converter.getStorageTier(entity);
         String storageTierId = converter.getStorageTierId(storageTier);
 
         final EntityDTO.Builder storageTierEntity = converter.getNewEntityBuilder(storageTierId);
 
         // find az
-        entity.getCommoditiesSoldList().stream()
-                .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
-                .map(commodityDTO -> CloudDiscoveryConverter.keyToUuid(commodityDTO.getKey()))
-                .findAny()
-                .ifPresent(azId -> {
-                    // connect storage tier to region
-                    final String regionId = converter.getRegionIdFromAzId(azId);
-                    if (!storageTierEntity.getLayeredOverList().contains(regionId)) {
-                        storageTierEntity.addLayeredOver(regionId);
-                    }
+        converter.getAvailabilityZone(entity)
+            .ifPresent(azId -> {
+                // connect storage tier to region
+                final String regionId = converter.getRegionIdFromAzId(azId);
+                if (!storageTierEntity.getLayeredOverList().contains(regionId)) {
+                    storageTierEntity.addLayeredOver(regionId);
+                }
 
-                    // set up connected relationship from volume to storage tier and az
-                    // these are wasted files which are currently only for aws probe
-                    String regionName = CloudDiscoveryConverter.getRegionNameFromAzId(azId);
-                    entity.getStorageData().getFileList().forEach(file ->
-                        converter.getVolumeId(regionName, file.getPath()).ifPresent(volumeId -> {
-                            // get volume
-                            EntityDTO.Builder volume = converter.getNewEntityBuilder(volumeId);
+                // set up connected relationship from volume to storage tier and az
+                // these are wasted files
+                String regionName = CloudDiscoveryConverter.getRegionNameFromAzId(azId);
+                entity.getStorageData().getFileList().forEach(file ->
+                    converter.getVolumeId(regionName, file.getPath()).ifPresent(volumeId -> {
+                        // get volume
+                        EntityDTO.Builder volume = converter.getNewEntityBuilder(volumeId);
 
-                            if (probeType == SDKProbeType.AWS) {
-                                // connect to AZ for aws
-                                if (!volume.getLayeredOverList().contains(azId)) {
-                                    volume.addLayeredOver(azId);
-                                }
-                            } else if (probeType == SDKProbeType.AZURE) {
-                                // connect to region for azure
-                                if (!volume.getLayeredOverList().contains(regionId)) {
-                                    volume.addLayeredOver(regionId);
-                                }
+                        if (probeType == SDKProbeType.AWS) {
+                            // connect to AZ for aws
+                            if (!volume.getLayeredOverList().contains(azId)) {
+                                volume.addLayeredOver(azId);
                             }
-
-                            // connect to storage tier
-                            if (!volume.getLayeredOverList().contains(storageTierId)) {
-                                volume.addLayeredOver(storageTierId);
+                        } else if (probeType == SDKProbeType.AZURE
+                            || probeType == SDKProbeType.AZURE_STORAGE_BROWSE) {
+                            // connect to region for azure
+                            if (!volume.getLayeredOverList().contains(regionId)) {
+                                volume.addLayeredOver(regionId);
                             }
+                        }
 
-                            // volume owned by business account
-                            converter.ownedByBusinessAccount(volumeId);
-                        })
-                    );
-                });
+                        // connect to storage tier
+                        if (!volume.getLayeredOverList().contains(storageTierId)) {
+                            volume.addLayeredOver(storageTierId);
+                        }
+
+                        // volume owned by business account
+                        converter.ownedByBusinessAccount(volumeId);
+                    })
+                );
+            });
 
         // merge commodities sold from storage into storage tier
         List<CommodityDTO> soldCommodities = mergeCommodities(entity.getCommoditiesSoldList(),

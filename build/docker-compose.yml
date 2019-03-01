@@ -895,6 +895,24 @@ services:
       - mediation-azure:/home/turbonomic/data
     mem_limit: ${MEDIATION_AZURE_MEM_LIMIT_MB}M
 
+  mediation-azure-volumes:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.azure.volumes.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_AZURE_VOLUMES_PORT}"
+      - "${MEDIATION_AZURE_VOLUMES_DEBUG_PORT}"
+    environment:
+      component_type: mediation-azure-volumes
+      instance_id: mediation-azure-volumes-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AZURE_VOLUMES_XMX_MB}M ${MEDIATION_AZURE_VOLUMES_SYSTEM_PROPERTIES}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    mem_limit: ${MEDIATION_AZURE_VOLUMES_MEM_LIMIT_MB}M
+
   mediation-oneview:
     extends:
       file: common-services.yml

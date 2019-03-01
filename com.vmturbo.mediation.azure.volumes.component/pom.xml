@@ -8,7 +8,6 @@
         <version>7.13.0-SNAPSHOT</version>
         <relativePath>../build/mediation-parent-pom.xml</relativePath>
     </parent>
-    <modelVersion>4.0.0</modelVersion>
 
     <artifactId>com.vmturbo.mediation.azure.volumes.component</artifactId>
     <description>Mediation Component for Azure volume probe</description>
@@ -33,8 +32,8 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.azure.volumes</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <artifactId>com.vmturbo.mediation.azure.volumes.conversion</artifactId>
+                                    <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>

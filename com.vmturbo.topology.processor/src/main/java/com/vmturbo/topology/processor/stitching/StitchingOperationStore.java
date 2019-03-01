@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
@@ -101,9 +102,16 @@ public class StitchingOperationStore {
             throws ProbeException {
         try {
             final ProbeCategory category = ProbeCategory.create(probeInfo.getProbeCategory());
+            // TODO:  Right now, we have some probes (Azure, AWS) that only need to stitch with
+            // themselves.  If we leave probeScope empty, they will stitch with every category which
+            // could lead to problems (for example, an Azure region getting stitched onto the
+            // region from the Azure volumes probe instead of the other way around).  So if
+            // we have a data driven probe with no scope to stitch with, assume it is one of these
+            // cases and sets probe scope to the probe's category.  This will go away once we
+            // allow the probe scope to be set in a data driven manner.
             List<StitchingOperation<?, ?>> operations =
                     createStitchingOperationsFromProbeInfo(probeInfo,
-                            probeScope);
+                            probeScope.isEmpty() ? ImmutableSet.of(category) : probeScope);
             if (operations.isEmpty()) {
                 operations = stitchingOperationLibrary.stitchingOperationsFor(
                         probeInfo.getProbeType(), category);

@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -18,8 +19,10 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.mediation.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.cloud.util.CloudService;
+import com.vmturbo.mediation.cloud.util.ConverterUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
@@ -47,7 +50,7 @@ public class CloudDiscoveryConverter {
 
     private Map<String, EntityDTO> rawEntityDTOsById = new HashMap<>();
 
-    private Map<String, EntityDTO.Builder> newEntityBuildersById = new HashMap<>();
+    protected Map<String, EntityDTO.Builder> newEntityBuildersById = new HashMap<>();
 
     private Map<String, EntityProfileDTO> profileDTOsById = new HashMap<>();
 
@@ -60,7 +63,7 @@ public class CloudDiscoveryConverter {
 
     private final DiscoveryResponse.Builder discoveryResponseBuilder;
 
-    private final CloudProviderConversionContext conversionContext;
+    protected final CloudProviderConversionContext conversionContext;
 
     public CloudDiscoveryConverter(@Nonnull DiscoveryResponse discoveryResponse,
                      @Nonnull CloudProviderConversionContext conversionContext) {
@@ -104,7 +107,7 @@ public class CloudDiscoveryConverter {
      *
      * @param entityDTO the EntityDTO to pre process
      */
-    private void preProcessEntityDTO(@Nonnull EntityDTO entityDTO) {
+    protected void preProcessEntityDTO(@Nonnull EntityDTO entityDTO) {
         EntityDTO.Builder entityBuilder = entityDTO.toBuilder();
         EntityType entityType = entityBuilder.getEntityType();
 
@@ -160,7 +163,7 @@ public class CloudDiscoveryConverter {
             return;
         }
 
-        final String storageTier = storageDTO.getStorageData().getStorageTier();
+        final String storageTier = conversionContext.getStorageTier(storageDTO.toBuilder());
         final String storageTierId = conversionContext.getStorageTierId(storageTier);
         // create new StorageTier if not existing
         newEntityBuildersById.computeIfAbsent(storageTierId, k -> {
@@ -239,44 +242,40 @@ public class CloudDiscoveryConverter {
      */
     private void createVolumeFromStorageDTO(@Nonnull EntityDTO entityDTO) {
         // find the related region name for this storage
-        Optional<String> regionName = entityDTO.getCommoditiesSoldList().stream()
-                .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
-                .map(commodity -> getRegionNameFromAzId(keyToUuid(commodity.getKey())))
-                .findAny();
+        Optional<String> azId = conversionContext.getAvailabilityZone(entityDTO.toBuilder());
 
-        if (!regionName.isPresent() || !entityDTO.hasStorageData()) {
+        if (!azId.isPresent() || !entityDTO.hasStorageData()) {
             return;
         }
 
+        String regionName = getRegionNameFromAzId(azId.get());
         entityDTO.getStorageData().getFileList().forEach(file ->
-            conversionContext.getVolumeIdFromStorageFilePath(regionName.get(), file.getPath())
-                    .ifPresent(volumeId ->
-                            newEntityBuildersById.computeIfAbsent(volumeId, k -> {
-                                EntityDTO.Builder volume = EntityDTO.newBuilder()
-                                        .setEntityType(EntityType.VIRTUAL_VOLUME)
-                                        .setId(volumeId)
-                                        .setDisplayName(file.getPath());
-                                VirtualVolumeData.Builder vvData = VirtualVolumeData.newBuilder();
-                                if (file.hasIopsProvisioned()) {
-                                    vvData.setStorageAccessCapacity(file.getIopsProvisioned());
-                                }
-                                if (file.hasSizeKb()) {
-                                    vvData.setStorageAmountCapacity(file.getSizeKb() / 1024);
-                                }
-                                if (file.hasRedundancyType()) {
-                                    try {
-                                        vvData.setRedundancyType(RedundancyType.valueOf(
-                                                file.getRedundancyType()));
-                                    } catch (IllegalArgumentException e) {
-                                        logger.error("Unsupported redundancy type: {}",
-                                                file.getRedundancyType());
-                                    }
-                                }
-                                volume.setVirtualVolumeData(vvData.build());
-                                return volume;
-                            })
-                    )
-        );
+            conversionContext.getVolumeIdFromStorageFilePath(regionName, file.getPath())
+                .ifPresent(volumeId ->
+                    newEntityBuildersById.computeIfAbsent(volumeId, k -> {
+                        EntityDTO.Builder volume = EntityDTO.newBuilder()
+                            .setEntityType(EntityType.VIRTUAL_VOLUME)
+                            .setId(volumeId)
+                            .setDisplayName(file.getPath());
+                        VirtualVolumeData.Builder vvData = VirtualVolumeData.newBuilder();
+                        if (file.hasIopsProvisioned()) {
+                            vvData.setStorageAccessCapacity(file.getIopsProvisioned());
+                        }
+                        if (file.hasSizeKb()) {
+                            vvData.setStorageAmountCapacity(file.getSizeKb() / 1024.0f);
+                        }
+                        if (file.hasRedundancyType()) {
+                            try {
+                                vvData.setRedundancyType(RedundancyType.valueOf(
+                                    file.getRedundancyType()));
+                            } catch (IllegalArgumentException e) {
+                                logger.error("Unsupported redundancy type: {}",
+                                    file.getRedundancyType());
+                            }
+                        }
+                        volume.setVirtualVolumeData(vvData.build());
+                        return volume;
+                    })));
     }
 
     /**
@@ -456,7 +455,16 @@ public class CloudDiscoveryConverter {
     }
 
     @Nonnull
-    public Optional<String> getVolumeId(@Nonnull String regionName, @Nonnull String filePath) {
+    public Optional<String> getVolumeId(@Nullable String regionName, @Nonnull String filePath) {
         return conversionContext.getVolumeIdFromStorageFilePath(regionName, filePath);
+    }
+
+    @Nonnull
+    public String getStorageTier(final Builder entity) {
+        return conversionContext.getStorageTier(entity);
+    }
+
+    public Optional<String> getAvailabilityZone(final Builder entity) {
+        return conversionContext.getAvailabilityZone(entity);
     }
 }

@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -119,7 +120,8 @@ public class AzureConversionContext implements CloudProviderConversionContext {
      */
     @Nonnull
     @Override
-    public Optional<String> getVolumeIdFromStorageFilePath(@Nonnull String regionName, @Nonnull String filePath) {
+    public Optional<String> getVolumeIdFromStorageFilePath(@Nullable String regionName,
+                                                           @Nonnull String filePath) {
         return Optional.of(filePath.replace("/", "::").toLowerCase());
     }
 
