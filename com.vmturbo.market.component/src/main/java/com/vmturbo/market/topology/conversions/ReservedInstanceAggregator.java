@@ -82,12 +82,14 @@ public class ReservedInstanceAggregator {
     boolean aggregateRis() {
         boolean success = false;
         for (ReservedInstanceData riData : cloudCostData.getAllRiBought()) {
-            riDataMap.put(riData.getReservedInstanceBought().getId(), riData);
-            ReservedInstanceAggregate riAggregate = new ReservedInstanceAggregate(riData, topology);
-            riAggregates.putIfAbsent(riAggregate.getRiKey(), riAggregate);
-            riAggregate = riAggregates.get(riAggregate.getRiKey());
-            riAggregate.addConstituentRi(riData);
-            success = true;
+            if (riData.isValid(topology)) {
+                riDataMap.put(riData.getReservedInstanceBought().getId(), riData);
+                ReservedInstanceAggregate riAggregate = new ReservedInstanceAggregate(riData, topology);
+                riAggregates.putIfAbsent(riAggregate.getRiKey(), riAggregate);
+                riAggregate = riAggregates.get(riAggregate.getRiKey());
+                riAggregate.addConstituentRi(riData);
+                success = true;
+            }
         }
         return success;
     }

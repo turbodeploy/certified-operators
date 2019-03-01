@@ -1,10 +1,12 @@
 package com.vmturbo.market.topology.conversions;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -19,6 +21,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -39,24 +42,23 @@ public class ReservedInstanceAggregatorTest {
     private static final long TIER_1 = 50;
     private static final String FAMILY_1 = "LINUX";
 
-    Map<Long, TopologyEntityDTO> topology = mock(Map.class);
+    private final Map<Long, TopologyEntityDTO> topology = mock(Map.class);
+    private final ReservedInstanceBought riBought1 = ReservedInstanceBought.newBuilder().setId(10)
+        .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder().setAvailabilityZoneId(ZONE_1)
+            .setBusinessAccountId(ACCOUNT_1)
+            .setNumBought(10)
+            .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder().setNumberOfCoupons(100)
+                .setNumberOfCouponsUsed(70).build()).build()).build();
+    private final ReservedInstanceSpec riSpec1 = ReservedInstanceSpec.newBuilder().setId(11)
+        .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setOs(OS_1)
+            .setRegionId(REGION_1)
+            .setTenancy(TENANCY_1)
+            .setTierId(TIER_1).build()).build();
+    private final ReservedInstanceData riData1 = new ReservedInstanceData(riBought1, riSpec1);
+    private final ReservedInstanceData riData2 = new ReservedInstanceData(riBought1, riSpec1);
 
     @Test
     public void testReservedInstanceKey() {
-        ReservedInstanceBought riBought1 = ReservedInstanceBought.newBuilder().setId(10)
-                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder().setAvailabilityZoneId(ZONE_1)
-                        .setBusinessAccountId(ACCOUNT_1)
-                        .setNumBought(10)
-                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder().setNumberOfCoupons(100)
-                                .setNumberOfCouponsUsed(70).build()).build()).build();
-        ReservedInstanceSpec riSpec1 = ReservedInstanceSpec.newBuilder().setId(11)
-                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setOs(OS_1)
-                        .setRegionId(REGION_1)
-                        .setTenancy(TENANCY_1)
-                        .setTierId(TIER_1).build()).build();
-        ReservedInstanceData riData1 = new ReservedInstanceData(riBought1, riSpec1);
-        ReservedInstanceData riData2 = new ReservedInstanceData(riBought1, riSpec1);
-
         ReservedInstanceBought riBought2 = ReservedInstanceBought.newBuilder().setId(10)
                 .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder().setAvailabilityZoneId(ZONE_1)
                         .setBusinessAccountId(ACCOUNT_1)
@@ -105,4 +107,27 @@ public class ReservedInstanceAggregatorTest {
         assertFalse(riMarketTier1.equals(riMarketTier3));
     }
 
+    /**
+     * If tierId_ of riSpec of riData is not in topology, then do nothing for this riData
+     * Related bug: OM-43481
+     */
+    @Test
+    public void testAggregateRis() {
+        CloudCostData ccd = mock(CloudCostData.class);
+        when(ccd.getAllRiBought()).thenReturn(Arrays.asList(riData1));
+        ReservedInstanceAggregator ria = new ReservedInstanceAggregator(ccd, topology);
+        assertFalse(ria.aggregateRis());
+        assertEquals(0, ria.riAggregates.size());
+
+        when(topology.get(TIER_1)).thenReturn(
+            TopologyEntityDTO.newBuilder().setOid(TIER_1)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
+                    ComputeTierInfo.newBuilder().setFamily(FAMILY_1)
+                        .build())
+                    .build())
+                .build());
+        assertTrue(ria.aggregateRis());
+        assertEquals(1, ria.riAggregates.size());
+    }
 }

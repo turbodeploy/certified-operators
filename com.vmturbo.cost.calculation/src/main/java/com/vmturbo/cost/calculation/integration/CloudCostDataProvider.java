@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * An interface provided by the users of the cost calculation library to get the
@@ -147,6 +148,19 @@ public interface CloudCostDataProvider {
         @Nonnull
         public ReservedInstanceSpec getReservedInstanceSpec() {
             return reservedInstanceSpec;
+        }
+
+        /**
+         * Check if riData is valid.
+         * There are 2 situations when riData might be invalid:
+         * 1. when cost probe is sending the data even though there is no cloud target
+         * 2. when you have cloud target but in the initial rounds the reserved instances
+         *    are discovered before the topology entities
+         * @param topology the topology
+         * @return true, if tierId_ of riSpec of riData is in the topology. false, if not.
+         */
+        public boolean isValid(@Nonnull Map<Long, TopologyEntityDTO> topology) {
+            return topology.get(reservedInstanceSpec.getReservedInstanceSpecInfo().getTierId()) != null;
         }
     }
 
