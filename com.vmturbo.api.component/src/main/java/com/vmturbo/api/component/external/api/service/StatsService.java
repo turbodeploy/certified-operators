@@ -1007,7 +1007,7 @@ public class StatsService implements IStatsService {
                 final String uuid = String.valueOf(group.getId());
                 statsDTO.setUuid(String.valueOf(uuid));
                 statsDTO.setClassName(GroupMapper.CLUSTER);
-                statsDTO.setDisplayName(group.getCluster().getName());
+                statsDTO.setDisplayName(group.getCluster().getDisplayName());
                 statsDTO.setStats(new ArrayList<>());
 
                 // Call Stats service to retrieve cluster related stats.

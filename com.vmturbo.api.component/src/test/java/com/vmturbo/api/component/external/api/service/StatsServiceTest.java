@@ -1277,7 +1277,7 @@ public class StatsServiceTest {
         assertThat(response.getRawResults().size(), is(1));
         final EntityStatsApiDTO clusterStats = response.getRawResults().get(0);
         assertThat(clusterStats.getUuid(), is("7"));
-        assertThat(clusterStats.getDisplayName(), is(clusterInfo.getName()));
+        assertThat(clusterStats.getDisplayName(), is(clusterInfo.getDisplayName()));
         assertThat(clusterStats.getStats(), containsInAnyOrder(apiSnapshot));
         assertThat(clusterStats.getClassName(), is(GroupMapper.CLUSTER));
     }
