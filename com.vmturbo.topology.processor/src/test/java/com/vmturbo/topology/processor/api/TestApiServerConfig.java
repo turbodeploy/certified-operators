@@ -237,7 +237,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
                 remoteMediation(), topologyProcessorNotificationSender(),
                 entityRepository(), groupRecorder(), workflowRecorder(), cloudCostUploadRecorder(),
                 discoveredTemplatesUploader(), controllableDao(), derivedTargetParser(),
-                groupScopeResolver(),1L, 1L, 1L);
+                groupScopeResolver(),1L, 1L, 1L,
+                5, 1, 1);
     }
 
     @Bean

@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.common.protobuf.topology.SchedulerREST;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
@@ -56,7 +58,9 @@ public class SchedulerConfig {
             topologyConfig.topologyHandler(),
             kvConfig.keyValueStore(),
             stitchingConfig.stitchingJournalFactory(),
-            Executors.newSingleThreadScheduledExecutor(),
+            Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("target-operations-scheduler")
+                            .build()),
             topologyBroadcastIntervalMinutes
         );
     }

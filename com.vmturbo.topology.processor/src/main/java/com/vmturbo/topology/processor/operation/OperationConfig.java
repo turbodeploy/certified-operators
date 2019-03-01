@@ -80,24 +80,36 @@ public class OperationConfig {
     @Value("${actionTimeoutSeconds}")
     private long actionTimeoutSeconds;
 
+    @Value("${maxConcurrentTargetDiscoveriesPerProbeCount}")
+    private int maxConcurrentTargetDiscoveriesPerProbeCount;
+
+    @Value("${probeDiscoveryPermitWaitTimeoutMins}")
+    private int probeDiscoveryPermitWaitTimeoutMins;
+
+    @Value("${probeDiscoveryPermitWaitTimeoutIntervalMins}")
+    private int probeDiscoveryPermitWaitTimeoutIntervalMins;
+
     @Bean
     public IOperationManager operationManager() {
         return new OperationManager(identityProviderConfig.identityProvider(),
-            targetConfig.targetStore(),
-            probeConfig.probeStore(),
-            sdkServerConfig.remoteMediation(),
-            apiConfig.topologyProcessorNotificationSender(),
-            entityConfig.entityStore(),
-            groupConfig.discoveredGroupUploader(),
-            workflowConfig.discoveredWorkflowUploader(),
-            cloudCostUploaderConfig.discoveredCloudCostUploader(),
-            discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
-            controllableConfig.entityActionDaoImp(),
-            targetConfig.derivedTargetParser(),
-            targetConfig.groupScopeResolver(),
-            discoveryTimeoutSeconds,
-            validationTimeoutSeconds,
-            actionTimeoutSeconds
+                targetConfig.targetStore(),
+                probeConfig.probeStore(),
+                sdkServerConfig.remoteMediation(),
+                apiConfig.topologyProcessorNotificationSender(),
+                entityConfig.entityStore(),
+                groupConfig.discoveredGroupUploader(),
+                workflowConfig.discoveredWorkflowUploader(),
+                cloudCostUploaderConfig.discoveredCloudCostUploader(),
+                discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
+                controllableConfig.entityActionDaoImp(),
+                targetConfig.derivedTargetParser(),
+                targetConfig.groupScopeResolver(),
+                discoveryTimeoutSeconds,
+                validationTimeoutSeconds,
+                actionTimeoutSeconds,
+                maxConcurrentTargetDiscoveriesPerProbeCount,
+                probeDiscoveryPermitWaitTimeoutMins,
+                probeDiscoveryPermitWaitTimeoutIntervalMins
         );
     }
 }

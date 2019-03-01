@@ -165,7 +165,8 @@ public class OperationManagerTest {
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
                 mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
                 discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
-                entityActionDao, derivedTargetParser, groupScopeResolver, 10, 10, 10);
+                entityActionDao, derivedTargetParser, groupScopeResolver, 10, 10, 10,
+                5, 1, 1);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 

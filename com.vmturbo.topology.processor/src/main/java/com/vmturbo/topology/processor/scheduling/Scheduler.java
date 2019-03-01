@@ -465,7 +465,7 @@ public class Scheduler implements TargetStoreListener {
         final TargetDiscoverySchedule discoveryTask =
             new TargetDiscoverySchedule(scheduledTask, targetId, discoveryIntervalMillis, synchedToBroadcastSchedule);
         discoveryTasks.put(targetId, discoveryTask);
-        logger.info("Set " + discoveryTask);
+        logger.info("Set {}", discoveryTask);
 
         return discoveryTask;
     }

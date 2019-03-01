@@ -4,11 +4,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -22,6 +24,7 @@ import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -104,6 +107,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     // Mapping from TargetID -> Completed Validation Operation
     private final ConcurrentMap<Long, Validation> lastCompletedTargetValidations = new ConcurrentHashMap<>();
 
+    // Control number of concurrent target discoveries per probe.
+    // Mapping from ProbeId -> Semaphore
+    private final ConcurrentMap<Long, Semaphore> probeOperationPermits =
+            new ConcurrentHashMap<>();
+
     /**
      * A set of targets for which there are pending discoveries.
      * When a discovery completes, if a pending discovery exists for the target,
@@ -144,7 +152,22 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final long actionTimeoutMs;
 
-    private final ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
+    /**
+     *  Executor service for handling async responses from the probe.
+     */
+    private final ExecutorService resultExecutor =
+            Executors.newSingleThreadExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("result-handler")
+                            .build());
+    /**
+     *  Executor service for sending async requests to the probe.
+     *  This executor is only used for activating pending discoveries not for
+     *  the discoveries triggered via the Scheduler.
+     */
+    private final ExecutorService discoveryExecutor =
+            Executors.newSingleThreadExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("start-discovery")
+                            .build());
 
     private final EntityActionDao entityActionDao;
 
@@ -169,6 +192,22 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private DiscoveredCloudCostUploader discoveredCloudCostUploader;
 
+    private final int maxConcurrentTargetDiscoveriesPerProbeCount;
+
+    private final Random random = new Random();
+
+    /**
+     * Timeout for acquiring the permit for running a discovering operation
+     * on a target.
+     */
+    private final int probeDiscoveryPermitWaitTimeoutMins;
+
+    /**
+     * Total Permit timeout = probeDiscoveryPermitWaitTimeoutMins +
+     *      rand(0, probeDiscoveryPermitWaitTimeoutIntervalMins)
+     */
+    private final int probeDiscoveryPermitWaitTimeoutIntervalMins;
+
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore,
@@ -184,7 +223,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final GroupScopeResolver groupScopeResolver,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
-                            final long actionTimeoutSeconds) {
+                            final long actionTimeoutSeconds,
+                            final int maxConcurrentTargetDiscoveriesPerProbeCount,
+                            final int probeDiscoveryPermitWaitTimeoutMins,
+                            final int probeDiscoveryPermitWaitTimeoutIntervalMins) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -200,8 +242,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
         this.actionTimeoutMs = TimeUnit.MILLISECONDS.convert(actionTimeoutSeconds, TimeUnit.SECONDS);
-
+        this.maxConcurrentTargetDiscoveriesPerProbeCount = maxConcurrentTargetDiscoveriesPerProbeCount;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
+        this.probeDiscoveryPermitWaitTimeoutMins = probeDiscoveryPermitWaitTimeoutMins;
+        this.probeDiscoveryPermitWaitTimeoutIntervalMins = probeDiscoveryPermitWaitTimeoutIntervalMins;
 
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
@@ -418,41 +462,85 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public synchronized Discovery startDiscovery(final long targetId)
             throws TargetNotFoundException, ProbeException, CommunicationException, InterruptedException {
+
         final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
         if (currentDiscovery.isPresent()) {
             return currentDiscovery.get();
         }
 
-        final Target target = targetStore.getTarget(targetId)
-                .orElseThrow(() -> new TargetNotFoundException(targetId));
+            final Target target = targetStore.getTarget(targetId)
+                    .orElseThrow(() -> new TargetNotFoundException(targetId));
 
-        final String probeType = probeStore.getProbe(target.getProbeId())
-                .map(ProbeInfo::getProbeType)
-                .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
-                        + " corresponding to target " + targetId + " is not registered"));
+            final String probeType = probeStore.getProbe(target.getProbeId())
+                    .map(ProbeInfo::getProbeType)
+                    .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
+                            + " corresponding to target " + targetId + " is not registered"));
 
-        final Discovery discovery = new Discovery(target.getProbeId(),
-                target.getId(), identityProvider);
+            try {
+                // If the probe has not yet registered, the semaphore won't be initialized.
+                Optional<Semaphore> semaphore =
+                        Optional.ofNullable(probeOperationPermits.get(target.getProbeId()));
+                logger.debug("Number of permits before acquire: {}, queueLength: {}",
+                        () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                        () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
 
-        final DiscoveryRequest discoveryRequest = DiscoveryRequest.newBuilder()
-                .setProbeType(probeType)
-                .setDiscoveryType(DiscoveryType.FULL)
-                .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver)).build();
+                if (semaphore.isPresent()) {
+                    // Threads will be blocked if there are not enough permits.
+                    // If due to some bug, the permits are never released, there will be a deadlock and
+                    // any new discoveries will be blocked. To get out of such situations, we add a safety
+                    // measure of timing out the acquisition of the semaphore. After the timeout, there
+                    // will be an implicit release. We add a random delay to prevent thundering herd
+                    // effect.
+                    // Acquire timeout doesn't necessarily mean that there is a deadlock. It can also be
+                    // the case that all the concurrent requests didn't finish within the timeout. But
+                    // since this case is less likely, it is ok to assume that the acquire timeout is
+                    // due to a deadlock.
+                    final long waitTimeout = probeDiscoveryPermitWaitTimeoutMins +
+                            random.nextInt(probeDiscoveryPermitWaitTimeoutIntervalMins);
+                    logger.debug("Set permit acquire timeout to: {} for targetId: {}",
+                            waitTimeout, target.getId());
+                    boolean gotPermit = semaphore.get().tryAcquire(1, waitTimeout, TimeUnit.MINUTES);
+                    if (!gotPermit) {
+                        logger.warn("Permit acquire timeout of: {} {} exceeded for targetId: {}." +
+                                        " Continuing with discovery", target.getProbeId(), waitTimeout,
+                                TimeUnit.MINUTES, target.getId());
+                    }
+                }
+                logger.debug("Number of permits after acquire: {}, queueLength: {}",
+                        () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                        () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
 
-        final DiscoveryMessageHandler discoveryMessageHandler =
-                new DiscoveryMessageHandler(this,
-                        discovery,
-                        remoteMediationServer.getMessageHandlerExpirationClock(),
-                        discoveryTimeoutMs);
+                final Discovery discovery = new Discovery(target.getProbeId(),
+                        target.getId(), identityProvider);
 
-        remoteMediationServer.sendDiscoveryRequest(target.getProbeId(),
-                discoveryRequest,
-                discoveryMessageHandler);
+                final DiscoveryRequest discoveryRequest = DiscoveryRequest.newBuilder()
+                        .setProbeType(probeType)
+                        .setDiscoveryType(DiscoveryType.FULL)
+                        .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
+                        .build();
 
-        operationStart(discovery);
-        currentTargetDiscoveries.put(targetId, discovery);
-        logger.info("Beginning {}", discovery);
-        return discovery;
+                final DiscoveryMessageHandler discoveryMessageHandler =
+                        new DiscoveryMessageHandler(this,
+                                discovery,
+                                remoteMediationServer.getMessageHandlerExpirationClock(),
+                                discoveryTimeoutMs);
+
+                remoteMediationServer.sendDiscoveryRequest(target.getProbeId(),
+                        discoveryRequest,
+                        discoveryMessageHandler);
+
+                operationStart(discovery);
+                currentTargetDiscoveries.put(targetId, discovery);
+                logger.info("Beginning {}", discovery);
+                return discovery;
+            } catch (Exception ex) {
+                Semaphore semaphore = probeOperationPermits.get(target.getProbeId());
+                if (semaphore != null) {
+                    logger.warn("Releasing permit on exception: {}", ex.toString());
+                    semaphore.release();
+                }
+                throw ex;
+            }
     }
 
     @Override
@@ -667,12 +755,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public void onProbeRegistered(long probeId, ProbeInfo probe) {
         logger.info("Registration of probe {}", probeId);
-        resultExecutor.execute(() ->
-                targetStore.getProbeTargets(probeId).stream()
-                    .map(Target::getId)
-                    .filter(this::hasPendingDiscovery)
-                    .forEach(this::activatePendingDiscovery)
-        );
+        probeOperationPermits.computeIfAbsent(probeId,
+                k -> new Semaphore(maxConcurrentTargetDiscoveriesPerProbeCount, true /*fair*/));
+        logger.info("Setting number of permits for probe: {} to: {}",
+                probeId, probeOperationPermits.get(probeId).availablePermits());
+        targetStore.getProbeTargets(probeId).stream()
+            .map(Target::getId)
+            .filter(this::hasPendingDiscovery)
+            .forEach(this::activatePendingDiscovery);
     }
 
     /**
@@ -748,9 +838,21 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // 100 mb of json), so I'm splitting this into two messages, a debug and trace version so
         // you don't get large response dumps by accident. Maybe we should have a toggle that
         // controls whether the actual response is logged instead.
-        logger.debug("Received discovery result from target {}: {} bytes", targetId, response.getSerializedSize());
+        logger.debug("Received discovery result from target {}: {} bytes",
+                targetId, response.getSerializedSize());
         logger.trace("Discovery result from target {}: {}", targetId, response);
 
+        Optional<Semaphore> semaphore =
+                Optional.ofNullable(probeOperationPermits.get(discovery.getProbeId()));
+        logger.debug("Number of permits before release: {}, queueLength: {}",
+                () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
+
+        semaphore.ifPresent(Semaphore::release);
+
+        logger.debug("Number of permits after release: {}, queueLength: {}",
+                () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
         try {
             if (success) {
                 // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
@@ -803,12 +905,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private void activatePendingDiscovery(long targetId) {
         if (pendingDiscoveries.remove(targetId)) {
-            try {
-                logger.info("Activating pending discovery for {}", targetId);
-                startDiscovery(targetId);
-            } catch (Exception e) {
-                logger.error("Failed to activate discovery for {}", targetId, e);
-            }
+            logger.info("Activating pending discovery for {}", targetId);
+            // Execute the discovery in the background.
+            discoveryExecutor.execute(() -> {
+                try {
+                    startDiscovery(targetId);
+                } catch (Exception e) {
+                    logger.error("Failed to activate discovery for {}", targetId, e);
+                }
+            });
         }
     }
 
@@ -876,8 +981,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     /**
      * Insert move and activate actions into ENTITY_ACTION table in topology processor component.
-     * The ENTITY_ACTION table is used in {@link ControllableManager} to decide the suspendable and
-     * controllable flags on {@link TopologyEntityDTO}.
+     * The ENTITY_ACTION table is used in {@link com.vmturbo.topology.processor.controllable.ControllableManager}
+     * to decide the suspendable and controllable flags on
+     * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}.
      */
     private void insertControllableAndSuspendableState(final long actionId,
                                          @Nonnull final ActionItemDTO.ActionType actionType,

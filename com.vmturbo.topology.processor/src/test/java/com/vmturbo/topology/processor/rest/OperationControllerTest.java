@@ -219,8 +219,8 @@ public class OperationControllerTest {
                 controllableDao(),
                 derivedTargetParser(),
                 groupScopeResolver(),
-                10, 10, 10
-            );
+                10, 10, 10,
+                    5, 1, 1);
         }
 
         @Bean
