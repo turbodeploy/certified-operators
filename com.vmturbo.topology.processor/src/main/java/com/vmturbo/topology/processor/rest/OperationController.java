@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,7 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationRespons
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.Operation;
+import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -48,6 +51,8 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 @RequestMapping(value = "/target")
 @RestController
 public class OperationController {
+
+    private final Logger logger = LogManager.getLogger();
 
     private final IOperationManager operationManager;
 
@@ -228,6 +233,7 @@ public class OperationController {
     @Nonnull
     private ResponseEntity<OperationResponse> performDiscovery(final long targetId) {
         try {
+            logger.debug("PerformDiscovery for target {}", targetId);
             if (!operationManager.getInProgressDiscoveryForTarget(targetId).isPresent()) {
                 scheduler.resetDiscoverySchedule(targetId);
             }

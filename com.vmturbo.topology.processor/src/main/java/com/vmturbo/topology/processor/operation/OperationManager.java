@@ -460,13 +460,37 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      */
     @Nonnull
     @Override
-    public synchronized Discovery startDiscovery(final long targetId)
+    public Discovery startDiscovery(final long targetId)
             throws TargetNotFoundException, ProbeException, CommunicationException, InterruptedException {
 
-        final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
-        if (currentDiscovery.isPresent()) {
-            return currentDiscovery.get();
-        }
+        // Discoveries are triggered 3 ways:
+        //  a) Through the scheduler at scheduled intervals
+        //  b) Initiated by the user from the UI/API.
+        //  c) When the probe registers, it activates any pending discoveries.
+        //
+        // (a) and (b) directly call startDiscovery. (c) calls startDiscovery
+        // via the discoveryExecutor.
+        //
+        // We use permits to control the number of concurrent target discoveries in-order
+        // to limit the resource usage(specially memory) on the probe.
+        //
+        // The concurrency should be based on the resource i.e. the actual
+        // process manifestation of the probe(e.g. whether probe is running
+        // inside a container or a vm or as a regular OS process). Until we have the
+        // resourceIdentity concept, we will keep using the probeId as the level of concurrency.
+
+        final Discovery discovery;
+        final long probeId;
+        final DiscoveryRequest discoveryRequest;
+        final DiscoveryMessageHandler discoveryMessageHandler;
+
+        synchronized (this) {
+            logger.info("Starting discovery for target: {}", targetId);
+            final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
+            if (currentDiscovery.isPresent()) {
+                logger.info("Returning existing discovery for target: {}", targetId);
+                return currentDiscovery.get();
+            }
 
             final Target target = targetStore.getTarget(targetId)
                     .orElseThrow(() -> new TargetNotFoundException(targetId));
@@ -476,71 +500,91 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
                             + " corresponding to target " + targetId + " is not registered"));
 
+
+            probeId = target.getProbeId();
+            discovery = new Discovery(probeId, target.getId(), identityProvider);
+
+            discoveryRequest = DiscoveryRequest.newBuilder()
+                    .setProbeType(probeType)
+                    .setDiscoveryType(DiscoveryType.FULL)
+                    .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
+                    .build();
+
+            discoveryMessageHandler =
+                    new DiscoveryMessageHandler(this,
+                            discovery,
+                            remoteMediationServer.getMessageHandlerExpirationClock(),
+                            discoveryTimeoutMs);
+        }
+
+        // If the probe has not yet registered, the semaphore won't be initialized.
+        Optional<Semaphore> semaphore =
+                Optional.ofNullable(probeOperationPermits.get(probeId));
+
+        logger.info("Number of permits before acquire: {}, queueLength: {} by targetId: {}",
+                () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                () -> targetId);
+
+        if (semaphore.isPresent()) {
+            // Threads will be blocked if there are not enough permits.
+            // If due to some bug, the permits are never released, there will be a deadlock and
+            // any new discoveries will be blocked. To get out of such situations, we add a safety
+            // measure of timing out the acquisition of the semaphore. After the timeout, there
+            // will be an implicit release. We add a random delay to prevent thundering herd
+            // effect.
+            // Acquire timeout doesn't necessarily mean that there is a deadlock. It can also be
+            // the case that all the concurrent requests didn't finish within the timeout. But
+            // since this case is less likely, it is ok to assume that the acquire timeout is
+            // due to a deadlock.
+            final long waitTimeout = probeDiscoveryPermitWaitTimeoutMins +
+                    random.nextInt(probeDiscoveryPermitWaitTimeoutIntervalMins);
+            logger.info("Set permit acquire timeout to: {} for targetId: {}",
+                    waitTimeout, targetId);
+            boolean gotPermit = semaphore.get().tryAcquire(1, waitTimeout, TimeUnit.MINUTES);
+            if (!gotPermit) {
+                logger.warn("Permit acquire timeout of: {} {} exceeded for targetId: {}." +
+                                " Continuing with discovery", probeId, waitTimeout,
+                        TimeUnit.MINUTES, targetId);
+            }
+        }
+        logger.info("Number of permits after acquire: {}, queueLength: {} by targetId: {}",
+                () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                () -> targetId);
+
+
+        synchronized (this) {
             try {
-                // If the probe has not yet registered, the semaphore won't be initialized.
-                Optional<Semaphore> semaphore =
-                        Optional.ofNullable(probeOperationPermits.get(target.getProbeId()));
-                logger.debug("Number of permits before acquire: {}, queueLength: {}",
-                        () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-                        () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
-
-                if (semaphore.isPresent()) {
-                    // Threads will be blocked if there are not enough permits.
-                    // If due to some bug, the permits are never released, there will be a deadlock and
-                    // any new discoveries will be blocked. To get out of such situations, we add a safety
-                    // measure of timing out the acquisition of the semaphore. After the timeout, there
-                    // will be an implicit release. We add a random delay to prevent thundering herd
-                    // effect.
-                    // Acquire timeout doesn't necessarily mean that there is a deadlock. It can also be
-                    // the case that all the concurrent requests didn't finish within the timeout. But
-                    // since this case is less likely, it is ok to assume that the acquire timeout is
-                    // due to a deadlock.
-                    final long waitTimeout = probeDiscoveryPermitWaitTimeoutMins +
-                            random.nextInt(probeDiscoveryPermitWaitTimeoutIntervalMins);
-                    logger.debug("Set permit acquire timeout to: {} for targetId: {}",
-                            waitTimeout, target.getId());
-                    boolean gotPermit = semaphore.get().tryAcquire(1, waitTimeout, TimeUnit.MINUTES);
-                    if (!gotPermit) {
-                        logger.warn("Permit acquire timeout of: {} {} exceeded for targetId: {}." +
-                                        " Continuing with discovery", target.getProbeId(), waitTimeout,
-                                TimeUnit.MINUTES, target.getId());
-                    }
+                // check again if there was a discovery triggered for this target by another thread
+                // between the executions of the 1st and the 2nd synchronized blocks.
+                final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId);
+                if (currentDiscovery.isPresent()) {
+                    logger.info("Discovery is progress. Returning existing discovery for target: {}",
+                            targetId);
+                    return currentDiscovery.get();
                 }
-                logger.debug("Number of permits after acquire: {}, queueLength: {}",
-                        () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-                        () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
-
-                final Discovery discovery = new Discovery(target.getProbeId(),
-                        target.getId(), identityProvider);
-
-                final DiscoveryRequest discoveryRequest = DiscoveryRequest.newBuilder()
-                        .setProbeType(probeType)
-                        .setDiscoveryType(DiscoveryType.FULL)
-                        .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
-                        .build();
-
-                final DiscoveryMessageHandler discoveryMessageHandler =
-                        new DiscoveryMessageHandler(this,
-                                discovery,
-                                remoteMediationServer.getMessageHandlerExpirationClock(),
-                                discoveryTimeoutMs);
-
-                remoteMediationServer.sendDiscoveryRequest(target.getProbeId(),
+                remoteMediationServer.sendDiscoveryRequest(probeId,
                         discoveryRequest,
                         discoveryMessageHandler);
-
                 operationStart(discovery);
                 currentTargetDiscoveries.put(targetId, discovery);
-                logger.info("Beginning {}", discovery);
-                return discovery;
             } catch (Exception ex) {
-                Semaphore semaphore = probeOperationPermits.get(target.getProbeId());
-                if (semaphore != null) {
-                    logger.warn("Releasing permit on exception: {}", ex.toString());
-                    semaphore.release();
+                if (semaphore.isPresent()) {
+                    semaphore.get().release();
+                    logger.warn("Releasing permit on exception for targetId: {}" +
+                                    " After release permits: {}, queueLength: {}, exception:{}",
+                            targetId,
+                            semaphore.map(Semaphore::availablePermits).orElse(-1),
+                            semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                            ex.toString());
                 }
                 throw ex;
             }
+        }
+
+        logger.info("Beginning {}", discovery);
+        return discovery;
     }
 
     @Override
@@ -844,15 +888,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         Optional<Semaphore> semaphore =
                 Optional.ofNullable(probeOperationPermits.get(discovery.getProbeId()));
-        logger.debug("Number of permits before release: {}, queueLength: {}",
+        logger.info("Number of permits before release: {}, queueLength: {} by targetId: {}",
                 () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                () -> targetId);
 
         semaphore.ifPresent(Semaphore::release);
 
-        logger.debug("Number of permits after release: {}, queueLength: {}",
+        logger.info("Number of permits after release: {}, queueLength: {} by targetId: {}",
                 () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1));
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                () -> targetId);
         try {
             if (success) {
                 // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
@@ -909,6 +955,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             // Execute the discovery in the background.
             discoveryExecutor.execute(() -> {
                 try {
+                    logger.debug("Trigger startDiscovery for target {}", targetId);
                     startDiscovery(targetId);
                 } catch (Exception e) {
                     logger.error("Failed to activate discovery for {}", targetId, e);
