@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -20,6 +22,6 @@ public class LogicalPoolAspectMapper implements IAspectMapper {
     @Nonnull
     @Override
     public String getAspectName() {
-        return "logicalPoolAspect";
+        return "storageAspect";
     }
 }

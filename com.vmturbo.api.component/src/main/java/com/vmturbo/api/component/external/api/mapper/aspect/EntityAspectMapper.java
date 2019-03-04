@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,8 @@ public class EntityAspectMapper {
                               @Nonnull final PortsAspectMapper portsAspectMapper,
                               @Nonnull final DiskArrayAspectMapper diskArrayAspectMapper,
                               @Nonnull final LogicalPoolAspectMapper logicalPoolAspectMapper,
-                              @Nonnull final DatabaseAspectMapper databaseAspectMapper) {
+                              @Nonnull final DatabaseAspectMapper databaseAspectMapper,
+                              @Nonnull final VirtualDisksAspectMapper virtualDisksAspectMapper) {
 
         ASPECT_MAPPERS = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -56,6 +58,7 @@ public class EntityAspectMapper {
                 physicalMachineAspectMapper))
             .put(EntityType.STORAGE_VALUE, ImmutableList.of(
                 storageAspectMapper,
+                virtualDisksAspectMapper,
                 virtualVolumeAspectMapper,
                 cloudAspectMapper))
             .put(EntityType.STORAGE_TIER_VALUE, ImmutableList.of(
@@ -67,7 +70,7 @@ public class EntityAspectMapper {
             .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableList.of(
                 virtualMachineMapper,
                 cloudAspectMapper,
-                virtualVolumeAspectMapper))
+                virtualDisksAspectMapper))
             .build();
     }
 
