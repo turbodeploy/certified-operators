@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -103,6 +104,47 @@ public class BootstrapSupplyTest {
         assertEquals(pm1, provisionByDemand.getModelSeller());
         Move expect1 = new Move(economy, sl1, pm1, provisionByDemand.getProvisionedSeller());
         assertTrue(expect1.equals(moves.get(0)));
+    }
+
+    /**
+     * Related bug: OM-42701.
+     * Shop together : Create 2 VMs and place them both on PM1 and ST1.
+     * VM1 CPU qty = 80, VM2 CPU qty = 80. PM1 total CPU = 100.
+     * VM1 ST_AMT qty = 100, VM2 ST_AMT qty = 100. ST1 total ST_AMT = 300.
+     * Execute shopTogetherBootstrapForIndividualBuyer for VM2.
+     * Expected result: Provision by supply for SL1 and no compoundMove is generated.
+     */
+    @Test
+    public void test_ShopTogetherBootstrap_ProvisionBySupplyWithPlacedBuyer() {
+        Economy economy = new Economy();
+        // create one pm with smaller capacity
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        // create one storages with adequate capacity
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
+        // create a vm that is requesting higher cpu than any seller in market
+
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{80, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{80, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+
+        economy.populateMarketsWithSellers();
+
+        Map<ShoppingList, Long> slsThatNeedProvBySupply = new HashMap<>();
+        List<Action> bootStrapActionList =
+            BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm2,
+                slsThatNeedProvBySupply);
+
+        assertEquals(0, bootStrapActionList.size());
+        assertEquals(1, slsThatNeedProvBySupply.size());
+        assertSame(sl1, slsThatNeedProvBySupply.keySet().iterator().next());
     }
 
     /**

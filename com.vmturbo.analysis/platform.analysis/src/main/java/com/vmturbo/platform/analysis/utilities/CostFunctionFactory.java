@@ -501,7 +501,8 @@ public class CostFunctionFactory {
         if (sl.getBuyer().getSettings() == null
                         || sl.getBuyer().getSettings().getBalanceAccount() == null
                         || costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId()) == null) {
-            logger.warn("Business account is not found on seller, return infinity quote");
+            logger.warn("Business account is not found on seller: {}, for shopping list: {}, return infinity compute quote",
+                    seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
             return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
         Map<Integer, Double> costByLicense = costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId());
@@ -862,7 +863,9 @@ public class CostFunctionFactory {
             if (sl.getBuyer().getSettings() == null
                     || sl.getBuyer().getSettings().getBalanceAccount() == null
                     || !commodityPrice.getValue().containsKey(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
-                logger.warn("Business account is not found on seller, return infinity quote");
+                logger.warn("Business account is not found for shopping list: {}, return infinity storage quote",
+                        sl.getDebugInfoNeverUseInCode());
+
                 return Double.POSITIVE_INFINITY;
             }
             for (PriceData priceData : commodityPrice.getValue().get(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
