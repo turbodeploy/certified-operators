@@ -363,4 +363,15 @@ public class ActionsService implements IActionsService {
         return statSnapshotApiDTOS;
     }
 
+    /**
+     * Get historical context behind an action
+     * @param action uuid
+     * @return Not Implemented
+     * @throws Exception
+     */
+    @Override
+    public List<StatSnapshotApiDTO> getHistoricalContextByUuid(final String s) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
 }
