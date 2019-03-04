@@ -89,5 +89,7 @@ spec:
   ports:
   - name: rsyslog
     port: 2514
+  - name: rsyslog-http
+    port: 8080
   selector:
     io.kompose.service: rsyslog
