@@ -94,7 +94,8 @@ public class Resizer {
                            calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
                         CommoditySold rawMaterial = findSellerCommodity(economy, seller, soldIndex);
                         double newEffectiveCapacity = calculateEffectiveCapacity(seller,
-                            basketSold.get(soldIndex), desiredCapacity,commoditySold, rawMaterial, rateOfResize);
+                            basketSold.get(soldIndex), desiredCapacity, commoditySold, rawMaterial,
+                            rateOfResize);
                         if (Double.compare(newEffectiveCapacity,
                                            commoditySold.getEffectiveCapacity()) != 0) {
                             double oldCapacity = commoditySold.getCapacity();
