@@ -19,6 +19,6 @@ public class StorageTierAspectMapper implements IAspectMapper {
 
     @Override
     public @Nonnull String getAspectName() {
-        return "storageAspect";
+        return "storageTierAspect";
     }
 }
