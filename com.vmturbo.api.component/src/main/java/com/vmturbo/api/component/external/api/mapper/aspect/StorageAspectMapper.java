@@ -1,11 +1,14 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+import com.google.protobuf.ProtocolStringList;
+
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
@@ -22,13 +25,11 @@ public class StorageAspectMapper implements IAspectMapper {
             return null;
         }
         final StorageInfo storageInfo = entity.getTypeSpecificInfo().getStorage();
-        // external names contains duplicate, we need to filter them out
-        final Set<String> externalNames = storageInfo.getExternalNameList().stream()
-            .collect(Collectors.toSet());
-        if (!externalNames.isEmpty()) {
-            aspect.setExternalNames(externalNames.stream().collect(Collectors.toList()));
+        final List<String> externalNameList = storageInfo.getExternalNameList();
+        if (!externalNameList.isEmpty()) {
+            aspect.setExternalNames(externalNameList);
         }
-
+        // TODO: populate the other fields
         return aspect;
     }
 

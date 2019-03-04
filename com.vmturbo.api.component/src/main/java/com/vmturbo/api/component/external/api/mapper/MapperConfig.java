@@ -22,6 +22,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.PhysicalMachineAspec
 import com.vmturbo.api.component.external.api.mapper.aspect.PortsAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualDisksAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
@@ -174,6 +175,11 @@ public class MapperConfig {
     }
 
     @Bean
+    public VirtualDisksAspectMapper virtualDisksAspectMapper() {
+        return new VirtualDisksAspectMapper();
+    }
+
+    @Bean
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
         return new VirtualVolumeAspectMapper(communicationConfig.searchServiceBlockingStub(),
             communicationConfig.costServiceBlockingStub());
@@ -220,7 +226,7 @@ public class MapperConfig {
         return new EntityAspectMapper(storageTierAspectMapper(), virtualVolumeAspectMapper(),
                 cloudAspectMapper(), virtualMachineMapper(), physicalMachineAspectMapper(),
                 storageAspectMapper(), portsAspectMapper(), diskArrayAspectMapper(),
-            logicalPoolAspectMapper(), databaseAspectMapper());
+            logicalPoolAspectMapper(), databaseAspectMapper(), virtualDisksAspectMapper());
     }
 
     @Bean
