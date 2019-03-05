@@ -16,10 +16,10 @@ public class ProvisionUtils {
     /**
      * check if the modelSeller has enough capacity for every commodity bought by a trader.
      *
-     * @param buyerShoppingList is the {@Link shoppingList} of the buyer
-     * @param modelSeller is the {@Link Trader} that we will be checking to see if there is enough
+     * @param buyerShoppingList is the {@link ShoppingList} of the buyer
+     * @param modelSeller is the {@link Trader} that we will be checking to see if there is enough
      *                    capacity for all the commodities listed in the modelBuyer
-     * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
+     * @param economy the {@link Economy} that contains the unplaced {@link Trader}
      *
      * @return TRUE if the buyer fits in this modelSeller, FALSE otherwise
      */

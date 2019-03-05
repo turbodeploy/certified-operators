@@ -62,7 +62,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the minimal capacity limit of commodity
-         * @return
          */
         public double getMinCapacity() {
             return minCapacity_;
@@ -70,7 +69,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the maximal capacity limit of commodity
-         * @return
          */
         public double getMaxCapacity() {
             return maxCapacity_;
@@ -96,7 +94,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the base commodity in the dependency pair
-         * @return
          */
         public CommoditySpecification getBaseCommodity() {
             return baseCommodity_;
@@ -104,7 +101,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the dependent commodity in the dependency pair
-         * @return
          */
         public CommoditySpecification getDependentCommodity() {
             return dependentCommodity_;
@@ -112,7 +108,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the maximal ratio of dependent commodity to base commodity
-         * @return
          */
         public int getMaxRatio() {
             return maxRatio_;
@@ -142,7 +137,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the upper bound limit of commodity
-         * @return
          */
         public double getUpperBound() {
             return upperBound_;
@@ -150,7 +144,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns the price of commodity
-         * @return
          */
         public double getPrice() {
             return price_;
@@ -158,7 +151,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns true if the price is a unit price
-         * @return
          */
         public boolean isUnitPrice() {
             return isUnitPrice_;
@@ -166,7 +158,6 @@ public class CostFunctionFactory {
 
         /**
          * Returns true if the cost should be accumulated
-         * @return
          */
         public boolean isAccumulative() {
             return isAccumulative_;
@@ -221,7 +212,7 @@ public class CostFunctionFactory {
                                     priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost());
                     priceDataList.add(newEntry);
                 }
-                // make sure list is ascending based on upperbound, because we need to get the
+                // make sure list is ascending based on upper bound, because we need to get the
                 // first resource range that can satisfy the requested amount, and the price
                 // corresponds to that range will be used as price
                 Collections.sort(priceDataList);
@@ -817,7 +808,7 @@ public class CostFunctionFactory {
                     }
 
                 }
-                // make sure price list is ascending based on upperbound, because we need to get the
+                // make sure price list is ascending based on upper bound, because we need to get the
                 // first resource range that can satisfy the requested amount, and the price
                 // corresponds to that range will be used as price
                 priceDataPerBusinessAccount.values().stream().forEach(list -> Collections.sort(list));
@@ -869,11 +860,11 @@ public class CostFunctionFactory {
                 return Double.POSITIVE_INFINITY;
             }
             for (PriceData priceData : commodityPrice.getValue().get(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
-                // the list of priceData is sorted based on upperbound
+                // the list of priceData is sorted based on upper bound
                 double currentUpperBound = priceData.getUpperBound();
                 if (priceData.isAccumulative()) {
                     // if the price is accumulative, we need to sum up all the cost where
-                    // requested amount is more than upperbound till we find the exact range
+                    // requested amount is more than upper bound till we find the exact range
                     cost += (priceData.isUnitPrice()
                                     ? priceData.getPrice() * Math.min(
                                                                       currentUpperBound - previousUpperBound,

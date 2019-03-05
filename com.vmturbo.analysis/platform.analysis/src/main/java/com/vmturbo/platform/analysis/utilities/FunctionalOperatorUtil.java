@@ -243,7 +243,7 @@ public class FunctionalOperatorUtil {
                     -> new double[]{Math.max(0, commSold.getQuantity() - buyer.getQuantities()[boughtIndex]),
                                     Math.max(0, commSold.getPeakQuantity() - buyer.getPeakQuantities()[boughtIndex])};
 
-    // Return commSoverhead (template-cost) when taking the action and
+    // Return commS overhead (template-cost) when taking the action and
     // (spent - oldTemplateCost + newTemplateCost) when not taking the action
     public static FunctionalOperator UPDATE_EXPENSES = (buyer, boughtIndex, commSold, seller,
                         economy, take, overhead)

@@ -86,7 +86,7 @@ public class Provision {
      * @param economy - the economy whose traders we want to clone if profitable while remaining
      *                  in the desired state
      * @param ledger - the class that contains exp/rev about all the traders and commodities in
-     *                  the ecomomy
+     *                  the economy
      * @param ede - the Economic decision engine
      *
      * @return list of provision and move actions

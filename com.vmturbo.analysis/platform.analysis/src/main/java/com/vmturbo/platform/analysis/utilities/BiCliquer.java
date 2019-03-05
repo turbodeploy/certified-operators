@@ -156,7 +156,7 @@ public class BiCliquer {
      * Add an edge between nodes {@code nid1} and {@code nid2} in the underlying graph.
      * @param nid1 ID of TYPE1 node
      * @param nid2 ID of TYPE2 node
-     * @throws IllegalStateException when invoked after the biclqiues were computed
+     * @throws IllegalStateException when invoked after the bicliques were computed
      * @see #compute
      */
     public void edge(String nid1, String nid2) {
@@ -167,10 +167,10 @@ public class BiCliquer {
     }
 
     /**
-     * Get the biclque keys that a node is associated with.
+     * Get the biclique keys that a node is associated with.
      * @param nid ID of a node (either TYPE1 or TYPE2)
      * @return an unmodifiable set of biclique keys
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public Set<String> getBcKeys(String nid) {
         if (!computed) {
@@ -188,7 +188,7 @@ public class BiCliquer {
      * @param nid2 ID of the other node (either TYPE2 or TYPE1)
      * @return a biclique key, which is the correct prefix prepended by biclique ID
      * (only expected if the two nodes are not connected in the underlying graph)..
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      * @see #getBcID(String, String)
      */
     public String getBcKey(String nid1, String nid2) {
@@ -214,7 +214,7 @@ public class BiCliquer {
      * that is connected to the node.
      * @param nid ID of a node
      * @return an unmodifiable set of biclique numbers
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     @Nonnull
     public Set<Long> getBcIDs(String nid) {
@@ -231,7 +231,7 @@ public class BiCliquer {
      * @param nid2 ID of the other node (either TYPE2 or TYPE1)
      * @return a biclique number, or -1 if there is no biclique that covers the edge between the two nodes
      * (only expected if the two nodes are not connected in the underlying graph)..
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public long getBcID(String nid1, String nid2) {
         if (!computed) {
@@ -252,7 +252,7 @@ public class BiCliquer {
 
     /**
      * @return the number of bicliques
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public int size() {
         if (!computed) {
@@ -263,7 +263,7 @@ public class BiCliquer {
 
     /**
      * @return an unmodifiable view of the bicliques
-     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @throws IllegalStateException when invoked before the bicliques were computed
      */
     public Map<Set<String>, Set<String>> getBicliques() {
         if (!computed) {

@@ -67,7 +67,7 @@ public final class LegacyTopology {
      * @param commodityTypesSold A collection of human-readable commodity type strings from which
      *                           the basket sold of the trader will be created. They will be
      *                           allocated to numerical IDs in the order they are returned by the
-     *                           collecion's iterator.
+     *                           collection's iterator.
      * @return The new trader.
      *
      * @see Economy#addTrader(int, TraderState, Basket, Basket...)
