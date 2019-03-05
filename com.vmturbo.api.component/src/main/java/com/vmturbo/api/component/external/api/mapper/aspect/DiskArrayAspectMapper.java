@@ -33,6 +33,6 @@ public class DiskArrayAspectMapper implements IAspectMapper {
     @Nonnull
     @Override
     public String getAspectName() {
-        return "storageAspect";
+        return "diskArrayAspect";
     }
 }
