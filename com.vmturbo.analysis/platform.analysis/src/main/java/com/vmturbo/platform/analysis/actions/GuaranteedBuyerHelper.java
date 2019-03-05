@@ -59,7 +59,7 @@ public final class GuaranteedBuyerHelper {
             Set<ShoppingList> slsNeedsUpdate = new HashSet<>();
             slsNeedsUpdate.addAll(slsSponsoredByGuaranteedBuyer.get(guaranteedBuyer));
             // we assume the basket sold by the new clone is not changed, thus new sl between
-            // guaranteedbuyer and the new clone will shop in an existing market
+            // guaranteedBuyer and the new clone will shop in an existing market
             Basket newBasket = sl.getBasket();
             ShoppingList newSl = economy.addBasketBought(guaranteedBuyer, newBasket,
                     reuseShoppingList? sl : null);
@@ -211,7 +211,7 @@ public final class GuaranteedBuyerHelper {
     }
 
     /**
-     * Auxillary data-structure containing information needed to update shoppingLists
+     * Auxiliary data-structure containing information needed to update shoppingLists
      * that are to be sold by new clones and bought by guaranteedBuyers
     */
     public static class BuyerInfo {

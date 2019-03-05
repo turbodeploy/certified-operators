@@ -104,4 +104,4 @@ public class PrimaryClient {
         logger.error("Received error: \"" + error + "\" from remote endpoint!");
     }
 
-} // end PrimayClient class
+} // end PrimaryClient class

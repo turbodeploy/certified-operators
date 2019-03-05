@@ -28,7 +28,7 @@ public class AnalysisServerConfig implements AutoCloseable {
      */
     private static final String ANALYSIS_SERVER_PATH = "/server";
 
-    // the thread pool used for analysis server websocket enpoint
+    // the thread pool used for analysis server websocket endpoint
     private final ExecutorService analysisServerThreadPool;
     // create a thread pool to process the message received from M2
     private static int NUM_OF_THREAD = 5;

@@ -182,7 +182,6 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      *  actually executed in the real environment, the quantities will change in that way.
      * </p>
      *
-     * @param basketBought The basket bought by the buyer. It must match shopping list.
      * @param shoppingList The shopping list that will be moved.
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param defaultCombinator A ternary operator (old quantity sold, quantity bought, third parameter)
@@ -231,10 +230,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * </p>
      *
      * @param economy is the {@link UnmodifiableEconomy} where the traders are present
-     * @param defaultCombinator A turnary operator (old quantity sold, quantity bought, third parameter)
+     * @param defaultCombinator A ternary operator (old quantity sold, quantity bought, third parameter)
      *       -> new quantity sold. will be used only if there is no explicitCombinator for the commodity
-     * @param quantityBought amount of a particular commodity that the {@link Trader} shops for from the seller
-     * @param peakQuantityBought peak amount of a particular commodity that the buyer shops for from the seller
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param soldIndex is the index of the soldCommodity
      * @param incoming is a boolean flag that specifies if the trader is moving in(TRUE) or moving out
@@ -290,7 +287,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             double sellerOrigUsed = commoditySold.getQuantity();
             double sellerOrigPeak = commoditySold.getPeakQuantity();
             commoditySold.setQuantity(0).setPeakQuantity(0);
-            // updating the numConsmers of a commodity when the move action is being taken
+            // updating the numConsumers of a commodity when the move action is being taken
             int numConsumers = commoditySold.getNumConsumers();
             if (take) {
                 if (incomingSl) {
@@ -303,7 +300,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
             // TODO: Currently, whenever there is an explicit combinator, we neglect overhead
             // because of the used recomputation we could have explicitCombinators for which we
-            // dont want to neglect overhead. We need to handle these cases.
+            // don't want to neglect overhead. We need to handle these cases.
             for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.

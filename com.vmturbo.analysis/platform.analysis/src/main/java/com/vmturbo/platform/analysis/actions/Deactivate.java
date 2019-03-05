@@ -42,7 +42,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      *
      * @param target The trader that will be deactivated as a result of taking {@code this} action.
      * @param sourceMarket The market that benefits from deactivating target.
-     *                     The sourceMarket can be NULL when the target doesnt sell in any market
+     *                     The sourceMarket can be NULL when the target doesn't sell in any market
      */
     public Deactivate(@NonNull Economy economy, @NonNull Trader target, Market sourceMarket) {
         super(target,sourceMarket);

@@ -45,11 +45,11 @@ public class ActionCollapse {
     /**
      * Collapses a list of {@link Action}s by combining "combinable" actions.
      * Two actions are said to be combinable if they can be replaced by one action that,
-     * when {@link #take}n, achieves the same result as taking the pair of actions in order.
+     * when {@link Action#take}n, achieves the same result as taking the pair of actions in order.
      * @param actions a list of actions to collapse. Assume the list is consistent, e.g. a Move
      * TO trader A cannot be followed by a Move FROM a different trader B.
      * @return a list of actions that represents the same outcome as the argument list.
-     * @see #combine
+     * @see Action#combine
      */
     @Pure
     public static @NonNull List<@NonNull Action>

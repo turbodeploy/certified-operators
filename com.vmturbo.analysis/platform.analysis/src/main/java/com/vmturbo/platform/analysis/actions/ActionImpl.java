@@ -41,7 +41,7 @@ public class ActionImpl implements Action {
 
     /**
      * @return the importance of this action
-     * @see #setImportance()
+     * @see ActionImpl#setImportance
      */
     public double getImportance() {
         return importance_;
