@@ -26,7 +26,7 @@ public final class EconomySettings implements Serializable {
 
     // the maximum number of placements to be 1000, when reaching this limit, we force stop
     // the placements. 1000 is a random number, it does not have any significant meaning.
-    // This value can be overriden.
+    // This value can be overridden.
     public static final int DEFAULT_MAX_PLACEMENT_ITERATIONS = 1000;
 
     /**

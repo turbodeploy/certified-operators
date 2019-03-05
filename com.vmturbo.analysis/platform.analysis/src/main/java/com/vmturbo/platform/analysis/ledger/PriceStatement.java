@@ -55,7 +55,7 @@ public class PriceStatement {
         * </p>
         *
         * @return priceIndex of the entity
-        * @see #setPriceIndex()
+        * @see #setPriceIndex(double)
         */
         public double getPriceIndex() {
             return priceIndex_;

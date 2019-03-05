@@ -165,7 +165,7 @@ public class ReplayActions {
                     CompoundMove oldAction = (CompoundMove)a;
                     Trader newTrader = translateTrader(oldAction.getActionTarget(), economy,
                                     "CompoundMove");
-                    // If trader shoptogether is false, no need to replay compound move
+                    // If trader shopTogether is false, no need to replay compound move
                     if (newTrader.getSettings().isShopTogether()) {
                         List<Move> oldMoves = oldAction.getConstituentMoves();
                         List<ShoppingList> shoppingLists = new LinkedList<>();
@@ -254,7 +254,7 @@ public class ReplayActions {
     }
 
     /**
-     * Translate the list of rolledback suspension candidate traders to the given {@link Economy}
+     * Translate the list of rolled-back suspension candidate traders to the given {@link Economy}
      *
      * @param newEconomy The {@link Economy} in which actions are to be replayed
      * @param newTopology The {@link Topology} for the given {@link Economy}

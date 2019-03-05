@@ -33,7 +33,7 @@ import com.vmturbo.platform.analysis.utilities.QuoteTracker;
  * {@link ShoppingList}s and the best total quote offered in this clique.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
  * </p>
  *
  * A {@link CliqueMinimizer} is used during placement analysis.
@@ -187,7 +187,7 @@ final class CliqueMinimizer {
      * </p>
      *
      * <p>
-     *  Also {@link #getBestSellers()}.{@link Collection#size() size()} ==
+     *  Also {@code getBestSellers()}.{@link Collection#size() size()} ==
      *  {@link #getEntries()}.{@link Collection#size() size()}
      * </p>
      */

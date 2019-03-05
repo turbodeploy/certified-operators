@@ -63,7 +63,7 @@ public class Placement {
         if (!preferentialPlacementOnly) {
             // iterate over all markets, i.e., all sets of providers selling a specific basket
             for (Market market : economy.getMarketsForPlacement()) {
-                // iterate over all buyers in this market that havn't already shopped
+                // iterate over all buyers in this market that haven't already shopped
                 for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
                     if (sls.contains(shoppingList)) {
                         continue;

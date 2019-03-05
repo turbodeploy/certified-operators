@@ -167,7 +167,7 @@ public class Resizer {
      * consideration capacity increment and rightsizing rate.
      *
      * For a downward resize, the change is limited by observed use (considering both
-     * maxQuanity and peakQuantity).
+     * maxQuantity and peakQuantity).
      *
      * In all cases, the the new size is not permitted to exceed the capacity of the seller.
      *
@@ -256,7 +256,7 @@ public class Resizer {
      * <p>
      * The desired amount is adjusted to conform to capacity increment and rightsizing rate.
      * <p>
-     * In addiiton, the following limits are placed on the resize amount:
+     * In addition, the following limits are placed on the resize amount:
      *
      * <ul>
      * <li>The capacity is not allowed to drop below the commodity's maxQuantity or peakQuantity.</li>

@@ -32,7 +32,7 @@ import com.vmturbo.platform.analysis.utilities.QuoteTracker;
  * {@link ShoppingList}s assuming the best supplier for each one.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
  * </p>
  *
  * Often used in conjunction with {@link CliqueMinimizer}. For example usage
@@ -68,7 +68,7 @@ final class QuoteSummer {
      * Constructs an empty QuoteSummer that can be used as an identity element for the reduction.
      *
      * @param economy See {@link #getEconomy()}.
-     * @param quality See {@link #getClique()}.
+     * @param cliqueID See {@link #getClique()}.
      */
     public QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache) {
         economy_ = economy;

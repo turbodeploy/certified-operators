@@ -60,8 +60,7 @@ public final class CommodityResizeSpecification implements Serializable {
 
     @NonNull
     /**
-     *
-     * @return The function to be used to adjust the commodity bought in case of resize up.
+     * Returns the function to be used to adjust the commodity bought in case of resize up.
      */
     public DoubleTernaryOperator getIncrementFunction() {
         return incrementFunction_;
@@ -69,8 +68,7 @@ public final class CommodityResizeSpecification implements Serializable {
 
     @NonNull
     /**
-     *
-     * @return The limit function to be used to adjust the commodity bought in case of resize down.
+     * Returns the limit function to be used to adjust the commodity bought in case of resize down.
      */
     public DoubleTernaryOperator getDecrementFunction() {
         return decrementFunction_;

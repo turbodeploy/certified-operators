@@ -28,7 +28,7 @@ import org.javatuples.Triplet;
  * A mutable collector class used to find the best quote and corresponding seller.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
  * </p>
  */
 public final class QuoteMinimizer {

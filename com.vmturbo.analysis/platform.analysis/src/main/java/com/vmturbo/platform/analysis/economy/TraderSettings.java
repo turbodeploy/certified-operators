@@ -30,8 +30,7 @@ public interface TraderSettings {
     boolean isCloneable();
 
     /**
-     * Whether the associated {@link Trader} should consume the clone of provider.
-     * @return
+     * Returns whether the associated {@link Trader} should consume the clone of provider.
      */
     boolean isGuaranteedBuyer();
 
@@ -182,13 +181,13 @@ public interface TraderSettings {
     @NonNull TraderSettings setMinDesiredUtil(double minDesiredUtilization);
 
     /**
-     * Sets the value of the <b>guranteedBuyer</b> field.
+     * Sets the value of the <b>guaranteedBuyer</b> field.
      *
      * <p>
      *  Has no observable side-effects except setting the above field.
      * </p>
      *
-     * @param guranteedBuyer the new value for the field.
+     * @param guaranteedBuyer the new value for the field.
      * @return {@code this}
      */
     @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer);
@@ -200,7 +199,7 @@ public interface TraderSettings {
      *  Has no observable side-effects except setting the above field.
      * </p>
      *
-     * @param canAcceptNewCustomer the new value for the field.
+     * @param canAcceptNewCustomers the new value for the field.
      * @return {@code this}
      */
     @NonNull
@@ -234,7 +233,7 @@ public interface TraderSettings {
      *  Has no observable side-effects except setting the above field.
      * </p>
      *
-     * @param shoptogether the new value for the field.
+     * @param isShopTogether the new value for the field.
      * @return {@code this}
      */
     @NonNull

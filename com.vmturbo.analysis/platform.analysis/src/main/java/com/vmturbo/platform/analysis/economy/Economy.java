@@ -86,7 +86,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private transient final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
-    // Cached unmodifiable view of the preferentilShoppingLists_.
+    // Cached unmodifiable view of the preferentialShoppingLists_.
     private final @NonNull List<@NonNull ShoppingList> unmodifiablePreferentialSls_ = Collections.unmodifiableList(preferentialSls_);
     // Cached unmodifiable view of the shopTogetherTraders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableShopTogetherTraders_ =
@@ -258,10 +258,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * returns an unmodifiable list of preferential shoppingLists
+     * Returns an unmodifiable list of preferential shoppingLists in {@code this} economy.
      *
-     * @param this the economy that the preferential shoppingLists participate in
-     * @return an unmodifiable list of preferential shoppingLists
+     * @return An unmodifiable list of preferential shoppingLists
      */
     @Override
     @Pure
@@ -270,18 +269,18 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * returns a modifiable list of Idle VMs
+     * Returns a modifiable list of Idle VMs in {@code this} economy.
      *
-     * @return a modifiable list of preferential {@link ShoppingList}s
+     * @return A modifiable list of Idle VMs.
      */
     public List<ShoppingList> getModifiablePreferentialSls() {
         return preferentialSls_;
     }
 
     /**
-     * returns a modifiable list of shop together traders
+     * Returns a modifiable list of shop together traders in {@code this} economy.
      *
-     * @return a modifiable list of shop together traders
+     * @return A modifiable list of shop together traders.
      */
     public List<Trader> getModifiableShopTogetherTraders() {
         return shopTogetherTraders_;
@@ -302,9 +301,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * returns an unmodifiable list of shop together traders
+     * Returns an unmodifiable list of shop together traders in {@code this} economy.
      *
-     * @param this the economy that the shop together traders participate in
      * @return an unmodifiable list of shop together traders
      */
     @Override
@@ -748,7 +746,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @param shoppingLists - the shoppingList to be sorted.
      * @return The sorted shopping list.
      */
-
     public List<ShoppingList> sortShoppingLists(List<ShoppingList> shoppingLists) {
         if(!getSettings().getSortShoppingLists()) {
             return shoppingLists;
@@ -757,8 +754,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         List<ShoppingList> sortedSLs = new ArrayList<>();
         for (@NonNull ShoppingList shoppingList : shoppingLists) {
             Trader currentSupplier = shoppingList.getSupplier();
-            // the shoppinglist with no supplier should be given the
-            // first preference.
+            // the shopping list with no supplier should be given the first preference.
             if(currentSupplier == null) {
                 currentQuote.add(new SimpleEntry<>(shoppingList, Double.POSITIVE_INFINITY));
             } else {
@@ -792,7 +788,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
 
     /**
-     * create a list containing a  subset of Markets that have atleast one trader that is movable
+     * create a list containing a  subset of Markets that have at least one trader that is movable
      */
     public void composeMarketSubsetForPlacement() {
         marketsForPlacement_.clear();
@@ -806,7 +802,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * and figuring whether the action is executable or not. It is "minimal" in the sense that
      * it only has the properties necessary for that simulation, namely traders, shopping lists,
      * and commodities sold, and nothing else.
-     * @see {@link ActionClassifier}
+     * @see ActionClassifier
      * @return a minimal clone of {@code this} economy
      */
     public @NonNull Economy simulationClone() {

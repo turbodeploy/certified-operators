@@ -183,7 +183,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     }
 
     /**
-     * Returns the true if cloning {@this} needs to create a commoditySpecification with new type.
+     * Returns the true if cloning {@code this} needs to create a commoditySpecification with new type.
      *
      */
     @Pure
