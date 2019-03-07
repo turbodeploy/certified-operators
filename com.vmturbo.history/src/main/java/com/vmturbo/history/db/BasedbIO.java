@@ -1288,11 +1288,11 @@ public abstract class BasedbIO {
         // Allow 'vmtplatform' to access the database (= grants.sql):
         final String requestUser = "'vmtplatform'@'" + getRequestHost() + "'";
         logger.info("Initialize permissions for '" + requestUser + "' on '" + dbName + "'...");
-        execute("GRANT ALL PRIVILEGES " +
+        execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER " +
                         "ON *.* TO " + requestUser + " " +
                         "IDENTIFIED BY '" + getPassword() + "';",
                 rootConn);
-        execute("GRANT ALL PRIVILEGES " +
+        execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER " +
                         "ON *.* TO " + "'vmtplatform'@'localhost'" + " " +
                         "IDENTIFIED BY '" + getPassword() + "';",
                 rootConn);
