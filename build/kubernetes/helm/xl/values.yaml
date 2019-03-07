@@ -17,6 +17,7 @@ global:
 #              10.0.0.10 # aks DNS
 #              10.23.240.10 # gke DNS
 #  debug: true
+#  externalDBName: xl-hackaton.cmachd0izjog.ca-central-1.rds.amazonaws.com
   dev_options: "-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n"
 
 ui:
