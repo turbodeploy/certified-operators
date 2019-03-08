@@ -126,16 +126,21 @@ public class PlanStatsWriter {
                 topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
         aggregator.writeAggregates();
 
-        // add the priceIndex current and projected values
-        currentPriceIndexRecord.setAvgValue(historydbIO.clipValue(currentPriceIndexRecord.getCapacity()
-                        / numOriginalPriceIndex));
-        projectedPriceIndexRecord.setAvgValue(historydbIO.clipValue(projectedPriceIndexRecord.getCapacity()
-                        / numberOfEntities));
-        historydbIO.execute(HistorydbIO.getJooqBuilder()
+        if (numberOfEntities != 0 && numOriginalPriceIndex != 0) {
+            // add the priceIndex current and projected values
+            currentPriceIndexRecord.setAvgValue(historydbIO.clipValue(currentPriceIndexRecord.getCapacity()
+                / numOriginalPriceIndex));
+            projectedPriceIndexRecord.setAvgValue(historydbIO.clipValue(projectedPriceIndexRecord.getCapacity()
+                / numberOfEntities));
+            historydbIO.execute(HistorydbIO.getJooqBuilder()
                 .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
                 .set(currentPriceIndexRecord)
                 .newRecord()
                 .set(projectedPriceIndexRecord));
+        } else {
+            logger.warn("numberOfEntities: " + numberOfEntities
+                + " and/or numOriginalPriceIndex: " + numOriginalPriceIndex + " are 0.");
+        }
 
         logger.debug("Done handling topology notification for projected topology {} in context {}."
                         + " Number of entities: {}", topologyInfo.getTopologyId(),
