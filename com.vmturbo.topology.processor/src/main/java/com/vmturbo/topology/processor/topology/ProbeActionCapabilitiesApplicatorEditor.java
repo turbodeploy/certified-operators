@@ -26,6 +26,12 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 
 
 /**
+ * It's removed from {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory},
+ * due to Probes currently don't send action capabilities with "NOT_SUPPORTED". Without this stage, XL have to
+ * live with workarounds in Market, e.g. in Topologyconverter#createShoppingList.
+ * For long-term solution, XL should find a single place to deal with action capabilities regarding movable,
+ * cloneable, suspendable and controllable. And this editor could potentially be re-enable with adjustments.
+ *
  * Editor to update following properties based on probes' action capabilities.
  * 1. movable:
  * a. When entity type is VM:
