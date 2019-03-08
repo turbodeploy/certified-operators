@@ -426,14 +426,19 @@ public class TopologyConverter {
     private void edge(TopologyDTO.TopologyEntityDTO dto, TopologyDTO.CommoditySoldDTO commSold) {
         accessesByKey.computeIfAbsent(commSold.getCommodityType().getKey(),
             key -> commSold.getAccesses());
-        if (commSold.getCommodityType().getType() == CommodityDTO.CommodityType.DSPM_ACCESS_VALUE) {
+        if (commSold.getCommodityType().getType() == CommodityDTO.CommodityType.DSPM_ACCESS_VALUE &&
+            dto.getEntityType() == EntityType.STORAGE_VALUE) {
             // Storage id first, PM id second.
             // This way each storage is a member of exactly one biclique.
             String dsOid = String.valueOf(dto.getOid());
             String pmOid = String.valueOf(commSold.getAccesses());
             dsBasedBicliquer.edge(dsOid, pmOid);
+        } else if (commSold.getCommodityType().getType() == CommodityDTO.CommodityType.DATASTORE_VALUE &&
+            dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
             // PM id first, storage id second.
             // This way each pm is a member of exactly one biclique.
+            String pmOid = String.valueOf(dto.getOid());
+            String dsOid = String.valueOf(commSold.getAccesses());
             pmBasedBicliquer.edge(pmOid, dsOid);
         }
     }
