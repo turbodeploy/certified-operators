@@ -51,7 +51,7 @@ public class AzureVolumesConversionProbe extends AzureVolumesProbe {
     public DiscoveryResponse discoverTarget(@Nonnull AzureAccount azureAccount)
         throws InterruptedException {
         logger.debug("Started converting discovery response for Azure volumes target {}",
-                azureAccount::getAddress);
+                azureAccount::getName);
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
         final DiscoveryResponse newDiscoveryResponse = new AzureVolumesCloudDiscoveryConverter(
@@ -59,7 +59,7 @@ public class AzureVolumesConversionProbe extends AzureVolumesProbe {
                 new AzureVolumesConversionContext()).convert();
 
         logger.debug("Done converting discovery response for Azure target {} within {} ms",
-                azureAccount::getAddress, () -> stopwatch.elapsed(TimeUnit.MILLISECONDS));
+                azureAccount::getName, () -> stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
         return newDiscoveryResponse;
     }

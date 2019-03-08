@@ -57,7 +57,7 @@ public class AzureConversionProbe extends AzureProbe {
     public DiscoveryResponse discoverTarget(@Nonnull AzureAccount azureAccount,
             @Nullable DiscoveryContextDTO discoveryContext) {
         logger.debug("Started converting discovery response for Azure target {}",
-                azureAccount::getAddress);
+                azureAccount::getName);
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
         final DiscoveryResponse newDiscoveryResponse = new CloudDiscoveryConverter(
@@ -65,7 +65,7 @@ public class AzureConversionProbe extends AzureProbe {
                 new AzureConversionContext()).convert();
 
         logger.debug("Done converting discovery response for Azure target {} within {} ms",
-                azureAccount::getAddress, () -> stopwatch.elapsed(TimeUnit.MILLISECONDS));
+                azureAccount::getName, () -> stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
         return newDiscoveryResponse;
     }
