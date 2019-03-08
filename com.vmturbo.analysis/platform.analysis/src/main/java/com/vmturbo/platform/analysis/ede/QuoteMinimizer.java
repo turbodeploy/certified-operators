@@ -1,12 +1,16 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.util.*;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -18,6 +22,7 @@ import com.vmturbo.platform.analysis.utilities.Quote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
+import org.javatuples.Triplet;
 
 /**
  * A mutable collector class used to find the best quote and corresponding seller.
@@ -29,6 +34,10 @@ import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 public final class QuoteMinimizer {
 
     private static final Logger logger = LogManager.getLogger();
+
+    public static long cacheHits = 0;
+
+    private QuoteCache cache_;
 
     // Auxiliary Fields
     private final @NonNull UnmodifiableEconomy economy_; // should contain all the seller arguments to #accept.
@@ -56,11 +65,27 @@ public final class QuoteMinimizer {
      *
      * @param economy See {@link #getEconomy()}.
      * @param shoppingList See {@link #getShoppingList()}
+     * @param cache see {@link QuoteCache}
+     */
+    public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
+                          @Nullable QuoteCache cache) {
+        economy_ = economy;
+        shoppingList_ = shoppingList;
+        quoteTracker = new QuoteTracker(shoppingList);
+        cache_ = cache;
+    }
+
+    /**
+     * Constructs an empty QuoteMinimizer that can be used as an identity element for the reduction.
+     *
+     * @param economy See {@link #getEconomy()}.
+     * @param shoppingList See {@link #getShoppingList()}
      */
     public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList) {
         economy_ = economy;
         shoppingList_ = shoppingList;
         quoteTracker = new QuoteTracker(shoppingList);
+        cache_ = null;
     }
 
     // Getters
@@ -93,6 +118,14 @@ public final class QuoteMinimizer {
     @Pure
     public double getBestQuote(@ReadOnly QuoteMinimizer this) {
         return bestQuote_.getQuoteValue();
+    }
+
+    /**
+     * Returns the minimum sum of the bestQuote and the moveCost
+     */
+    @Pure
+    public double getTotalBestQuote(@ReadOnly QuoteMinimizer this) {
+        return bestQuote_.getQuoteValue() + bestQuote_.getMoveCost();
     }
 
     /**
@@ -138,8 +171,25 @@ public final class QuoteMinimizer {
      * @param seller The seller from which to get a quote and update internal state.
      */
     public void accept(@NonNull Trader seller) {
-        final MutableQuote quote = EdeCommon.quote(economy_, shoppingList_, seller,
-            bestQuote_.getQuoteValue(), false);
+        MutableQuote quote;
+        if (cache_ != null) {
+            Triplet<ShoppingList, Trader, ImmutableList<ShoppingList>> key =
+                                                new Triplet<>(shoppingList_, seller,
+                                                            ImmutableList.copyOf(seller.getCustomers()));
+            // construct hash for the seller in the pricing cache
+            quote = cache_.get(key);
+            if(quote == null) {
+                // need to recompute complete quote without any stopping criteria
+                // since this cached quote could turn out to be the best in a different clique
+                quote = EdeCommon.quote(economy_, shoppingList_, seller, Double.POSITIVE_INFINITY, false);
+                cache_.put(key, quote);
+            } else {
+                cacheHits++;
+            }
+        } else {
+            quote = EdeCommon.quote(economy_, shoppingList_, seller,
+                    bestQuote_.getQuoteValue(), false);
+        }
 
         if (seller == shoppingList_.getSupplier()) {
             currentQuote_ = quote;
@@ -149,11 +199,11 @@ public final class QuoteMinimizer {
                             currentQuote_.getQuoteValue(), seller.getDebugInfoNeverUseInCode());
             }
         } else {
-            quote.addCostToQuote(shoppingList_.getMoveCost());
+            quote.setMoveCost(shoppingList_.getMoveCost());
         }
 
         // keep the minimum between quotes
-        if (quote.getQuoteValue() < bestQuote_.getQuoteValue()) {
+        if ((quote.getQuoteValue() + quote.getMoveCost()) < this.getTotalBestQuote()) {
             logMessagesForAccept(seller, quote.getQuoteValues());
             bestQuote_ = quote;
             bestSeller_ = seller;
@@ -173,7 +223,7 @@ public final class QuoteMinimizer {
      * @param other The minimizer that should be used to update the internal state.
      */
     public void combine(@NonNull @ReadOnly QuoteMinimizer other) {
-        if (other.bestQuote_.getQuoteValue() < bestQuote_.getQuoteValue()) {
+        if (other.getTotalBestQuote() < this.getTotalBestQuote()) {
             bestQuote_ = other.bestQuote_;
             bestSeller_ = other.bestSeller_;
         }

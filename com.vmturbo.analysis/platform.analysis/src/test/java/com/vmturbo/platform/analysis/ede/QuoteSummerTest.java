@@ -9,6 +9,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -42,6 +43,7 @@ public class QuoteSummerTest {
     Trader provider2 = Mockito.mock(Trader.class);
     private static Map.Entry<ShoppingList, Market> entry;
     ShoppingList sl = Mockito.mock(ShoppingList.class);
+    private static QuoteCache qc = new QuoteCache();
 
 
     @Before
@@ -91,7 +93,7 @@ public class QuoteSummerTest {
     @Parameters
     @TestCaseName("Test #{index}: QuoteSummer({0},{1})")
     public final void testQuoteSummer_And_Getters(@NonNull Economy economy, long clique) {
-        QuoteSummer summer = new QuoteSummer(economy, clique);
+        QuoteSummer summer = new QuoteSummer(economy, clique, qc);
 
         assertSame(economy, summer.getEconomy());
         assertSame(clique, summer.getClique());
@@ -111,15 +113,15 @@ public class QuoteSummerTest {
     @Test
     public void testSimulate() {
         Economy e1 = new Economy();
-        QuoteMinimizer minimizer = new QuoteMinimizer(e1, sl);
+        QuoteMinimizer minimizer = new QuoteMinimizer(e1, sl, qc);
 
         // Test for provider 1 which has canSimulate true
-        QuoteSummer mockedQuoteSummer = new QuoteSummer(e1, clique_);
+        QuoteSummer mockedQuoteSummer = new QuoteSummer(e1, clique_, qc);
         mockedQuoteSummer.simulate(minimizer, entry, provider1);
         assertEquals(mockedQuoteSummer.getSimulatedActions().size(), 1);
 
         // Test for provider 2 which has canSimulate false
-        QuoteSummer mockedQuoteSummer2 = new QuoteSummer(e1, clique_);
+        QuoteSummer mockedQuoteSummer2 = new QuoteSummer(e1, clique_, qc);
         mockedQuoteSummer2.simulate(minimizer, entry, provider2);
         assertEquals(mockedQuoteSummer2.getSimulatedActions().size(), 0);
     }

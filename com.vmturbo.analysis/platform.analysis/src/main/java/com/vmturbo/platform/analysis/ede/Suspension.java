@@ -261,7 +261,7 @@ public class Suspension {
                         sellers.stream()
                                 .collect(() -> new QuoteMinimizer(economy, sl),
                                         QuoteMinimizer::accept, QuoteMinimizer::combine);
-                if (Double.isInfinite(minimizer.getBestQuote())) {
+                if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                     return rollBackSuspends(suspendActions);
                 }
             }

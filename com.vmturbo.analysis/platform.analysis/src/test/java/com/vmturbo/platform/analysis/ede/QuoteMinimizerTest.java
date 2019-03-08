@@ -30,12 +30,12 @@ public class QuoteMinimizerTest {
     @Parameters
     @TestCaseName("Test #{index}: QuoteMinimizer({0},{1})")
     public final void testQuoteMinimizer_And_Getters(@NonNull Economy economy, @NonNull ShoppingList shoppingList) {
-        QuoteMinimizer minimizer = new QuoteMinimizer(economy, shoppingList);
+        QuoteMinimizer minimizer = new QuoteMinimizer(economy, shoppingList, null);
 
         assertSame(economy, minimizer.getEconomy());
         assertSame(shoppingList, minimizer.getShoppingList());
-        assertTrue(Double.isInfinite(minimizer.getBestQuote()));
-        assertTrue(minimizer.getBestQuote() > 0);
+        assertTrue(Double.isInfinite(minimizer.getTotalBestQuote()));
+        assertTrue(minimizer.getTotalBestQuote() > 0);
         assertNull(minimizer.getBestSeller());
         assertTrue(Double.isInfinite(minimizer.getCurrentQuote()));
         assertTrue(minimizer.getCurrentQuote() > 0);

@@ -583,13 +583,13 @@ public final class AnalysisToProtobuf {
      * additional context.
      *
      * @param actions The list of {@link Action}s to convert.
-     * @param traderToOid A mapping of {@link Trader}s to their OIDs.
+     * @param traderToOidMap A mapping of {@link Trader}s to their OIDs.
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
      * @param topology The topology associates with traders received from legacy market.
      * It keeps a traderOid map which will be used to populate the oid for traders.
-     * @param priceStatement contains all the {@link traderPriceStatement}s
+     * @param startPriceStatement contains all the {@link PriceStatement}s for traders
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
@@ -604,13 +604,13 @@ public final class AnalysisToProtobuf {
      * additional context.
      *
      * @param actions The list of {@link Action}s to convert.
-     * @param traderToOid A mapping of {@link Trader}s to their OIDs.
+     * @param traderToOidMap A mapping of {@link Trader}s to their OIDs.
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
      * @param topology The topology associates with traders received from legacy market.
      * It keeps a traderOid map which will be used to populate the oid for traders.
-     * @param priceStatement contains all the {@link traderPriceStatement}s
+     * @param startPriceStatement contains all the {@link PriceStatement}s for traders
      * @param sendBack whether to send back traderTO or not
      * @return The resulting {@link AnalysisResults} message.
      */
@@ -716,7 +716,7 @@ public final class AnalysisToProtobuf {
     /**
      * Convert the newShoppingListToBuyerMap to DTO.
      * @param topology The topology keeps trader oid and shopping list oid information.
-     * @return The result {@link NewShoppingListToBuyerMap} message
+     * @return The result {@link NewShoppingListToBuyerEntry} message
      */
     public static @NonNull List<NewShoppingListToBuyerEntry> createNewShoppingListToBuyerMap(Topology topology) {
         List<NewShoppingListToBuyerEntry> entryList = new ArrayList<NewShoppingListToBuyerEntry>();
