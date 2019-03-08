@@ -128,6 +128,8 @@ public class TopologyPipelineFactory {
 
     private final HistoricalEditor historicalEditor;
 
+    private final ProbeActionCapabilitiesApplicatorEditor applicatorEditor;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -151,7 +153,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                    @Nonnull final ControllableManager controllableManager,
                                    @Nonnull final CommoditiesEditor commoditiesEditor,
-                                   @Nonnull final HistoricalEditor historicalEditor) {
+                                   @Nonnull final HistoricalEditor historicalEditor,
+                                   @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -176,6 +179,7 @@ public class TopologyPipelineFactory {
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
+        this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
     }
 
     /**
@@ -230,6 +234,7 @@ public class TopologyPipelineFactory {
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
+                .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(managers))
                 .build();
     }
