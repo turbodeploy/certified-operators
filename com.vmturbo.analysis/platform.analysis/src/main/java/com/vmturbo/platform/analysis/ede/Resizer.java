@@ -4,7 +4,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,12 +34,6 @@ import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 public class Resizer {
 
     static final Logger logger = LogManager.getLogger(Resizer.class);
-
-    // Maximum number of iterations for Bisection method to ensure we never loop indefinitely
-    // For the interval (0,1) Bisection will halve the interval on each iteration. Double use
-    // 52 bits to represent the mantissa, so after 52 iterations the interval cannot be made
-    // smaller.
-    private static final int MAX_ITERATIONS = 53;
 
     /**
      * Return a list of actions to optimize the size of all eligible commodities in the economy.
@@ -90,54 +83,43 @@ public class Resizer {
                 if (evaluateEngageCriteria(economy, seller, commoditySold, incomeStatement)) {
                     double expenses = incomeStatement.getExpenses();
                     if (expenses > 0) {
-                        try {
-                            double desiredROI = getDesiredROI(incomeStatement);
-                            double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
-                                    ? incomeStatement.getDesiredRevenues()
-                                    : desiredROI * (Double.isInfinite(expenses)
-                                        ? incomeStatement.getMaxDesiredExpenses()
-                                        : expenses);
-                            double currentRevenue = incomeStatement.getRevenues();
-                            double desiredCapacity =
-                               calculateDesiredCapacity(commoditySold, newRevenue
-                                                        , seller, economy);
-                            CommoditySold rawMaterial = findSellerCommodity(economy, seller,
-                                                                            soldIndex);
-                            double newEffectiveCapacity =
-                               calculateEffectiveCapacity(seller, basketSold.get(soldIndex), desiredCapacity, commoditySold,
-                                                          rawMaterial, rateOfResize);
-                            if (Double.compare(newEffectiveCapacity,
-                                               commoditySold.getEffectiveCapacity()) != 0) {
-                                double oldCapacity = commoditySold.getCapacity();
-                                double newCapacity = newEffectiveCapacity /
-                                           commoditySold.getSettings().getUtilizationUpperBound();
-                                Resize resizeAction = new Resize(economy, seller,
-                                                basketSold.get(soldIndex), commoditySold,
-                                                soldIndex, newCapacity);
-                                resizeAction.take();
-                                resizeAction.setImportance(currentRevenue - newRevenue);
-                                actions.add(resizeAction);
-                                if (logger.isTraceEnabled() || isDebugTrader) {
-                                    logger.info("{" + sellerDebugInfo +
-                                            "} A resize action was generated for the commodity "
-                                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
-                                            + " from " + oldCapacity + " to " + newCapacity + ".");
-                                }
-                            } else {
-                                if (logger.isTraceEnabled() || isDebugTrader) {
-                                    logger.info("{" + sellerDebugInfo
-                                            + "} No resize for the commodity "
-                                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
-                                            + " because the calculated capacity is the same to the"
-                                            + " current one.");
-                                }
+                        double desiredROI = getDesiredROI(incomeStatement);
+                        double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
+                                ? incomeStatement.getDesiredRevenues()
+                                : desiredROI * (Double.isInfinite(expenses)
+                                    ? incomeStatement.getMaxDesiredExpenses()
+                                    : expenses);
+                        double currentRevenue = incomeStatement.getRevenues();
+                        double desiredCapacity =
+                           calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
+                        CommoditySold rawMaterial = findSellerCommodity(economy, seller, soldIndex);
+                        double newEffectiveCapacity = calculateEffectiveCapacity(seller,
+                            basketSold.get(soldIndex), desiredCapacity, commoditySold, rawMaterial,
+                            rateOfResize);
+                        if (Double.compare(newEffectiveCapacity,
+                                           commoditySold.getEffectiveCapacity()) != 0) {
+                            double oldCapacity = commoditySold.getCapacity();
+                            double newCapacity = newEffectiveCapacity /
+                                       commoditySold.getSettings().getUtilizationUpperBound();
+                            Resize resizeAction = new Resize(economy, seller,
+                                basketSold.get(soldIndex), commoditySold, soldIndex, newCapacity);
+                            resizeAction.take();
+                            resizeAction.setImportance(currentRevenue - newRevenue);
+                            actions.add(resizeAction);
+                            if (logger.isTraceEnabled() || isDebugTrader) {
+                                logger.info("{" + sellerDebugInfo +
+                                        "} A resize action was generated for the commodity "
+                                        + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                        + " from " + oldCapacity + " to " + newCapacity + ".");
                             }
-                        } catch (Exception bisectionException) {
-                            logger.info(bisectionException.getMessage() + " : Capacity "
-                                         + commoditySold.getEffectiveCapacity() + " Quantity "
-                                         + commoditySold.getQuantity() + " Revenues "
-                                         + incomeStatement.getRevenues() + " Expenses "
-                                         + incomeStatement.getExpenses());
+                        } else {
+                            if (logger.isTraceEnabled() || isDebugTrader) {
+                                logger.info("{" + sellerDebugInfo
+                                        + "} No resize for the commodity "
+                                        + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                        + " because the calculated capacity is the same to the"
+                                        + " current one.");
+                            }
                         }
                     } else {
                         if (logger.isTraceEnabled() || isDebugTrader) {
@@ -452,7 +434,6 @@ public class Resizer {
      * @param resizeCommodity Commodity to be resized.
      * @param newRevenue The target revenue for the commodity after resize.
      * @return The new capacity
-     * @throws Exception If it cannot find the new capacity.
      */
     private static double calculateDesiredCapacity(CommoditySold resizeCommodity, double newRevenue,
                                                    Trader seller, Economy economy) {
@@ -464,18 +445,9 @@ public class Resizer {
         double intervalMax = Math.nextAfter(1.0, 0.0);
 
         // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
-        DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u, null,
-                                                         seller, resizeCommodity, economy) - newRevenue;
-        // pass in a function to calculate error in capacity for utilization interval (x,y)
-        DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;
-        // we will change capacity in steps of capacity increment so we can stop when error in
-        // capacity is less than half of capacity increment
-        double epsilon = resizeCommodity.getSettings().getCapacityIncrement() *
-                                    resizeCommodity.getSettings().getUtilizationUpperBound() / 2;
-        double newNormalizedUtilization = Bisection.solve(epsilon, errorFunction,
-                                  MAX_ITERATIONS, revenueFunction, intervalMin, intervalMax);
-        double newCapacity = currentQuantity / newNormalizedUtilization;
-        return newCapacity;
+        DoubleUnaryOperator revenueFunction = u -> u * priceFunction.unitPrice(u, null,
+                                                     seller, resizeCommodity, economy) - newRevenue;
+        return currentQuantity / Bisection.solve(revenueFunction, intervalMin, intervalMax);
     }
 
     /**
