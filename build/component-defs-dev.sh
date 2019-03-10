@@ -50,7 +50,6 @@ function start_api() {
     -e 'instance_id=api-1' \
     -e 'consul_host=consul' \
     -e 'realtimeTopologyContextId=777777' \
-    -e 'JAVA_OPTS=-Xmx4G' \
     -p "80:8080" \
     -p "443:9443" \
     --mount type=volume,src=api,dst=/home/turbonomic/data,volume-driver=local \
@@ -65,7 +64,6 @@ function start_market() {
     -e 'instance_id=market-1' \
     -e 'consul_host=consul' \
     -e 'realtimeTopologyContextId=777777' \
-    -e 'JAVA_OPTS=-Xmx6G' \
     --mount type=volume,src=market,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/market-component:latest
 }
@@ -78,7 +76,6 @@ function start_action-orchestrator() {
     -e 'instance_id=action-orchestrator-1' \
     -e 'consul_host=consul' \
     -e 'realtimeTopologyContextId=777777' \
-    -e 'JAVA_OPTS=-Xmx2G' \
     --mount type=volume,src=action-orchestrator,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/action-orchestrator:latest
 }
@@ -91,7 +88,6 @@ function start_topology-processor() {
     -e 'instance_id=topology-processor-1' \
     -e 'consul_host=consul' \
     -e 'realtimeTopologyContextId=777777' \
-    -e 'JAVA_OPTS=-Xmx8G' \
     --mount type=volume,src=topology-processor,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/topology-processor:latest
 }
@@ -115,7 +111,6 @@ function start_repository() {
     -e 'component_type=repository' \
     -e 'instance_id=repository-1' \
     -e 'REPOSITORY_ARANGODB_HOST=arangodb' \
-    -e 'JAVA_OPTS=-Xmx8G' \
     --mount type=volume,src=repository,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/com.vmturbo.repository-component:latest
 }
@@ -128,7 +123,6 @@ function start_group() {
     -e 'realtimeTopologyContextId=777777' \
     -e 'component_type=group' \
     -e 'instance_id=group-1' \
-    -e 'JAVA_OPTS=-Xmx1G' \
     --mount type=volume,src=group,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/com.vmturbo.group:latest
 }
@@ -141,7 +135,6 @@ function start_history() {
     -e 'component_type=history' \
     -e 'instance_id=history-1' \
     -e 'realtimeTopologyContextId=777777' \
-    -e 'JAVA_OPTS=-Xmx1G' \
     --mount type=volume,src=history,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/com.vmturbo.history:latest
 }
@@ -154,7 +147,6 @@ function start_plan-orchestrator() {
     -e 'instance_id=plan-orchestrator-1' \
     -e 'consul_host=consul' \
     -e 'realtimeTopologyContextId=777777' \
-    -e 'JAVA_OPTS=-Xmx1G' \
     --mount type=volume,src=plan-orchestrator,dst=/home/turbonomic/data,volume-driver=local \
     turbonomic/com.vmturbo.plan.orchestrator:latest
 }
