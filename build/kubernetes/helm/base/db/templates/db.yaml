@@ -1,5 +1,3 @@
-{{ if .Values.global }}
-  {{ if (not .Values.global.externalDBName) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -86,8 +84,6 @@ spec:
         emptyDir: {}
       - name: db-tmpfs0
         emptyDir: {}
-  {{ end }}
-{{ end }}
 ---
 apiVersion: v1
 kind: Service
@@ -97,12 +93,6 @@ metadata:
     io.kompose.service: db
   name: {{ .Chart.Name }}
 spec:
-{{- if .Values.global }}
-  {{- if .Values.global.externalDBName }}
-  type: ExternalName
-  externalName: {{ .Values.global.externalDBName }}
-  {{- end -}}
-{{- end }}
   ports:
   - name: db
     port: 3306

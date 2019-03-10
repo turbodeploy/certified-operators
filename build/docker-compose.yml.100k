@@ -65,12 +65,16 @@ services:
     extends:
       file: prod-services.yml
       service: zoo1-prod
+    environment:
+      SERVER_JVMFLAGS: "-Xmx256M"
     mem_limit: 384M
 
   kafka1:
     extends:
       file: prod-services.yml
       service: kafka1-prod
+    environment:
+      KAFKA_HEAP_OPTS: "-Xmx1024M -Xms1024M"
     depends_on:
       - rsyslog
       - zoo1
@@ -96,6 +100,8 @@ services:
     extends:
       file: prod-services.yml
       service: api-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024m
     depends_on:
       - clustermgr
@@ -117,6 +123,8 @@ services:
     extends:
       file: prod-services.yml
       service: market-prod
+    environment:
+      JAVA_OPTS: "-Xmx5G"
     mem_limit: 6G
     depends_on: &clustermgrdep
       - clustermgr
@@ -126,6 +134,8 @@ services:
     extends:
       file: prod-services.yml
       service: action-orchestrator-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024M
     depends_on:
       - db
@@ -137,6 +147,8 @@ services:
     extends:
       file: prod-services.yml
       service: topology-processor-prod
+    environment:
+      JAVA_OPTS: "-Xmx5G"
     mem_limit: 6G
     depends_on:
       - db
@@ -154,6 +166,8 @@ services:
     extends:
       file: prod-services.yml
       service: repository-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4G
     depends_on:
       - arangodb
@@ -165,6 +179,8 @@ services:
     extends:
       file: prod-services.yml
       service: group-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024M
     depends_on:
       - clustermgr
@@ -175,6 +191,8 @@ services:
     extends:
       file: prod-services.yml
       service: history-prod
+    environment:
+      JAVA_OPTS: "-Xmx7168M"
     mem_limit: 8192M
     depends_on:
       - db
@@ -186,6 +204,8 @@ services:
     extends:
       file: prod-services.yml
       service: plan-orchestrator-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024M
     depends_on:
       - db
@@ -197,6 +217,8 @@ services:
     extends:
       file: prod-services.yml
       service: reporting-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024M
     depends_on:
       - db
@@ -207,8 +229,11 @@ services:
     extends:
       file: prod-services.yml
       service: cost-prod
+    environment:
+      JAVA_OPTS: "-Xmx384M"
     mem_limit: 512M
 # OM-42831: restore the original settings when the cloud features are ready to go
+#      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1536M
     depends_on:
       - db
@@ -226,6 +251,8 @@ services:
     extends:
       file: prod-services.yml
       service: ml-datastore-prod
+    environment:
+      JAVA_OPTS: "-Xmx512M"
     mem_limit: 640M
     depends_on:
       - influxdb
@@ -237,6 +264,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-vcenter-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -244,6 +273,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-vcenter-browsing-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx1024M"
 #    mem_limit: 1200M
 #    depends_on: *clustermgrdep
 
@@ -251,6 +282,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-hyperv-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -258,6 +291,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-netapp-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -265,6 +300,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-ucs-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -272,6 +309,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-vmax-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -279,6 +318,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-vmm-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -286,6 +327,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-hpe3par-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -293,6 +336,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-pure-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -300,6 +345,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-actionscript-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -307,6 +354,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-scaleio-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -314,6 +363,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-hds-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -321,6 +372,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-compellent-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -328,6 +381,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-xtremio-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -335,6 +390,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-vplex-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -342,6 +399,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-rhv-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -349,6 +408,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-openstack-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -356,6 +417,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-ucsdirector-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -363,6 +426,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-aws-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -370,6 +435,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-awsbilling-prod
+#    environment:
+#      JAVA_OPTS: "-1024"
 #    mem_limit: 1200M
 #    depends_on: *clustermgrdep
 #
@@ -377,6 +444,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-awscost-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx2000M"
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep
 #
@@ -384,6 +453,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-azure-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -391,6 +462,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-azure-volumes-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 
@@ -398,6 +471,8 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-oneview-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
@@ -405,6 +480,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-vcd-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -412,6 +489,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-wmi-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -419,6 +498,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-snmp-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -426,6 +507,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-mssql-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
@@ -433,6 +516,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-appdynamics-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
@@ -440,6 +525,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-dynatrace-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
@@ -447,6 +534,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-pivotal-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -454,6 +543,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-cloudfoundry-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -461,6 +552,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-istio-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -468,6 +561,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-netflow-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -475,6 +570,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-tetration-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -482,6 +579,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-hyperflex-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 #
@@ -489,6 +588,8 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-aix-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx3072M"
 #    mem_limit: 4096M
 #    depends_on: *clustermgrdep
 
@@ -496,5 +597,7 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-actionscript-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
