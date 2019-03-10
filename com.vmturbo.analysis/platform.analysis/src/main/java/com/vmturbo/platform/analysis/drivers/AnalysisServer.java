@@ -380,6 +380,13 @@ public class AnalysisServer implements AutoCloseable {
                             startPriceStatement, true);
 
             if (instInfo.isRealTime() && instInfo.isProvisionEnabled()) {
+                // Clear Unquoted Commodities list for Provision round in order to Provision
+                // enough supply as expected.
+                economy.getMarkets().forEach(m -> m.getBuyers().stream().forEach(sl -> {
+                        sl.getModifiableUnquotedCommoditiesBaseTypeList().clear();
+                        sl.getUnquotedCommoditiesBaseTypeList().clear();
+                    })
+                );
                 // run another round of analysis on the new state of the economy with provisions enabled
                 // and resize disabled. We add only the provision recommendations to the list of actions generated.
                 // We neglect suspensions since there might be associated moves that we dont want to include
