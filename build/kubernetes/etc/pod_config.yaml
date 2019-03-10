@@ -1,15 +1,18 @@
 dev:
   base:
     api:
+      java_option: "-Xmx512M"
       requests_memory: "512Mi"
       limits_memory: "1Gi"
     arangodb:
       requests_memory: "512Mi"
       limits_memory: "1Gi"
     auth:
+      java_option: "-Xmx512M -verbose:gc -XX:+PrintGCDateStamps"
       requests_memory: "512Mi"
       limits_memory: "768Mi"
     clustermgr:
+      java_option: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     db:
@@ -23,100 +26,130 @@ dev:
       limits_memory: "256Mi"
   optional-probes:
     mediation-aws:
+      java_option: "-Xmx384M"
       requests_memory: "250Mi"
       limits_memory: "512Mi"
     mediation-awsbilling:
+      java_option: "-Xmx384M"
       requests_memory: "250Mi"
       limits_memory: "512Mi"
     mediation-compellent:
+      java_option: "-Xmx384M"
       requests_memory: "250Mi"
       limits_memory: "512Mi"
     mediation-hds:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-openstack:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-rhv:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-scaleio:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-ucsdirector:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-vplex:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-xtremio:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
   probes:
     mediation-hpe3par:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-hyperv:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-netapp:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-pure:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-ucs:
+      java_option: "-Xmx3072M"
       requests_memory: "250Mi"
       limits_memory: "500Mi"
     mediation-vcenter:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-vmax:
+      java_option: "-Xmx3072M"
       requests_memory: "500Mi"
       limits_memory: "1Gi"
     mediation-vmm:
+      java_option: "-Xmx3072M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
   services:
     action-orchestrator:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     cost:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     group:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     history:
+      java_option: "-Xmx786M"
       requests_memory: "786Mi"
       limits_memory: "1Gi"
     market:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     plan-orchestrator:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     reporting:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "768Mi"
     repository:
+      java_option: "-Xmx768M"
       requests_memory: "768Mi"
       limits_memory: "1Gi"
     topology-processor:
+      java_option: "-Xmx1280M"
       requests_memory: "1Gi"
       limits_memory: "2Gi"
 prod:
   base:
     api:
+      java_option: "-Xmx512M"
       requests_memory: "512Mi"
       limits_memory: "1Gi"
     arangodb:
       requests_memory: "512Mi"
       limits_memory: "1Gi"
     auth:
+      java_option: "-Xmx512M -verbose:gc -XX:+PrintGCDateStamps"
       requests_memory: "512Mi"
       limits_memory: "768Mi"
     clustermgr:
+      java_option: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     db:
@@ -130,85 +163,112 @@ prod:
       limits_memory: "256Mi"
   optional-probes:
     mediation-aws:
+      java_option: "-Xmx384M"
       requests_memory: "250Mi"
       limits_memory: "512Mi"
     mediation-awsbilling:
+      java_option: "-Xmx384M"
       requests_memory: "250Mi"
       limits_memory: "512Mi"
     mediation-compellent:
+      java_option: "-Xmx384M"
       requests_memory: "250Mi"
       limits_memory: "512Mi"
     mediation-hds:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-openstack:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-rhv:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-scaleio:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-ucsdirector:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-vplex:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-xtremio:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
   probes:
     mediation-hpe3par:
+      java_option: "-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n -Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-hyperv:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-netapp:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-pure:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-ucs:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-vcenter:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     mediation-vmax:
+      java_option: "-Xmx3072M"
       requests_memory: "500Mi"
       limits_memory: "1Gi"
     mediation-vmm:
+      java_option: "-Xmx3072M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
   services:
     action-orchestrator:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     cost:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     group:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     history:
+      java_option: "-Xmx786M"
       requests_memory: "786Mi"
       limits_memory: "1Gi"
     market:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     plan-orchestrator:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "512Mi"
     reporting:
+      java_option: "-Xmx384M"
       requests_memory: "384Mi"
       limits_memory: "768Mi"
     repository:
+      java_option: "-Xmx768M"
       requests_memory: "768Mi"
       limits_memory: "1Gi"
     topology-processor:
+      java_option: "-Xmx1G"
       requests_memory: "1Gi"
       limits_memory: "2Gi"

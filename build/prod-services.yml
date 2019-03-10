@@ -103,6 +103,7 @@ services:
       instance_id: auth-1
       kafkaServers: kafka1:9092
       consul_host: consul
+      JAVA_OPTS: "-Xmx512M -verbose:gc -XX:+PrintGCDateStamps"
     volumes:
       - auth:/home/turbonomic/data
     mem_limit: 768M
@@ -120,6 +121,7 @@ services:
       consul_host: consul
       kafkaServers: kafka1:9092
       serverHttpPort: 8080
+      JAVA_OPTS: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
     volumes:
       - clustermgr:/home/turbonomic/data
     mem_limit: 512M

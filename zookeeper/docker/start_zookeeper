@@ -43,9 +43,6 @@ test -n "$ZOO_MY_ID" || exit_error "ZOO_MY_ID variable must be specified"
 echo "$ZOO_MY_ID" > $ZOOCFGDIR/myid
 ln -s /opt/zookeeper/conf/log4j.properties $ZOOCFGDIR/log4j.properties || exit_error "Could not create log4j config"
 
-# Autoconfigure the max java heap based on container limit
-SERVER_JVMFLAGS="-Xms16m -Xss512k -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=75.0"
-
 env
 
 # Zookeeper doesn't handle SIGTERM. By design, ZK doesn't have graceful shutdown.

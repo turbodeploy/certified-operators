@@ -5,7 +5,6 @@
 # for the components using the SecureRandom class (see
 # http://stackoverflow.com/questions/25660899/spring-boot-actuator-application-wont-start-on-ubuntu-vps)
 COMMON_JAVA_OPTS="-XX:+UseG1GC -XX:CompileThreshold=1500 -XX:+ExitOnOutOfMemoryError"
-COMMON_JAVA_OPTS="-Xms16m -Xss512k -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=75.0"
 COMMON_JAVA_OPTS="-verbose:gc -XX:+PrintGCDateStamps $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintConcurrentLocks -XX:+PrintClassHistogram $COMMON_JAVA_OPTS"
 COMMON_JAVA_OPTS="-XX:+PrintCommandLineFlags -XX:+UseStringDeduplication -XX:StringDeduplicationAgeThreshold=1 $COMMON_JAVA_OPTS"
