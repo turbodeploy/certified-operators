@@ -54,6 +54,9 @@ KAFKA_PARAMS="$KAFKA_PARAMS --override message.max.bytes=$KAFKA_MAX_MESSAGE_BYTE
 # set the broker default message timestamp type
 KAFKA_PARAMS="$KAFKA_PARAMS --override log.message.timestamp.type=LogAppendTime"
 
+# Autoconfigure the max java heap based on container limit
+KAFKA_HEAP_OPTS="-Xms16m -Xss512k -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=75.0"
+
 echo Executing kafka with options: $KAFKA_PARAMS | $LOGGER_COMMAND
 
 # disable GC logging in order, as we do not have any space to write it.
