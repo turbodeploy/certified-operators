@@ -125,7 +125,9 @@ public class ActionStatsConfig {
                 actionGroupStore(),
                 mgmtUnitSubgroupStore(),
                 snapshotFactory(),
-                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory()),
+                // TODO (roman, Mar 8 2019): Re-enable Cluster Aggregator after
+                // OM-43498 is solved.
+                Arrays.asList(globalAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
                 actionTranslationConfig.actionTranslator(),
                 rollupConfig.rollupScheduler(),
