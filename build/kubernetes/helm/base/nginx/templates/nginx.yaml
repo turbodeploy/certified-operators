@@ -113,8 +113,12 @@ spec:
           name: nginx-run
         - mountPath: /tmp
           name: nginx-tmpfs0
+{{- if .Values.global }}
+  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
       - name: turbocred
+  {{- end -}}
+{{- end }}
       restartPolicy: Always
       securityContext:
         fsGroup: 2000

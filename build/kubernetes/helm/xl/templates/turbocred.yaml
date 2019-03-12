@@ -1,6 +1,8 @@
 {{- define "imagePullSecret" }}
-{{- printf "{\"auths\": {\"%s\": {\"auth\": \"%s\"}}}" .Values.imageCredentials.registry (printf "%s:%s" .Values.imageCredentials.username .Values.imageCredentials.password | b64enc) | b64enc }}
+{{- printf "{\"auths\": {\"%s\": {\"auth\": \"%s\"}}}" .Values.global.registry (printf "%s:%s" .Values.global.imageUsername .Values.global.imagePassword | b64enc) | b64enc }}
 {{- end }}
+{{- if .Values.global }}
+  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -8,3 +10,5 @@ metadata:
 type: kubernetes.io/dockerconfigjson
 data:
   .dockerconfigjson: {{ template "imagePullSecret" . }}
+  {{- end -}}
+{{- end }}

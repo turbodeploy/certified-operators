@@ -5,8 +5,8 @@
 replicaCount: 1
 
 image:
-  repository: localhost:5000/turbonomic
-  tag: BRANCH
+  repository: turbonomic
+  tag: latest
   pullPolicy: IfNotPresent
 
 resources: {}

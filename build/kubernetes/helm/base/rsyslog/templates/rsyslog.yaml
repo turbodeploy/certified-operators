@@ -63,8 +63,12 @@ spec:
           name: rsyslog-auditlogdata
         - mountPath: /tmp
           name: rsyslog-tmpfs0
+{{- if .Values.global }}
+  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
       - name: turbocred
+  {{- end -}}
+{{- end }}
       restartPolicy: Always
       securityContext:
         fsGroup: 1000

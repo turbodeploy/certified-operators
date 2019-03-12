@@ -57,9 +57,13 @@ spec:
         volumeMounts:
         - mountPath: /tmp
           name: cost-tmpfs0
-      restartPolicy: Always
+{{- if .Values.global }}
+  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
       - name: turbocred
+  {{- end -}}
+{{- end }}
+      restartPolicy: Always
       volumes:
       - name: cost-tmpfs0
         emptyDir: {}

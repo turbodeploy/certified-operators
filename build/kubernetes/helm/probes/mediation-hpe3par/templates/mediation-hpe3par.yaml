@@ -55,8 +55,12 @@ spec:
         volumeMounts:
         - mountPath: /tmp
           name: mediation-hpe3par-tmpfs0
+{{- if .Values.global }}
+  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
       - name: turbocred
+  {{- end -}}
+{{- end }}
       restartPolicy: Always
       volumes:
       - name: mediation-hpe3par-tmpfs0
