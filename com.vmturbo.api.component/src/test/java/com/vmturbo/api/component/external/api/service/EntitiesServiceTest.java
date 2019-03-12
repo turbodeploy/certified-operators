@@ -28,10 +28,8 @@ import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -183,9 +181,7 @@ public class EntitiesServiceTest {
                 mock(EntityAspectMapper.class),
                 topologyProcessor,
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                mock(StatsService.class),
-                mock(ActionStatsQueryExecutor.class),
-                mock(UuidMapper.class));
+                mock(StatsService.class));
     }
 
     /**

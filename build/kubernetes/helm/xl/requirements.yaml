@@ -1,7 +1,17 @@
 dependencies:
 # Base dependencies
+  - name: api
+    repository: file://../base/api
+    version: 0.1.0
+    condition: ui.enabled
   - name: arangodb
     repository: file://../base/arangodb
+    version: 0.1.0
+  - name: auth
+    repository: file://../base/auth
+    version: 0.1.0
+  - name: clustermgr
+    repository: file://../base/clustermgr
     version: 0.1.0
   - name: consul
     repository: file://../base/consul
@@ -28,18 +38,8 @@ dependencies:
     version: 0.1.0
 
 # Services dependencies
-  - name: api
-    repository: file://../services/api
-    version: 0.1.0
-    condition: ui.enabled
-  - name: auth
-    repository: file://../services/auth
-    version: 0.1.0
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
-    version: 0.1.0
-  - name: clustermgr
-    repository: file://../services/clustermgr
     version: 0.1.0
   - name: cost
     repository: file://../services/cost

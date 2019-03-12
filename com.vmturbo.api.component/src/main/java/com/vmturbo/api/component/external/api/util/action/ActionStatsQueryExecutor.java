@@ -28,7 +28,6 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -204,9 +203,7 @@ public class ActionStatsQueryExecutor {
 
         @Nonnull
         default Optional<EnvironmentTypeEnum.EnvironmentType> getEnvironmentType() {
-            return
-                Optional.ofNullable(actionInput().getEnvironmentType())
-                    .flatMap(envType -> UIEnvironmentType.fromString(envType.name()).toEnvType());
+            return UIEnvironmentType.fromString(actionInput().getEnvironmentType().name()).toEnvType();
         }
 
         @Nonnull
