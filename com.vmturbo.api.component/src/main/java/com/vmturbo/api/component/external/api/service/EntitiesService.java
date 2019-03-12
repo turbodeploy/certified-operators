@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -26,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -35,9 +33,14 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.controller.GroupsController;
@@ -69,12 +72,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
@@ -83,6 +83,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
@@ -124,6 +125,10 @@ public class EntitiesService implements IEntitiesService {
 
     private final StatsService statsService;
 
+    private final ActionStatsQueryExecutor actionStatsQueryExecutor;
+
+    private final UuidMapper uuidMapper;
+
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
@@ -163,7 +168,9 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final EntityAspectMapper entityAspectMapper,
             @Nonnull final TopologyProcessor topologyProcessor,
             @Nonnull final EntitySeverityServiceBlockingStub entitySeverityService,
-            @Nonnull final StatsService statsService) {
+            @Nonnull final StatsService statsService,
+            @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
+            @Nonnull final UuidMapper uuidMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -175,6 +182,8 @@ public class EntitiesService implements IEntitiesService {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.entitySeverityService = Objects.requireNonNull(entitySeverityService);
         this.statsService = Objects.requireNonNull(statsService);
+        this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
+        this.uuidMapper = Objects.requireNonNull(uuidMapper);
     }
 
     @Override
@@ -476,27 +485,23 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid,
-                                                              ActionApiInputDTO inputDto)
-            throws Exception {
-
+    public List<StatSnapshotApiDTO> getActionCountStatsByUuid(
+            @Nonnull String uuid, @Nonnull ActionApiInputDTO inputDto) throws Exception {
         try {
-
-            final long entityId = Long.valueOf(uuid);
-            final ActionQueryFilter filter =
-                    actionSpecMapper.createActionFilter(inputDto,
-                            Optional.of(Collections.singleton(entityId)));
-            final GetActionCountsResponse actionCountsResponse =
-                    actionOrchestratorRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
-                            .setTopologyContextId(realtimeTopologyContextId)
-                            .setFilter(filter)
-                            .build());
-            return ActionCountsMapper.countsByTypeToApi(actionCountsResponse.getCountsByTypeList());
+            final ApiId apiId = uuidMapper.fromUuid(uuid);
+            return
+                actionStatsQueryExecutor
+                    .retrieveActionStats(
+                        ImmutableActionStatsQuery.builder()
+                            .addScopes(apiId)
+                            .actionInput(inputDto)
+                            .build())
+                    .get(apiId);
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();
             } else {
-                throw e;
+                throw ExceptionMapper.translateStatusException(e);
             }
         } catch (NumberFormatException e) {
             // TODO Remove it when default Cloud group is supported
