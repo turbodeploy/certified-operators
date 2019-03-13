@@ -16,7 +16,6 @@ import java.util.TimeZone;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Spy;
@@ -117,7 +116,6 @@ public class NotificationServiceTest {
     /**
      * Test positive case for getNotificationStats
      */
-    @Ignore("Test would fail for daylight savings")
     @Test
     public void testGetNotificationStats() throws Exception {
         when(notificationStore.getNotificationCountAfterTimestamp(GENERATION_TIME2 - 1)).thenReturn(1L);
@@ -195,8 +193,8 @@ public class NotificationServiceTest {
 
     private StatSnapshotApiDTO getExpectedStatSnapshotApiDTO() {
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
-        final OffsetDateTime time = OffsetDateTime.of(LocalDateTime.ofInstant(Instant.ofEpochMilli(GENERATION_TIME2 - 1),
-                TimeZone.getDefault().toZoneId()), OffsetDateTime.now().getOffset());
+        final OffsetDateTime time = OffsetDateTime.ofInstant(Instant.ofEpochMilli(GENERATION_TIME2 - 1),
+                TimeZone.getDefault().toZoneId());
         retDto.setDate(time.toString());
 
         // setup StatApiDTO
