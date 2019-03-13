@@ -45,7 +45,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -252,7 +252,7 @@ public class ActionOrchestratorDiagnosticsTest {
     private void testSingleAction(@Nullable final Consumer<Action> actionModifier)
             throws Exception {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
-        final EntitySettingsCache settingsCache = mock(EntitySettingsCache.class);
+        final EntitiesCache settingsCache = mock(EntitiesCache.class);
         when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTarget().getId())))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         final Action action = actionFactory.newAction(rec, settingsCache, 0L);

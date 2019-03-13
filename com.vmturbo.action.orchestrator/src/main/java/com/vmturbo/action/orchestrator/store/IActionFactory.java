@@ -36,7 +36,7 @@ public interface IActionFactory {
      */
     @Nonnull
     Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                     final EntitySettingsCache entitySettingsCache, final long actionPlanId);
+                     final EntitiesCache entitySettingsCache, final long actionPlanId);
 
     /**
      * Create a new Action instance.

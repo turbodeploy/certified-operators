@@ -10,12 +10,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.swing.text.html.Option;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -25,23 +22,23 @@ import org.immutables.value.Value;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 
-import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -58,6 +55,10 @@ public class ActionModeCalculator {
     private final ActionTranslator actionTranslator;
 
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
+
+    private static final ImmutableSet<Integer> nonDisruptiveSettingCommodities = ImmutableSet.of(
+                    CommodityDTO.CommodityType.VCPU_VALUE,
+                    CommodityDTO.CommodityType.VMEM_VALUE);
 
     public ActionModeCalculator(@Nonnull ActionTranslator actionTranslator) {
         this.actionTranslator = actionTranslator;
@@ -110,7 +111,7 @@ public class ActionModeCalculator {
      * the relevant automation settings.
      *
      * @param action The action to calculate action mode for.
-     * @param entitySettingsCache The {@link EntitySettingsCache} to retrieve settings for. May
+     * @param entitiesCache The {@link EntitiesCache} to retrieve settings for. May
      *                            be null.
      *                            TODO (roman, Aug 7 2018): Can we make this non-null? The cache
      *                            should exist as a spring object and be injected appropriately.
@@ -118,7 +119,7 @@ public class ActionModeCalculator {
      */
     @Nonnull
     public ActionMode calculateActionMode(@Nonnull final ActionView action,
-                @Nullable final EntitySettingsCache entitySettingsCache) {
+                @Nullable final EntitiesCache entitiesCache) {
         actionTranslator.translate(action);
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
                 .getTranslatedRecommendation();
@@ -127,20 +128,37 @@ public class ActionModeCalculator {
             try {
                 final long targetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDto);
 
-                final Map<String, Setting> settingsForTargetEntity = entitySettingsCache == null ?
-                        Collections.emptyMap() : entitySettingsCache.getSettingsForEntity(targetEntityId);
+                final Map<String, Setting> settingsForTargetEntity = entitiesCache == null ?
+                        Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
 
                 return specsApplicableToAction(actionDto, settingsForTargetEntity)
                         .map(spec -> {
                             final Setting setting = settingsForTargetEntity.get(spec.getSettingName());
-                            if (setting == null) {
-                                // If there is no setting for this spec that applies to the target
-                                // of the action, we use the system default (which comes from the
-                                // enum definitions).
-                                return spec.getSettingSpec().getEnumSettingValueType().getDefault();
+                            if (spec == EntitySettingSpecs.EnforceNonDisruptive) {
+                                // Default is to return most liberal setting because calculateActionMode picks
+                                // the minimum ultimately.
+                                ActionMode mode = ActionMode.AUTOMATIC;
+                                if (setting != null && setting.hasBooleanSettingValue()
+                                        && setting.getBooleanSettingValue().getValue()) {
+                                    Optional<TopologyEntityDTO> entity = entitiesCache.getEntityFromOid(targetEntityId);
+                                    if (entity.isPresent()) {
+                                        mode = applyNonDisruptiveSetting(entity.get(), action.getRecommendation());
+                                    } else {
+                                        logger.error("Entity with id {} not found for non-disruptive setting.",
+                                                        targetEntityId);
+                                    }
+                                }
+                                return mode.name();
                             } else {
-                                // In all other cases, we use the default value from the setting.
-                                return setting.getEnumSettingValue().getValue();
+                                if (setting == null) {
+                                    // If there is no setting for this spec that applies to the target
+                                    // of the action, we use the system default (which comes from the
+                                    // enum definitions).
+                                    return spec.getSettingSpec().getEnumSettingValueType().getDefault();
+                                } else {
+                                    // In all other cases, we use the default value from the setting.
+                                    return setting.getEnumSettingValue().getValue();
+                                }
                             }
                         })
                         .map(ActionMode::valueOf)
@@ -158,6 +176,45 @@ public class ActionModeCalculator {
     }
 
 
+    private ActionMode applyNonDisruptiveSetting(TopologyEntityDTO entity, Action action) {
+        final ActionTypeCase actionType = action.getInfo().getActionTypeCase();
+        // Check for VM Resize.
+        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && actionType == ActionTypeCase.RESIZE) {
+            Resize resizeAction = action.getInfo().getResize();
+            final Integer commType = resizeAction.getCommodityType().getType();
+
+            // Check applicable commodities.
+            if (nonDisruptiveSettingCommodities.contains(commType)
+                    && resizeAction.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
+                Optional<CommoditySoldDTO> commoditySold = entity.getCommoditySoldListList().stream()
+                                .filter(commSold -> commType == commSold.getCommodityType().getType())
+                                .findFirst();
+                boolean supportsHotReplace = false;
+                if (commoditySold.isPresent()) {
+                    CommoditySoldDTO commSold = commoditySold.get();
+                    supportsHotReplace = commSold.hasAdditionalCommodityData()
+                            && commSold.getAdditionalCommodityData().hasIsHotReplaceSupported()
+                            && commSold.getAdditionalCommodityData().getIsHotReplaceSupported();
+                }
+
+                // Check hot replace setting enabled.
+                if (supportsHotReplace) {
+                    // Return Automatic for resize up.
+                    if (resizeAction.getNewCapacity() >= resizeAction.getOldCapacity()) {
+                        return ActionMode.AUTOMATIC;
+                    }
+                }
+            }
+            // Return Recommend and if resize is disabled we will pick the minimum.
+            return ActionMode.RECOMMEND;
+        }
+        // Ideally we should never reach here because currently no other entity other than VMs with resize action
+        // have non disruptive setting. But this is a sanity check to return Automatic s.t this setting has
+        // no effect on any other entity.
+        return ActionMode.AUTOMATIC;
+    }
+
     /**
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
      * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
@@ -173,7 +230,7 @@ public class ActionModeCalculator {
     @Nonnull
     public Optional<ActionMode> calculateWorkflowActionMode(
             @Nonnull final ActionView action,
-            @Nullable final EntitySettingsCache entitySettingsCache) {
+            @Nullable final EntitiesCache entitySettingsCache) {
         try {
             ActionDTO.Action actionDTO = action.getRecommendation();
             Objects.requireNonNull(actionDTO);
@@ -234,7 +291,7 @@ public class ActionModeCalculator {
     @Nonnull
     public static Optional<SettingProto.Setting> calculateWorkflowSetting(
             @Nonnull final ActionDTO.Action actionDTO,
-            @Nullable final EntitySettingsCache entitySettingsCache) {
+            @Nullable final EntitiesCache entitySettingsCache) {
         try {
             Objects.requireNonNull(actionDTO);
             if (Objects.isNull(entitySettingsCache)) {
@@ -305,7 +362,8 @@ public class ActionModeCalculator {
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
                         .getSpecForRangeAwareCommResize(action.getInfo().getResize(), settingsForTargetEntity);
                 // Return the range aware spec if present. Otherwise return the regular resize spec.
-                return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize));
+                return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize),
+                                EntitySettingSpecs.EnforceNonDisruptive);
             case ACTIVATE:
                 return Stream.of(EntitySettingSpecs.Activate);
             case DEACTIVATE:

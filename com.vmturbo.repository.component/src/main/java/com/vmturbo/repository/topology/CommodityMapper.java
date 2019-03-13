@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.AdditionalCommodityData;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -97,7 +98,14 @@ class CommodityMapper {
         commRepo.setCapacityIncrement(comm.getCapacityIncrement());
         commRepo.setMaxQuantity(comm.getMaxQuantity());
         commRepo.setScalingFactor(comm.getScalingFactor());
+        commRepo.setHotReplaceSupported(getHotReplaceValue(comm));
         return commRepo;
+    }
+
+    private static boolean getHotReplaceValue(CommoditySoldDTO comm) {
+       return comm.hasAdditionalCommodityData()
+           && comm.getAdditionalCommodityData().hasIsHotReplaceSupported()
+           && comm.getAdditionalCommodityData().getIsHotReplaceSupported();
     }
 
     /**
@@ -127,6 +135,9 @@ class CommodityMapper {
         }
 
         commoditySoldDTOBuilder.setCommodityType(commodityTypeBuilder.build());
+        commoditySoldDTOBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
+            .setIsHotReplaceSupported(commoditySoldRepoDTO.isHotReplaceSupported())
+            .build());
         return commoditySoldDTOBuilder.build();
     }
 

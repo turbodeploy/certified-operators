@@ -24,7 +24,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -124,7 +124,7 @@ public class Action implements ActionView {
     /**
      * Cached settings for entities.
      */
-    private final EntitySettingsCache entitySettings;
+    private final EntitiesCache entitiesCache;
 
 
     /**
@@ -175,7 +175,7 @@ public class Action implements ActionView {
         }
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
-        this.entitySettings = null;
+        this.entitiesCache = null;
         this.actionCategory = savedState.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
     }
@@ -190,7 +190,7 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this);
         this.executableStep = Optional.empty();
         this.decision = new Decision();
-        this.entitySettings = null;
+        this.entitiesCache = null;
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
         this.actionModeCalculator = actionModeCalculator;
@@ -198,7 +198,7 @@ public class Action implements ActionView {
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
-                  @Nonnull final EntitySettingsCache entitySettings,
+                  @Nonnull final EntitiesCache entitySettings,
                   final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
@@ -207,7 +207,7 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this);
         this.executableStep = Optional.empty();
         this.decision = new Decision();
-        this.entitySettings = Objects.requireNonNull(entitySettings);
+        this.entitiesCache = Objects.requireNonNull(entitySettings);
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
         this.actionModeCalculator = actionModeCalculator;
@@ -223,7 +223,7 @@ public class Action implements ActionView {
         this.recommendationTime = prototype.recommendationTime;
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
-        this.entitySettings = prototype.entitySettings;
+        this.entitiesCache = prototype.entitiesCache;
         this.stateMachine = ActionStateMachine.newInstance(this, prototype.getState());
         this.actionCategory = prototype.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
@@ -235,7 +235,7 @@ public class Action implements ActionView {
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
-                  @Nonnull final EntitySettingsCache entitySettings,
+                  @Nonnull final EntitiesCache entitySettings,
                   final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId, actionModeCalculator);
     }
@@ -352,7 +352,7 @@ public class Action implements ActionView {
      */
     @Override
     public ActionMode getMode() {
-        return actionModeCalculator.calculateWorkflowActionMode(this, entitySettings)
+        return actionModeCalculator.calculateWorkflowActionMode(this, entitiesCache)
                 .orElseGet(() -> getClippedActionMode());
     }
 
@@ -373,13 +373,13 @@ public class Action implements ActionView {
                 return ActionMode.DISABLED;
             case SHOW_ONLY:
                 final ActionMode mode = actionModeCalculator.calculateActionMode(
-                        this, entitySettings);
+                        this, entitiesCache);
                 return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
                         ? ActionMode.RECOMMEND
                         : mode;
             case SUPPORTED:
                 return actionModeCalculator.calculateActionMode(
-                        this, entitySettings);
+                        this, entitiesCache);
             default:
                 throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
         }
@@ -502,7 +502,7 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             curRecommendation = recommendation;
         }
-        return ActionModeCalculator.calculateWorkflowSetting(curRecommendation, entitySettings);
+        return ActionModeCalculator.calculateWorkflowSetting(curRecommendation, entitiesCache);
     }
 
 

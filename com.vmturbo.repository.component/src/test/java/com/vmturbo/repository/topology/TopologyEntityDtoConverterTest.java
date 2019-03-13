@@ -104,7 +104,15 @@ public class TopologyEntityDtoConverterTest {
         commoditySoldRepoDTOTwo.setUsed(100);
         commoditySoldRepoDTOTwo.setProviderOid("111");
         commoditySoldRepoDTOTwo.setOwnerOid("111");
-        vmServiceEntity.setCommoditySoldList(Lists.newArrayList(commoditySoldRepoDTO, commoditySoldRepoDTOTwo));
+        final CommoditySoldRepoDTO commoditySoldRepoDTOThree = new CommoditySoldRepoDTO();
+        commoditySoldRepoDTOThree.setCapacity(345);
+        commoditySoldRepoDTOThree.setKey("test-sold-key-three");
+        commoditySoldRepoDTOThree.setType(RepoObjectType.mapCommodityType(CommodityType.VCPU.getValue()));
+        commoditySoldRepoDTOThree.setUsed(100);
+        commoditySoldRepoDTOThree.setProviderOid("111");
+        commoditySoldRepoDTOThree.setOwnerOid("111");
+        commoditySoldRepoDTOThree.setHotReplaceSupported(true);
+        vmServiceEntity.setCommoditySoldList(Lists.newArrayList(commoditySoldRepoDTO, commoditySoldRepoDTOTwo, commoditySoldRepoDTOThree));
         final CommodityBoughtRepoDTO commodityBoughtRepoDTO = new CommodityBoughtRepoDTO();
         commodityBoughtRepoDTO.setKey("test-key");
         commodityBoughtRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.MEM.getValue()));
@@ -262,6 +270,7 @@ public class TopologyEntityDtoConverterTest {
                                                 ipAddressInfo.getIsElastic() ==
                                                         ipAddressRepoDTO.getElastic())));
             }
+            assertTrue(seRepoDTO.getCommoditySoldList().get(2).isHotReplaceSupported());
         }
 
         // check connected entity list

@@ -2,8 +2,8 @@ package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -20,6 +20,11 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -28,14 +33,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
- * The {@link EntitySettingsCache} stores the list of settings for each entity involved
+ * The {@link EntitiesCache} stores the list of settings for each entity involved
  * in actions in the {@link LiveActionStore}. Every re-population of the store is responsible
- * for updating the cache (via the {@link EntitySettingsCache#update(Set, long, long)} call)
+ * for updating the cache (via the {@link EntitiesCache#update(Set, long, long)} call)
  * so that the action orchestrator always has the latest settings for the entities it cares about.
- * <p>
- * The reasons we cache the settings instead of getting them on demand are:
+ *
+ * <p>The reasons we cache the settings instead of getting them on demand are:
  *    1) We just need one call to the setting policy service.
  *    2) Settings are static within one realtime topology broadcast, so we don't need to worry
  *       about cache invalidation.
@@ -43,27 +49,33 @@ import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
  *                 as an intentional design choice.
  */
 @ThreadSafe
-public class EntitySettingsCache {
+public class EntitiesCache {
 
     private static final Logger logger = LogManager.getLogger();
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
+    private final RepositoryServiceBlockingStub repositoryService;
+
     @GuardedBy("cacheLock")
     private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName = new HashMap<>();
 
+    @GuardedBy("cacheLock")
+    private final Map<Long, TopologyEntityDTO> oidToEntityMap = new HashMap<>();
+
     private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
-    EntitySettingsCache(@Nonnull final Channel groupChannel) {
+    EntitiesCache(@Nonnull final Channel groupChannel, @Nonnull final Channel repoChannel) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
+        this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
     }
 
     /**
      * Update the cache to obtain action-related settings for a new set of entities from the
      * setting policy service. There should be exactly one cache update for every new realtime
      * topology broadcast.
-     * <p>
-     * Once this method returns, all old information will no longer be in the cache.
+     *
+     * <p>Once this method returns, all old information will no longer be in the cache.
      *
      * @param entities The new set of entities to get settings for. This set should contain
      *                 the IDs of all entities involved in all actions we expose to the user.
@@ -78,15 +90,44 @@ public class EntitySettingsCache {
         logger.info("Refreshing entity settings cache...");
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
                 topologyContextId, topologyId);
+        final Map<Long, TopologyEntityDTO> entityMap = retrieveOidToEntityMap(entities,
+                        topologyContextId, topologyId);
         cacheLock.writeLock().lock();
         try {
             settingsByEntityAndSpecName.clear();
             settingsByEntityAndSpecName.putAll(newSettings);
+            oidToEntityMap.clear();
+            oidToEntityMap.putAll(entityMap);
         } finally {
             cacheLock.writeLock().unlock();
         }
         logger.info("Refreshed entity settings cache. It now contains settings for {} entities.",
                 settingsByEntityAndSpecName.size());
+    }
+
+    /**
+     * Fetch entities from repository for given entities set.
+     * @param entities to fetch from repository.
+     * @param topologyContextId of topology.
+     * @param topologyId of topology.
+     * @return mapping with oid as key and TopologyEntityDTO as value.
+     */
+    private Map<Long, TopologyEntityDTO> retrieveOidToEntityMap(Set<Long> entities,
+                    long topologyContextId, long topologyId) {
+        try {
+            RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .setTopologyType(TopologyType.SOURCE)
+                .addAllEntityOids(entities)
+                .build();
+            RetrieveTopologyEntitiesResponse response = repositoryService.retrieveTopologyEntities(getEntitiesrequest);
+            return response.getEntitiesList().stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        } catch (StatusRuntimeException ex) {
+            logger.error("Failed to fetch entities due to exception : " + ex);
+            return Collections.emptyMap();
+        }
     }
 
     /**
@@ -101,6 +142,16 @@ public class EntitySettingsCache {
         cacheLock.readLock().lock();
         try {
             return settingsByEntityAndSpecName.getOrDefault(entityId, Collections.emptyMap());
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+
+    @Nonnull
+    public Optional<TopologyEntityDTO> getEntityFromOid(final long entityOid) {
+        cacheLock.readLock().lock();
+        try {
+            return Optional.ofNullable(oidToEntityMap.get(entityOid));
         } finally {
             cacheLock.readLock().unlock();
         }

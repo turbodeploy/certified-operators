@@ -24,7 +24,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
  */
 public class ActionStateMachineTest {
 
-    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
             actionStream.map(action -> {
                 action.getActionTranslation().setPassthroughTranslationSuccess();

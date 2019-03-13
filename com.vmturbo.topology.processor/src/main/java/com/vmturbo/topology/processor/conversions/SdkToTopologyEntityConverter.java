@@ -33,6 +33,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.AdditionalCommodityData;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -43,6 +44,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagVal
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase;
@@ -532,6 +535,19 @@ public class SdkToTopologyEntityConverter {
                     .setRatio(commDTO.getRatioDependency().getRatio())
                     .build());
         }
+
+        if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {
+            VCpuData vCPUData = commDTO.getVcpuData();
+            retCommSoldBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
+                .setIsHotReplaceSupported(vCPUData.getHotAddSupported() || vCPUData.getHotRemoveSupported())
+                .build());
+        } else if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VMEM && commDTO.hasVmemData()) {
+            VMemData vMemData = commDTO.getVmemData();
+            retCommSoldBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
+                .setIsHotReplaceSupported(vMemData.getHotAddSupported())
+                .build());
+        }
+
         return retCommSoldBuilder;
     }
 

@@ -43,7 +43,7 @@ import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
@@ -115,7 +115,7 @@ public class ActionExecutionSecureRpcTest {
 
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
 
-    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(actionStorehouse,
             actionExecutor,

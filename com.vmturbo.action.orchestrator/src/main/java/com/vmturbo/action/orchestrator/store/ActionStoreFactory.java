@@ -29,7 +29,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ActionSupportResolver actionSupportResolver;
 
-    private final EntitySettingsCache entitySettingsCache;
+    private final EntitiesCache entitySettingsCache;
 
     private static final String PLAN_CONTEXT_TYPE_NAME = "plan";
     private static final String LIVE_CONTEXT_TYPE_NAME = "live";
@@ -46,7 +46,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final DSLContext databaseDslContext,
                               @Nonnull final ActionHistoryDao actionHistoryDao,
                               @Nonnull final ActionSupportResolver actionSupportResolver,
-                              @Nonnull final EntitySettingsCache entitySettingsCache,
+                              @Nonnull final EntitiesCache entitySettingsCache,
                               @Nonnull final LiveActionsStatistician actionsStatistician,
                               @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.actionFactory = Objects.requireNonNull(actionFactory);

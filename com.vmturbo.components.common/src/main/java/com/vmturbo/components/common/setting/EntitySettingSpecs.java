@@ -461,6 +461,13 @@ public enum EntitySettingSpecs {
         string(),
         true),
 
+    EnforceNonDisruptive("enforceNonDisruptive", "Enforce Non Disruptive Mode",
+                    Collections.emptyList(),
+                    SettingTiebreaker.SMALLER,
+                    EnumSet.of(EntityType.VIRTUAL_MACHINE),
+                    new BooleanSettingDataType(false),
+                    true),
+
     /**
      * This Action Script action is added as a temporary work-around for a bug in the UI.
      * The UI processes workflows as part of the 'actionScript' case - so at least one
@@ -495,7 +502,8 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeVmemAboveMaxThreshold.name,
             EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
             EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
-            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name);
+            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
+            EntitySettingSpecs.EnforceNonDisruptive.name);
 
     /**
      * Default value for a String-type SettingDataStructure = empty String.

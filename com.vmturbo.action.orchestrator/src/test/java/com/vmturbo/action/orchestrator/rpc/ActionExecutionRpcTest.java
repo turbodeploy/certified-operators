@@ -42,7 +42,7 @@ import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -98,7 +98,7 @@ public class ActionExecutionRpcTest {
 
     private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
-    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
     private final LiveActionsStatistician statistician = mock(LiveActionsStatistician.class);
 

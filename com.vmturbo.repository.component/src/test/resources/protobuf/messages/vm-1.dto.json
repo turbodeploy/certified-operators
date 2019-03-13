@@ -65,7 +65,10 @@
       "capacity": 2000.0,
       "effectiveCapacityPercentage": 0.0,
       "reservedCapacity": 0.0,
-      "isThin": true
+      "isThin": true,
+      "additionalCommodityData": {
+          "isHotReplaceSupported": true
+      }
     }
   ],
   "commoditiesBoughtFromProviders": [

@@ -17,7 +17,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.Maps;
 
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -46,7 +46,7 @@ public class RangeAwareResizeParameterizedTests {
     private final ActionMode expectedActionMode;
 
     private static final Map<String, Setting> rangeAwareSettingsForEntity = Maps.newHashMap();
-    private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
             actionStream.map(action -> {

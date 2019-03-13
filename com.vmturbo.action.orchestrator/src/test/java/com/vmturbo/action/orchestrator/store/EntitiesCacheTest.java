@@ -29,6 +29,7 @@ import org.springframework.web.client.RestTemplate;
 import io.grpc.Status;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
@@ -41,9 +42,9 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Unit tests for {@link EntitySettingsCache}.
+ * Unit tests for {@link EntitiesCache}.
  */
-public class EntitySettingsCacheTest {
+public class EntitiesCacheTest {
     private static final long TOPOLOGY_ID = 7L;
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
     private static final long ENTITY_ID = 1L;
@@ -55,17 +56,24 @@ public class EntitySettingsCacheTest {
             new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {};
 
     private SettingPolicyServiceMole spServiceSpy = spy(new SettingPolicyServiceMole());
+    private RepositoryServiceMole repoServiceSpy = spy(new RepositoryServiceMole());
 
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(spServiceSpy);
 
-    private EntitySettingsCache entitySettingsCache;
+    @Rule
+    public GrpcTestServer groupTestServer = GrpcTestServer.newServer(spServiceSpy);
+
+    @Rule
+    public GrpcTestServer repoTestServer = GrpcTestServer.newServer(repoServiceSpy);
+
+    private EntitiesCache entitySettingsCache;
 
     private RestTemplate restTemplate = mock(RestTemplate.class);
 
     @Before
     public void setup() {
-        entitySettingsCache = new EntitySettingsCache(grpcTestServer.getChannel());
+        entitySettingsCache = new EntitiesCache(grpcTestServer.getChannel(), repoTestServer.getChannel());
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenReturn(ResponseEntity.ok(Collections.emptyList()));

@@ -70,8 +70,8 @@ public class ActionStoreConfig {
     }
 
     @Bean
-    public EntitySettingsCache entitySettingsCache() {
-        return new EntitySettingsCache(groupClientConfig.groupChannel());
+    public EntitiesCache entitySettingsCache() {
+        return new EntitiesCache(groupClientConfig.groupChannel(), repositoryClientConfig.repositoryChannel());
     }
 
     @Bean

@@ -20,6 +20,8 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     private double maxQuantity;
 
+    private boolean hotReplaceSupported;
+
     public double getCapacity() {
         return capacity;
     }
@@ -76,6 +78,14 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
         return this.maxQuantity;
     }
 
+    public boolean isHotReplaceSupported() {
+        return hotReplaceSupported;
+    }
+
+    public void setHotReplaceSupported(boolean hotReplaceSupported) {
+        this.hotReplaceSupported = hotReplaceSupported;
+    }
+
     @Override
     public String toString() {
         return super.toString() + MoreObjects.toStringHelper(this)
@@ -86,6 +96,7 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
                 .add("thin", thin)
                 .add("capacityIncrement", capacityIncrement)
                 .add("maxQuantity", maxQuantity)
+                .add("hotReplaceSupported", hotReplaceSupported)
                 .toString();
     }
 }

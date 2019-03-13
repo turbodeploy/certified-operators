@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -60,7 +60,7 @@ public class ActionTest {
     private Action storageMoveAction;
     private ActionDTO.Action reconfigureRecommendation;
     private Action reconfigureAction;
-    private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
             actionStream.map(action -> {
                 action.getActionTranslation().setPassthroughTranslationSuccess();

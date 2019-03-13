@@ -27,7 +27,7 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -66,7 +66,7 @@ public class ActionStateUpdaterTest {
         .setExplanation(Explanation.newBuilder().build())
         .build();
 
-    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
     private Action testAction;
 

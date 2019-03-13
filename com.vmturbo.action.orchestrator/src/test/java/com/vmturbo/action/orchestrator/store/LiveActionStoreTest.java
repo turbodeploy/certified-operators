@@ -92,7 +92,7 @@ public class LiveActionStoreTest {
         @Nonnull
         @Override
         public Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                                @Nonnull final EntitySettingsCache entitySettingsMap, long actionPlanId) {
+                                @Nonnull final EntitiesCache entitySettingsMap, long actionPlanId) {
             return spy(new Action(recommendation, entitySettingsMap, actionPlanId, actionModeCalculator));
         }
 
@@ -114,7 +114,7 @@ public class LiveActionStoreTest {
 
     private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
-    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;

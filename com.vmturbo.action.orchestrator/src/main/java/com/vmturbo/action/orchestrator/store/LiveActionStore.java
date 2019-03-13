@@ -75,7 +75,7 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitySeverityCache severityCache;
 
-    private final EntitySettingsCache entitySettingsCache;
+    private final EntitiesCache entitySettingsCache;
 
     private final ActionHistoryDao actionHistoryDao;
 
@@ -120,7 +120,7 @@ public class LiveActionStore implements ActionStore {
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
                            @Nonnull final ActionSupportResolver actionSupportResolver,
-                           @Nonnull final EntitySettingsCache entitySettingsCache,
+                           @Nonnull final EntitiesCache entitySettingsCache,
                            @Nonnull final ActionHistoryDao actionHistoryDao,
                            @Nonnull final LiveActionsStatistician liveActionsStatistician) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
