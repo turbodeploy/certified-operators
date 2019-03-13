@@ -211,7 +211,9 @@ public class ServiceConfig {
                 mapperConfig.entityAspectMapper(),
                 communicationConfig.topologyProcessor(),
                 communicationConfig.entitySeverityService(),
-                statsService());
+                statsService(),
+                actionStatsQueryExecutor(),
+                mapperConfig.uuidMapper());
     }
 
     @Bean
