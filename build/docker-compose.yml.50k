@@ -137,7 +137,7 @@ services:
     extends:
       file: prod-services.yml
       service: topology-processor-prod
-mem_limit: 4096M
+    mem_limit: 4096M
     depends_on:
       - db
       - clustermgr

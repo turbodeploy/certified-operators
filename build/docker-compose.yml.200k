@@ -296,13 +296,6 @@ services:
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
-  mediation-actionscript:
-    extends:
-      file: prod-services.yml
-      service: mediation-actionscript-prod
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
 #  mediation-scaleio:
 #    extends:
 #      file: prod-services.yml

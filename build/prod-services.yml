@@ -82,7 +82,7 @@ services:
       service: prod-component
     image: turbonomic/kafka
     restart: always
-    mem_limit: 20000M
+    mem_limit: 10240M
     environment:
       BROKER_ID: 1
       KAFKA_INTERNAL_PORT: 9092
