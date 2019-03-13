@@ -53,6 +53,9 @@ ln -s /etc/docker/turboctl.py /usr/bin/turboctl
 ln -s /etc/docker/metron.py /usr/bin/metron
 ln -s /usr/local/bin/vmtctl /usr/bin/vmtctl
 
+# Clean up /etc/resolv.conf
+rm -rf /etc/resolv.conf
+
 # clean up the disk
 # Compress the image as much as possible
 dd if=/dev/zero of=/mytempfile bs=1024  count=1
