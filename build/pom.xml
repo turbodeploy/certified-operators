@@ -293,6 +293,7 @@
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
+                <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.cloud.conversion</module>
@@ -516,6 +517,7 @@
                 <module>../com.vmturbo.mediation.cloud.conversion</module>
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.azure.cost.component</module>
             </modules>
         </profile>
 
@@ -887,6 +889,7 @@
                 <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
+                <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.cloud.conversion</module>
