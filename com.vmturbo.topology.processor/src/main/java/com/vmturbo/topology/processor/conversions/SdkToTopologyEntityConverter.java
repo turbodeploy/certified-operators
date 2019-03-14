@@ -418,7 +418,16 @@ public class SdkToTopologyEntityConverter {
                 .setShopTogether(isShopTogether)
                 .setControllable(isControllable)
                 .setIsAvailableAsProvider(availableAsProvider);
-        suspendable.ifPresent(analysisSettingsBuilder::setSuspendable);
+        if (suspendable.isPresent()) {
+            boolean suspendableValue = suspendable.get();
+            analysisSettingsBuilder.setSuspendable(suspendableValue);
+
+            // If it is an application, set cloneable value to same as suspendable value
+            // to represent horizontal scalability.
+            if (entityType == EntityType.APPLICATION_VALUE) {
+                analysisSettingsBuilder.setCloneable(suspendableValue);
+            }
+        }
 
         return TopologyDTO.TopologyEntityDTO.newBuilder()
             .setEntityType(entityType)
@@ -638,10 +647,25 @@ public class SdkToTopologyEntityConverter {
     @VisibleForTesting
     static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
             @Nonnull final TopologyStitchingEntity entity) {
+        if (entity.getEntityType() == EntityType.APPLICATION) {
+            return Optional.of(checkAppSuspendability(entity));
+        }
         return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
-                !isLocalStorage(entity))
+                (!isLocalStorage(entity)))
                 ? Optional.empty()
                 : Optional.of(false);
+    }
+
+    /**
+     * An application is considered suspendable only if it was a discovered entity and
+     * its consumer is a vApp.
+     * @param entity is Application.
+     * @return true if can be suspended.
+     */
+    private static boolean checkAppSuspendability(TopologyStitchingEntity entity) {
+        return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
+               entity.getConsumers().stream()
+                   .anyMatch(provider -> provider.getEntityType() == EntityType.VIRTUAL_APPLICATION);
     }
 
     /**
