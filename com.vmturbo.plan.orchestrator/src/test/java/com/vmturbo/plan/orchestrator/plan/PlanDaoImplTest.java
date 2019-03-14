@@ -11,18 +11,19 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -61,7 +62,7 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 @TestPropertySource(properties = {"originalSchemaName=plan"})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class PlanDaoImplTest {
-
+    private static final long GENERATION_TIME = 111111111L;
     @Autowired
     private TestSQLDatabaseConfig dbConfig;
 
@@ -100,7 +101,7 @@ public class PlanDaoImplTest {
      * Verified cleaning up time outed plan instances.
      * @throws Exception
      */
-    @Ignore("Test would fail for daylight savings")
+
     @Test
     public void testCleanUpTimeOutedPlans() throws Exception {
         deleteAllPlanInstances();
@@ -110,7 +111,9 @@ public class PlanDaoImplTest {
         // the default time out value is set in factoryInstalledComponents.yml, if it's updated
         // we need to change the defaultTimeOut value here too
         final int defaultTimeOutHour = 6;
-        final LocalDateTime createdTime = LocalDateTime.now().minusHours(defaultTimeOutHour + 1);
+        //avoid failing for daylight savings
+        final LocalDateTime createdTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(GENERATION_TIME),
+        TimeZone.getDefault().toZoneId()).minusHours(defaultTimeOutHour + 1);
         // create 6 time outed plan instance.
         createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, createdTime);
         createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, createdTime);
