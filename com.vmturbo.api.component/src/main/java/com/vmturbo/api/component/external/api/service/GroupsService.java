@@ -161,6 +161,8 @@ public class GroupsService implements IGroupsService {
 
     private final EntitySeverityServiceBlockingStub entitySeverityServiceStub;
 
+    private StatsService statsService = null;
+
     private final Logger logger = LogManager.getLogger();
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -191,6 +193,16 @@ public class GroupsService implements IGroupsService {
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.entitySeverityServiceStub = Objects.requireNonNull(entitySeverityServiceStub);
+    }
+
+    /**
+     * Connect to the stats service.  We use a setter to avoid circular dependencies
+     * in the Spring configuration in the API component.
+     *
+     * @param statsService the stats service.
+     */
+    public void setStatsService(@Nonnull StatsService statsService) {
+        this.statsService = Objects.requireNonNull(statsService);
     }
 
     @Override
@@ -468,7 +480,7 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<StatSnapshotApiDTO> getStatsByGroupUuid(String uuid, String encodedQuery) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return statsService.getStatsByEntityUuid(uuid, encodedQuery);
     }
 
     @Override
@@ -644,7 +656,7 @@ public class GroupsService implements IGroupsService {
     public List<StatSnapshotApiDTO> getStatsByGroupQuery(String uuid,
                                                          StatPeriodApiInputDTO inputDto)
             throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return statsService.getStatsByEntityQuery(uuid, inputDto);
     }
 
     @Override

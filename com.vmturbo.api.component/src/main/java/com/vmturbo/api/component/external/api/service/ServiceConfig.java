@@ -393,7 +393,9 @@ public class ServiceConfig {
 
     @Bean
     public StatsService statsService() {
-        return new StatsService(communicationConfig.historyRpcService(),
+        final StatsService statsService =
+            new StatsService(
+                communicationConfig.historyRpcService(),
                 communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.repositoryRpcService(),
@@ -411,6 +413,8 @@ public class ServiceConfig {
                 mapperConfig.reservedInstanceMapper(),
                 magicScopeGateway(),
                 userSessionContext());
+        groupsService().setStatsService(statsService);
+        return statsService;
     }
 
     @Bean
