@@ -31,10 +31,13 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Integer numCpus;
 
+    private List<String> connectedNetworks;
+
     public VirtualMachineInfoRepoDTO() {
         guestOsInfo = null;
         tenancy = null;
         ipAddressInfoList = Lists.newArrayList();
+        connectedNetworks = Lists.newArrayList();
     }
 
     @Override
@@ -55,6 +58,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                         ipAddrInfo.getIsElastic()))
                 .collect(Collectors.toList()));
         setNumCpus(vmInfo.hasNumCpus() ? vmInfo.getNumCpus() : null);
+        setConnectedNetworks(vmInfo.getConnectedNetworksList());
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(this);
     }
 
@@ -84,6 +88,9 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getNumCpus() != null) {
             vmBuilder.setNumCpus(getNumCpus());
+        }
+        if (getConnectedNetworks() != null) {
+            vmBuilder.addAllConnectedNetworks(getConnectedNetworks());
         }
         return TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(vmBuilder)
@@ -123,6 +130,14 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.numCpus = numCpus;
     }
 
+    public List<String> getConnectedNetworks() {
+        return connectedNetworks;
+    }
+
+    public void setConnectedNetworks(List<String> connectedNetworks) {
+        this.connectedNetworks = connectedNetworks;
+    }
+
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this).omitNullValues()
@@ -130,6 +145,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 .add("tenancy", tenancy)
                 .add("ipAddressInfo", ipAddressInfoList)
                 .add("numCpus", numCpus)
+                .add("connectedNetworkOids", connectedNetworks)
                 .toString();
     }
     @Override
@@ -142,11 +158,12 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return Objects.equals(guestOsInfo, that.guestOsInfo) &&
                 Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
                 Objects.equals(tenancy, that.tenancy) &&
-                Objects.equals(numCpus, that.numCpus);
+                Objects.equals(numCpus, that.numCpus) &&
+                Objects.equals(connectedNetworks, that.connectedNetworks);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus);
+        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, connectedNetworks);
     }
 }

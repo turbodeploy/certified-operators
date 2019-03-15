@@ -35,11 +35,11 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         }
         final VirtualMachineData vmData = sdkEntity.getVirtualMachineData();
         VirtualMachineInfo.Builder vmInfo = VirtualMachineInfo.newBuilder()
-                // We're not currently sending tenancy via the SDK
-                .setTenancy(Tenancy.DEFAULT)
-                .setGuestOsInfo(parseGuestName(vmData.getGuestName()))
-                .setBillingType(vmData.getBillingType())
-                .addAllIpAddresses(parseIpAddressInfo(vmData));
+            // We're not currently sending tenancy via the SDK
+            .setTenancy(Tenancy.DEFAULT)
+            .setGuestOsInfo(parseGuestName(vmData.getGuestName()))
+            .setBillingType(vmData.getBillingType())
+            .addAllIpAddresses(parseIpAddressInfo(vmData));
         // "numCpus" is supposed to be set in VirtualMachineData, but currently most probes
         // set it in "entityProperties" (like vc, aws...), we should also try to find from the map
         if (vmData.hasNumCpus()) {
@@ -54,7 +54,9 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
                 }
             }
         }
-
+        if (!vmData.getConnectedNetworkList().isEmpty()) {
+            vmInfo.addAllConnectedNetworks(vmData.getConnectedNetworkList());
+        }
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
     }
 
@@ -64,9 +66,9 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         List<IpAddress> returnValue = Lists.newArrayList();
         for (String ipAddr : vmData.getIpAddressList()) {
             returnValue.add(IpAddress.newBuilder()
-                    .setIpAddress(ipAddr)
-                    .setIsElastic(numberElasticIps-- > 0)
-                    .build());
+                .setIpAddress(ipAddr)
+                .setIsElastic(numberElasticIps-- > 0)
+                .build());
         }
         return returnValue;
     }

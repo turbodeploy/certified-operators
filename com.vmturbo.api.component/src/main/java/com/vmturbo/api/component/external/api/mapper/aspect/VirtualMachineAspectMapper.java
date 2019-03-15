@@ -4,6 +4,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -40,9 +41,26 @@ public class VirtualMachineAspectMapper implements IAspectMapper {
             if (virtualMachineInfo.hasNumCpus()) {
                 aspect.setNumVCPUs(virtualMachineInfo.getNumCpus());
             }
+            if (!virtualMachineInfo.getConnectedNetworksList().isEmpty()) {
+                aspect.setConnectedNetworks(virtualMachineInfo.getConnectedNetworksList().stream()
+                    .map(this::mapToNetwork).collect(Collectors.toList()));
+            }
             // TODO: missing ebsOptimized, businessUserSessions
         }
         return aspect;
+    }
+
+    /**
+     * Maps the connected network name into a BaseApiDTO.
+     *
+     * @param networkName the underlying network display name
+     * @return the BaseApiDTO representing it.
+     */
+    @Nonnull
+    private BaseApiDTO mapToNetwork(final @Nonnull String networkName) {
+        final BaseApiDTO dto = new BaseApiDTO();
+        dto.setDisplayName(networkName);
+        return dto;
     }
 
     @Nonnull

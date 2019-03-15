@@ -49,6 +49,9 @@ message TypeSpecificInfo {
 
         // This specifies if the VM is using a spot instance or not.
         optional .common_dto.EntityDTO.VirtualMachineData.VMBillingType billingType = 5 [default = ONDEMAND];
+
+        // display name of all of the networks that connected to the VM.
+        repeated string connected_networks = 6;
     }
 
     // Properties unique to a PhysicalMachine in the model
