@@ -1040,7 +1040,7 @@
         "definition": "label_values(service)",
         "hide": 0,
         "includeAll": true,
-        "label": "environment",
+        "label": "component",
         "multi": true,
         "name": "service",
         "options": [],
@@ -1089,5 +1089,5 @@
   "timezone": "",
   "title": "Messaging Metrics",
   "uid": "5oen-9wik",
-  "version": 3
+  "version": 1
 }
