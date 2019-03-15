@@ -69,11 +69,12 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
-import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
-import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
+import com.vmturbo.topology.processor.topology.HistoricalEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
+import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -83,7 +84,6 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
-import com.vmturbo.topology.processor.topology.HistoricalEditor;
 
 /**
  * A wrapper class for the various {@link Stage} and {@link PassthroughStage} implementations.
@@ -987,7 +987,7 @@ public class Stages {
                 final TopologyBroadcastInfo broadcastInfo;
                 switch (getContext().getTopologyInfo().getTopologyType()) {
                     case REALTIME:
-                        broadcastInfo =broadcastTopology(broadcastManagers.stream()
+                        broadcastInfo = broadcastTopology(broadcastManagers.stream()
                             .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastLiveTopology)
                             .collect(Collectors.toList()), entities);
                         break;

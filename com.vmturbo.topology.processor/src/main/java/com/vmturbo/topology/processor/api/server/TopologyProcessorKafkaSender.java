@@ -29,6 +29,7 @@ public class TopologyProcessorKafkaSender {
                         TopologyProcessorClient.TOPOLOGY_USER_PLAN),
                 kafkaMessageProducer.messageSender(
                         TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN),
-                kafkaMessageProducer.messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC));
+                kafkaMessageProducer.messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC),
+                kafkaMessageProducer.messageSender(TopologyProcessorClient.TOPOLOGY_SUMMARIES));
     }
 }

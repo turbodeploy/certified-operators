@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -26,6 +27,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
+import com.vmturbo.topology.processor.api.TopologySummaryListener;
 import com.vmturbo.topology.processor.api.ValidationStatus;
 
 /**
@@ -39,6 +41,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     private final Set<TargetListener> targetListeners;
     private final Set<ActionExecutionListener> actionListeners;
     private final Set<ProbeListener> probeListeners;
+    private final Set<TopologySummaryListener> topologySummaryListeners;
 
     private <LISTENER_TYPE> void doWithListeners(@Nonnull final Set<LISTENER_TYPE> listeners,
                                  final Consumer<LISTENER_TYPE> command) {
@@ -57,6 +60,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
             @Nullable final IMessageReceiver<Topology> liveTopologyReceiver,
             @Nullable final IMessageReceiver<Topology> planTopologyReceiver,
+            @Nullable final IMessageReceiver<TopologySummary> topologySummaryReceiver,
             @Nonnull final ExecutorService threadPool) {
         super(messageReceiver, threadPool);
         this.liveTopoReceiver = new TopologyReceiver(liveTopologyReceiver, threadPool);
@@ -71,6 +75,23 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             this.actionListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
             this.probeListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
         }
+
+        if (topologySummaryReceiver == null) {
+            topologySummaryListeners = Collections.emptySet();
+        } else {
+            topologySummaryReceiver.addListener(this::onTopologySummary);
+            topologySummaryListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        }
+    }
+
+    private void onTopologySummary(@Nonnull final TopologySummary topologySummary,
+                                   @Nonnull Runnable commitCommand) {
+        getLogger().debug("Received topology summary for context {} id {} creation time {}",
+                topologySummary.getTopologyInfo().getTopologyContextId(),
+                topologySummary.getTopologyInfo().getTopologyId(),
+                topologySummary.getTopologyInfo().getCreationTime());
+        doWithListeners(topologySummaryListeners, l -> l.onTopologySummary(topologySummary));
+        commitCommand.run();
     }
 
     private void onTargetAddedNotification(@Nonnull final TopologyProcessorNotification message) {
@@ -188,5 +209,9 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     public void addPlanTopoListener(@Nonnull final EntitiesListener listener) {
         this.planTopoReceiver.addListener(listener);
+    }
+
+    public void addTopologySummaryListener(@Nonnull final TopologySummaryListener listener) {
+        this.topologySummaryListeners.add(listener);
     }
 }

@@ -1,5 +1,6 @@
 package com.vmturbo.repository;
 
+import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -27,6 +28,10 @@ public class SharedMetrics {
      */
     public static final String GLOBAL_LABEL = "global";
 
+    public static final String PROCESSED_LABEL = "processed";
+    public static final String FAILED_LABEL = "failed";
+    public static final String SKIPPED_LABEL = "skipped";
+
     public static final DataMetricGauge TOPOLOGY_ENTITY_COUNT_GAUGE = DataMetricGauge.builder()
         .withName("repo_topology_entity_count")
         .withHelp("Size of topology received by repository.")
@@ -36,8 +41,16 @@ public class SharedMetrics {
 
     public static final DataMetricSummary TOPOLOGY_DURATION_SUMMARY = DataMetricSummary.builder()
         .withName("repo_update_topology_duration_seconds")
-        .withHelp("Duration in seconds it takes repository to update a topology. May be source or projected")
+        .withHelp("Duration in seconds it takes repository to update a topology. May be source or projected. Skipped topologies are not included.")
         .withLabelNames("topology_type")
         .build()
         .register();
+
+    public static final DataMetricCounter TOPOLOGY_COUNTER = DataMetricCounter.builder()
+            .withName("repo_topology_count")
+            .withHelp("Number of topologies received by repository, separated into 'processed', 'failed' and 'skipped' statuses.")
+            .withLabelNames("topology_type", "status")
+            .build()
+            .register();
+
 }

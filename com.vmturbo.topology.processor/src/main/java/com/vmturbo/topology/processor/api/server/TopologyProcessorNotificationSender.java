@@ -10,8 +10,10 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.base.Preconditions;
@@ -25,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
@@ -49,13 +52,14 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
  */
 public class TopologyProcessorNotificationSender
         extends ComponentNotificationSender<TopologyProcessorNotification>
-        implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener {
+        implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener{
 
     private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
     private final IMessageSender<Topology> liveTopologySender;
     private final IMessageSender<Topology> userPlanTopologySender;
     private final IMessageSender<Topology> schedPlanTopologySender;
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
+    private final IMessageSender<TopologySummary> topologySummarySender;
     private final ExecutorService threadPool;
 
 
@@ -63,13 +67,16 @@ public class TopologyProcessorNotificationSender
             @Nonnull IMessageSender<Topology> liveTopologySender,
             @Nonnull IMessageSender<Topology> userPlanTopologySender,
             @Nonnull IMessageSender<Topology> schedPlanTopologySender,
-            @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender) {
+            @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender,
+            @Nonnull IMessageSender<TopologySummary> topologySummarySender) {
         super();
         this.threadPool = Objects.requireNonNull(threadPool);
         this.liveTopologySender = Objects.requireNonNull(liveTopologySender);
         this.userPlanTopologySender = Objects.requireNonNull(userPlanTopologySender);
         this.schedPlanTopologySender = Objects.requireNonNull(schedPlanTopologySender);
         this.notificationSender = Objects.requireNonNull(notificationSender);
+        this.topologySummarySender = Objects.requireNonNull(topologySummarySender);
+
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
                         operation -> notifyValidationState((Validation)operation));
@@ -194,7 +201,7 @@ public class TopologyProcessorNotificationSender
     @Nonnull
     @Override
     public TopologyBroadcast broadcastLiveTopology(@Nonnull final TopologyInfo topologyInfo) {
-        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo);
+        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo, this::broadcastTopologySummary);
     }
 
     @Nonnull
@@ -208,6 +215,16 @@ public class TopologyProcessorNotificationSender
     public TopologyBroadcast broadcastScheduledPlanTopology(
             @Nonnull final TopologyInfo topologyInfo) {
         return new TopologyBroadcastImpl(schedPlanTopologySender, topologyInfo);
+    }
+
+    public void broadcastTopologySummary(@Nonnull final TopologyInfo topologyInfo) {
+        try {
+            topologySummarySender.sendMessage(TopologySummary.newBuilder()
+                    .setTopologyInfo(topologyInfo)
+                    .build());
+        } catch (CommunicationException|InterruptedException e) {
+            getLogger().error("Could not send TopologySummary message", e);
+        }
     }
 
     @Override
@@ -279,6 +296,11 @@ public class TopologyProcessorNotificationSender
          */
         private final Future<?> initialMessage;
         private final IMessageSender<Topology> messageSender;
+
+        /**
+         * An optional command to run
+         */
+        private final Consumer<TopologyInfo> postBroadcastCommand;
         /**
          * Collection to store chunk data.
          */
@@ -296,7 +318,13 @@ public class TopologyProcessorNotificationSender
         private boolean finished = false;
 
         TopologyBroadcastImpl(@Nonnull IMessageSender<Topology> messageSender,
-                @Nonnull final TopologyInfo topologyInfo) {
+                              @Nonnull final TopologyInfo topologyInfo) {
+            this(messageSender, topologyInfo, null);
+        }
+
+        TopologyBroadcastImpl(@Nonnull IMessageSender<Topology> messageSender,
+                              @Nonnull final TopologyInfo topologyInfo,
+                              @Nullable Consumer<TopologyInfo> postBroadcastCommand) {
             this.messageSender = Objects.requireNonNull(messageSender);
             Preconditions.checkArgument(topologyInfo.hasTopologyId());
             Preconditions.checkArgument(topologyInfo.hasTopologyContextId());
@@ -304,6 +332,7 @@ public class TopologyProcessorNotificationSender
             Preconditions.checkArgument(topologyInfo.hasTopologyType());
             this.topologyInfo = topologyInfo;
             this.chunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
+            this.postBroadcastCommand = postBroadcastCommand;
             final Topology subMessage = Topology.newBuilder()
                     .setTopologyId(getTopologyId())
                     .setStart(Start.newBuilder()
@@ -362,6 +391,10 @@ public class TopologyProcessorNotificationSender
                         .setEnd(End.newBuilder().setTotalCount(totalCount))
                         .build();
                 sendTopologySegment(subMessage);
+                // if we have a post broadcast command, run it
+                if (postBroadcastCommand != null) {
+                    postBroadcastCommand.accept(topologyInfo);
+                }
                 return totalCount;
             }
         }
