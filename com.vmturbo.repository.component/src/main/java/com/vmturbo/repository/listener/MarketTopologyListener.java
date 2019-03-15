@@ -2,6 +2,7 @@ package com.vmturbo.repository.listener;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
@@ -15,6 +16,7 @@ import com.arangodb.ArangoDBException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -58,6 +60,22 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
         }
     }
 
+    private boolean shouldProcessTopology(TopologyInfo originalTopologyInfo) {
+        // should we skip this one? We will skip it if it's a projection of a realtime topology id
+        // that is "older" than our current realtime topology id.
+        if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
+            Optional<TopologyID> optionalTopologyID = topologyManager.getRealtimeTopologyId();
+            if (optionalTopologyID.isPresent()) {
+                long currentRealtimeTopologyId = optionalTopologyID.get().getTopologyId();
+                // don't process if the original topology id is older than the current realtime id
+                if (currentRealtimeTopologyId > originalTopologyInfo.getTopologyId()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     public void onProjectedTopologyReceivedInternal(long projectedTopologyId,
             TopologyInfo originalTopologyInfo,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo)
@@ -65,6 +83,24 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
         final long topologyContextId = originalTopologyInfo.getTopologyContextId();
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
             TopologyID.TopologyType.PROJECTED);
+
+        if (!shouldProcessTopology(originalTopologyInfo)) {
+            // skip this realtime topology project cause it looks stale.
+            logger.info("Skipping stale realtime projected topology id {} for source topology id {}",
+                    projectedTopologyId, originalTopologyInfo.getTopologyId());
+            // drain the iterator and exit.
+            try {
+                while (projectedTopo.hasNext()) {
+                    projectedTopo.nextChunk();
+                }
+            } catch (TimeoutException e) {
+                logger.warn("TimeoutException while skipping projected topology {}", projectedTopologyId);
+            } finally {
+                SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.SKIPPED_LABEL).increment();
+            }
+            return;
+        }
+
         final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
                 .labels(SharedMetrics.PROJECTED_LABEL)
                 .startTimer();
@@ -85,15 +121,18 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
                 .labels(SharedMetrics.PROJECTED_LABEL)
                 .setData((double)numberOfEntities);
             topologyCreator.complete();
+            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.PROCESSED_LABEL).increment();
             logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
         } catch (InterruptedException e) {
             logger.info("Thread interrupted receiving topology " + projectedTopologyId, e);
+            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();
             topologyCreator.rollback();
             return;
         } catch (CommunicationException | TimeoutException | TopologyEntitiesException
                         | GraphDatabaseException | ArangoDBException e) {
             logger.error(
                 "Error occurred during retrieving projected topology " + projectedTopologyId, e);
+            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();
             notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
                 "Error receiving projected topology " + projectedTopologyId
                     + ": " + e.getMessage());
@@ -101,6 +140,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
             return;
         } catch (RuntimeException e) {
             logger.error("Exception while receiving projected topology " + projectedTopologyId, e);
+            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();
             topologyCreator.rollback();
             throw e;
         }
