@@ -26,7 +26,6 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
@@ -115,17 +114,11 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public SenderReceiverPair<TopologySummary> topologySummaryConnection() {
-        return new SenderReceiverPair<>();
-    }
-
-    @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
                 new TopologyProcessorNotificationSender(apiServerThreadPool(),
                         liveTopologyConnection(), planTopologyConnection(),
-                        planTopologyConnection(), notificationsConnection(),
-                        topologySummaryConnection());
+                        planTopologyConnection(), notificationsConnection());
         targetStore().addListener(backend);
         probeStore().addListener(backend);
         return backend;

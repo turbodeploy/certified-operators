@@ -485,10 +485,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public TopologyProcessor topologyProcessor() throws GraphDatabaseException {
         final TopologyProcessor topologyProcessor =
-                tpClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies,
-                        Subscription.TopologySummaries));
+                tpClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
         topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
-        topologyProcessor.addTopologySummaryListener(topologyEntitiesListener());
         return topologyProcessor;
     }
 

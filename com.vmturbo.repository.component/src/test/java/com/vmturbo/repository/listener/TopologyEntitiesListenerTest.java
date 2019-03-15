@@ -2,7 +2,6 @@ package com.vmturbo.repository.listener;
 
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,7 +18,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.topology.TopologyID;
@@ -100,32 +98,5 @@ public class TopologyEntitiesListenerTest {
         verify(globalSupplyChainRecorder, times(1))
                 .setGlobalSupplyChainProviderRels(any());
         verify(notificationSender).onSourceTopologyAvailable(eq(topologyId), eq(topologyContextId));
-    }
-
-    @Test
-    public void testOnStaleTopology() throws Exception {
-        // verify that the realtime topology processor will skip an incoming realtime topology if
-        // it's "stale".
-        // first we'll prime the topology listener with a "newer" topology summary.
-        topologyEntitiesListener.onTopologySummary(TopologySummary.newBuilder()
-                .setTopologyInfo(TopologyInfo.newBuilder()
-                    .setTopologyId(2L) // "2" will be newer than "1"
-                    .setCreationTime(2)
-                    .setTopologyContextId(realtimeTopologyContextId))
-                .build());
-        final long topologyId = 1L;
-        final TopologyID tid = new TopologyID(realtimeTopologyContextId, topologyId,
-                TopologyID.TopologyType.SOURCE);
-
-        topologyEntitiesListener.onTopologyNotification(
-                TopologyInfo.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setCreationTime(1)
-                        .setTopologyId(topologyId)
-                        .build(),
-                entityIterator);
-
-        verify(topologyManager, never()).newSourceTopologyCreator(tid);
-        verify(topologyCreator, never()).complete();
     }
 }

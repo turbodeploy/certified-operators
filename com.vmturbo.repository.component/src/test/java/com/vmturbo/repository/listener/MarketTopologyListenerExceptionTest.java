@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -87,7 +86,6 @@ public class MarketTopologyListenerExceptionTest {
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenThrow(new InterruptedException("interrupted"));
-        when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         marketTopologyListener.onProjectedTopologyReceived(
                 projectedTopologyId,
                 TopologyInfo.newBuilder()
@@ -109,7 +107,6 @@ public class MarketTopologyListenerExceptionTest {
      */
     @Test
     public void testOnProjectedTopologyReceivedCommunicationException() throws Exception {
-        when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenThrow(new CommunicationException("communication exception"));
@@ -134,7 +131,6 @@ public class MarketTopologyListenerExceptionTest {
      */
     @Test
     public void testOnProjectedTopologyReceivedOtherExceptions() throws Exception {
-        when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenThrow(new IllegalStateException("other exception"));

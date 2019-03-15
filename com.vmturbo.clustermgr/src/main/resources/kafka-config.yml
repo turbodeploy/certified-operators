@@ -15,9 +15,6 @@ topics:
   - topic: tp-notifications
     properties:
       retention.ms: 604800000 # 604800000 ms = 7 days
-  - topic: topology-summaries # a topic containing short summaries of topologies
-    properties:
-      retention.ms: 3600000 # 3600k ms = 1 hr
   - topic: tp-live-topologies
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr

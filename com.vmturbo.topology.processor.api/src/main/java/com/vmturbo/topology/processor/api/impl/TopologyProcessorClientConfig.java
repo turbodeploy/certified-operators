@@ -17,13 +17,10 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
-import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 
@@ -87,14 +84,6 @@ public class TopologyProcessorClientConfig {
                         TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN), Topology::parseFrom);
     }
 
-    @Bean
-    protected IMessageReceiver<TopologySummary> topologySummaryReceiver() {
-        return baseKafkaConfig.kafkaConsumer()
-                .messageReceiverWithSettings(
-                        new TopicSettings(TopologyProcessorClient.TOPOLOGY_SUMMARIES, StartFrom.BEGINNING),
-                        TopologySummary::parseFrom);
-    }
-
     /**
      * This is a lazy bean prototype. It will subscribe on different topics based on the input
      * parameters. Everithing will be later collected by Spring to destroy automatically.
@@ -103,25 +92,18 @@ public class TopologyProcessorClientConfig {
      * @return topology processor client implementation
      */
     public TopologyProcessor topologyProcessor(final Set<Subscription> subscriptions) {
-        final IMessageReceiver<TopologyProcessorNotification> notificationsReceiver
-                = subscriptions.contains(Subscription.Notifications)
-                    ? topologyNotificationReceiver()
-                    : null;
-        final IMessageReceiver<Topology> liveReceiver
-                = subscriptions.contains(Subscription.LiveTopologies)
-                    ? liveTopologyBroadcastReceiver()
-                    : null;
-        final IMessageReceiver<Topology> planReceiver
-                = subscriptions.contains(Subscription.PlanTopologies)
-                    ? planTopologyBroadcastReceiver()
-                    : null;
-        final IMessageReceiver<TopologySummary> summaryReceiver
-                = subscriptions.contains(Subscription.TopologySummaries)
-                    ? topologySummaryReceiver()
-                    : null;
+        final IMessageReceiver<TopologyProcessorNotification> notificationsReceiver =
+                subscriptions.contains(Subscription.Notifications) ?
+                        topologyNotificationReceiver() : null;
+        final IMessageReceiver<Topology> liveReceiver =
+                subscriptions.contains(Subscription.LiveTopologies) ?
+                        liveTopologyBroadcastReceiver() : null;
+        final IMessageReceiver<Topology> planReceiver =
+                subscriptions.contains(Subscription.PlanTopologies) ?
+                        planTopologyBroadcastReceiver() : null;
         return TopologyProcessorClient.rpcAndNotification(topologyProcessorClientConnectionConfig(),
                 topologyProcessorClientThreadPool(), notificationsReceiver, liveReceiver,
-                planReceiver, summaryReceiver);
+                planReceiver);
     }
 
     @Bean
@@ -143,6 +125,6 @@ public class TopologyProcessorClientConfig {
     }
 
     public enum Subscription {
-        Notifications, LiveTopologies, PlanTopologies, TopologySummaries;
+        Notifications, LiveTopologies, PlanTopologies;
     }
 }

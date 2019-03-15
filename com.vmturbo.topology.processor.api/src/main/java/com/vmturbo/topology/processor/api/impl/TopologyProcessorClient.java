@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -26,7 +25,6 @@ import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
-import com.vmturbo.topology.processor.api.TopologySummaryListener;
 import com.vmturbo.topology.processor.api.ValidationStatus;
 
 /**
@@ -40,7 +38,6 @@ public class TopologyProcessorClient extends
     public static final String TOPOLOGY_LIVE = "tp-live-topologies";
     public static final String TOPOLOGY_USER_PLAN = "tp-user-plan-topologies";
     public static final String TOPOLOGY_SCHEDULED_PLAN = "tp-scheduled-plan-topologies";
-    public static final String TOPOLOGY_SUMMARIES = "topology-summaries";
 
     private final TopologyProcessorNotificationReceiver notificationClient;
 
@@ -53,10 +50,9 @@ public class TopologyProcessorClient extends
             @Nonnull final ExecutorService executorService,
             @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
             @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
-            @Nullable IMessageReceiver<Topology> planTopologyReceiver,
-            @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver) {
+            @Nullable IMessageReceiver<Topology> planTopologyReceiver) {
         return new TopologyProcessorClient(connectionConfig, messageReceiver, liveTopologyReceiver,
-                planTopologyReceiver, topologySummaryReceiver, executorService);
+                planTopologyReceiver, executorService);
     }
 
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -76,12 +72,11 @@ public class TopologyProcessorClient extends
             @Nullable IMessageReceiver<TopologyProcessorNotification> messageReceiver,
             @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
             @Nullable IMessageReceiver<Topology> planTopologyReceiver,
-            @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver,
             @Nonnull ExecutorService threadPool) {
         super(connectionConfig);
         this.notificationClient =
                 new TopologyProcessorNotificationReceiver(messageReceiver, liveTopologyReceiver,
-                        planTopologyReceiver, topologySummaryReceiver, threadPool);
+                        planTopologyReceiver, threadPool);
     }
 
     @Nonnull
@@ -186,11 +181,6 @@ public class TopologyProcessorClient extends
     @Override
     public void addPlanTopologyListener(@Nonnull EntitiesListener listener) {
         getNotificationClient().addPlanTopoListener(listener);
-    }
-
-    @Override
-    public void addTopologySummaryListener(@Nonnull final TopologySummaryListener listener) {
-        getNotificationClient().addTopologySummaryListener(listener);
     }
 
     @Nonnull

@@ -29,7 +29,6 @@ import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.IntegrationTestServer;
@@ -93,12 +92,10 @@ public abstract class AbstractApiCallsTest {
                 integrationTestServer.getBean("liveTopologyConnection");
         final IMessageReceiver<Topology> planTopologyReceiver =
                 integrationTestServer.getBean("planTopologyConnection");
-        final IMessageReceiver<TopologySummary> topologySummaryReceiver =
-                integrationTestServer.getBean("topologySummaryConnection");
         topologyProcessor =
                 TopologyProcessorClient.rpcAndNotification(integrationTestServer.connectionConfig(),
                         threadPool, notificationReceiver, liveTopologyReceiver,
-                        planTopologyReceiver, topologySummaryReceiver);
+                        planTopologyReceiver);
 
         actionExecutionService =
                 ActionExecutionServiceGrpc.newBlockingStub(grpcServer.getChannel());

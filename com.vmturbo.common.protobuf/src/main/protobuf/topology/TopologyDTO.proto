@@ -706,14 +706,6 @@ message OS {
     optional string guest_os_name = 2;
 }
 
-// a short description of what a topology contains. The description is useful when you are interested
-// in the IDEA of topologies but you don't want to have to read the whole thing!
-message TopologySummary {
-    optional TopologyInfo topology_info = 1;
-    // TBD: a summary of the contents of the topology, including the workload count or the raw
-    // data that can be used to derive the workload count, so that we can resolve OM-37431
-}
-
 // A request to assemble the current topology and broadcast it to all listeners for the topology.
 message TopologyBroadcastRequest {
     // Currently no properties.

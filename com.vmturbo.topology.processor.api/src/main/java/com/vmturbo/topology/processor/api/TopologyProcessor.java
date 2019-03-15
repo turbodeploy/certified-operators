@@ -185,14 +185,5 @@ public interface TopologyProcessor {
      * @throws IllegalStateException if there is no subscription to this event
      */
     void addPlanTopologyListener(@Nonnull EntitiesListener listener);
-
-    /**
-     * Register a listener for topology summaries.
-     *
-     * @param listener listener to register
-     * @throws IllegalArgumentException if specified listener is {@code null}
-     * @throws IllegalStateException if there is no subscription to this event
-     */
-    void addTopologySummaryListener(@Nonnull TopologySummaryListener listener);
 }
 

@@ -8,9 +8,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Optional;
-
-import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -18,13 +15,18 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
+import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -86,7 +88,6 @@ public class MarketTopologyListenerTest {
         final long srcTopologyId = 11111L;
         final long projectedTopologyId = 33333L;
         final long creationTime = 44444L;
-        when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
         marketTopologyListener.onProjectedTopologyReceived(
                 projectedTopologyId,
@@ -103,31 +104,5 @@ public class MarketTopologyListenerTest {
         verify(topologyCreator, never()).rollback();
         // 2 invocations, one for each chunk
         verify(topologyCreator, times(2)).addEntities(any());
-    }
-
-    @Test
-    public void testOnStaleProjectedTopologyReceived() throws Exception {
-        // verify that the projected topology will get skipped if it's for a source topology older
-        // than the "current" one.
-        final long topologyContextId = 11L;
-        final long srcTopologyId = 1;
-        final long projectedTopologyId = 33333L;
-        final long creationTime = 44444L;
-        when(topologyManager.getRealtimeTopologyId())
-                .thenReturn(TopologyID.fromDatabaseName("topology-11-SOURCE-2"));
-        final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
-        marketTopologyListener.onProjectedTopologyReceived(
-                projectedTopologyId,
-                TopologyInfo.newBuilder()
-                        .setTopologyId(srcTopologyId)
-                        .setTopologyContextId(topologyContextId)
-                        .setCreationTime(creationTime)
-                        .build(),
-                Collections.emptySet(),
-                entityIterator);
-
-        // should not have any "write" interactions
-        verify(topologyManager, never()).newProjectedTopologyCreator(tid);
-        verify(topologyCreator, never()).complete();
     }
 }
