@@ -9,6 +9,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -60,6 +62,8 @@ public abstract class Trader implements Serializable {
     private boolean templateProvider_ = false;
     // This field specifies whether the trader's debug info is already printed
     private boolean sellersInfoPrinted = false;
+    // This field hold the explanation for unplaced traders.
+    private String unplacedExplanation = "";
 
     // Constructors
     /**
@@ -78,7 +82,6 @@ public abstract class Trader implements Serializable {
         basketSold_ = basketSold;
         cloneOf_ = -1;
         setEconomyIndex(economyIndex);
-
         for(int i = 0 ; i < basketSold.size() ; ++i) {
             commoditiesSold_.add(new CommoditySoldWithSettings());
         }
@@ -470,5 +473,21 @@ public abstract class Trader implements Serializable {
     @Override
     public String toString() {
         return debugInfoNeverUseInCode_;
+    }
+
+    /*
+     * Returns the explanation for unplaced trader.
+     *
+     */
+    public String getUnplacedExplanation() {
+        return unplacedExplanation;
+    }
+
+    /*
+     * Sets the explanation for unplaced trader.
+     *
+     */
+    public void setUnplacedExplanation(@Nonnull String unplacedExplanation) {
+        this.unplacedExplanation = unplacedExplanation;
     }
 } // end interface Trader

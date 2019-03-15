@@ -290,7 +290,8 @@ public final class AnalysisToProtobuf {
                                                         .getMarketsAsBuyer(t).keySet()
                                                         .stream().anyMatch(sl -> economy
                                                                         .getPreferentialShoppingLists().contains(sl)))
-                                        .count());
+                                        .count())
+            .setUnplacedExplanation(trader.getUnplacedExplanation());
 
         if (trader.isClone()) {
             builder.setCloneOf(traderToOidMap.get(((Economy)economy).getCloneOfTrader(trader)));

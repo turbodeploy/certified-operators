@@ -328,7 +328,7 @@ public final class Ede {
         }
         addUnplacementsForEmptyReconfigures(economy, actions, placementResults);
         logUnplacedTraders(placementResults);
-
+        createUnplacedExplanations(placementResults);
         return actions;
     }
 
@@ -455,6 +455,27 @@ public final class Ede {
                         .collect(Collectors.joining("\n\t"))));
         } catch (Exception e) {
             logger.error("Error during unplaced trader logging: ", e);
+        }
+    }
+
+    /**
+     * Create the explanation describing why the trader could not be placed.
+     *
+     * This is used to show the causes of placement failure.
+     *
+     * @param placementResults The results describing why traders could not be placed.
+     */
+    private void createUnplacedExplanations(@NonNull final PlacementResults placementResults) {
+        try {
+            placementResults.getUnplacedTraders().forEach((trader, quoteTrackers) -> {
+                String explanation = quoteTrackers.stream()
+                                .map(QuoteTracker::explainInterestingSellers)
+                                .collect(Collectors.joining("\n\t"));
+                trader.setUnplacedExplanation(explanation);
+            });
+        }
+        catch (Exception e) {
+            logger.error("Error during unplaced explanation creation: ", e);
         }
     }
 
