@@ -49,8 +49,6 @@ awslambda:
   enabled: false
 azure:
   enabled: false
-azurecost:
-  enabled: false
 azurevolumes:
   enabled: false
 cloudfoundry:
