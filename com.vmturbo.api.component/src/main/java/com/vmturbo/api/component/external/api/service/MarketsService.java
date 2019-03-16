@@ -949,8 +949,8 @@ public class MarketsService implements IMarketsService {
         /**
          * Fetch data center names according to their OIDs.
          *
-         * @param dataCenterIds
          * @return list of data center names.
+         * @param dataCenterIds
          */
         private List<String> fetchDataCenterNamesByOids(final List<String> dataCenterIds) {
             return repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
@@ -963,5 +963,10 @@ public class MarketsService implements IMarketsService {
                     .map(TopologyEntityDTO::getDisplayName)
                     .collect(Collectors.toList());
         }
+    }
+
+    @Override
+    public EntityStatsPaginationResponse getStatsForAllEntitiesInMarketQuery(String s, StatScopesApiInputDTO statScopesApiInputDTO, EntityStatsPaginationRequest entityStatsPaginationRequest) throws Exception {
+        throw new UnsupportedOperationException("Operation is not yet implemented in XL.");
     }
 }
