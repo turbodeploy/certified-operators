@@ -115,6 +115,10 @@ dependencies:
     repository: file://../probes/mediation-azure
     version: 0.1.0
     condition: azure.enabled
+  - name: mediation-azurecost
+    repository: file://../probes/mediation-azurecost
+    version: 0.1.0
+    condition: azurecost.enabled
   - name: mediation-azurevolumes
     repository: file://../probes/mediation-azurevolumes
     version: 0.1.0
