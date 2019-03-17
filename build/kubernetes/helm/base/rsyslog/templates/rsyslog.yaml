@@ -53,6 +53,7 @@ spec:
           tcpSocket:
             port: 2514
         securityContext:
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL

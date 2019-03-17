@@ -65,6 +65,7 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL

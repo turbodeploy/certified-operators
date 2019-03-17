@@ -60,6 +60,7 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
+          readOnlyRootFilesystem: true
           privileged: true
         volumeMounts:
         - mountPath: /var/lib/mysql

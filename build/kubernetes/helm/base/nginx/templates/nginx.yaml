@@ -99,6 +99,7 @@ spec:
           tcpSocket:
             port: 8443
         securityContext:
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL

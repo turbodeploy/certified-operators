@@ -51,14 +51,13 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
         volumeMounts:
         - mountPath: /tmp
           name: mediation-aws-tmpfs0
-      securityContext:
-        fsGroup: 2000
 {{- if .Values.global }}
   {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:

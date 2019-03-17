@@ -51,6 +51,7 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
@@ -58,8 +59,6 @@ spec:
         - mountPath: /tmp
           name: mediation-azure-tmpfs0
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
 {{- if .Values.global }}
   {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
