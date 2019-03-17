@@ -238,10 +238,7 @@ public class SdkToTopologyEntityConverter {
         if (dto.hasOrigin()) {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
         }
-        if (dto.hasStorageData()) {
-            // set local attribute to true for local storages
-            entityPropertyMap.put("local", String.valueOf(isLocalStorage(entity)));
-        }
+
         final TopologyEntityDTO.Builder retBuilder = newTopologyEntityDTO(
             entityType,
             entity.getOid(),

@@ -137,10 +137,6 @@ message TypeSpecificInfo {
 
         // What basic type of storage does this represent, e.g. GENERIC_BLOCK, ISCSI, FIBER_CHANNEL, etc
         optional .common_dto.EntityDTO.StorageType storage_type = 2;
-
-        // boolean that marks a storage connected with isLocalSupported true from mediation and is connected
-        // to just 1 PM as local
-        optional bool is_local = 3;
     }
 }
 

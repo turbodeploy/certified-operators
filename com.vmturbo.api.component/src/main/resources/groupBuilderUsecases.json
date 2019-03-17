@@ -54,8 +54,7 @@
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
             {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
             {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag"},
-            {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"},
-            {"inputType": "*", "elements": "storageInfoRepoDTO.local", "filterCategory": "property", "filterType": "storageWithLocalSupport"}
+            {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"}
         ]
     },
 
@@ -138,12 +137,6 @@
     "StorageController" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storagecontrollerByName"}
-        ]
-    },
-
-    "VirtualVolume" : {
-        "criteria" : [
-            {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "vmsWithLocalSupport"}
         ]
     },
 

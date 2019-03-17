@@ -25,7 +25,6 @@ public class StorageInfoMapper extends TypeSpecificInfoMapper {
         return TypeSpecificInfo.newBuilder()
                 .setStorage(StorageInfo.newBuilder()
                         .setStorageType(storageData.getStorageType())
-                        .setIsLocal(Boolean.valueOf(entityPropertyMap.get("local")))
                         .addAllExternalName(storageData.getExternalNameList()))
                 .build();
     }
