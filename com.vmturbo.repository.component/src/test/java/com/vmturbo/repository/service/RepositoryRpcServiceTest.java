@@ -3,6 +3,7 @@ package com.vmturbo.repository.service;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +38,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRes
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -51,6 +54,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.service.RepositoryRpcService.PlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID;
@@ -193,6 +197,19 @@ public class RepositoryRpcServiceTest {
                 .addAllEntityOids(Lists.newArrayList(1L))
                 .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED)
                 .build());
+    }
+
+    @Test
+    public void testRetrieveTopologyEntitiesByType() {
+        when(graphDBService.retrieveTopologyEntities(Mockito.anyLong(), Mockito.anyLong(),
+                                                     Mockito.anySet(), eq(TopologyType.PROJECTED)))
+        .thenReturn(Either.right(Collections.emptyList()));
+        repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                                                   .setTopologyContextId(topologyContextId)
+                                                   .setTopologyId(topologyId)
+                                                   .addAllEntityType(Lists.newArrayList(EntityType.VIRTUAL_MACHINE))
+                                                   .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED)
+                                                   .build());
     }
 
     @Test

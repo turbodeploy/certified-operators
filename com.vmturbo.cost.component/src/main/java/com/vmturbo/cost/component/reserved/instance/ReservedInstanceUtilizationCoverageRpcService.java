@@ -41,7 +41,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
     private final ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
-    private final ProjectedRICoverageStore projectedRICoverageStore;
+    private final ProjectedRICoverageAndUtilStore projectedRICoverageStore;
 
     private final TimeFrameCalculator timeFrameCalculator;
 
@@ -50,7 +50,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
     public ReservedInstanceUtilizationCoverageRpcService(
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
-            @Nonnull final ProjectedRICoverageStore projectedRICoverageStore,
+            @Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
             @Nonnull final TimeFrameCalculator timeFrameCalculator) {
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
         this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;

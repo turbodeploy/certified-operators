@@ -1,12 +1,15 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.antlr.v4.runtime.misc.Array2DHashSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -27,8 +30,12 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
 
     private final ProjectedEntityCostStore projectedEntityCostStore;
 
-    CostComponentProjectedEntityCostListener(@Nonnull final ProjectedEntityCostStore projectedEntityCostStore) {
+    private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
+
+    CostComponentProjectedEntityCostListener(@Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+                                             @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore) {
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
+        this.planProjectedEntityCostStore = Objects.requireNonNull(planProjectedEntityCostStore);
     }
 
     @Override
@@ -36,13 +43,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                                                @Nonnull final TopologyInfo originalTopologyInfo,
                                                @Nonnull final RemoteIterator<EntityCost> entityCosts) {
         logger.debug("Receiving projected entity costs for topology {}", projectedTopologyId);
-        if (originalTopologyInfo.getTopologyType() == TopologyType.PLAN) {
-            logger.warn("Received unexpected plan topology. Expecting realtime only. (id: {})",
-                    projectedTopologyId);
-            return;
-        }
-
-        final Stream.Builder<EntityCost> costStreamBuilder = Stream.builder();
+        final List<EntityCost> costList = new ArrayList<>();
         long costCount = 0;
         int chunkCount = 0;
         while (entityCosts.hasNext()) {
@@ -50,7 +51,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                 final Collection<EntityCost> nextChunk = entityCosts.nextChunk();
                 for (EntityCost cost : nextChunk) {
                     costCount++;
-                    costStreamBuilder.add(cost);
+                    costList.add(cost);
                 }
                 chunkCount++;
             } catch (InterruptedException e) {
@@ -64,7 +65,12 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                         " Processed " + chunkCount + " chunks so far.", e);
             }
         }
-        projectedEntityCostStore.updateProjectedEntityCosts(costStreamBuilder.build());
+        if (originalTopologyInfo.getTopologyType() == TopologyType.PLAN) {
+            planProjectedEntityCostStore.updatePlanProjectedEntityCostsTableForPlan(originalTopologyInfo,
+                    costList);
+        } else {
+            projectedEntityCostStore.updateProjectedEntityCosts(costList);
+        }
         logger.debug("Finished processing projected entity costs. Got costs for {} entities, " +
                 "delivered in {} chunks.", costCount, chunkCount);
     }

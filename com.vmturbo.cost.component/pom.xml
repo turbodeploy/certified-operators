@@ -148,6 +148,10 @@
                                     <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
                                 </customType>
                                 <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.EntityCost</name>
+                                    <converter>com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostConverter</converter>
+                                </customType>
+                                <customType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
                                     <converter>com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtInfoConverter</converter>
                                 </customType>
@@ -175,6 +179,10 @@
                                     <name>java.time.LocalDateTime</name>
                                     <!-- Add a list of comma-separated regular expressions matching columns -->
                                     <expression>.*\..*_time</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.EntityCost</name>
+                                    <expression>.*\.plan_projected_entity_cost\.entity_cost</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>

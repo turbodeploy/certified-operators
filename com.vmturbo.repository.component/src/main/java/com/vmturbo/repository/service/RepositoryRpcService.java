@@ -18,6 +18,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
@@ -218,16 +219,26 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                         request.getTopologyId(), ImmutableSet.copyOf(request.getEntityOidsList()),
                         topologyType) :
                 graphDBService.retrieveRealTimeTopologyEntities(ImmutableSet.copyOf(request.getEntityOidsList()));
-         final RetrieveTopologyEntitiesResponse response = Match(result).of(
-                Case(Right($()), entities ->
-                    RetrieveTopologyEntitiesResponse.newBuilder()
-                            .addAllEntities(entities)
-                            .build()),
+        final RetrieveTopologyEntitiesResponse response = Match(result).of(
+                Case(Right($()), entities -> 
+                RetrieveTopologyEntitiesResponse.newBuilder()
+                     .addAllEntities(filterEntityByType(request, entities))
+                     .build()),
                 Case(Left($()), err -> RetrieveTopologyEntitiesResponse.newBuilder().build()));
          responseObserver.onNext(response);
          responseObserver.onCompleted();
     }
 
+    private Collection<TopologyEntityDTO> filterEntityByType (RetrieveTopologyEntitiesRequest request,
+                                                              Collection<TopologyEntityDTO> entities) {
+        if (!request.getEntityTypeList().isEmpty()) {
+            return entities.stream()
+                    .filter(e -> request.getEntityTypeList().contains(e.getEntityType()))
+                    .collect(Collectors.toList());
+        } else {
+            return entities;
+        }
+    }
     /**
      * Fetch the stats related to a Plan topology. Depending on the 'startTime' of the
      * request: if there is a 'startTime' and it is in the future, then this request is

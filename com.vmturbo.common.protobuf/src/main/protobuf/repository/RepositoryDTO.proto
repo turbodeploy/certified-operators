@@ -5,6 +5,7 @@ package repository;
 option java_package = "com.vmturbo.common.protobuf.repository";
 
 import "common/Pagination.proto";
+import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
 
@@ -50,6 +51,8 @@ message RetrieveTopologyEntitiesRequest {
     repeated int64 entity_oids = 3;
     // Type of topology means source topology or projected topology need to retrieve from.
     optional TopologyType topology_type = 4;
+	// The type of entity to fetch
+	repeated common_dto.EntityDTO.EntityType entity_type = 5;
 
     enum TopologyType {
         // Means source topology.

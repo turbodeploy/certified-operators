@@ -1,19 +1,18 @@
 package com.vmturbo.cost.component.entity.cost;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
-
 /**
  * Storage for projected per-entity costs.
  *
@@ -34,15 +33,17 @@ public class ProjectedEntityCostStore {
 
     private final Object entityCostMapLock = new Object();
 
+    private final int chunkSize = 1000;
+
     /**
      * Update the projected entity costs in the store.
      *
-     * @param entityCosts A stream of the new {@link EntityCost}. These will completely replace
+     * @param entityCosts A list of the new {@link EntityCost}. These will completely replace
      *                    the existing entity costs.
      */
-    public void updateProjectedEntityCosts(@Nonnull final Stream<EntityCost> entityCosts) {
+    public void updateProjectedEntityCosts(@Nonnull final List<EntityCost> entityCosts) {
         final Map<Long, EntityCost> newCostsByEntity =
-            entityCosts.collect(Collectors.toMap(EntityCost::getAssociatedEntityId, Function.identity()));
+            entityCosts.stream().collect(Collectors.toMap(EntityCost::getAssociatedEntityId, Function.identity()));
         synchronized (entityCostMapLock) {
             projectedEntityCostByEntity = Collections.unmodifiableMap(newCostsByEntity);
         }
@@ -72,4 +73,5 @@ public class ProjectedEntityCostStore {
     public Map<Long, EntityCost> getAllProjectedEntitiesCosts() {
         return projectedEntityCostByEntity;
     }
+
 }

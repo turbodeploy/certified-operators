@@ -39,9 +39,15 @@ public class EntityCostConfig {
     }
 
     @Bean
+    public PlanProjectedEntityCostStore planProjectedEntityCostStore() {
+        return new PlanProjectedEntityCostStore(databaseConfig.dsl(), persistEntityCostChunkSize);
+    }
+
+    @Bean
     public CostComponentProjectedEntityCostListener projectedEntityCostListener() {
         final CostComponentProjectedEntityCostListener projectedEntityCostListener =
-                new CostComponentProjectedEntityCostListener(projectedEntityCostStore());
+                new CostComponentProjectedEntityCostListener(projectedEntityCostStore(),
+                                                             planProjectedEntityCostStore());
         marketComponent.addProjectedEntityCostsListener(projectedEntityCostListener);
         return projectedEntityCostListener;
     }

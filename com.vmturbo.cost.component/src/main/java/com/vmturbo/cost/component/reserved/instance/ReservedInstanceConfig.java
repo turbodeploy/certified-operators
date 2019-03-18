@@ -12,14 +12,19 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
@@ -27,7 +32,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         GroupClientConfig.class,
         MarketClientConfig.class,
         MarketListenerConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        RepositoryClientConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -39,11 +45,20 @@ public class ReservedInstanceConfig {
     @Value("${riCoverageCacheExpireMinutes:120}")
     private int riCoverageCacheExpireMinutes;
 
+    @Value("${projectedTopologyListenerTimeOut}")
+    private int projectedTopologyTimeOut;
+
+    @Value("${persistEntityCostChunkSize}")
+    private int persistEntityCostChunkSize;
+
     @Autowired
     private GroupClientConfig groupClientConfig;
 
     @Autowired
     private MarketComponent marketComponent;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -93,8 +108,13 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
-    public ProjectedRICoverageStore projectedEntityRICoverageStore() {
-        return new ProjectedRICoverageStore();
+    public RepositoryServiceBlockingStub repositoryServiceClient() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
+    public ProjectedRICoverageAndUtilStore projectedEntityRICoverageAndUtilStore() {
+        return new ProjectedRICoverageAndUtilStore(repositoryServiceClient());
     }
 
     @Bean
@@ -112,7 +132,7 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                reservedInstanceCoverageStore(), projectedEntityRICoverageStore(), timeFrameCalculator());
+                reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(), timeFrameCalculator());
     }
 
     @Bean
@@ -142,8 +162,22 @@ public class ReservedInstanceConfig {
     @Bean
     public ProjectedRICoverageListener projectedRICoverageListener() {
         final ProjectedRICoverageListener projectedRICoverageListener =
-                new ProjectedRICoverageListener(projectedEntityRICoverageStore());
+                new ProjectedRICoverageListener(projectedEntityRICoverageAndUtilStore(),
+                                                planProjectedRICoverageAndUtilStore());
         marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
         return projectedRICoverageListener;
+    }
+
+    @Bean
+    public PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore() {
+        PlanProjectedRICoverageAndUtilStore PlanProjectedRICoverageAndUtilStore
+                = new PlanProjectedRICoverageAndUtilStore(databaseConfig.dsl(),
+                                                   projectedTopologyTimeOut,
+                                                   repositoryServiceClient(),
+                                                   reservedInstanceBoughtStore(),
+                                                   reservedInstanceSpecStore(),
+                                                   persistEntityCostChunkSize);
+        repositoryClientConfig.repository().addListener(PlanProjectedRICoverageAndUtilStore);
+        return PlanProjectedRICoverageAndUtilStore;
     }
 }
