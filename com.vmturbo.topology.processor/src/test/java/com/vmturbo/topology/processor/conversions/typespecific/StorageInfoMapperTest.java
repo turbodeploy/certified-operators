@@ -39,6 +39,7 @@ public class StorageInfoMapperTest {
                 .setStorage(StorageInfo.newBuilder()
                         .addAllExternalName(EXTERNAL_NAME_LIST)
                         .setStorageType(StorageType.FIBER_CHANNEL)
+                        .setIsLocal(false)
                         .build())
                 .build();
         final StorageInfoMapper testBuilder = new StorageInfoMapper();

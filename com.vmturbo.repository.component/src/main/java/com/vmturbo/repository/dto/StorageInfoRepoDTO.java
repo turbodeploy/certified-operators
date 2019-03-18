@@ -1,6 +1,7 @@
 package com.vmturbo.repository.dto;
 
 import java.util.List;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -28,6 +29,16 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return externalNames;
     }
 
+    private boolean local;
+
+    public boolean getLocal() {
+        return local;
+    }
+
+    public void setLocal(boolean local) {
+        this.local = local;
+    }
+
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
                                          @Nonnull final ServiceEntityRepoDTO serviceEntityRepoDTO) {
@@ -41,7 +52,7 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             setStorageType(storageInfo.getStorageType().name());
         }
         setExternalNames(storageInfo.getExternalNameList());
-
+        setLocal(storageInfo.getIsLocal());
         serviceEntityRepoDTO.setStorageInfoRepoDTO(this);
     }
 
@@ -63,6 +74,7 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return new ToStringBuilder(this)
                 .append("externalName", externalNames)
                 .append("storageType", storageType)
+                .append("local", local)
                 .toString();
     }
 
@@ -85,14 +97,13 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         final StorageInfoRepoDTO that = (StorageInfoRepoDTO) o;
 
-        if (!externalNames.equals(that.externalNames)) return false;
-        return storageType.equals(that.storageType);
+        return Objects.equals(externalNames, that.externalNames) &&
+                Objects.equals(storageType, that.storageType) &&
+                Objects.equals(local, that.local);
     }
 
     @Override
     public int hashCode() {
-        int result = externalNames.hashCode();
-        result = 31 * result + storageType.hashCode();
-        return result;
+        return Objects.hash(externalNames, storageType, local);
     }
 }

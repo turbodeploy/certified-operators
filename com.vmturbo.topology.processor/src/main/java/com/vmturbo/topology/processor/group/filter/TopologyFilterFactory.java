@@ -48,6 +48,8 @@ public class TopologyFilterFactory {
     private static final String VM_INFO_GUEST_OS_TYPE = "guestOsType";
     private static final String VM_INFO_NUM_CPUS = "numCpus";
     private static final String PM_INFO_REPO_DTO_PROPERTY_NAME = "physicalMachineInfoRepoDTO";
+    private static final String DS_INFO_REPO_DTO_PROPERTY_NAME = "storageInfoRepoDTO";
+    private static final String DS_LOCAL = "local";
     private static final String PM_INFO_NUM_CPUS = "numCpus";
     private static final String PM_INFO_VENDOR = "vendor";
     private static final String PM_INFO_CPU_MODEL = "cpuModel";
@@ -350,6 +352,31 @@ public class TopologyFilterFactory {
                                 filter.getPropertyName() + " on " + propertyName);
                 }
 
+            case DS_INFO_REPO_DTO_PROPERTY_NAME:
+                filters = objectCriteria.getFiltersList();
+                if (filters.size() != 1) {
+                    throw new IllegalArgumentException("Expecting one PropertyFilter for " +
+                            propertyName + ", but got " + filters.size() + ": " + filters);
+                }
+
+                filter = objectCriteria.getFilters(0);
+                switch (filter.getPropertyName()) {
+                    case DS_LOCAL:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                            throw new IllegalArgumentException("Expecting StringFilter for " +
+                                    filter.getPropertyName() + ", but got " + filter);
+                        }
+                        StringFilter stringFilter = filter.getStringFilter();
+                        return new PropertyFilter(entity -> hasStorageInfoPredicate().test(entity) &&
+                                stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
+                                                String.valueOf(topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
+                                                        .getStorage().getIsLocal()),
+                                        !stringFilter.getMatch(),
+                                        stringFilter.getCaseSensitive()).test(entity));
+                    default:
+                        throw new IllegalArgumentException("Unknown property: " +
+                                filter.getPropertyName() + " on " + propertyName);
+                }
             case PM_INFO_REPO_DTO_PROPERTY_NAME:
                 filters = objectCriteria.getFiltersList();
                 if (filters.size() != 1) {
@@ -522,6 +549,11 @@ public class TopologyFilterFactory {
     private Predicate<TopologyEntity> hasVirtualMachineInfoPredicate() {
         return entity -> entity.getTopologyEntityDtoBuilder().hasTypeSpecificInfo() &&
                 entity.getTopologyEntityDtoBuilder().getTypeSpecificInfo().hasVirtualMachine();
+    }
+
+    private Predicate<TopologyEntity> hasStorageInfoPredicate() {
+        return entity -> entity.getTopologyEntityDtoBuilder().hasTypeSpecificInfo() &&
+                entity.getTopologyEntityDtoBuilder().getTypeSpecificInfo().hasStorage();
     }
 
     private Predicate<TopologyEntity> hasPhysicalMachineInfoPredicate() {
