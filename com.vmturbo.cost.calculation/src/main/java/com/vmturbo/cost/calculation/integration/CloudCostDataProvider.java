@@ -156,11 +156,16 @@ public interface CloudCostDataProvider {
          * 1. when cost probe is sending the data even though there is no cloud target
          * 2. when you have cloud target but in the initial rounds the reserved instances
          *    are discovered before the topology entities
+         * 3. when in a cloud plan, the topology is scoped and not all reserved instances
+         * are in that scope.
          * @param topology the topology
          * @return true, if tierId_ of riSpec of riData is in the topology. false, if not.
          */
         public boolean isValid(@Nonnull Map<Long, TopologyEntityDTO> topology) {
-            return topology.get(reservedInstanceSpec.getReservedInstanceSpecInfo().getTierId()) != null;
+            return topology.get(reservedInstanceSpec.getReservedInstanceSpecInfo().getTierId())
+                    // checking region id to exclude Ri that is not within the scoped region
+                    != null && topology.get(new Long(reservedInstanceSpec
+                            .getReservedInstanceSpecInfo().getRegionId())) != null;
         }
     }
 

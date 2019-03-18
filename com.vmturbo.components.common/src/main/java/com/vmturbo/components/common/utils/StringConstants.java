@@ -265,4 +265,6 @@ public class StringConstants {
 
     public static final String DOLLARS_PER_HOUR = "$/h";
     public static final String PROPERTY = "property";
+    public static final String OPTIMIZE_CLOUD_PLAN_TYPE= "OPTIMIZE_CLOUD";
+    public static final String CLOUD_MIGRATION_PLAN_TYPE = "CLOUD_MIGRATION";
 }

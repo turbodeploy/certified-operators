@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -29,14 +30,19 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
@@ -63,11 +69,14 @@ import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
@@ -364,6 +373,40 @@ public class Stages {
         }
     }
 
+    /**
+     * This stage applies scoping logic to filter out undesirable TopologyStitchingEntities.
+     * <p>
+     * It happens only for cloud related plans.
+     *
+     */
+    public static class CloudPlanScopingStage extends Stage<StitchingContext, StitchingContext> {
+        private final CloudTopologyScopeEditor cloudTopologyScopeEditor;
+        private final PlanScope scope;
+        private final StitchingJournalFactory journalFactory;
+
+        public CloudPlanScopingStage(@Nonnull final CloudTopologyScopeEditor cloudTopologyScopeEditor,
+                                     @Nullable final PlanScope scope,
+                                     @Nonnull final StitchingJournalFactory journalFactory) {
+            this.cloudTopologyScopeEditor = cloudTopologyScopeEditor;
+            this.scope = scope;
+            this.journalFactory = Objects.requireNonNull(journalFactory);
+        }
+        @Override
+        public StageResult<StitchingContext> execute(@Nonnull StitchingContext stitchingContext) {
+            int totalCount = stitchingContext.size();
+            TopologyInfo topologyInfo = getContext().getTopologyInfo();
+            if (!topologyInfo.hasPlanInfo() || (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE))) {
+                return StageResult.withResult(stitchingContext)
+                        .andStatus(Status.success("Maintained topology of size " + stitchingContext.size()));
+            }
+            cloudTopologyScopeEditor.scope(stitchingContext, scope, journalFactory);
+            return StageResult.withResult(stitchingContext)
+                .andStatus(Status.success("CloudPlanScopingStage: Constructed a scoped topology of size "
+                    + totalCount + " from topology of size " + stitchingContext.size()));
+        }
+
+    }
     /**
      * This stage construct a topology map (ie OID -> TopologyEntity.Builder) from a {@Link StitchingContext}.
      */

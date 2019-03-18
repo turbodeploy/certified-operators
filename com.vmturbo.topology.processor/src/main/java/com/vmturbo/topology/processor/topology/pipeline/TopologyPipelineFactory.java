@@ -33,6 +33,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
@@ -42,6 +43,7 @@ import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage;
@@ -85,6 +87,8 @@ public class TopologyPipelineFactory {
     private final PolicyManager policyManager;
 
     private final StitchingManager stitchingManager;
+
+    private final CloudTopologyScopeEditor cloudTopologyScopeEditor;
 
     private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier;
 
@@ -131,6 +135,7 @@ public class TopologyPipelineFactory {
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
+                                   @Nonnull final CloudTopologyScopeEditor cloudTopoScopeEditor,
                                    @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                                    @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                                    @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
@@ -155,6 +160,7 @@ public class TopologyPipelineFactory {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
+        this.cloudTopologyScopeEditor = cloudTopoScopeEditor;
         this.discoveredTemplateDeploymentProfileNotifier = discoveredTemplateDeploymentProfileNotifier;
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.discoveredWorkflowUploader = discoveredWorkflowUploader;
@@ -264,6 +270,7 @@ public class TopologyPipelineFactory {
                 new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
+                .addStage(new CloudPlanScopingStage(cloudTopologyScopeEditor, scope, journalFactory))
                 // TODO: We should fixup stitched groups but cannot because doing so would
                 // for the plan would also affect the live broadcast. See OM-31747.
                 .addStage(new ConstructTopologyFromStitchingContextStage())

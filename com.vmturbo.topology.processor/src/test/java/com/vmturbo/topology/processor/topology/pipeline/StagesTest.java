@@ -23,11 +23,17 @@ import java.util.stream.Stream;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
-
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -45,7 +51,9 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -54,6 +62,7 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNo
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.EmptyStitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
@@ -77,6 +86,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 
 public class StagesTest {
 
@@ -94,6 +104,39 @@ public class StagesTest {
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         stage.passthrough(topology);
         verify(uploader).uploadDiscoveredGroups(topology);
+    }
+
+    @Test
+    public void testCloudPlanScopingStage() {
+        final StitchingContext stitchingContext = mock(StitchingContext.class);
+        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        final StitchingJournalFactory journalFactory = mock(StitchingJournalFactory.class);
+        final StitchingJournalContainer container = new StitchingJournalContainer();
+        final IStitchingJournal<StitchingEntity> journal = spy(new EmptyStitchingJournal<>());
+        final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                        .setTopologyContextId(1)
+                        .setTopologyId(1)
+                        .setTopologyType(TopologyType.PLAN)
+                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
+                        .build();
+
+        when(journalFactory.stitchingJournal(eq(stitchingContext))).thenReturn(journal);
+        when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
+        when(context.getStitchingJournalContainer()).thenReturn(container);
+        when(stitchingContext.entityTypeCounts()).thenReturn(Collections.emptyMap());
+        when(journal.shouldDumpTopologyBeforePreStitching()).thenReturn(true);
+        when(stitchingContext.getStitchingGraph()).thenReturn(graph);
+        when(graph.entities()).thenReturn(Stream.empty());
+        when(context.getTopologyInfo()).thenReturn(topologyInfo);
+        when(stitchingContext.size()).thenReturn(0);
+
+        final CloudTopologyScopeEditor scopeEditor = mock(CloudTopologyScopeEditor.class);
+        PlanScope scope = PlanScope.newBuilder().build();
+        final CloudPlanScopingStage scopingStage = new CloudPlanScopingStage(scopeEditor, scope , journalFactory);
+        scopingStage.setContext(context);
+        assertThat(scopingStage.execute(stitchingContext).getResult().constructTopology(), is(Collections.emptyMap()));
+        verify(scopeEditor).scope(stitchingContext, scope, journalFactory);
     }
 
     @Test

@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
@@ -134,6 +135,11 @@ public class TopologyConfig {
     }
 
     @Bean
+    public CloudTopologyScopeEditor cloudTopologyScopeEditor() {
+        return new CloudTopologyScopeEditor();
+    }
+
+    @Bean
     public DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner() {
         return new DiscoveredSettingPolicyScanner(probeConfig.probeStore(), targetConfig.targetStore());
     }
@@ -153,6 +159,7 @@ public class TopologyConfig {
         return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
                 stitchingConfig.stitchingManager(),
+                cloudTopologyScopeEditor(),
                 planConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),

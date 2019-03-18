@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
@@ -260,7 +261,7 @@ public class Analysis {
 
             // if a scope 'seed' entity OID list is specified, then scope the topology starting with
             // the given 'seed' entities
-            if (!topologyInfo.getScopeSeedOidsList().isEmpty()) {
+            if (isScoped()) {
                 try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
                     traderTOs = scopeTopology(traderTOs,
                         ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
@@ -652,12 +653,15 @@ public class Analysis {
     }
 
     /**
-     * Check if the analysis is running on a scoped topology.
+     * Check if the analysis is running on a scoped topology and the topology is not for a cloud plan.
      *
-     * @return true if the analysis is running on a scoped topology, false otherwise.
+     * @return true if the analysis is running on a scoped topology and the topology is not for a
+     * cloud plan, false otherwise.
      */
     public boolean isScoped() {
-        return !topologyInfo.getScopeSeedOidsList().isEmpty();
+        return !topologyInfo.getScopeSeedOidsList().isEmpty() && (!topologyInfo.hasPlanInfo()
+                || (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE) &&
+                        !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE)));
     }
 
     /**

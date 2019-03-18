@@ -357,8 +357,16 @@ public class TopologyGraph {
             topologyEntity.getEntityBuilder().getConnectedEntityListList().forEach(connectedEntity -> {
                 final TopologyEntity.Builder connectedToEntity =
                         topologyBuilderMap.get(connectedEntity.getConnectedEntityId());
-                topologyEntity.addConnectedTo(connectedToEntity);
-                connectedToEntity.addConnectedFrom(topologyEntity);
+                if (connectedToEntity != null) {
+                    // it can be null as the connectedToEntity may not be in plan because
+                    // we already filtered by scope.
+                    // for example, if connectedEntity is a business account and connected
+                    // to VMs from region 1 and VMs from region 2, when user select region1
+                    // as the scope, then VMs from region 2 will be filtered out by scoping,
+                    // thus VMs from region 2 do not appear in topologyBuilderMap
+                    topologyEntity.addConnectedTo(connectedToEntity);
+                    connectedToEntity.addConnectedFrom(topologyEntity);
+                }
             });
         }
 

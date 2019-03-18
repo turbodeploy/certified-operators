@@ -119,14 +119,16 @@ public class ReservedInstanceAggregatorTest {
         assertFalse(ria.aggregateRis());
         assertEquals(0, ria.riAggregates.size());
 
-        when(topology.get(TIER_1)).thenReturn(
-            TopologyEntityDTO.newBuilder().setOid(TIER_1)
-                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
-                    ComputeTierInfo.newBuilder().setFamily(FAMILY_1)
-                        .build())
+
+        TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder().setOid(TIER_1)
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
+                ComputeTierInfo.newBuilder().setFamily(FAMILY_1)
                     .build())
-                .build());
+                .build())
+            .build();
+        when(topology.get(TIER_1)).thenReturn(computeTier);
+        when(topology.get(new Long(REGION_1))).thenReturn(computeTier);
         assertTrue(ria.aggregateRis());
         assertEquals(1, ria.riAggregates.size());
     }
