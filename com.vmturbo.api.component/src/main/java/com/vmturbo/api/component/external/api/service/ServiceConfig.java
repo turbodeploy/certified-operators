@@ -442,7 +442,12 @@ public class ServiceConfig {
                 Duration.ofSeconds(targetDiscoveryTimeoutSeconds),
                 Duration.ofSeconds(targetDiscoveryPollIntervalSeconds),
                 licenseCheckClientConfig.licenseCheckClient(),
-                communicationConfig.apiComponentTargetListener());
+                communicationConfig.apiComponentTargetListener(),
+                communicationConfig.searchServiceBlockingStub(),
+                communicationConfig.entitySeverityService(),
+                mapperConfig.actionSpecMapper(),
+                communicationConfig.actionsRpcService(),
+                communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean

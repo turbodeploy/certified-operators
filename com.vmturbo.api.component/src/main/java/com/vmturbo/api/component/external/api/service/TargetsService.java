@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -48,6 +54,19 @@ import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -164,13 +183,28 @@ public class TargetsService implements ITargetsService {
 
     private final ApiComponentTargetListener apiComponentTargetListener;
 
+    private final SearchServiceBlockingStub searchServiceRpc;
+
+    private final EntitySeverityServiceBlockingStub entitySeverityRpc;
+
+    private final ActionSpecMapper actionSpecMapper;
+
+    private final ActionsServiceBlockingStub actionOrchestratorRpc;
+
+    private final long realtimeTopologyContextId;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
                           @Nonnull final Duration targetValidationPollInterval,
                           @Nonnull final Duration targetDiscoveryTimeout,
                           @Nonnull final Duration targetDiscoveryPollInterval,
                           @Nullable final LicenseCheckClient licenseCheckClient,
-                          @Nonnull final ApiComponentTargetListener apiComponentTargetListener) {
+                          @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
+                          @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+                          @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpcService,
+                          @Nonnull final ActionSpecMapper actionSpecMapper,
+                          @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+                          final long realtimeTopologyContextId) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
@@ -178,6 +212,11 @@ public class TargetsService implements ITargetsService {
         this.targetDiscoveryPollInterval = Objects.requireNonNull(targetDiscoveryPollInterval);
         this.licenseCheckClient = licenseCheckClient;
         this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
+        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
+        this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
+        this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         logger.debug("Created TargetsService with topology processor instance {}",
                         topologyProcessor);
     }
@@ -335,7 +374,24 @@ public class TargetsService implements ITargetsService {
      */
     @Override
     public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        final List<ServiceEntityApiDTO> serviceEntityList =  getEntitiesByTargetUuid(uuid);
+        // Preparing entities uuid set to be passed to the action filter.
+        final Set<Long> uuidSet = serviceEntityList.stream()
+            .map(ServiceEntityApiDTO::getUuid)
+            .map(Long::parseLong)
+            .collect(Collectors.toSet());
+        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
+            actionApiInputDTO, Optional.of(uuidSet));
+        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+            FilteredActionRequest.newBuilder()
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setFilter(filter)
+                .build());
+        final List<ActionApiDTO> result = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+            response.getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList()), realtimeTopologyContextId);
+        return result;
     }
 
     /**
@@ -347,7 +403,8 @@ public class TargetsService implements ITargetsService {
      */
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByTargetUuid(final String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        TargetApiDTO targetDTO = getTarget(uuid);
+        return getTargetEntities(targetDTO);
     }
 
     /**
@@ -936,5 +993,53 @@ public class TargetsService implements ITargetsService {
         public FieldVerificationException(String message) {
             super(message);
         }
+    }
+
+    /**
+     * Gets the entities that belong to the given target
+     * @param targetDTO The TargetApiDTO object
+     * @return A list of ServiceEntityApiDTO of the target's entities
+     * @throws OperationFailedException
+     */
+    private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
+        throws OperationFailedException{
+
+        final String targetUuid = targetDTO.getUuid();
+        final String targetType = targetDTO.getType();
+        final PropertyFilter filter = PropertyFilter.newBuilder()
+            .setPropertyName("targetIds")
+            .setListFilter(ListFilter.newBuilder()
+                .setStringFilter(StringFilter.newBuilder()
+                    .setMatch(true)
+                    .setStringPropertyRegex(targetUuid)
+                    .build())
+                .build())
+            .build();
+
+        // Passing a PaginationParameters without limit defaults to 100. Since setting it
+        // is mandatory, passing a very big limit because we need the entire response.
+        final SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
+            .addSearchParameters(SearchParameters.newBuilder().setStartingFilter(filter)
+                .build())
+            .setPaginationParams(PaginationParameters.newBuilder().setLimit(Integer.MAX_VALUE)
+                .build())
+            .build();
+
+        // targetIdToProbeType is needed to fill discoveredBy attribute of the entities.
+        Map<Long, String> targetIdToProbeType = new HashMap<>();
+        targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
+        List<ServiceEntityApiDTO> targetEntities;
+        try {
+            targetEntities = searchServiceRpc.searchEntities(request).getEntitiesList().stream()
+                .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
+                .collect(Collectors.toList());
+
+            // Severity isn't part of searchEntities response, hence the following line.
+            SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, targetEntities);
+
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException("Retrieval of target entities failed", e);
+        }
+        return targetEntities;
     }
 }

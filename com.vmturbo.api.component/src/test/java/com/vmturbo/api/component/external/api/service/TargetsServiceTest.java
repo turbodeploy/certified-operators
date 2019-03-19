@@ -2,10 +2,12 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -32,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,6 +60,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.service.MarketsServiceTest.PlanServiceMock;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
@@ -64,8 +69,18 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.utils.ParamStrings;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
@@ -93,8 +108,22 @@ public class TargetsServiceTest {
     @Autowired
     private TopologyProcessor topologyProcessor;
 
+    private final ActionsServiceMole actionsServiceBackend =
+        spy(new ActionsServiceMole());
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
+
+    ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
+
+    ActionSpecMapper actionSpecMapper;
+
+    SearchServiceBlockingStub searchServiceRpc;
+
+    EntitySeverityServiceBlockingStub severityGrpcStub;
 
     private MockMvc mockMvc;
 
@@ -109,11 +138,16 @@ public class TargetsServiceTest {
     private Map<Long, TargetInfo> registeredTargets;
     private long idCounter;
 
+    private static final long REALTIME_CONTEXT_ID = 7777777;
+
     @Before
     public void init() throws TopologyProcessorException, CommunicationException {
         idCounter = 0;
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
-
+        actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        searchServiceRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        severityGrpcStub = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
         registeredTargets = new HashMap<>();
         registeredProbes = new HashMap<>();
         when(topologyProcessor.getProbe(Mockito.anyLong()))
@@ -610,7 +644,8 @@ public class TargetsServiceTest {
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-                Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener);
+            Duration.ofMillis(50), Duration.ofMillis(100), null,
+            apiComponentTargetListener,searchServiceRpc,severityGrpcStub,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -632,8 +667,9 @@ public class TargetsServiceTest {
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-                topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-                Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener);
+            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+            Duration.ofMillis(50), Duration.ofMillis(100), null,
+            apiComponentTargetListener,searchServiceRpc,severityGrpcStub,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -914,14 +950,61 @@ public class TargetsServiceTest {
         }
 
         @Bean
+        public TargetsService targetsService() {
+            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
+                Duration.ofSeconds(60), Duration.ofSeconds(1), null, apiComponentTargetListener(),searchServiceRpc(),severityGrpcStub(),actionSpecMapper(),actionRpcService(),REALTIME_CONTEXT_ID);
+        }
+
+        @Bean
         public ApiComponentTargetListener apiComponentTargetListener() {
             return Mockito.mock(ApiComponentTargetListener.class);
         }
 
         @Bean
-        public TargetsService targetsService() {
-            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
-                    Duration.ofSeconds(60), Duration.ofSeconds(1), null, apiComponentTargetListener());
+        public ActionSpecMapper actionSpecMapper() {
+            return Mockito.mock(ActionSpecMapper.class);
+        }
+
+        @Bean
+        public PlanServiceMock planService() {
+            return new PlanServiceMock();
+        }
+
+        @Bean
+        public SettingServiceMole settingServiceMole() {
+            return spy(new SettingServiceMole());
+        }
+
+        @Bean
+        public GroupServiceMole groupService() {
+            return spy(new GroupServiceMole());
+        }
+
+        @Bean
+        public GrpcTestServer grpcTestServer() {
+            try {
+                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
+                    groupService(), settingServiceMole());
+                testServer.start();
+                return testServer;
+            } catch (IOException e) {
+                throw new BeanCreationException("Failed to create test channel", e);
+            }
+        }
+
+        @Bean
+        public ActionsServiceBlockingStub actionRpcService() {
+            return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public SearchServiceBlockingStub searchServiceRpc() {
+            return SearchServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public EntitySeverityServiceBlockingStub severityGrpcStub() {
+            return EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean
