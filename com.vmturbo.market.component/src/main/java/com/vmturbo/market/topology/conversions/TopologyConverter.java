@@ -1,7 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,7 +43,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -898,32 +896,37 @@ public class TopologyConverter {
             if (commBoughtGrouping.hasVolumeId()) {
                 TopologyEntityDTO originalVolume = entityOidToDto.get(commBoughtGrouping.getVolumeId());
                 if (originalVolume != null && originalVolume.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    // Get the storage tier the VM consumes from
-                    TopologyEntityDTO storageTier = entityOidToDto.get(commBoughtGrouping.getProviderId());
-                    // Get the AZ the VM is connected to
+                    // Get the storage/storage tier the VM consumes from
+                    TopologyEntityDTO storageOrStorageTier = entityOidToDto.get(commBoughtGrouping.getProviderId());
+
+                    // Build a volume which is connected to the same Storage or StorageTier
+                    // (which is the provider for this commBoughtGrouping), and connected to
+                    // the same AZ as the VM if the zone exists
+                    TopologyEntityDTO.Builder volume =
+                        TopologyEntityDTO.newBuilder()
+                            .setEntityType(originalVolume.getEntityType())
+                            .setOid(originalVolume.getOid());
+
+                    // connect to storage or storage tier
+                    ConnectedEntity connectedStorageOrStorageTier = ConnectedEntity.newBuilder()
+                            .setConnectedEntityId(storageOrStorageTier.getOid())
+                            .setConnectedEntityType(storageOrStorageTier.getEntityType())
+                            .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                    volume.addConnectedEntityList(connectedStorageOrStorageTier);
+
+                    // Get the AZ the VM is connected to (there is no zone for azure or on-prem)
                     Optional<TopologyEntityDTO> azOpt = topologyEntityDTO.getConnectedEntityListList()
-                            .stream().filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                            .map(c -> entityOidToDto.get(c.getConnectedEntityId())).findFirst();
-                    if (storageTier != null && azOpt.isPresent()) {
-                        // Build a volume which is connected the the same AZ as the VM and the same
-                        // storageTier which is the provider for this commBoughtGrouping.
-                        ConnectedEntity connectedStorageTier = ConnectedEntity.newBuilder()
-                                .setConnectedEntityId(storageTier.getOid())
-                                .setConnectedEntityType(storageTier.getEntityType())
-                                .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                        .stream().filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                        .map(c -> entityOidToDto.get(c.getConnectedEntityId())).findFirst();
+                    if (azOpt.isPresent()) {
                         ConnectedEntity connectedAz = ConnectedEntity.newBuilder()
-                                .setConnectedEntityId(azOpt.get().getOid())
-                                .setConnectedEntityType(azOpt.get().getEntityType()).build();
-                        List<ConnectedEntity> connectedEntities = Arrays.asList(connectedAz, connectedStorageTier);
-                        TopologyEntityDTO.Builder volume =
-                                TopologyEntityDTO.newBuilder()
-                                        .setEntityType(originalVolume.getEntityType())
-                                        .setOid(originalVolume.getOid())
-                                        .addAllConnectedEntityList(connectedEntities);
-                        copyStaticAttributes(originalVolume, volume);
-                        volume.setDisplayName(originalVolume.getDisplayName());
-                        resources.add(volume.build());
+                            .setConnectedEntityId(azOpt.get().getOid())
+                            .setConnectedEntityType(azOpt.get().getEntityType()).build();
+                        volume.addConnectedEntityList(connectedAz);
                     }
+                    copyStaticAttributes(originalVolume, volume);
+                    volume.setDisplayName(originalVolume.getDisplayName());
+                    resources.add(volume.build());
                 }
             }
         }

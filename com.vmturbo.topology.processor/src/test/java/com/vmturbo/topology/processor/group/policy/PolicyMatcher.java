@@ -181,6 +181,29 @@ public class PolicyMatcher {
         };
     }
 
+    public Matcher<TopologyEntity> hasConsumerSegment(long segmentId, long providerId, long volumeId) {
+        return new BaseMatcher<TopologyEntity>() {
+            @Override
+            public boolean matches(Object o) {
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                    .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
+                        .anyMatch(commodity ->
+                            commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
+                                (!commodityBoughtGroup.hasProviderId() ||
+                                    commodityBoughtGroup.getProviderId() == providerId)
+                                && commodity.getCommodityType().getKey().equals(Long.toString(segmentId))
+                                && commodityBoughtGroup.getVolumeId() == volumeId));
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("should be buying a segmentation commodity from provider: "
+                    + providerId + " with related volume: " + volumeId + ".");
+            }
+        };
+    }
+
     /**
      * Check if the key of the 'sold' cluster commodity is set to the policy OID and values are matches.
      *

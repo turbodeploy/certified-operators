@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.connectedTopologyEntity;
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static org.hamcrest.CoreMatchers.not;
@@ -22,6 +23,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -33,10 +35,11 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
  * The tests use the following topology (no links are provided below 1,2 are hosts and 3,4 are Storage
  * and 5 and 6 are VMs):
  *
- * VM5 VM7  VM6
- *  | /     |\
- *  |/      | \
- *  PM1   PM2 ST3  ST4
+ * VM5 VM7  VM6                   VM12
+ *  | /     |\                   |    \
+ *  |/      | \                VV10   VV11
+ *  PM1   PM2 ST3  ST4          |       \
+ *                      StorageTier8 StorageTier9
  */
 public class BindToComplementaryGroupPolicyTest {
 
@@ -80,6 +83,23 @@ public class BindToComplementaryGroupPolicyTest {
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 1));
+        // VM12 --> VV10 --> StorageTier8
+        // VM12 --> VV11 --> StorageTier9
+        topologyMap.put(8L, connectedTopologyEntity(8L, EntityType.STORAGE_TIER));
+        topologyMap.put(9L, connectedTopologyEntity(9L, EntityType.STORAGE_TIER));
+        topologyMap.put(10L, connectedTopologyEntity(10L, EntityType.VIRTUAL_VOLUME, 8L));
+        topologyMap.put(11L, connectedTopologyEntity(11L, EntityType.VIRTUAL_VOLUME, 9L));
+        topologyMap.put(12L, connectedTopologyEntity(12L, EntityType.VIRTUAL_MACHINE, 10L, 11L));
+
+        // VM12 is also buying from the StorageTiers
+        topologyMap.get(12L)
+            .getEntityBuilder()
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(8L)
+                .setVolumeId(10L))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(9L)
+                .setVolumeId(11L));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
@@ -203,5 +223,47 @@ public class BindToComplementaryGroupPolicyTest {
         assertThat(topologyGraph.getEntity(4L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.STORAGE)));
         assertThat(topologyGraph.getEntity(6L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.STORAGE));
+    }
+
+    @Test
+    public void testApplyVmToStorageTierAffinity() throws GroupResolutionException, PolicyApplicationException {
+        final Group virtualVolumeGroup = PolicyGroupingHelper.policyGrouping(
+            searchParametersCollection(), EntityType.VIRTUAL_VOLUME_VALUE, 1212L);
+        final Group storageTierGroup = PolicyGroupingHelper.policyGrouping(
+            searchParametersCollection(), EntityType.STORAGE_TIER_VALUE, 1213L);
+
+        // VM12 --> VV10 --> StorageTier8
+        // VM12 --> VV11 --> StorageTier9
+        when(groupResolver.resolve(eq(virtualVolumeGroup), eq(topologyGraph)))
+            .thenReturn(Sets.newHashSet(10L));
+        when(groupResolver.resolve(eq(storageTierGroup), eq(topologyGraph)))
+            .thenReturn(Sets.newHashSet(8L));
+
+        final PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy bindToComplementaryGroup =
+            PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy.newBuilder()
+                .setConsumerGroupId(1212L)
+                .setProviderGroupId(1213L)
+                .build();
+
+        final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
+            .setId(POLICY_ID)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToComplementaryGroup(bindToComplementaryGroup))
+            .build();
+
+        new BindToComplementaryGroupPolicy(policy, new PolicyEntities(virtualVolumeGroup, Collections.emptySet()),
+            new PolicyEntities(storageTierGroup)).apply(groupResolver, topologyGraph);
+
+        // VM12 has two commodityBought group:
+        //     one from storage tier 8, with related volumeId 10
+        //     the other one from storage tier 9, with related volumeId 11
+        // verify that VM is buying segment in the commodityBought group for tier 8
+        assertThat(topologyGraph.getEntity(12L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, 8L, 10L));
+        // verify that VM is NOT buying segment in the commodityBought group for tier 9
+        assertThat(topologyGraph.getEntity(12L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, 9L, 11L)));
+        // verify that tier 8 is NOT selling segment
+        assertThat(topologyGraph.getEntity(8L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        // verify that tier 9 is selling segment
+        assertThat(topologyGraph.getEntity(9L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
     }
 }

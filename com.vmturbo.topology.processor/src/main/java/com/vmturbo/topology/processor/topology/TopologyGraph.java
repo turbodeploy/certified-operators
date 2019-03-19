@@ -14,7 +14,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 
 /**
  * A graph built from the topology.
@@ -162,14 +161,52 @@ public class TopologyGraph {
     }
 
     /**
-     * Get the entities that are connected to a given {@link TopologyEntity} in the graph.
+     * Get the entities that are connected to the given {@link TopologyEntity} in the graph.
+     *
+     * @param oid Oid of the {@link TopologyEntity} whose connectedFromEntities should be retrieved.
+     * @return The entities that are connected to a {@link TopologyEntity} in the graph.
+     */
+    @Nonnull
+    public Stream<TopologyEntity> getConnectedFromEntities(@Nonnull final Long oid) {
+        final TopologyEntity topologyEntity = graph.get(oid);
+        return topologyEntity == null ? Stream.empty() : getConnectedFromEntities(topologyEntity);
+    }
+
+    /**
+     * Get the entities that are connected to the given {@link TopologyEntity} in the graph.
      *
      * @param topologyEntity The {@link TopologyEntity} whose connectedFromEntities should be retrieved.
-     * @return The entities that are connected to a {@link TopologyEntity} in the graph.
+     * @return The entities that are connected to the {@link TopologyEntity} in the graph.
      */
     @Nonnull
     public Stream<TopologyEntity> getConnectedFromEntities(@Nonnull final TopologyEntity topologyEntity) {
         return topologyEntity.getConnectedFromEntities().stream();
+    }
+
+    /**
+     * Get the specific type of entities which are connected to the given entity.
+     *
+     * @param oid the oid of the entity to get connected from entities for
+     * @param entityType type of the connectedFrom entities to get
+     * @return Stream of the given type of entities that are connected to the {@link TopologyEntity} in the graph.
+     */
+    public Stream<TopologyEntityDTO.Builder> getConnectedFromEntitiesOfType(@Nonnull Long oid,
+                                                                            @Nonnull Integer entityType) {
+        return getConnectedFromEntities(oid)
+            .filter(entity -> entity.getEntityType() == entityType)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder);
+    }
+
+    /**
+     * Get the entities that given {@link TopologyEntity} in the graph is connected to.
+     *
+     * @param oid Oid of the {@link TopologyEntity} whose connectedToEntities should be retrieved.
+     * @return The entities that {@link TopologyEntity} are connected to in the graph.
+     */
+    @Nonnull
+    public Stream<TopologyEntity> getConnectedToEntities(@Nonnull final Long oid) {
+        final TopologyEntity topologyEntity = graph.get(oid);
+        return topologyEntity == null ? Stream.empty() : getConnectedToEntities(topologyEntity);
     }
 
     /**

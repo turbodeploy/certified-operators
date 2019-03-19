@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.connectedTopologyEntity;
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -33,10 +34,11 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 /**
  * The tests use the following topology (no links are provided below 1,2 are hosts and 3,4 are VMs):
  *
- *  VM4 VM6  VM5
- *   | /     | \
- *   |/      |  \
- *  PM1      PM2 ST3
+ *  VM4 VM6  VM5               VM11
+ *   | /     | \               |   \
+ *   |/      |  \         VV9 VV10  \
+ *  PM1      PM2 ST3       |   |     \
+ *                     StorageTier7 ComputeTier8
  */
 public class BindToGroupPolicyTest {
 
@@ -78,12 +80,26 @@ public class BindToGroupPolicyTest {
         topologyMap.put(4L, topologyEntity(4L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 2));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 1));
+        topologyMap.put(7L, connectedTopologyEntity(7L, EntityType.STORAGE_TIER));
+        topologyMap.put(8L, connectedTopologyEntity(8L, EntityType.COMPUTE_TIER));
+        topologyMap.put(9L, connectedTopologyEntity(9L, EntityType.VIRTUAL_VOLUME, 7L));
+        topologyMap.put(10L, connectedTopologyEntity(10L, EntityType.VIRTUAL_VOLUME, 7L));
+        topologyMap.put(11L, connectedTopologyEntity(11L, EntityType.VIRTUAL_MACHINE, 10L));
 
         // VM5 is also buying from the storage.
         topologyMap.get(5L)
             .getEntityBuilder()
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(3L));
+
+        // VM11 is also buying from the StorageTier and ComputeTier
+        topologyMap.get(11L)
+            .getEntityBuilder()
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(7L)
+                .setVolumeId(10L))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(8L));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
@@ -196,5 +212,38 @@ public class BindToGroupPolicyTest {
         new BindToGroupPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
                 new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
+    }
+
+    @Test
+    public void testApplyVolumeToStorageTierAffinity() throws GroupResolutionException, PolicyApplicationException {
+        final Group virtualVolumeGroup = PolicyGroupingHelper.policyGrouping(
+            searchParametersCollection(), EntityType.VIRTUAL_VOLUME_VALUE, 1212L);
+        final Group storageTierGroup = PolicyGroupingHelper.policyGrouping(
+            searchParametersCollection(), EntityType.STORAGE_TIER_VALUE, 1213L);
+
+        when(groupResolver.resolve(eq(virtualVolumeGroup), eq(topologyGraph)))
+            .thenReturn(Sets.newHashSet(9L, 10L));
+        when(groupResolver.resolve(eq(storageTierGroup), eq(topologyGraph)))
+            .thenReturn(Sets.newHashSet(7L));
+
+        new BindToGroupPolicy(policy, new PolicyEntities(virtualVolumeGroup, Collections.emptySet()),
+            new PolicyEntities(storageTierGroup))
+            .apply(groupResolver, topologyGraph);
+
+        // verify that vm is buying segment from storage tier
+        assertThat(topologyGraph.getEntity(11L).get(), policyMatcher.hasConsumerSegment(POLICY_ID,
+            EntityType.STORAGE_TIER));
+        // verify that vm is not buying segment from compute tier
+        assertThat(topologyGraph.getEntity(11L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID,
+            EntityType.COMPUTE_TIER)));
+        // verify that storage tier is selling segment
+        assertThat(topologyGraph.getEntity(7L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
+        // verify that compute tier is not selling segment
+        assertThat(topologyGraph.getEntity(8L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        // verify that volume is not buying segment from storage tier
+        assertThat(topologyGraph.getEntity(9L).get(),
+            not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.STORAGE_TIER)));
+        assertThat(topologyGraph.getEntity(10L).get(),
+            not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.STORAGE_TIER)));
     }
 }

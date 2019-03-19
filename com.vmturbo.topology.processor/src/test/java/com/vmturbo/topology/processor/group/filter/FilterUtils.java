@@ -11,6 +11,8 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -63,6 +65,10 @@ public class FilterUtils {
         return topologyEntity(oid, 0, 0, entityType, producers);
     }
 
+    public static TopologyEntity.Builder connectedTopologyEntity(long oid, EntityType entityType, long... connectedToEntities) {
+        return connectedTopologyEntity(oid, 0, 0, entityType, connectedToEntities);
+    }
+
     /**
      * Create a minimal topology entity builder.
      *
@@ -88,6 +94,39 @@ public class FilterUtils {
                         .lastUpdatedAt(lastUpdatedTime))));
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
+        return builder;
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity
+     * @param entityType The entity type for the entity.
+     * @param connectedToEntities The OIDs of the entities that the created entity should be
+     *                            connected to in the topology
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder connectedTopologyEntity(long oid,
+                                                        long discoveringTargetId,
+                                                        long lastUpdatedTime,
+                                                        EntityType entityType,
+                                                        long... connectedToEntities) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType.getNumber())
+                .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
+                        .lastUpdatedAt(lastUpdatedTime))));
+
+        for (long connectedTo : connectedToEntities) {
+            builder.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(connectedTo)
+                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                .build());
+        }
         return builder;
     }
 
