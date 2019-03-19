@@ -49,6 +49,13 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRespons
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -84,11 +91,13 @@ public class EntitiesServiceTest {
     private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
     private final SearchServiceMole searchService = spy(new SearchServiceMole());
     private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
+    private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
 
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(entitySeverityService, actionsService, searchService, groupService);
+        GrpcTestServer.newServer(
+            entitySeverityService, actionsService, searchService, groupService, historyService);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
@@ -185,7 +194,8 @@ public class EntitiesServiceTest {
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(StatsService.class),
                 mock(ActionStatsQueryExecutor.class),
-                mock(UuidMapper.class));
+                mock(UuidMapper.class),
+                StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -260,6 +270,19 @@ public class EntitiesServiceTest {
 
         // check tags
         Assert.assertEquals(0, result.getTags().size());
+
+        // check that history stats service has been called correctly
+        verify(historyService).getEntityStats(GetEntityStatsRequest.newBuilder()
+            .setScope(
+                EntityStatsScope.newBuilder()
+                    .setEntityList(EntityList.newBuilder().addEntities(PM_ID)).build())
+            .setFilter(
+                StatsFilter.newBuilder()
+                    .addCommodityRequests(
+                        CommodityRequest.newBuilder()
+                            .setCommodityName(EntitiesService.PRICE_INDEX_COMMODITY).build())
+                    .build())
+            .build());
     }
 
     /**

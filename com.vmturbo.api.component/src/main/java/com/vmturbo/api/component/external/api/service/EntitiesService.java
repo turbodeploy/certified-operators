@@ -39,7 +39,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
@@ -83,7 +82,14 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
@@ -100,6 +106,8 @@ public class EntitiesService implements IEntitiesService {
     // and the utility methods should be removed.
     private final static String UUID = "{uuid}";
     private final static String REPLACEME = "#REPLACEME";
+
+    public final static String PRICE_INDEX_COMMODITY = "priceIndex";
 
     Logger logger = LogManager.getLogger();
 
@@ -128,6 +136,8 @@ public class EntitiesService implements IEntitiesService {
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
     private final UuidMapper uuidMapper;
+
+    private final StatsHistoryServiceBlockingStub statsHistoryService;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -170,7 +180,8 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final EntitySeverityServiceBlockingStub entitySeverityService,
             @Nonnull final StatsService statsService,
             @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper) {
+            @Nonnull final UuidMapper uuidMapper,
+            @Nonnull final StatsHistoryServiceBlockingStub statsHistoryService) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -184,6 +195,7 @@ public class EntitiesService implements IEntitiesService {
         this.statsService = Objects.requireNonNull(statsService);
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
+        this.statsHistoryService = Objects.requireNonNull(statsHistoryService);
     }
 
     @Override
@@ -285,7 +297,55 @@ public class EntitiesService implements IEntitiesService {
         SeverityPopulator.populate(
             entitySeverityService, realtimeTopologyContextId, Collections.singletonList(result));
 
+        // fetch price index
+        fetchAndSetPriceIndex(oid, result);
+
         return result;
+    }
+
+    private void fetchAndSetPriceIndex(final long oid, final ServiceEntityApiDTO result) {
+        try {
+            // fetch the first page of stats for this entity
+            final GetEntityStatsResponse entityStatsResponse =
+                statsHistoryService.getEntityStats(
+                    GetEntityStatsRequest.newBuilder()
+                        .setScope(
+                            EntityStatsScope.newBuilder()
+                                .setEntityList(EntityList.newBuilder().addEntities(oid)).build())
+                        .setFilter(
+                            StatsFilter.newBuilder()
+                                .addCommodityRequests(
+                                    CommodityRequest.newBuilder()
+                                        .setCommodityName(PRICE_INDEX_COMMODITY).build())
+                                .build())
+                        .build());
+
+            // read the first stats snapshot, if it exists
+            if (entityStatsResponse.getEntityStatsCount() == 0 ||
+                    entityStatsResponse.getEntityStats(0).getStatSnapshotsCount() == 0) {
+                throw new OperationFailedException("No entity stats were returned");
+            }
+            if (entityStatsResponse.getEntityStats(0).getOid() != oid) {
+                throw
+                    new OperationFailedException(
+                        "Erroneous stat record; refers to oid " +
+                            entityStatsResponse.getEntityStats(0).getOid());
+            }
+            result.setPriceIndex(
+                entityStatsResponse
+                    .getEntityStats(0).getStatSnapshots(0).getStatRecordsList().stream()
+                    .filter(x -> x.getName().equals(PRICE_INDEX_COMMODITY))
+                    .findAny()
+                    .map(StatRecord::getCurrentValue)
+                    .orElseThrow(() -> new OperationFailedException("Cannot find price index")));
+        } catch (StatusRuntimeException | OperationFailedException e) {
+            // fetching price index failed
+            // there will be no price index in the result
+            // the failure will otherwise be ignored
+            logger.warn(
+                "Cannot get the price index of entity with id {} and name {}: {}",
+                () -> oid, result::getDisplayName, e::toString);
+        }
     }
 
     @Override

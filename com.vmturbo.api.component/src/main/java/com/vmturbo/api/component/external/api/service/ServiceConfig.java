@@ -213,7 +213,8 @@ public class ServiceConfig {
                 communicationConfig.entitySeverityService(),
                 statsService(),
                 actionStatsQueryExecutor(),
-                mapperConfig.uuidMapper());
+                mapperConfig.uuidMapper(),
+                communicationConfig.historyRpcService());
     }
 
     @Bean
