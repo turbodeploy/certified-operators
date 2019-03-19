@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Map;
 
 import javax.annotation.Nonnull;
 
@@ -55,8 +55,9 @@ import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanPostPro
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadProfileCreator;
-import com.vmturbo.plan.orchestrator.templates.IllegalTemplateOperationException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 
 /**
  * This class executes a plan project
@@ -188,7 +189,7 @@ public class PlanProjectExecutor {
                     planInstance = createClusterPlanInstance(cluster,
                             scenario,
                             planProject.getPlanProjectInfo().getType());
-                } catch (IntegrityException | NoSuchObjectException | IllegalTemplateOperationException e) {
+                } catch (IntegrityException | NoSuchObjectException | IllegalTemplateOperationException | DuplicateTemplateException e) {
                     logger.error("Failed to create a plan instance for cluster {}: {}",
                             cluster.getId(), e.getMessage());
                     continue;
@@ -279,7 +280,7 @@ public class PlanProjectExecutor {
     PlanInstance createClusterPlanInstance(final Group cluster,
                                                    @Nonnull final PlanProjectScenario planProjectScenario,
                                                    @Nonnull final PlanProjectType type)
-            throws IntegrityException, NoSuchObjectException, IllegalTemplateOperationException {
+            throws IntegrityException, NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
         final PlanScopeEntry planScopeEntry = PlanScopeEntry.newBuilder()
                 .setScopeObjectOid(cluster.getId())
                 .setClassName("Cluster")

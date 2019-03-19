@@ -16,11 +16,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
@@ -42,6 +44,8 @@ import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 
 /**
  * Implementation of {@link TemplatesDao} using underlying DB connection.
@@ -115,27 +119,56 @@ public class TemplatesDaoImpl implements TemplatesDao {
      *
      * @param templateInfo describe the contents of one template
      * @return new created template
+     * @throws DuplicateTemplateException if template name already exist
      */
     @Override
     @Nonnull
-    public TemplateDTO.Template createTemplate(@Nonnull final TemplateInfo templateInfo) {
+    public TemplateDTO.Template createTemplate(@Nonnull final TemplateInfo templateInfo) throws DuplicateTemplateException {
         return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER);
+    }
+
+    /**
+     * Check template with the same name does not exist is current list of templates.
+     *
+     * @param context
+     * @param templateName template display name.
+     * @param id           while editing a template.
+     * @throws DuplicateTemplateException if duplicate template name found
+     */
+    private void determineUniqueTemplate(final DSLContext context, String templateName, @Nullable Long id) throws DuplicateTemplateException {
+        Condition existCondition = id == null ?
+                TEMPLATE.NAME.eq(templateName) :
+                TEMPLATE.NAME.eq(templateName).and(TEMPLATE.ID.notEqual(id));
+        if (context.fetchExists(TEMPLATE, existCondition)) {
+            throw new DuplicateTemplateException(templateName);
+        }
     }
 
     @Nonnull
     private TemplateDTO.Template internalCreateTemplate(@Nonnull final DSLContext context,
-                                                    @Nonnull final TemplateInfo templateInfo,
-                                                    @Nonnull final TemplateDTO.Template.Type type) {
-        final TemplateDTO.Template templateDto = TemplateDTO.Template.newBuilder()
-                .setId(IdentityGenerator.next())
-                .setType(type)
-                .setTemplateInfo(templateInfo)
-                .build();
+                                                        @Nonnull final TemplateInfo templateInfo,
+                                                        @Nonnull final TemplateDTO.Template.Type type)
+            throws DuplicateTemplateException {
+        try {
+            return dsl.transactionResult(configuration -> {
+                determineUniqueTemplate(context, templateInfo.getName(), null);
 
-        final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
-        updateRecordFromProto(templateDto, templateRecord);
-
-        return templateDto;
+                final TemplateDTO.Template templateDto = TemplateDTO.Template.newBuilder()
+                        .setId(IdentityGenerator.next())
+                        .setType(type)
+                        .setTemplateInfo(templateInfo)
+                        .build();
+                final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
+                updateRecordFromProto(templateDto, templateRecord);
+                return templateDto;
+            });
+        } catch (DataAccessException e) {
+            if (e.getCause() instanceof DuplicateTemplateException) {
+                throw (DuplicateTemplateException) e.getCause();
+            } else {
+                throw e;
+            }
+        }
     }
 
     /**
@@ -146,14 +179,18 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * @return Updated template
      * @throws NoSuchObjectException if not found existing template.
      * @throws IllegalTemplateOperationException if any operation is not allowed.
+     * @throws DuplicateTemplateException if new template name already exist.
      */
     @Override
     @Nonnull
     public TemplateDTO.Template editTemplate(long id, @Nonnull TemplateInfo templateInfo)
-            throws NoSuchObjectException, IllegalTemplateOperationException {
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
         try {
             return dsl.transactionResult(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
+
+                determineUniqueTemplate(transactionDsl, templateInfo.getName(), id);
+
                 final TemplateRecord templateRecord = transactionDsl.selectFrom(TEMPLATE)
                         .where(TEMPLATE.ID.eq(id))
                         .fetchOne();
@@ -177,9 +214,11 @@ public class TemplatesDaoImpl implements TemplatesDao {
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException)e.getCause();
+                throw (NoSuchObjectException) e.getCause();
             } else if (e.getCause() instanceof IllegalTemplateOperationException) {
-                throw (IllegalTemplateOperationException)e.getCause();
+                throw (IllegalTemplateOperationException) e.getCause();
+            } else if (e.getCause() instanceof DuplicateTemplateException) {
+                throw (DuplicateTemplateException) e.getCause();
             } else {
                 throw e;
             }
@@ -451,9 +490,13 @@ public class TemplatesDaoImpl implements TemplatesDao {
             }
 
             Sets.difference(newTemplates.keySet(), existingNames).forEach(nameToAdd -> {
-                logger.info("Creating default template: {}", nameToAdd);
-                internalCreateTemplate(transactionDsl, newTemplates.get(nameToAdd), Type.SYSTEM);
-                logger.info("Created default template: {}", nameToAdd);
+                try {
+                    logger.info("Creating default template: {}", nameToAdd);
+                    internalCreateTemplate(transactionDsl, newTemplates.get(nameToAdd), Type.SYSTEM);
+                    logger.info("Created default template: {}", nameToAdd);
+                } catch (DuplicateTemplateException e) { // should never occur..
+                    logger.error("Could not create default template : {} as another template with same name already exist.", nameToAdd);
+                }
             });
         });
     }

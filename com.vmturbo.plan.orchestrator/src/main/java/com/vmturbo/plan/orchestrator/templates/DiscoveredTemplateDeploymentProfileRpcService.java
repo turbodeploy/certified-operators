@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.SetTargetDiscovered
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceImplBase;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl.TemplateInfoToDeploymentProfileMap;
+import com.vmturbo.plan.orchestrator.templates.exceptions.NoMatchingTemplateSpecException;
 
 public class DiscoveredTemplateDeploymentProfileRpcService extends DiscoveredTemplateDeploymentProfileServiceImplBase {
 

@@ -1,4 +1,4 @@
-package com.vmturbo.plan.orchestrator.templates;
+package com.vmturbo.plan.orchestrator.templates.exceptions;
 
 /**
  * Throw exception when template instance can not find matched template spec.

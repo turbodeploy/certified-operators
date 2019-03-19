@@ -48,6 +48,7 @@ import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsExceptio
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDaoImpl;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -137,7 +138,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testCreateReservation() {
+    public void testCreateReservation() throws DuplicateTemplateException {
         Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
         Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
         Optional<Reservation> retrievedReservation =
@@ -146,7 +147,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testCreateReservationWithoutConstraint() {
+    public void testCreateReservationWithoutConstraint() throws DuplicateTemplateException {
         Reservation reservationWithoutConstraint = testFirstReservation.toBuilder()
                 .clearConstraintInfoCollection()
                 .build();
@@ -161,7 +162,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testGetReservationById() {
+    public void testGetReservationById() throws DuplicateTemplateException {
         Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
         Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
         Optional<Reservation> reservation = reservationDao.getReservationById(createdReservation.getId());
@@ -170,7 +171,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testGetAllReservation() {
+    public void testGetAllReservation() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
         Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
         Reservation createdFirstReservation = reservationDao.createReservation(reservationWithTemplateFirst);
@@ -184,7 +185,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testUpdateReservation() throws NoSuchObjectException {
+    public void testUpdateReservation() throws NoSuchObjectException, DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
         Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
         Reservation reservation = reservationDao.createReservation(reservationWithTemplateFirst);
@@ -195,7 +196,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testDeleteReservation() throws NoSuchObjectException {
+    public void testDeleteReservation() throws NoSuchObjectException, DuplicateTemplateException {
         Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
         Reservation reservation = reservationDao.createReservation(reservationWithTemplate);
         Reservation deletedReservation = reservationDao.deleteReservationById(reservation.getId());
@@ -205,7 +206,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testGetReservationByStatus() {
+    public void testGetReservationByStatus() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
         Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
         reservationDao.createReservation(reservationWithTemplateFirst);
@@ -239,7 +240,7 @@ public class ReservationDaoImplTest {
     }
 
     @Test
-    public void testGetReservationsByTemplates() {
+    public void testGetReservationsByTemplates() throws DuplicateTemplateException {
         Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
                 .setName("test-template")
                 .build());
@@ -251,9 +252,9 @@ public class ReservationDaoImplTest {
         assertEquals("Test-first-reservation", reservationSet.iterator().next().getName());
     }
 
-    private Reservation createReservationWithTemplate(@Nonnull final Reservation reservation) {
+    private Reservation createReservationWithTemplate(@Nonnull final Reservation reservation) throws DuplicateTemplateException {
         Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
-                .setName("test-template")
+                .setName(reservation.getName())
                 .build());
         return updateReservationTemplate(reservation, template.getId());
 

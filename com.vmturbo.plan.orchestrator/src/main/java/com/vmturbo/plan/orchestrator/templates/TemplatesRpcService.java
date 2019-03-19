@@ -27,6 +27,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceImplBase;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 
 /**
  * gRPC implementation of Templates RPC service. Most of the logic is simply delegated to
@@ -112,8 +114,12 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
-                .withDescription("Failed to create template.")
-                .asException());
+                    .withDescription("Failed to create template.")
+                    .asException());
+        } catch (DuplicateTemplateException e) {
+            responseObserver.onError(Status.ALREADY_EXISTS
+                    .withDescription(e.getLocalizedMessage())
+                    .asException());
         }
     }
 
@@ -141,8 +147,12 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
                 .asException());
         } catch (IllegalTemplateOperationException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription(e.getLocalizedMessage())
-                .asException());
+                    .withDescription(e.getLocalizedMessage())
+                    .asException());
+        } catch (DuplicateTemplateException e) {
+            responseObserver.onError(Status.ALREADY_EXISTS
+                    .withDescription(e.getLocalizedMessage())
+                    .asException());
         }
     }
 

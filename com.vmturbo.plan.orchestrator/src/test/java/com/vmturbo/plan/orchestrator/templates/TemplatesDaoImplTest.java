@@ -17,7 +17,9 @@ import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -26,7 +28,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
@@ -35,6 +36,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -50,6 +53,9 @@ public class TemplatesDaoImplTest {
     private Flyway flyway;
 
     private TemplatesDaoImpl templatesDao;
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setup() throws Exception {
@@ -71,7 +77,7 @@ public class TemplatesDaoImplTest {
     }
 
     @Test
-    public void testCreateTemplate() {
+    public void testCreateTemplate() throws DuplicateTemplateException {
         TemplateInfo templateInfo = TemplateInfo.newBuilder()
             .setName("template-instance")
             .build();
@@ -80,7 +86,7 @@ public class TemplatesDaoImplTest {
     }
 
     @Test
-    public void testGetTemplate() {
+    public void testGetTemplate() throws DuplicateTemplateException {
         TemplateInfo templateInfo = TemplateInfo.newBuilder()
             .setName("template-instance")
             .build();
@@ -91,7 +97,7 @@ public class TemplatesDaoImplTest {
     }
 
     @Test
-    public void testGetAllTemplate() {
+    public void testGetAllTemplate() throws DuplicateTemplateException {
         TemplateInfo firstTemplateInstance = TemplateInfo.newBuilder()
             .setName("first-template-instance")
             .build();
@@ -110,7 +116,7 @@ public class TemplatesDaoImplTest {
 
     @Test
     public void testEditTemplate()
-            throws NoSuchObjectException, IllegalTemplateOperationException {
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
         TemplateInfo firstTemplateInstance = TemplateInfo.newBuilder()
             .setName("first-template-instance")
             .build();
@@ -124,8 +130,25 @@ public class TemplatesDaoImplTest {
     }
 
     @Test
+    public void testEditTemplateToDuplicateName()
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
+        TemplateInfo firstTemplateInstance = TemplateInfo.newBuilder()
+                .setName("first-template-instance")
+                .build();
+        TemplateInfo duplicateTemplateInstance = TemplateInfo.newBuilder()
+                .setName("second-template-instance")
+                .build();
+
+        Template createdFirstTemplate = templatesDao.createTemplate(firstTemplateInstance);
+        Template duplicateTemplate = templatesDao.createTemplate(duplicateTemplateInstance);
+        TemplateInfo template = duplicateTemplate.toBuilder().setId(duplicateTemplate.getId()).build().getTemplateInfo();
+        expectedException.expect(DuplicateTemplateException.class);
+        templatesDao.editTemplate(createdFirstTemplate.getId(), template);
+    }
+
+    @Test
     public void testDeleteTemplate()
-            throws NoSuchObjectException, IllegalTemplateOperationException {
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
         TemplateInfo templateInstance = TemplateInfo.newBuilder()
             .setName("template-instance")
             .build();
@@ -135,7 +158,7 @@ public class TemplatesDaoImplTest {
     }
 
     @Test
-    public void testGetTemplatesByName() {
+    public void testGetTemplatesByName() throws DuplicateTemplateException {
         final TemplateInfo templateInstance = TemplateInfo.newBuilder()
                 .setName("bar")
                 .build();
@@ -145,7 +168,7 @@ public class TemplatesDaoImplTest {
     }
 
     @Test
-    public void testGetTemplatesCountByIds() {
+    public void testGetTemplatesCountByIds() throws DuplicateTemplateException {
         final TemplateInfo barTemplate = TemplateInfo.newBuilder()
                 .setName("bar")
                 .build();
@@ -263,5 +286,16 @@ public class TemplatesDaoImplTest {
         assertTrue(templatesDao.getAllTemplates().stream()
             .map(template -> TemplatesDaoImpl.GSON.toJson(template, Template.class))
             .allMatch(serialized::contains));
+    }
+
+    @Test
+    public void testDuplicateTemplateNames() throws Exception {
+        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+                .setName("template-instance")
+                .build();
+        Template result = templatesDao.createTemplate(templateInfo);
+        assertEquals(result.getTemplateInfo(), templateInfo);
+        expectedException.expect(DuplicateTemplateException.class);
+        templatesDao.createTemplate(templateInfo);
     }
 }

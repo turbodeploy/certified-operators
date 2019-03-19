@@ -10,6 +10,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 
 /**
  * Data access object, responsible for creating, updating, searching, deleting templates.
@@ -48,9 +50,10 @@ public interface TemplatesDao extends Diagnosable {
      *
      * @param templateInstance describe the contents of one template
      * @return new created Template object
+     * @throws IllegalTemplateOperationException if not an unique template name.
      */
     @Nonnull
-    Template createTemplate(@Nonnull final TemplateInfo templateInstance);
+    Template createTemplate(@Nonnull final TemplateInfo templateInstance) throws DuplicateTemplateException;
 
     /**
      * Update the existing template with a new template instance.
@@ -63,7 +66,7 @@ public interface TemplatesDao extends Diagnosable {
      */
     @Nonnull
     Template editTemplate(final long id, @Nonnull final TemplateInfo templateInstance)
-            throws NoSuchObjectException, IllegalTemplateOperationException;
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException;
 
     /**
      * Delete the existing template which template's ID equal to parameter id.
