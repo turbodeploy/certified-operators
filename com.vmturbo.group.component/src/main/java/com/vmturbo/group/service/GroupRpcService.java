@@ -140,7 +140,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         // check scope access if not a global temp group
         TempGroupInfo groupInfo = request.getGroupInfo();
-        if (groupInfo.getIsGlobalScopeGroup() && groupInfo.hasMembers()) {
+        if (!groupInfo.getIsGlobalScopeGroup() && groupInfo.hasMembers()) {
             UserScopeUtils.checkAccess(userSessionContext, groupInfo.getMembers().getStaticMemberOidsList());
         }
 

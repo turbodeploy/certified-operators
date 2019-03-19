@@ -214,6 +214,29 @@ public class GroupRpcServiceTest {
                 .descriptionContains("ERROR"));
     }
 
+    @Test(expected = UserAccessScopeException.class)
+    public void testCreateTempGroupOutOfScope() throws Exception {
+        // a user with access only to entity 1 should not be able to create a group containing other entities.
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+
+        final TempGroupInfo tempGroupInfo = TempGroupInfo.newBuilder()
+                .setName("foo")
+                .setIsGlobalScopeGroup(false)
+                .setMembers(StaticGroupMembers.newBuilder()
+                        .addStaticMemberOids(2L))
+                .build();
+
+        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupRpcService.createTempGroup(CreateTempGroupRequest.newBuilder()
+                .setGroupInfo(tempGroupInfo)
+                .build(), mockObserver);
+    }
+
     @Test
     public void testCreateGroupFail() throws Exception {
         final long id = 1234L;
