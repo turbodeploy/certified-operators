@@ -27,7 +27,7 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
      * The map is structured EntityType -> ActionType -> Function, where the Function takes an
      *  action as a parameter and returns the id of the service entity to execute the action against.
      */
-    private Map<Integer, Map<ActionTypeCase, Function<Action, Long>>> entitySelectionMap;
+    private Map<Integer, Map<ActionTypeCase, Function<Action, ActionEntity>>> entitySelectionMap;
 
     public EntityAndActionTypeBasedEntitySelector() {
         entitySelectionMap = new HashMap<>();
@@ -36,7 +36,7 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
                 ActionTypeCase.PROVISION,
                 // TODO: is this logic right? it makes sense in the case of a VM being cloned,
                 // but what does the data look like when a VM is being provisioned from a template?
-                action -> action.getInfo().getProvision().getEntityToClone().getId());
+                action -> action.getInfo().getProvision().getEntityToClone());
     }
 
     /**
@@ -48,8 +48,8 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
      */
     private void addSpecialCase(int entityType,
                                 ActionTypeCase actionType,
-                                Function<Action, Long> chooserFunction) {
-        Map<ActionTypeCase, Function<Action, Long>> mapForSpecificEntityType =
+                                Function<Action, ActionEntity> chooserFunction) {
+        Map<ActionTypeCase, Function<Action, ActionEntity>> mapForSpecificEntityType =
                 entitySelectionMap.computeIfAbsent(entityType, k -> new HashMap<>());
         mapForSpecificEntityType.put(actionType, chooserFunction);
     }
@@ -73,7 +73,7 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
      * @return the entity to execute the action against
      */
     @Override
-    public Optional<Long> getEntityId(@Nonnull final Action action)
+    public Optional<ActionEntity> getEntity(@Nonnull final Action action)
             throws UnsupportedActionException {
         final ActionEntity defaultEntity = ActionDTOUtil.getPrimaryEntity(action);
         if (doesSpecialCaseApply(action, defaultEntity.getType())) {
@@ -81,6 +81,6 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
                     .get(action.getInfo().getActionTypeCase())
                     .apply(action));
         }
-        return Optional.of(defaultEntity.getId());
+        return Optional.of(defaultEntity);
     }
 }

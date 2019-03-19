@@ -83,8 +83,21 @@ public class ProbeActionCapabilitiesRpcService extends ProbeActionCapabilitiesSe
     public void listProbeActionCapabilities(@Nonnull ListProbeActionCapabilitiesRequest request,
             StreamObserver<ProbeActionCapabilities> responseObserver) {
         final List<Long> probeIds = request.getProbeIdsList();
-        for (long id : probeIds) {
-            addActionCapabilitiesOfProbeToResponse(responseObserver, id);
+        if (probeIds.isEmpty()) {
+            probeStore.getProbes().forEach((probeId, probeInfo) -> {
+                // Save result to a variable to make debugging easier.
+                final ProbeActionCapabilities probeCapabilities =
+                    ProbeActionCapabilities.newBuilder()
+                        .setProbeId(probeId)
+                        .addAllActionCapabilities(
+                            SdkToProbeActionsConverter.convert(probeInfo.getActionPolicyList()))
+                        .build();
+                responseObserver.onNext(probeCapabilities);
+            });
+        } else {
+            for (long id : probeIds) {
+                addActionCapabilitiesOfProbeToResponse(responseObserver, id);
+            }
         }
         responseObserver.onCompleted();
     }

@@ -298,10 +298,18 @@ message Action {
 
     // Levels of supporting action by probe
     enum SupportLevel {
+        // Unknown support level - up to the application to decide how to interpret this.
+        // (note - we added this after UNSUPPORTED, so that unknown support levels wouldn't default
+        // to SUPPORTED. But realistically it's probably best to treat this as equivalent to
+        // UNSUPPORTED when encountering it in the code).
+        UNKNOWN = 0;
+
         // Full support - will be shown an UI and may be executed
         SUPPORTED = 1;
+
         // Should be only shown in the UI, cannot be executed
         SHOW_ONLY = 2;
+
         // Shouldn't be shown, cannot be executed
         UNSUPPORTED = 3;
     }
@@ -854,23 +862,6 @@ message GetActionCountsByEntityResponse {
     repeated ActionCountsByEntity action_counts_by_entity = 1;
 }
 
-// Request for getActionPriorities rpc method. May contain action type to get probe priorities for.
-message GetActionPrioritiesRequest {
-    optional ActionType action_type = 1;
-}
-
-// Response of getActionPriorities rpc method. Provides probe categories for each action type or for
-// the certain action type.
-message GetActionPrioritiesResponse {
-    repeated ActionProbePriorities action_probe_priorities = 1;
-}
-
-// Represents priorities of probe categories for action type
-message ActionProbePriorities {
-    required ActionType action_type = 1;
-    repeated string probe_category = 2;
-}
-
 message CancelQueuedActionsRequest {
 }
 
@@ -1368,10 +1359,6 @@ service ActionsService {
 
     // Return the stats grouped by Action Category.
     rpc GetActionCategoryStats(GetActionCategoryStatsRequest) returns (GetActionCategoryStatsResponse);
-
-    // Get probe priorities for some specific action type (if request provides action type)
-    // or for all action types.
-    rpc GetActionPriorities(GetActionPrioritiesRequest) returns (GetActionPrioritiesResponse);
 
     // Cancel the execution of outstanding actions i.e. actions which are queued
     // but not yet executed.

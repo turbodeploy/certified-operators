@@ -1,10 +1,15 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -18,20 +23,26 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.TargetInfoResolver;
+import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache.CachedCapabilities;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
  * Unit tests for the {@link ActionTargetSelector} class.
@@ -54,22 +65,26 @@ public class ActionTargetSelectorTest {
     @Captor
     private ArgumentCaptor<GetEntitiesInfoRequest> entitiesRequestCaptor;
 
-    private ActionTargetResolver actionTargetResolverMock;
-
     private ActionExecutionEntitySelector targetEntitySelectorMock;
+
+    private ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
+
+    private CachedCapabilities cachedCapabilities = mock(CachedCapabilities.class);
+
+    private TargetInfoResolver mockTargetInfoResolver = mock(TargetInfoResolver.class);
 
     // A test helper class for building move actions
     TestActionBuilder testActionBuilder = new TestActionBuilder();
 
     @Before
     public void setup() {
-        actionTargetResolverMock = Mockito.mock(ActionTargetResolver.class);
-        targetEntitySelectorMock = Mockito.mock(ActionExecutionEntitySelector.class);
+        when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
+        targetEntitySelectorMock = mock(ActionExecutionEntitySelector.class);
         MockitoAnnotations.initMocks(this);
         // The class under test
-        actionTargetSelector = new ActionTargetSelector(actionTargetResolverMock,
-                targetEntitySelectorMock,
-                server.getChannel());
+        actionTargetSelector = new ActionTargetSelector(mockTargetInfoResolver,
+            targetEntitySelectorMock,
+            server.getChannel());
     }
 
     /**
@@ -87,27 +102,209 @@ public class ActionTargetSelectorTest {
     }
 
     @Test
+    public void testTargetInfoResolverMaxSupportingLevel() throws UnsupportedActionException {
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final long target1Id = 1;
+        final long probe1Id = 11;
+        final long target2Id = 2;
+        final long probe2Id = 22;
+        final EntityInfo entityInfo = EntityInfo.newBuilder()
+            .setEntityId(actionEntity.getId())
+            .putTargetIdToProbeId(target1Id, probe1Id)
+            .putTargetIdToProbeId(target2Id, probe2Id)
+            .build();
+
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
+            .thenReturn(SupportLevel.SHOW_ONLY);
+        when(cachedCapabilities.getProbeCategory(probe1Id))
+            .thenReturn(Optional.of(TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.get(0)));
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 2 has a "lower" probe category priority, but a higher support level.
+        // The higher support level should win out.
+        when(cachedCapabilities.getProbeCategory(probe2Id))
+            .thenReturn(Optional.of(TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.get(1)));
+
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
+        assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
+        assertThat(targetInfo.targetId().get(), is(target2Id));
+
+    }
+
+    @Test
+    public void testTargetInfoResolverUnsupportedTarget() throws UnsupportedActionException {
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final long target1Id = 1;
+        final long probe1Id = 11;
+        final EntityInfo entityInfo = EntityInfo.newBuilder()
+            .setEntityId(actionEntity.getId())
+            .putTargetIdToProbeId(target1Id, probe1Id)
+            .build();
+
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
+            .thenReturn(SupportLevel.UNSUPPORTED);
+        when(cachedCapabilities.getProbeCategory(probe1Id))
+            .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
+
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
+        assertThat(targetInfo.supportingLevel(), is(SupportLevel.UNSUPPORTED));
+        assertThat(targetInfo.targetId().get(), is(target1Id));
+    }
+
+    @Test
+    public void testTargetInfoResolverNoTargets() throws UnsupportedActionException {
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final EntityInfo entityInfo = EntityInfo.newBuilder()
+            .setEntityId(actionEntity.getId())
+            // No targets discovered this entity... somehow.
+            .build();
+
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
+        assertThat(targetInfo.supportingLevel(), is(SupportLevel.UNSUPPORTED));
+        assertFalse(targetInfo.targetId().isPresent());
+    }
+
+    @Test
+    public void testTargetInfoResolverProbeCategoryPriority() throws UnsupportedActionException {
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final long target1Id = 1;
+        final long probe1Id = 11;
+        final long target2Id = 2;
+        final long probe2Id = 22;
+        final EntityInfo entityInfo = EntityInfo.newBuilder()
+            .setEntityId(actionEntity.getId())
+            .putTargetIdToProbeId(target1Id, probe1Id)
+            .putTargetIdToProbeId(target2Id, probe2Id)
+            .build();
+
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 1 has a lower priority.
+        when(cachedCapabilities.getProbeCategory(probe1Id))
+            .thenReturn(Optional.of(TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.get(1)));
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 2 has a higher priority.
+        when(cachedCapabilities.getProbeCategory(probe2Id))
+            .thenReturn(Optional.of(TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.get(0)));
+
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
+        assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
+        // The selected target should be the one with higher priority.
+        assertThat(targetInfo.targetId().get(), is(target2Id));
+    }
+
+    @Test
+    public void testTargetInfoResolverNoProbeCategory() throws UnsupportedActionException {
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final long target1Id = 1;
+        final long probe1Id = 11;
+        final long target2Id = 2;
+        final long probe2Id = 22;
+        final EntityInfo entityInfo = EntityInfo.newBuilder()
+            .setEntityId(actionEntity.getId())
+            .putTargetIdToProbeId(target1Id, probe1Id)
+            .putTargetIdToProbeId(target2Id, probe2Id)
+            .build();
+
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 1 has the lowest explicitly-specified priority (last probe in the list).
+        when(cachedCapabilities.getProbeCategory(probe1Id))
+            .thenReturn(Optional.of(TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.get(
+                TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.size() - 1)));
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 2 has no known probe category. This shouldn't happen regularly, but
+        // might happen based on the interface definition.
+        when(cachedCapabilities.getProbeCategory(probe2Id))
+            .thenReturn(Optional.empty());
+
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
+        assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
+        // The selected target should be the one with the explicitly-specified priority.
+        assertThat(targetInfo.targetId().get(), is(target1Id));
+    }
+
+    @Test
+    public void testTargetInfoResolverUnknownProbeCategoryLowerPriority() throws UnsupportedActionException {
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final long target1Id = 1;
+        final long probe1Id = 11;
+        final long target2Id = 2;
+        final long probe2Id = 22;
+        final EntityInfo entityInfo = EntityInfo.newBuilder()
+            .setEntityId(actionEntity.getId())
+            .putTargetIdToProbeId(target1Id, probe1Id)
+            .putTargetIdToProbeId(target2Id, probe2Id)
+            .build();
+
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 1 has the lowest explicitly-specified priority (last probe in the list).
+        when(cachedCapabilities.getProbeCategory(probe1Id))
+            .thenReturn(Optional.of(TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.get(
+                TargetInfoResolver.PROBE_CATEGORY_PRIORITIES.size() - 1)));
+        when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
+            .thenReturn(SupportLevel.SUPPORTED);
+        // Target 2 has some unknown probe category.
+        when(cachedCapabilities.getProbeCategory(probe2Id))
+            .thenReturn(Optional.of(ProbeCategory.UNKNOWN));
+
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
+        assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
+        // The selected target should be the one with the explicitly-specified priority.
+        assertThat(targetInfo.targetId().get(), is(target1Id));
+    }
+
+    @Test
     public void testMove() throws Exception {
         final long probeId = 10;
         final long targetId = 7;
         final long selectedEntityId = 1;
-        final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
-        // No target selection for action execution special cases apply, return the target entity
-        when(targetEntitySelectorMock.getEntityId(any()))
-                .thenReturn(Optional.of(selectedEntityId));
-        when(entityServiceMole.getEntitiesInfo(any()))
-                .thenReturn(Stream.of(1, 2, 3).map(id ->
-                        EntityInfo.newBuilder()
-                                .setEntityId(id)
-                                .putTargetIdToProbeId(targetId, probeId)
-                                .build()).collect(Collectors.toList()));
-        when(actionTargetResolverMock.resolveExecutantTarget(any(), eq(ImmutableSet.of(targetId))))
-                .thenReturn(targetId);
-
         final ActionDTO.Action action =
-                testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 3L, 1);
+            testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 3L, 1);
+        final ActionDTO.ActionEntity selectedEntity = action.getInfo().getMove().getTarget();
+        // No target selection for action execution special cases apply, return the normal
+        // primary entity.
+        when(targetEntitySelectorMock.getEntity(any()))
+            .thenReturn(Optional.of(selectedEntity));
+        final Map<Long, EntityInfo> entityInfoMap = Stream.of(1, 2, 3)
+            .map(id -> EntityInfo.newBuilder()
+                .setEntityId(id)
+                .putTargetIdToProbeId(targetId, probeId)
+                .build())
+            .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
+        when(entityServiceMole.getEntitiesInfo(any()))
+            .thenReturn(Lists.newArrayList(entityInfoMap.values()));
 
-        Assert.assertEquals(targetId, actionTargetSelector.getTargetId(action));
+        final ActionTargetInfo actionTargetInfo = ImmutableActionTargetInfo.builder()
+            .targetId(targetId)
+            .supportingLevel(SupportLevel.SUPPORTED)
+            .build();
+        when(mockTargetInfoResolver.getTargetInfoForAction(action,
+                selectedEntity, entityInfoMap.get(selectedEntityId)))
+            .thenReturn(actionTargetInfo);
+
+        Assert.assertEquals(actionTargetInfo, actionTargetSelector.getTargetForAction(action));
 
         // However, the backend should have been called, and we can capture
         // and examine the arguments.
@@ -124,10 +321,13 @@ public class ActionTargetSelectorTest {
         final long probeId = 10;
         final long targetId = 7;
         final long selectedEntityId = 1;
-        final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
+        final ActionDTO.Action action =
+            testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 4L, 1);
+        final ActionDTO.ActionEntity selectedEntity = action.getInfo().getMove().getTarget();
+
         // No target selection for action execution special cases apply, return the target entity
-        when(targetEntitySelectorMock.getEntityId(any()))
-                .thenReturn(Optional.of(selectedEntityId));
+        when(targetEntitySelectorMock.getEntity(any()))
+                .thenReturn(Optional.of(selectedEntity));
         // The entity info returned will not include the requested entity (the selectedEntityId)
         when(entityServiceMole.getEntitiesInfo(any()))
                 .thenReturn(Stream.of(2, 3, 4).map(id ->
@@ -135,47 +335,8 @@ public class ActionTargetSelectorTest {
                                 .setEntityId(id)
                                 .putTargetIdToProbeId(targetId, probeId)
                                 .build()).collect(Collectors.toList()));
-        final ActionDTO.Action action =
-                testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 4L, 1);
-        // This exception will be thrown since the entityServiceMole will not return the requested
-        // entity data
-        expectedException.expect(EntitiesResolutionException.class);
-        actionTargetSelector.getTargetId(action);
-    }
-
-    /**
-     * Tests getTarget(Action) for the case when there a multiple targets which can execute the
-     * action.
-     *
-     * @throws TargetResolutionException if provided action was null or there are no entities for
-     * action
-     */
-    @Test
-    public void testGetTargetForActionWithMultipleTargets() throws Exception {
-        final long probeId = 10;
-        final long firstTargetId = 7;
-        final long secondTargetId = 8;
-        final long selectedEntityId = 1;
-        final int selectedEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
-        // No target selection for action execution special cases apply
-        when(targetEntitySelectorMock.getEntityId(any()))
-                .thenReturn(Optional.of(selectedEntityId));
-        when(entityServiceMole.getEntitiesInfo(any()))
-                .thenReturn(Stream.of(1, 2, 3)
-                        .map(id ->
-                                EntityInfo.newBuilder()
-                                        .setEntityId(id)
-                                        .putTargetIdToProbeId(firstTargetId, probeId)
-                                        .putTargetIdToProbeId(secondTargetId, probeId)
-                                        .build())
-                        .collect(Collectors.toList()));
-        when(actionTargetResolverMock.resolveExecutantTarget(any(),
-                eq(ImmutableSet.of(firstTargetId, secondTargetId))))
-                .thenReturn(firstTargetId);
-        final ActionDTO.Action action =
-                testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 3L, 1);
-
-        Assert.assertEquals(firstTargetId, actionTargetSelector.getTargetId(action));
+        // No target will be selected since we don't have entity data for the selected entity.
+        assertThat(actionTargetSelector.getTargetForAction(action).supportingLevel(), is(SupportLevel.UNSUPPORTED));
     }
 
     @Test
@@ -189,11 +350,8 @@ public class ActionTargetSelectorTest {
                                 .setEntityId(id)
                                 .putTargetIdToProbeId(targetId, probeId)
                                 .build()).collect(Collectors.toList()));
-        when(actionTargetResolverMock.resolveExecutantTarget(any(),
-                eq(ImmutableSet.of(targetId))))
-                .thenReturn(targetId);
         // Target entity selection throws exception.
-        when(targetEntitySelectorMock.getEntityId(any()))
+        when(targetEntitySelectorMock.getEntity(any()))
                 .thenThrow(UnsupportedActionException.class);
         final Action bogusAction = Action.newBuilder()
                 .setId(23)
@@ -206,24 +364,27 @@ public class ActionTargetSelectorTest {
                         .build()
                 )
                 .build();
-        // Expect an UnsupportedActionException, because this action doesn't have a valid type
-        expectedException.expect(UnsupportedActionException.class);
-        actionTargetSelector.getTargetId(bogusAction);
+        // Expect a no target, because this action doesn't have a valid type.
+        assertThat(actionTargetSelector.getTargetForAction(bogusAction).supportingLevel(), is(SupportLevel.UNSUPPORTED));
     }
 
-    /**
-     * Test that the target cannot be resolved if the provided entity data does not match the action
-     *
-     * @throws TargetResolutionException because the provided entity data does not match the action
-     */
     @Test
-    public void testNoTargetForEntity() throws TargetResolutionException {
-        final long anotherEntityId = 2;
-        EntityInfo info = EntityInfo.newBuilder()
-                .setEntityId(anotherEntityId)
-                .build();
-        final Action action = testActionBuilder.buildMoveAction(1L, 2L, 1, 3L, 1);
-        expectedException.expect(TargetResolutionException.class);
-        actionTargetSelector.getTargetId(action, info);
+    public void testNoSelectedEntity() throws Exception {
+        final long probeId = 10;
+        final long targetId = 7;
+        final ActionDTO.Action action =
+            testActionBuilder.buildMoveAction(1L, 2L, 1, 4L, 1);
+        // Prepare some entity data to return when the Topology Processor is queried
+        when(entityServiceMole.getEntitiesInfo(any()))
+            .thenReturn(Stream.of(1, 2, 3).map(id ->
+                EntityInfo.newBuilder()
+                    .setEntityId(id)
+                    .putTargetIdToProbeId(targetId, probeId)
+                    .build()).collect(Collectors.toList()));
+        // Target entity selection returns empty optional.
+        when(targetEntitySelectorMock.getEntity(any()))
+            .thenReturn(Optional.empty());
+        // Expect a no target, because we can't select an entity to be the primary entity.
+        assertThat(actionTargetSelector.getTargetForAction(action).supportingLevel(), is(SupportLevel.UNSUPPORTED));
     }
 }

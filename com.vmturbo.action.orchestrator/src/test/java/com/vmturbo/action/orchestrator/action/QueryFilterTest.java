@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -386,12 +387,13 @@ public class QueryFilterTest {
 
     private ActionView notExecutableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                        .setId(id)
-                        .setImportance(0)
-                        .setExplanation(Explanation.newBuilder().build())
-                        .setExecutable(false)
-                        .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
-                        .build();
+            .setId(id)
+            .setImportance(0)
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .setExplanation(Explanation.newBuilder().build())
+            .setExecutable(false)
+            .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
+            .build();
 
         return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
     }

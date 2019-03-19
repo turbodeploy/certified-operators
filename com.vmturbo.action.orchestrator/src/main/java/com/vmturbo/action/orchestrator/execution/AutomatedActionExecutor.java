@@ -17,16 +17,17 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -103,14 +104,17 @@ public class AutomatedActionExecutor {
      */
     private Map<Long, Set<Long>> mapActionsToTarget(Map<Long, Action> allActions) {
         final Map<Long, Set<Long>> result = new HashMap<>();
-        final Map<Action, Long> mapActionToProbeId =
-                actionTargetSelector.getTargetIdsForActions(allActions.values());
-        for(Entry<Action, Long> actionToProbeIdEntry : mapActionToProbeId.entrySet()) {
-            final long actionId = actionToProbeIdEntry.getKey().getId();
-            final long targetId = actionToProbeIdEntry.getValue();
-            final Set<Long> targetActions = result.computeIfAbsent(targetId, tgt -> new HashSet<>());
-            targetActions.add(actionId);
-            result.put(targetId, targetActions);
+        final Map<Long, ActionTargetInfo> targetIdsForActions =
+                actionTargetSelector.getTargetsForActions(allActions.values().stream()
+                    .map(Action::getRecommendation));
+        for(Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
+            final Long actionId = targetIdForActionEntry.getKey();
+            final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();
+            if (targetInfo.targetId().isPresent()) {
+                final Set<Long> targetActions = result.computeIfAbsent(targetInfo.targetId().get(), tgt -> new HashSet<>());
+                targetActions.add(actionId);
+                result.put(targetInfo.targetId().get(), targetActions);
+            }
         }
         return result;
     }

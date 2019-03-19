@@ -30,6 +30,7 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
@@ -62,6 +63,7 @@ public class ActionStateUpdaterTest {
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
         .setId(actionId)
         .setImportance(0)
+        .setSupportingLevel(SupportLevel.SUPPORTED)
         .setInfo(TestActionBuilder.makeMoveInfo(3, 2, 1, 1, 1))
         .setExplanation(Explanation.newBuilder().build())
         .build();

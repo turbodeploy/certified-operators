@@ -6,7 +6,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -14,7 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
-import java.util.LinkedList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,15 +38,18 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
@@ -112,7 +114,9 @@ public class LiveActionStoreTest {
                 return action;
             })));
 
-    private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
+    private final ActionTargetSelector targetSelector = Mockito.mock(ActionTargetSelector.class);
+
+    private final ProbeCapabilityCache probeCapabilityCache = Mockito.mock(ProbeCapabilityCache.class);
 
     private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
@@ -126,12 +130,16 @@ public class LiveActionStoreTest {
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
-        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
-                entitySettingsCache, actionHistoryDao, actionsStatistician);
+        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
+            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician);
 
-        when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
-                -> invocationOnMock.getArguments()[0]);
-        filter.resolveActionsSupporting(new LinkedList<>());
+        when(targetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
+            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions
+                .collect(Collectors.toMap(ActionDTO.Action::getId, action -> ImmutableActionTargetInfo.builder()
+                    .supportingLevel(SupportLevel.SUPPORTED)
+                    .build()));
+        });
         IdentityGenerator.initPrefix(0);
     }
 
@@ -195,8 +203,8 @@ public class LiveActionStoreTest {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
         ActionStore actionStore =
-                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID, filter,
-                        entitySettingsCache, actionHistoryDao, actionsStatistician);
+                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID, targetSelector,
+                    probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

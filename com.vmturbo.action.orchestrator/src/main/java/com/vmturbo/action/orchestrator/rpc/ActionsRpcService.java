@@ -32,15 +32,12 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
-import com.vmturbo.action.orchestrator.action.ActionTypeToActionTypeCaseConverter;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
-import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryException;
@@ -55,12 +52,11 @@ import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionProbePriorities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -82,13 +78,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRespo
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
@@ -479,28 +472,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     }
 
     /**
-     * Sets to responseObserver probe priorities for the certain action type if request
-     * contains this type. Otherwise sets probe priorities for all types.
-     *
-     * @param request          may contain the certain action type.
-     * @param responseObserver to set probe priorities in.
-     */
-    @Override
-    @Nonnull
-    public void getActionPriorities(@Nonnull GetActionPrioritiesRequest request,
-                                    @Nonnull StreamObserver<GetActionPrioritiesResponse> responseObserver) {
-        final GetActionPrioritiesResponse.Builder responseBuilder =
-                GetActionPrioritiesResponse.newBuilder();
-        if (request.hasActionType()) {
-            responseBuilder.addActionProbePriorities(getProbePrioritiesFor(request.getActionType()));
-        } else {
-            addAllActionProbePrioritiesToResponse(responseBuilder);
-        }
-        responseObserver.onNext(responseBuilder.build());
-        responseObserver.onCompleted();
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -628,23 +599,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    private void addAllActionProbePrioritiesToResponse(
-            @Nonnull GetActionPrioritiesResponse.Builder responseBuilder) {
-        for (ActionType actionType : ActionType.values()) {
-            responseBuilder.addActionProbePriorities(getProbePrioritiesFor(actionType));
-        }
-    }
-
-    @Nonnull
-    private ActionProbePriorities getProbePrioritiesFor(@Nonnull ActionType actionType) {
-        final ActionTypeCase actionTypeCase = ActionTypeToActionTypeCaseConverter
-                .getActionTypeCaseFor(actionType);
-        final List<String> probePriorities = ActionTargetByProbeCategoryResolver
-                .getProbePrioritiesFor(actionTypeCase);
-        return ActionProbePriorities.newBuilder().setActionType(actionType)
-                .addAllProbeCategory(probePriorities).build();
-    }
-
     /**
      * Attempt to accept and execute the action.
      *
@@ -655,12 +609,19 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         long actionTargetId = -1;
         Optional<FailureEvent> failure = Optional.empty();
 
-        try {
-            actionTargetId = actionTargetSelector.getTargetId(action.getRecommendation());
-        } catch (TargetResolutionException | UnsupportedActionException | EntitiesResolutionException e) {
-            logger.error("Failed to resolve target id for action {} due to error: {}", action.getId(), e);
-            failure = Optional.of(new FailureEvent("Failed to resolve target id due to error: " + e.getMessage()));
+        ActionTargetInfo actionTargetInfo =
+            actionTargetSelector.getTargetForAction(action.getRecommendation());
+        if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED) {
+            // Target should be set if support level is "supported".
+            actionTargetId = actionTargetInfo.targetId().get();
+        } else {
+            failure = Optional.of(new FailureEvent(
+                "Action cannot be executed by any target. Support level: " +
+                    actionTargetInfo.supportingLevel()));
         }
+
+        failure.ifPresent(failureEvent ->
+            logger.error("Failed to accept action: {}", failureEvent.getErrorDescription()));
 
         if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUUid, actionTargetId)).transitionNotTaken()) {
             return acceptanceError("Unauthorized to accept action in mode " + action.getMode());

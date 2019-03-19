@@ -7,7 +7,8 @@ import javax.annotation.Nonnull;
 import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 
 /**
@@ -27,16 +28,16 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ActionHistoryDao actionHistoryDao;
 
-    private final ActionSupportResolver actionSupportResolver;
+    private final ActionTargetSelector actionTargetSelector;
 
     private final EntitiesCache entitySettingsCache;
+
+    private final ProbeCapabilityCache probeCapabilityCache;
 
     private static final String PLAN_CONTEXT_TYPE_NAME = "plan";
     private static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
     private final LiveActionsStatistician actionsStatistician;
-
-    private final ActionModeCalculator actionModeCalculator;
 
     /**
      * Create a new ActionStoreFactory.
@@ -45,18 +46,18 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               final long realtimeTopologyContextId,
                               @Nonnull final DSLContext databaseDslContext,
                               @Nonnull final ActionHistoryDao actionHistoryDao,
-                              @Nonnull final ActionSupportResolver actionSupportResolver,
+                              @Nonnull final ActionTargetSelector actionTargetSelector,
+                              @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                               @Nonnull final EntitiesCache entitySettingsCache,
-                              @Nonnull final LiveActionsStatistician actionsStatistician,
-                              @Nonnull final ActionModeCalculator actionModeCalculator) {
+                              @Nonnull final LiveActionsStatistician actionsStatistician) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
         this.actionHistoryDao = actionHistoryDao;
-        this.actionSupportResolver = actionSupportResolver;
+        this.actionTargetSelector = actionTargetSelector;
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
-        this.actionModeCalculator = actionModeCalculator;
+        this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
     }
 
     /**
@@ -69,7 +70,9 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
             return new LiveActionStore(actionFactory, topologyContextId,
-                actionSupportResolver, entitySettingsCache, actionHistoryDao, actionsStatistician);
+                actionTargetSelector, probeCapabilityCache,
+                entitySettingsCache, actionHistoryDao,
+                actionsStatistician);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }

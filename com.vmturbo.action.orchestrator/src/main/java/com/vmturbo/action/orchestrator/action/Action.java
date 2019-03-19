@@ -126,7 +126,6 @@ public class Action implements ActionView {
      */
     private final EntitiesCache entitiesCache;
 
-
     /**
      * The ID of the action plan to which this action's recommendation belongs.
      */
@@ -210,22 +209,6 @@ public class Action implements ActionView {
         this.entitiesCache = Objects.requireNonNull(entitySettings);
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
                 recommendation.getExplanation());
-        this.actionModeCalculator = actionModeCalculator;
-    }
-
-    public Action(Action prototype, SupportLevel supportLevel,
-                  @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this.recommendation = prototype.recommendation;
-        this.actionTranslation = prototype.actionTranslation;
-        this.actionPlanId = prototype.actionPlanId;
-        this.decision = prototype.decision;
-        this.executableStep = prototype.executableStep;
-        this.recommendationTime = prototype.recommendationTime;
-        this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
-                .setSupportingLevel(supportLevel).build();
-        this.entitiesCache = prototype.entitiesCache;
-        this.stateMachine = ActionStateMachine.newInstance(this, prototype.getState());
-        this.actionCategory = prototype.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
     }
 
@@ -370,6 +353,7 @@ public class Action implements ActionView {
     private ActionMode getClippedActionMode() {
         switch (getRecommendation().getSupportingLevel()) {
             case UNSUPPORTED:
+            case UNKNOWN:
                 return ActionMode.DISABLED;
             case SHOW_ONLY:
                 final ActionMode mode = actionModeCalculator.calculateActionMode(

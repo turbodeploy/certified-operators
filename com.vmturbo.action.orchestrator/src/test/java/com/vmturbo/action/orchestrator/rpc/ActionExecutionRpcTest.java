@@ -15,6 +15,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -31,17 +33,18 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
-import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
-import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
@@ -52,6 +55,7 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
@@ -85,6 +89,7 @@ public class ActionExecutionRpcTest {
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader, actionModeCalculator);
@@ -95,8 +100,6 @@ public class ActionExecutionRpcTest {
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
 
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
-
-    private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
     private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
 
@@ -125,9 +128,20 @@ public class ActionExecutionRpcTest {
     public void setup() {
         IdentityGenerator.initPrefix(0);
 
+        ActionTargetInfo targetInfo = ImmutableActionTargetInfo.builder()
+            .supportingLevel(SupportLevel.SUPPORTED)
+            .targetId(123)
+            .build();
+        when(actionTargetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
+            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
+        });
+        when(actionTargetSelector.getTargetForAction(any())).thenReturn(targetInfo);
+
         actionStoreSpy =
-                Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                        filter, entitySettingsCache, actionHistoryDao, statistician));
+            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                actionTargetSelector, probeCapabilityCache,
+                entitySettingsCache, actionHistoryDao, statistician));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -247,13 +261,15 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetId(eq(recommendation)))
-            .thenThrow(new TargetResolutionException("Could not resolve target"));
+        when(actionTargetSelector.getTargetForAction(eq(recommendation)))
+            .thenReturn(ImmutableActionTargetInfo.builder()
+                .supportingLevel(SupportLevel.UNSUPPORTED)
+                .build());
 
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
 
         assertTrue(response.hasError());
-        Assert.assertThat(response.getError(), CoreMatchers.containsString("Could not resolve target"));
+        Assert.assertThat(response.getError(), CoreMatchers.containsString("Action cannot be executed by any target"));
     }
 
     @Test
@@ -268,7 +284,11 @@ public class ActionExecutionRpcTest {
 
         actionStorehouse.storeActions(plan);
 
-        when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
+            ImmutableActionTargetInfo.builder()
+                .supportingLevel(SupportLevel.SUPPORTED)
+                .targetId(targetId)
+                .build());
         doThrow(new ExecutionStartException("ERROR!"))
             .when(actionExecutor).execute(eq(targetId), eq(recommendation), eq(EMPTY_WORKFLOW_OPTIONAL));
 
@@ -289,7 +309,11 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
+            ImmutableActionTargetInfo.builder()
+                .supportingLevel(SupportLevel.SUPPORTED)
+                .targetId(targetId)
+                .build());
         // Have the action translator act as a passthrough.
         doAnswer(invocation -> {
             final Action action = (Action)invocation.getArguments()[0];
@@ -338,12 +362,17 @@ public class ActionExecutionRpcTest {
                 grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         actionStoreSpy =
-                Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                        filter, entitySettingsCache, actionHistoryDao, statistician));
+            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                actionTargetSelector, probeCapabilityCache, entitySettingsCache,
+                actionHistoryDao, statistician));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
+            ImmutableActionTargetInfo.builder()
+                .supportingLevel(SupportLevel.SUPPORTED)
+                .targetId(targetId)
+                .build());
         doReturn(false).when(actionTranslator).translate(any(Action.class));
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
         assertThat(response.getError(), CoreMatchers.containsString("Unauthorized to accept action in mode RECOMMEND"));

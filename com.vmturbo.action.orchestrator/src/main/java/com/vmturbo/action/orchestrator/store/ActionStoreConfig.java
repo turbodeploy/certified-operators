@@ -94,15 +94,10 @@ public class ActionStoreConfig {
             actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
             databaseConfig.dsl(),
             actionHistory(),
-            actionSupportResolver(),
+            actionExecutionConfig.actionTargetSelector(),
+            actionExecutionConfig.targetCapabilityCache(),
             entitySettingsCache(),
-            actionStatsConfig.actionsStatistician(), actionModeCalculator());
-    }
-
-    @Bean
-    public ActionSupportResolver actionSupportResolver() {
-        return new ActionSupportResolver(actionExecutionConfig.actionCapabilitiesStore(),
-            actionExecutionConfig.actionTargetSelector(), actionModeCalculator());
+            actionStatsConfig.actionsStatistician());
     }
 
     @Bean

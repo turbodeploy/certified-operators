@@ -6,8 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
-import com.vmturbo.action.orchestrator.store.ActionCapabilitiesStore;
-import com.vmturbo.action.orchestrator.store.ProbeActionCapabilitiesStore;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -24,20 +22,8 @@ public class ActionExecutionConfig {
     private ActionOrchestratorGlobalConfig globalConfig;
 
     @Bean
-    public ActionCapabilitiesStore actionCapabilitiesStore() {
-        return new ProbeActionCapabilitiesStore(actionCapabilitiesService());
-    }
-
-    /**
-     * Object which is used to resolve which target should execute the action if there a multiple
-     * targets which can do it.
-     *
-     * @return implementation for ActionTargetResolver.
-     */
-    @Bean
-    public ActionTargetResolver actionTargetResolver() {
-        return new ActionTargetByProbeCategoryResolver(globalConfig.topologyProcessor(),
-                actionCapabilitiesStore());
+    public ProbeCapabilityCache targetCapabilityCache() {
+        return new ProbeCapabilityCache(globalConfig.topologyProcessor(), actionCapabilitiesService());
     }
 
     /**
@@ -69,7 +55,7 @@ public class ActionExecutionConfig {
     @Bean
     public ActionTargetSelector actionTargetSelector() {
         final ActionTargetSelector actionTargetSelector =
-                new ActionTargetSelector(actionTargetResolver(),
+                new ActionTargetSelector(targetCapabilityCache(),
                         actionExecutionTargetEntitySelector(),
                         globalConfig.topologyProcessorChannel());
         return actionTargetSelector;

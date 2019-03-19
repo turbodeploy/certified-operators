@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -24,6 +25,6 @@ public interface ActionExecutionEntitySelector {
      * @param action the action to be executed
      * @return the entity whose target will be used to execute the action against
      */
-    Optional<Long> getEntityId(@Nonnull ActionDTO.Action action)
+    Optional<ActionEntity> getEntity(@Nonnull ActionDTO.Action action)
             throws UnsupportedActionException;
 }

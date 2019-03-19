@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -135,10 +136,11 @@ public class ActionOrchestratorTestUtils {
 
     private static ActionDTO.Action.Builder baseAction(final long actionId) {
         return ActionDTO.Action.newBuilder()
-                .setId(actionId)
-                .setImportance(0)
-                .setExecutable(true)
-                .setExplanation(Explanation.newBuilder().build());
+            .setId(actionId)
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .setImportance(0)
+            .setExecutable(true)
+            .setExplanation(Explanation.newBuilder().build());
     }
 
     private static ActionSpec.Builder baseActionSpec(final long actionPlanId) {

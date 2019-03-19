@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.probes;
 
+import static org.mockito.Mockito.when;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,6 +17,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.stub.StreamObserver;
 
@@ -54,14 +57,13 @@ public class ProbeActionCapabilitiesRpcServiceTest {
     @Before
     public void setup() {
         initTestedProbeCapabilities();
-        final ProbeInfo probeInfo =
-                populateProbeInfo(sdkActionCapabilities);
-        Mockito.when(probeStore.getProbe(PROBE_ID))
-                .thenReturn(Optional.of(probeInfo));
-        Mockito.when(probeStore.getProbe(NOT_EXISTING_PROBE_ID))
-                .thenReturn(Optional.empty());
-        Mockito.when(probeStore.getProbe(EMPTY_PROBE)).thenReturn(Optional
-                .of(populateProbeInfo(Collections.emptyList())));
+        final ProbeInfo probeInfo = populateProbeInfo(sdkActionCapabilities);
+        final ProbeInfo emptyProbeInfo = populateProbeInfo(Collections.emptyList());
+        when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
+        when(probeStore.getProbe(NOT_EXISTING_PROBE_ID)).thenReturn(Optional.empty());
+        when(probeStore.getProbe(EMPTY_PROBE)).thenReturn(Optional.of(emptyProbeInfo));
+        when(probeStore.getProbes()).thenReturn(
+            ImmutableMap.of(PROBE_ID, probeInfo, EMPTY_PROBE, emptyProbeInfo));
     }
 
     /**
@@ -138,6 +140,20 @@ public class ProbeActionCapabilitiesRpcServiceTest {
                 streamObserver.getProbesCapabilities().get(PROBE_ID));
         Assert.assertEquals(Collections.emptyList(), streamObserver.getProbesCapabilities().get(
                 EMPTY_PROBE));
+    }
+
+    @Test
+    public void testListProbeActionCapabilitiesEmptyInputReturnsAll() {
+        ListProbeActionCapabilitiesRequest request = ListProbeActionCapabilitiesRequest
+            .newBuilder()
+            .build();
+        ListProbeActionCapabilitiesTestObserver streamObserver
+            = new ListProbeActionCapabilitiesTestObserver();
+        service.listProbeActionCapabilities(request, streamObserver);
+        Assert.assertEquals(SdkToProbeActionsConverter.convert(sdkActionCapabilities),
+            streamObserver.getProbesCapabilities().get(PROBE_ID));
+        Assert.assertEquals(Collections.emptyList(), streamObserver.getProbesCapabilities().get(
+            EMPTY_PROBE));
     }
 
     /**

@@ -9,6 +9,7 @@ import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -37,9 +38,9 @@ public class ActionExecutionEntitySelectorTest {
                 482,
                 EntityType.PHYSICAL_MACHINE_VALUE);
 
-        Optional<Long> selectedEntityId = entitySelector.getEntityId(moveAction);
+        Optional<ActionEntity> selectedEntityId = entitySelector.getEntity(moveAction);
         assertTrue(selectedEntityId.isPresent());
-        assertEquals(primaryEntityId, selectedEntityId.get().longValue());
+        assertEquals(primaryEntityId, selectedEntityId.get().getId());
     }
 
     @Test
@@ -49,8 +50,8 @@ public class ActionExecutionEntitySelectorTest {
         ActionDTO.Action provisionAction =
                 testActionBuilder.buildProvisionAction(primaryEntityId, null);
 
-        Optional<Long> selectedEntityId = entitySelector.getEntityId(provisionAction);
+        Optional<ActionEntity> selectedEntityId = entitySelector.getEntity(provisionAction);
         assertTrue(selectedEntityId.isPresent());
-        assertEquals(primaryEntityId, selectedEntityId.get().longValue());
+        assertEquals(primaryEntityId, selectedEntityId.get().getId());
     }
 }

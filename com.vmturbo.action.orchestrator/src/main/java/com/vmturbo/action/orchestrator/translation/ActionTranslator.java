@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplB
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 
 
 /**
@@ -441,16 +442,9 @@ public class ActionTranslator {
                     // so the values are actually integers.
                     if (Float.compare(newResize.getOldCapacity(), newResize.getNewCapacity()) == 0) {
                         action.getActionTranslation().setTranslationFailure();
-                        logger.warn("VCPU resize has same from and to value, " +
-                                        "from: {}, " +
-                                        "to: {}. " +
-                                        "From {} to {} for host with info {}" +
-                                        "Skipping translation",
-                                newResize.getOldCapacity(),
-                                newResize.getNewCapacity(),
-                                action.getRecommendation().getInfo().getResize(),
-                                newResize,
-                                hostInfo);
+                        logger.debug("VCPU resize (action: {}, entity: {}) has same from and to value ({}).",
+                            action.getId(), newResize.getTarget().getId(), newResize.getOldCapacity());
+                        Metrics.VCPU_SAME_TO_FROM.increment();
                         return action;
                     }
                     // Resize explanation does not need to be translated because the explanation is in terms
@@ -489,5 +483,15 @@ public class ActionTranslator {
 
             return newResize;
         }
+    }
+
+    private static class Metrics {
+
+        private static final DataMetricCounter VCPU_SAME_TO_FROM = DataMetricCounter.builder()
+            .withName("ao_vcpu_translate_same_to_from_count")
+            .withHelp("The number of VCPU translates where the to and from VCPU counts were the same.")
+            .build()
+            .register();
+
     }
 }

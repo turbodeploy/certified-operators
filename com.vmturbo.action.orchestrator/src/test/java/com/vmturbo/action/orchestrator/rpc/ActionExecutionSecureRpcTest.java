@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -35,14 +37,16 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
-import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -59,6 +63,8 @@ import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
@@ -107,10 +113,9 @@ public class ActionExecutionSecureRpcTest {
     private final CurrentActionStatReader currentActionStatReader = mock(CurrentActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
+    private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader, actionModeCalculator);
-    private final ActionSupportResolver filter = mock
-            (ActionSupportResolver.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
@@ -178,9 +183,20 @@ public class ActionExecutionSecureRpcTest {
         actionOrchestratorServiceClientWithInterceptor = ActionsServiceGrpc.newBlockingStub(channel)
                 .withInterceptors(new JwtClientInterceptor());
 
+        ActionTargetInfo targetInfo = ImmutableActionTargetInfo.builder()
+            .supportingLevel(SupportLevel.SUPPORTED)
+            .targetId(123)
+            .build();
+        when(actionTargetSelector.getTargetsForActions(any())).thenAnswer(invocation -> {
+            Stream<Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
+        });
+        when(actionTargetSelector.getTargetForAction(any())).thenReturn(targetInfo);
+
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                filter, entitySettingsCache, actionHistoryDao, actionsStatistician));
+            actionTargetSelector, probeCapabilityCache, entitySettingsCache,
+            actionHistoryDao, actionsStatistician));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

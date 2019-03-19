@@ -26,6 +26,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -170,6 +171,7 @@ public class EntitySeverityCacheTest {
                     Severity severity) {
         return ActionDTO.Action.newBuilder()
             .setExecutable(true)
+            .setSupportingLevel(SupportLevel.SUPPORTED)
             .setId(IdentityGenerator.next())
             .setImportance(mapSeverityToImportance(severity))
             .setInfo(

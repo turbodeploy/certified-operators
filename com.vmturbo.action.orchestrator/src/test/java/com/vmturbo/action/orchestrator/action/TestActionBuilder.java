@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfoOrBuilder;
@@ -28,11 +29,11 @@ public class TestActionBuilder {
                                   int sourceType,
                                   long destinationId,
                                   int destinationType) {
-
         return Action.newBuilder().setId(actionId.getAndIncrement()).setImportance(1)
-                .setExplanation(Explanation.newBuilder().build())
-                .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType))
-                .build();
+            .setExplanation(Explanation.newBuilder().build())
+            .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType))
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .build();
     }
 
     public static ActionInfo.Builder makeMoveInfo(

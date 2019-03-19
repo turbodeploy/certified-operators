@@ -70,6 +70,8 @@ message GetProbeActionCapabilitiesResponse {
 
 // Request for ProbeActionsCapabilitiesService to get ActionCapabilities for all provided probes
 message ListProbeActionCapabilitiesRequest {
+    // The list of IDs to list capabilities for.
+    // If empty, list capabilities for all probes.
     repeated int64 probe_ids = 1;
 }
 

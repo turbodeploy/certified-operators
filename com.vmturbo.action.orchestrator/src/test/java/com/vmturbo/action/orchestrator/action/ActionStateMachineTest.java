@@ -27,6 +27,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -48,11 +49,12 @@ public class ActionStateMachineTest {
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
-                    .setId(0)
-                    .setImportance(0)
-                    .setInfo(TestActionBuilder.makeMoveInfo(1, 2, 1, 2, 1))
-                    .setExplanation(Explanation.newBuilder().build())
-                .build();
+        .setId(0)
+        .setImportance(0)
+        .setSupportingLevel(SupportLevel.SUPPORTED)
+        .setInfo(TestActionBuilder.makeMoveInfo(1, 2, 1, 2, 1))
+        .setExplanation(Explanation.newBuilder().build())
+        .build();
 
     private final long actionPlanId = 4;
     private final String userUuid = "5";
