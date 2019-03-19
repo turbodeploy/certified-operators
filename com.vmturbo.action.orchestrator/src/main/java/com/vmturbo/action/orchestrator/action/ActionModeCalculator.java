@@ -120,7 +120,10 @@ public class ActionModeCalculator {
     @Nonnull
     public ActionMode calculateActionMode(@Nonnull final ActionView action,
                 @Nullable final EntitiesCache entitiesCache) {
-        actionTranslator.translate(action);
+        final boolean translationSuccess = actionTranslator.translate(action);
+        if (!translationSuccess){
+            return ActionMode.RECOMMEND;
+        }
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
                 .getTranslatedRecommendation();
         if (translatedRecommendation.isPresent()) {
@@ -170,7 +173,7 @@ public class ActionModeCalculator {
                 return ActionMode.RECOMMEND;
             }
         } else {
-            logger.error("Unable to calculate action mode. Cannot translate " + action.getRecommendation());
+            logger.error("Action {} has no translated recommendation despite successful translation.", action.getId());
             return ActionMode.RECOMMEND;
         }
     }

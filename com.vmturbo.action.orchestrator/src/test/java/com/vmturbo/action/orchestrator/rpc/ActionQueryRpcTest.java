@@ -10,6 +10,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -227,7 +228,7 @@ public class ActionQueryRpcTest {
     public void testGetAllActions() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        when(disabledAction.getMode()).thenReturn(ActionMode.DISABLED);
+        doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction);
@@ -376,7 +377,7 @@ public class ActionQueryRpcTest {
     public void testGetFilteredActionsForRealTime() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        when(disabledAction.getMode()).thenReturn(ActionMode.DISABLED);
+        doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction);
@@ -403,7 +404,7 @@ public class ActionQueryRpcTest {
     public void testGetFilteredActionsForPlan() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        when(disabledAction.getMode()).thenReturn(ActionMode.DISABLED);
+        doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction);
@@ -456,7 +457,7 @@ public class ActionQueryRpcTest {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
         final ActionView notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
-        when(disabledAction.getMode()).thenReturn(ActionMode.DISABLED);
+        doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction,
@@ -484,7 +485,7 @@ public class ActionQueryRpcTest {
     public void testGetMultiActionSomeMissing() throws Exception {
         final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
         final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        when(disabledAction.getMode()).thenReturn(ActionMode.DISABLED);
+        doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction);
