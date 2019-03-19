@@ -51,7 +51,6 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
-          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
@@ -59,12 +58,10 @@ spec:
         - mountPath: /tmp
           name: mediation-azurecost-tmpfs0
       restartPolicy: Always
-{{- if .Values.global }}
-  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
+      securityContext:
+        fsGroup: 2000
       imagePullSecrets:
       - name: turbocred
-  {{- end -}}
-{{- end }}
       volumes:
       - name: mediation-azurecost-tmpfs0
         emptyDir: {}
