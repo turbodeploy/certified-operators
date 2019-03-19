@@ -964,9 +964,4 @@ public class MarketsService implements IMarketsService {
                     .collect(Collectors.toList());
         }
     }
-
-    @Override
-    public EntityStatsPaginationResponse getStatsForAllEntitiesInMarketQuery(String s, StatScopesApiInputDTO statScopesApiInputDTO, EntityStatsPaginationRequest entityStatsPaginationRequest) throws Exception {
-        throw new UnsupportedOperationException("Operation is not yet implemented in XL.");
-    }
 }
