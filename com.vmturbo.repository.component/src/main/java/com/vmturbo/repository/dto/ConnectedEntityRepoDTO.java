@@ -4,7 +4,6 @@ import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 
 @JsonInclude(Include.NON_EMPTY)
 public class ConnectedEntityRepoDTO {
@@ -57,10 +56,10 @@ public class ConnectedEntityRepoDTO {
 
     @Override
     public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("connectedEntityId", connectedEntityId)
-                .add("connectedEntityType", connectedEntityType)
-                .add("connectionType", connectionType)
-                .toString();
+        return "ConnectedEntityRepoDTO{" +
+                "connectedEntityId=" + connectedEntityId +
+                ", connectedEntityType=" + connectedEntityType +
+                ", connectionType=" + connectionType +
+                '}';
     }
 }

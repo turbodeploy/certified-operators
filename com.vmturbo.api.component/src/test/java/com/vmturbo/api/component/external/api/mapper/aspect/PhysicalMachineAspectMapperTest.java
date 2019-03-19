@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import static com.vmturbo.api.component.external.api.mapper.aspect.DiskArrayAspectMapperTest.TEST_EXTERNAL_NAME;
-import static com.vmturbo.api.component.external.api.mapper.aspect.DiskArrayAspectMapperTest.TEST_STORAGE_TYPE;
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertNotNull;
 import static junit.framework.TestCase.assertTrue;
@@ -26,16 +24,20 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 
 public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
 
-    public static final long CONNECTED_ENTITY_ID = 456L;
+    private static final long CONNECTED_ENTITY_ID = 456L;
     private static final String CONNECTED_ENTITY_NAME = "CONNECTED_ENTITY";
     private static final List<String> CONNECTED_ENTITY_NAME_LIST =
         Collections.singletonList(CONNECTED_ENTITY_NAME);
+    private static final String TEST_EXTERNAL_NAME = "TEST_NAME";
+    private static final StorageType TEST_STORAGE_TYPE = StorageType.CIFS_SMB;
+
     SearchServiceBlockingStub searchRpc;
 
     SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
@@ -51,9 +53,7 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
     public void testMapEntityToAspect() {
         // arrange
         final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
-            .setStorage(StorageInfo.newBuilder()
-                .setStorageType(TEST_STORAGE_TYPE)
-                .addExternalName(TEST_EXTERNAL_NAME))
+            .setPhysicalMachine(PhysicalMachineInfo.newBuilder())
             .build();
         final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(
             EntityType.PHYSICAL_MACHINE,

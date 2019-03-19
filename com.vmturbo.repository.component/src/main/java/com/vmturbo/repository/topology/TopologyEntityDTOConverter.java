@@ -25,8 +25,11 @@ import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.DatabaseInfoRepoDTO;
+import com.vmturbo.repository.dto.DiskArrayInfoRepoDTO;
+import com.vmturbo.repository.dto.LogicalPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.PhysicalMachineInfoRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.dto.StorageControllerInfoRepoDTO;
 import com.vmturbo.repository.dto.StorageInfoRepoDTO;
 import com.vmturbo.repository.dto.TypeSpecificInfoRepoDTO;
 import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
@@ -46,6 +49,9 @@ class TopologyEntityDTOConverter {
                     .put(TypeCase.DATABASE, DatabaseInfoRepoDTO.class)
                     .put(TypeCase.COMPUTE_TIER, ComputeTierInfoRepoDTO.class)
                     .put(TypeCase.STORAGE, StorageInfoRepoDTO.class)
+                    .put(TypeCase.DISK_ARRAY, DiskArrayInfoRepoDTO.class)
+                    .put(TypeCase.LOGICAL_POOL, LogicalPoolInfoRepoDTO.class)
+                    .put(TypeCase.STORAGE_CONTROLLER, StorageControllerInfoRepoDTO.class)
                     .put(TypeCase.VIRTUAL_VOLUME, VirtualVolumeInfoRepoDTO.class)
                     .put(TypeCase.VIRTUAL_MACHINE, VirtualMachineInfoRepoDTO.class)
                     .put(TypeCase.PHYSICAL_MACHINE, PhysicalMachineInfoRepoDTO.class)
@@ -104,19 +110,17 @@ class TopologyEntityDTOConverter {
         }
 
         if (t.hasTypeSpecificInfo()) {
-
             final TypeSpecificInfo typeSpecificInfo = t.getTypeSpecificInfo();
             Optional.ofNullable(TYPE_TO_REPO_DTO_CLASS_MAP.get(typeSpecificInfo.getTypeCase()))
-                    .ifPresent(infoRepoDtoClass -> {
-                        try {
-                            ((TypeSpecificInfoRepoDTO) infoRepoDtoClass.newInstance())
-                                    .fillFromTypeSpecificInfo(typeSpecificInfo, se);
-                        } catch (InstantiationException | IllegalAccessException e) {
-                            logger.warn("Error instantiating TypeSpecificInfoRepoDTO for: " +
-                                    typeSpecificInfo);
-                        }
-                    });
-
+                .ifPresent(infoRepoDtoClass -> {
+                    try {
+                        ((TypeSpecificInfoRepoDTO) infoRepoDtoClass.newInstance())
+                            .fillFromTypeSpecificInfo(typeSpecificInfo, se);
+                    } catch (InstantiationException | IllegalAccessException e) {
+                        logger.warn("Error instantiating TypeSpecificInfoRepoDTO for: " +
+                            typeSpecificInfo);
+                    }
+                });
         }
         return se;
     }

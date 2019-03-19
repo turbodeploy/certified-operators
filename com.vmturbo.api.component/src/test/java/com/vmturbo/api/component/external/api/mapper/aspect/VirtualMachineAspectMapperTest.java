@@ -31,11 +31,10 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
 
     private static final long CONNECTED_PROCESSOR_POOL_ID = 123L;
-    private static final long CONNECTED_NETWORK_ID_1 = 2333L;
-    private static final long CONNECTED_NETWORK_ID_2 = 666L;
     private static final String CONNECTED_PROCESSOR_POOL_NAME = "processor pool";
     private static final String CONNECTED_NETWORK_NAME_1 = "network 1";
     private static final String CONNECTED_NETWORK_NAME_2 = "network 2";
+
     private static final List<String> CONNECTED_ENTITY_NAME_LIST = ImmutableList.of(
             CONNECTED_NETWORK_NAME_1, CONNECTED_NETWORK_NAME_2);
     private static final List<String> IP_ADDRESSES = ImmutableList.of("1.2.3.4", "5.6.7.8");

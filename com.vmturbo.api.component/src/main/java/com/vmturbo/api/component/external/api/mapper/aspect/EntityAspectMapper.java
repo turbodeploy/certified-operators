@@ -32,9 +32,10 @@ public class EntityAspectMapper {
                               @Nonnull final VirtualMachineAspectMapper virtualMachineMapper,
                               @Nonnull final PhysicalMachineAspectMapper physicalMachineAspectMapper,
                               @Nonnull final StorageAspectMapper storageAspectMapper,
-                              @Nonnull final PortsAspectMapper portsAspectMapper,
                               @Nonnull final DiskArrayAspectMapper diskArrayAspectMapper,
                               @Nonnull final LogicalPoolAspectMapper logicalPoolAspectMapper,
+                              @Nonnull final StorageControllerAspectMapper storageControllerAspectMapper,
+                              @Nonnull final PortsAspectMapper portsAspectMapper,
                               @Nonnull final DatabaseAspectMapper databaseAspectMapper) {
 
         ASPECT_MAPPERS = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
@@ -46,11 +47,13 @@ public class EntityAspectMapper {
                 cloudAspectMapper))
             .put(EntityType.DISK_ARRAY_VALUE, ImmutableList.of(
                 diskArrayAspectMapper))
-            .put(EntityType.IO_MODULE_VALUE, ImmutableList.of(
-                portsAspectMapper))
             .put(EntityType.LOGICAL_POOL_VALUE, ImmutableList.of(
                 logicalPoolAspectMapper))
+            .put(EntityType.STORAGE_CONTROLLER_VALUE, ImmutableList.of(
+                storageControllerAspectMapper))
             .put(EntityType.NETWORK_VALUE, ImmutableList.of(
+                portsAspectMapper))
+            .put(EntityType.IO_MODULE_VALUE, ImmutableList.of(
                 portsAspectMapper))
             .put(EntityType.PHYSICAL_MACHINE_VALUE, ImmutableList.of(
                 physicalMachineAspectMapper))

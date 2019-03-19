@@ -28,7 +28,6 @@ public class StorageAspectMapper implements IAspectMapper {
         if (!externalNames.isEmpty()) {
             aspect.setExternalNames(externalNames.stream().collect(Collectors.toList()));
         }
-
         return aspect;
     }
 

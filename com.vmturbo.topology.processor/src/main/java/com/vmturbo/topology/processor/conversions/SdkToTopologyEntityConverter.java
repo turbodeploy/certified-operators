@@ -3,7 +3,10 @@ package com.vmturbo.topology.processor.conversions;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.APPLICATION_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.BUSINESS_ACCOUNT_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.COMPUTE_TIER_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.DISK_ARRAY_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.LOGICAL_POOL_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.PHYSICAL_MACHINE_DATA;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_CONTROLLER_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_MACHINE_DATA;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_VOLUME_DATA;
@@ -56,7 +59,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DiskArrayInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.LogicalPoolInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.PhysicalMachineInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.StorageControllerInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
@@ -81,13 +87,13 @@ public class SdkToTopologyEntityConverter {
                     .put(COMPUTE_TIER_DATA, new ComputeTierInfoMapper())
                     // CONTAINER_DATA
                     // CONTAINER_POD_DATA
-                    // DISK_ARRAY_DATA
-                    // LOGICAL_POOL_DATA
                     .put(PHYSICAL_MACHINE_DATA, new PhysicalMachineInfoMapper())
                     // PROCESSOR_POOL_DATA
                     // RESERVED_INSTANCE_DATA
-                    // STORAGE_CONTROLLER_DATA
                     .put(STORAGE_DATA, new StorageInfoMapper())
+                    .put(DISK_ARRAY_DATA, new DiskArrayInfoMapper())
+                    .put(LOGICAL_POOL_DATA, new LogicalPoolInfoMapper())
+                    .put(STORAGE_CONTROLLER_DATA, new StorageControllerInfoMapper())
                     // VIRTUAL_APPLICATION_DATA
                     // VIRTUAL_DATACENTER_DATA
                     .put(VIRTUAL_MACHINE_DATA, new VirtualMachineInfoMapper())
@@ -285,6 +291,7 @@ public class SdkToTopologyEntityConverter {
 
     /**
      * Convert one probe entity DTO to one topology entity DTO.
+     * This method is currently only for unit tests.
      *
      * @param dto probe entity DTO.
      * @param oid oid obtained by the identity service.

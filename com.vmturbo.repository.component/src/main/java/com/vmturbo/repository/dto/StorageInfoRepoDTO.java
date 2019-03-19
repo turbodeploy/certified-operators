@@ -5,8 +5,6 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.builder.ToStringBuilder;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
@@ -25,17 +23,29 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     // What basic type of storage does this represent, e.g. GENERIC_BLOCK, ISCSI, FIBER_CHANNEL, etc
     private String  storageType;
 
+    private Boolean local;
+
     public List<String> getExternalNames() {
         return externalNames;
     }
 
-    private boolean local;
+    public void setExternalNames(final List<String> externalNames) {
+        this.externalNames = externalNames;
+    }
 
-    public boolean getLocal() {
+    public String getStorageType() {
+        return storageType;
+    }
+
+    public void setStorageType(final String storageType) {
+        this.storageType = storageType;
+    }
+
+    public Boolean getLocal() {
         return local;
     }
 
-    public void setLocal(boolean local) {
+    public void setLocal(Boolean local) {
         this.local = local;
     }
 
@@ -56,6 +66,7 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         serviceEntityRepoDTO.setStorageInfoRepoDTO(this);
     }
 
+
     public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
         final StorageInfo.Builder storageInfoBuilder = StorageInfo.newBuilder();
         if (getStorageType() != null) {
@@ -64,39 +75,19 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (getExternalNames() != null) {
             storageInfoBuilder.addAllExternalName(getExternalNames());
         }
+        if (getLocal() != null) {
+            storageInfoBuilder.setIsLocal(getLocal());
+        }
         return TypeSpecificInfo.newBuilder()
                 .setStorage(storageInfoBuilder)
                 .build();
     }
 
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .append("externalName", externalNames)
-                .append("storageType", storageType)
-                .append("local", local)
-                .toString();
-    }
-
-    public void setExternalNames(final List<String> externalNames) {
-        this.externalNames = externalNames;
-    }
-
-    public String getStorageType() {
-        return storageType;
-    }
-
-    public void setStorageType(final String storageType) {
-        this.storageType = storageType;
-    }
-
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
-        if (!(o instanceof StorageInfoRepoDTO)) return false;
-
+        if (o == null || getClass() != o.getClass()) return false;
         final StorageInfoRepoDTO that = (StorageInfoRepoDTO) o;
-
         return Objects.equals(externalNames, that.externalNames) &&
                 Objects.equals(storageType, that.storageType) &&
                 Objects.equals(local, that.local);
@@ -105,5 +96,14 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Override
     public int hashCode() {
         return Objects.hash(externalNames, storageType, local);
+    }
+
+    @Override
+    public String toString() {
+        return "StorageInfoRepoDTO{" +
+                "externalNames=" + externalNames +
+                ", storageType='" + storageType + '\'' +
+                ", local=" + local +
+                '}';
     }
 }

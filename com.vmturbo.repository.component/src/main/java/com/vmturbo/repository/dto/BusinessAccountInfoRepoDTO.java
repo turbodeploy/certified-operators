@@ -6,7 +6,6 @@ import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
@@ -30,7 +29,9 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         serviceEntityRepoDTO.setBusinessAccountInfoRepoDTO(this);
     }
 
-    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+    @Override
+    @Nonnull
+    public TypeSpecificInfo createTypeSpecificInfo() {
         final BusinessAccountInfo.Builder businessAccountInfo = BusinessAccountInfo.newBuilder();
         if (hasAssociatedTarget != null) {
             businessAccountInfo.setHasAssociatedTarget(hasAssociatedTarget);
@@ -49,12 +50,6 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     }
 
     @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this).omitNullValues()
-                .add("hasAssociatedTarget", hasAssociatedTarget)
-                .toString();
-    }
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -67,5 +62,12 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Override
     public int hashCode() {
         return Objects.hash(hasAssociatedTarget);
+    }
+
+    @Override
+    public String toString() {
+        return "BusinessAccountInfoRepoDTO{" +
+                "hasAssociatedTarget=" + hasAssociatedTarget +
+                '}';
     }
 }

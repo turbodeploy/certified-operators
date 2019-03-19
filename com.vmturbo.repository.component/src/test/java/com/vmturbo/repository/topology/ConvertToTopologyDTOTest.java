@@ -89,7 +89,6 @@ public class ConvertToTopologyDTOTest {
         final IpAddress ipAddress = ipAddressese.iterator().next();
         assertThat(ipAddress.getIpAddress(), equalTo(repoIpAddressDTO.getIpAddress()));
         assertThat(ipAddress.getIsElastic(), equalTo(repoIpAddressDTO.getElastic()));
-        // guestOsType
         // tenancy
     }
 

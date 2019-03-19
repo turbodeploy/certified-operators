@@ -2,8 +2,6 @@ package com.vmturbo.repository.dto;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.builder.ToStringBuilder;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.google.common.base.Objects;
@@ -52,14 +50,9 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     }
 
-    /**
-     * Create a {@link TypeSpecificInfo} instance with {@link PhysicalMachineInfo} populated
-     * from the fields of {@code this}. We must handle missing fields, which will be represented by 'null'
-     * in the RepoDTO bean.
-     *
-     * @return a new {@link TypeSpecificInfo} instance with a populated {@link PhysicalMachineInfo}
-     */
-    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+    @Override
+    @Nonnull
+    public TypeSpecificInfo createTypeSpecificInfo() {
         final PhysicalMachineInfo.Builder physicalMachineInfoBuilder = PhysicalMachineInfo.newBuilder();
         if (getCpuModel() != null) {
             physicalMachineInfoBuilder.setCpuModel(getCpuModel());
@@ -140,12 +133,12 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(this)
-                .append("cpuModel", cpuModel)
-                .append("vendor", vendor)
-                .append("model", model)
-                .append("numCpus", numCpus)
-                .append("timezone", timezone)
-                .toString();
+        return "PhysicalMachineInfoRepoDTO{" +
+                "cpuModel='" + cpuModel + '\'' +
+                ", vendor='" + vendor + '\'' +
+                ", model='" + model + '\'' +
+                ", numCpus=" + numCpus +
+                ", timezone='" + timezone + '\'' +
+                '}';
     }
 }

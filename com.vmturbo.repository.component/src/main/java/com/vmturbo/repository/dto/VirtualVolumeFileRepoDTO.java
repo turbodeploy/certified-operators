@@ -42,6 +42,16 @@ public class VirtualVolumeFileRepoDTO {
             && (sizeKb == that.sizeKb);
     }
 
+    @Override
+    public String toString() {
+        return "VirtualVolumeFileRepoDTO{" +
+                "path='" + path + '\'' +
+                ", sizeKb=" + sizeKb +
+                ", virtualMachineFileType=" + virtualMachineFileType +
+                ", modificationTimeMs=" + modificationTimeMs +
+                '}';
+    }
+
     public String getPath() {
         return path;
     }

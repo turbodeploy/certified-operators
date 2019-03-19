@@ -5,15 +5,24 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.LogicalPoolInfo;
 
 /**
- * Topology Extension data related to LogicalPools.
+ * Topology Extension data related to logical pool.
  **/
-public class LogicalPoolAspectMapper implements IAspectMapper {
+public class LogicalPoolAspectMapper extends DiskCommonAspectMapper {
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
-        STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
-        // TODO: set the aspect fields
+        final STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
+        if (!entity.getTypeSpecificInfo().hasLogicalPool()) {
+            return aspect;
+        }
+        final LogicalPoolInfo lpInfo = entity.getTypeSpecificInfo().getLogicalPool();
+
+        if (lpInfo.hasDiskTypeInfo()) {
+            fillDiskTypeInfo(aspect, lpInfo.getDiskTypeInfo());
+        }
+
         return aspect;
     }
 

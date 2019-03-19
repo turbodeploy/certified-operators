@@ -26,6 +26,9 @@ message TypeSpecificInfo {
         ComputeTierInfo compute_tier = 56;
         VirtualVolumeInfo virtual_volume = 60;
         StorageInfo storage = 70;
+        DiskArrayInfo disk_array = 71;
+        LogicalPoolInfo logical_pool = 72;
+        StorageControllerInfo storage_controller = 73;
     }
 
     message ApplicationInfo {
@@ -141,6 +144,21 @@ message TypeSpecificInfo {
         // boolean that marks a storage connected with isLocalSupported true from mediation and is connected
         // to just 1 PM as local
         optional bool is_local = 3;
+    }
+
+    // specific data for a disk array
+    message DiskArrayInfo {
+        optional DiskTypeInfo disk_type_info = 1;
+    }
+
+    // specific data for a logical pool
+    message LogicalPoolInfo {
+        optional DiskTypeInfo disk_type_info = 1;
+    }
+
+    // specific data for a storage controller
+    message StorageControllerInfo {
+        optional DiskTypeInfo disk_type_info = 1;
     }
 }
 
@@ -711,6 +729,23 @@ message OS {
 
     // The original OS name.
     optional string guest_os_name = 2;
+}
+
+message DiskTypeInfo {
+    // number of discovered solid state drives
+    optional int64 num_ssd = 1;
+
+    // number of discovered 7200 RPM disks
+    optional int64 num_7200_disks = 2;
+
+    // number of discovered 10000 RPM disks
+    optional int64 num_10_k_disks = 3;
+
+    // number of discovered 15000 RPM disks
+    optional int64 num_15_k_disks = 4;
+
+    // number of discovered VSeries disks
+    optional int64 num_v_series_disks = 5;
 }
 
 // a short description of what a topology contains. The description is useful when you are interested

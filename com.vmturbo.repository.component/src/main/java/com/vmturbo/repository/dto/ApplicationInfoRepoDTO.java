@@ -1,8 +1,8 @@
 package com.vmturbo.repository.dto;
 
-import javax.annotation.Nonnull;
+import java.util.Objects;
 
-import org.apache.commons.lang3.builder.ToStringBuilder;
+import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -38,7 +38,9 @@ public class ApplicationInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         serviceEntityRepoDTO.setApplicationInfoRepoDTO(this);
     }
 
-    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+    @Override
+    @Nonnull
+    public TypeSpecificInfo createTypeSpecificInfo() {
         final ApplicationInfo.Builder applicationInfoBuilder = ApplicationInfo.newBuilder();
         final IpAddressRepoDTO repoIpAddress = getIpAddress();
         if (repoIpAddress != null) {
@@ -62,26 +64,23 @@ public class ApplicationInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.ipAddress = ipAddress;
     }
 
-
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .append("ipAddress", ipAddress)
-                .toString();
-    }
-
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
-        if (!(o instanceof ApplicationInfoRepoDTO)) return false;
-
+        if (o == null || getClass() != o.getClass()) return false;
         final ApplicationInfoRepoDTO that = (ApplicationInfoRepoDTO) o;
-
-        return ipAddress.equals(that.ipAddress);
+        return Objects.equals(ipAddress, that.ipAddress);
     }
 
     @Override
     public int hashCode() {
-        return ipAddress.hashCode();
+        return Objects.hash(ipAddress);
+    }
+
+    @Override
+    public String toString() {
+        return "ApplicationInfoRepoDTO{" +
+                "ipAddress=" + ipAddress +
+                '}';
     }
 }

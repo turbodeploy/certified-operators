@@ -14,22 +14,22 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Storage
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
-public class DiskArrayAspectMapperTest extends BaseAspectMapperTest {
+public class StorageAspectMapperTest extends BaseAspectMapperTest {
 
-    public static final String TEST_EXTERNAL_NAME = "TEST_NAME";
-    public static final StorageType TEST_STORAGE_TYPE = StorageType.CIFS_SMB;
+    private static final String TEST_EXTERNAL_NAME = "TEST_NAME";
+    private static final StorageType TEST_STORAGE_TYPE = StorageType.CIFS_SMB;
 
     @Test
     public void testMapEntityToAspect() {
         // arrange
         final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(EntityType.DISK_ARRAY,
-            TypeSpecificInfo.newBuilder()
-                .setStorage(StorageInfo.newBuilder()
-                    .setStorageType(TEST_STORAGE_TYPE)
-                    .addExternalName(TEST_EXTERNAL_NAME))
-                .build());
+                TypeSpecificInfo.newBuilder()
+                        .setStorage(StorageInfo.newBuilder()
+                                .setStorageType(TEST_STORAGE_TYPE)
+                                .addExternalName(TEST_EXTERNAL_NAME))
+                        .build());
 
-        DiskArrayAspectMapper testMapper = new DiskArrayAspectMapper();
+        StorageAspectMapper testMapper = new StorageAspectMapper();
         // act
         EntityAspect aspectResult = testMapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert

@@ -8,7 +8,6 @@ import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -50,7 +49,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         serviceEntityRepoDTO.setVirtualVolumeInfoRepoDTO(this);
     }
 
-    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+    @Override
+    @Nonnull
+    public TypeSpecificInfo createTypeSpecificInfo() {
         final VirtualVolumeInfo.Builder virtualVolumeInfoBuilder = VirtualVolumeInfo.newBuilder();
         if (getStorageAccessCapacity() != null) {
             virtualVolumeInfoBuilder.setStorageAccessCapacity(getStorageAccessCapacity());
@@ -107,16 +108,6 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     }
 
     @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this).omitNullValues()
-            .add("storageAccessCapacity", storageAccessCapacity)
-            .add("storageAmountCapacity", storageAmountCapacity)
-            .add("redundancyType", redundancyType)
-            .add("files", files)
-            .toString();
-    }
-
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -132,5 +123,15 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Override
     public int hashCode() {
         return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files);
+    }
+
+    @Override
+    public String toString() {
+        return "VirtualVolumeInfoRepoDTO{" +
+                "storageAccessCapacity=" + storageAccessCapacity +
+                ", storageAmountCapacity=" + storageAmountCapacity +
+                ", redundancyType=" + redundancyType +
+                ", files=" + files +
+                '}';
     }
 }

@@ -7,11 +7,9 @@ import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 
 /**
  * Class that encapsulates the compute tier data from TopologyEntityDTO.TypeSpecificInfo
@@ -43,7 +41,9 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         serviceEntityRepoDTO.setComputeTierInfoRepoDTO(this);
     }
 
-    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+    @Override
+    @Nonnull
+    public TypeSpecificInfo createTypeSpecificInfo() {
         final ComputeTierInfo.Builder computeTierBuilder = ComputeTierInfo.newBuilder();
 
         if (getFamily() != null) {
@@ -78,13 +78,6 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     }
 
     @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this).omitNullValues()
-                .add("family", family)
-                .add("numCoupons", numCoupons)
-                .toString();
-    }
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -98,5 +91,13 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Override
     public int hashCode() {
         return Objects.hash(family, numCoupons);
+    }
+
+    @Override
+    public String toString() {
+        return "ComputeTierInfoRepoDTO{" +
+                "family='" + family + '\'' +
+                ", numCoupons=" + numCoupons +
+                '}';
     }
 }

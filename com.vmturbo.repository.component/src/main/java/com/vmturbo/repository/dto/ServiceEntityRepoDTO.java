@@ -55,6 +55,9 @@ public class ServiceEntityRepoDTO {
     private ComputeTierInfoRepoDTO computeTierInfoRepoDTO;
     private PhysicalMachineInfoRepoDTO physicalMachineInfoRepoDTO;
     private StorageInfoRepoDTO storageInfoRepoDTO;
+    private DiskArrayInfoRepoDTO diskArrayInfoRepoDTO;
+    private LogicalPoolInfoRepoDTO logicalPoolInfoRepoDTO;
+    private StorageControllerInfoRepoDTO storageControllerInfoRepoDTO;
     private VirtualMachineInfoRepoDTO virtualMachineInfoRepoDTO;
     private VirtualVolumeInfoRepoDTO virtualVolumeInfoRepoDTO;
     private BusinessAccountInfoRepoDTO businessAccountInfoRepoDTO;
@@ -179,12 +182,68 @@ public class ServiceEntityRepoDTO {
         this.targetIds = targetIds;
     }
 
+    public ApplicationInfoRepoDTO getApplicationInfoRepoDTO() {
+        return applicationInfoRepoDTO;
+    }
+
+    public void setApplicationInfoRepoDTO(final ApplicationInfoRepoDTO applicationInfoRepoDTO) {
+        this.applicationInfoRepoDTO = applicationInfoRepoDTO;
+    }
+
+    public DatabaseInfoRepoDTO getDatabaseInfoRepoDTO() {
+        return databaseInfoRepoDTO;
+    }
+
+    public void setDatabaseInfoRepoDTO(final DatabaseInfoRepoDTO databaseInfoRepoDTO) {
+        this.databaseInfoRepoDTO = databaseInfoRepoDTO;
+    }
+
     public VirtualMachineInfoRepoDTO getVirtualMachineInfoRepoDTO() {
         return virtualMachineInfoRepoDTO;
     }
 
     public void setVirtualMachineInfoRepoDTO(final VirtualMachineInfoRepoDTO virtualMachineInfo) {
         this.virtualMachineInfoRepoDTO = virtualMachineInfo;
+    }
+
+    public PhysicalMachineInfoRepoDTO getPhysicalMachineInfoRepoDTO() {
+        return physicalMachineInfoRepoDTO;
+    }
+
+    public void setPhysicalMachineInfoRepoDTO(final PhysicalMachineInfoRepoDTO physicalMachineInfoRepoDTO) {
+        this.physicalMachineInfoRepoDTO = physicalMachineInfoRepoDTO;
+    }
+
+    public StorageInfoRepoDTO getStorageInfoRepoDTO() {
+        return storageInfoRepoDTO;
+    }
+
+    public void setStorageInfoRepoDTO(final StorageInfoRepoDTO storageInfoRepoDTO) {
+        this.storageInfoRepoDTO = storageInfoRepoDTO;
+    }
+
+    public DiskArrayInfoRepoDTO getDiskArrayInfoRepoDTO() {
+        return diskArrayInfoRepoDTO;
+    }
+
+    public void setDiskArrayInfoRepoDTO(final DiskArrayInfoRepoDTO diskArrayInfoRepoDTO) {
+        this.diskArrayInfoRepoDTO = diskArrayInfoRepoDTO;
+    }
+
+    public LogicalPoolInfoRepoDTO getLogicalPoolInfoRepoDTO() {
+        return logicalPoolInfoRepoDTO;
+    }
+
+    public void setLogicalPoolInfoRepoDTO(final LogicalPoolInfoRepoDTO logicalPoolInfoRepoDTO) {
+        this.logicalPoolInfoRepoDTO = logicalPoolInfoRepoDTO;
+    }
+
+    public StorageControllerInfoRepoDTO getStorageControllerInfoRepoDTO() {
+        return storageControllerInfoRepoDTO;
+    }
+
+    public void setStorageControllerInfoRepoDTO(final StorageControllerInfoRepoDTO storageControllerInfoRepoDTO) {
+        this.storageControllerInfoRepoDTO = storageControllerInfoRepoDTO;
     }
 
     public ComputeTierInfoRepoDTO getComputeTierInfoRepoDTO() {
@@ -212,92 +271,79 @@ public class ServiceEntityRepoDTO {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
-            entityType, environmentType, oid, priceIndex, priceIndexProjected,
-            providers, severity, state, uuid, tags, connectedEntityList, targetIds,
-            virtualMachineInfoRepoDTO, computeTierInfoRepoDTO, virtualVolumeInfoRepoDTO,
-            businessAccountInfoRepoDTO);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (!(obj instanceof ServiceEntityRepoDTO)) {
-            return false;
-        }
-        ServiceEntityRepoDTO that = (ServiceEntityRepoDTO) obj;
-        return Objects.equals(commoditiesBoughtRepoFromProviderDTOList, that.commoditiesBoughtRepoFromProviderDTOList) &&
-                Objects.equals(commoditySoldList, that.commoditySoldList) &&
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final ServiceEntityRepoDTO that = (ServiceEntityRepoDTO) o;
+        return Objects.equals(uuid, that.uuid) &&
                 Objects.equals(displayName, that.displayName) &&
                 Objects.equals(entityType, that.entityType) &&
                 Objects.equals(environmentType, that.environmentType) &&
-                Objects.equals(oid, that.oid) &&
                 Objects.equals(priceIndex, that.priceIndex) &&
                 Objects.equals(priceIndexProjected, that.priceIndexProjected) &&
-                Objects.equals(providers, that.providers) &&
-                Objects.equals(severity, that.severity) &&
                 Objects.equals(state, that.state) &&
-                Objects.equals(uuid, that.uuid) &&
+                Objects.equals(severity, that.severity) &&
+                Objects.equals(oid, that.oid) &&
                 Objects.equals(tags, that.tags) &&
+                Objects.equals(providers, that.providers) &&
+                Objects.equals(commoditiesBoughtRepoFromProviderDTOList,
+                    that.commoditiesBoughtRepoFromProviderDTOList) &&
+                Objects.equals(commoditySoldList, that.commoditySoldList) &&
                 Objects.equals(connectedEntityList, that.connectedEntityList) &&
                 Objects.equals(targetIds, that.targetIds) &&
-                Objects.equals(virtualMachineInfoRepoDTO, that.virtualMachineInfoRepoDTO) &&
+                Objects.equals(applicationInfoRepoDTO, that.applicationInfoRepoDTO) &&
+                Objects.equals(databaseInfoRepoDTO, that.databaseInfoRepoDTO) &&
                 Objects.equals(computeTierInfoRepoDTO, that.computeTierInfoRepoDTO) &&
+                Objects.equals(physicalMachineInfoRepoDTO, that.physicalMachineInfoRepoDTO) &&
+                Objects.equals(storageInfoRepoDTO, that.storageInfoRepoDTO) &&
+                Objects.equals(diskArrayInfoRepoDTO, that.diskArrayInfoRepoDTO) &&
+                Objects.equals(logicalPoolInfoRepoDTO, that.logicalPoolInfoRepoDTO) &&
+                Objects.equals(storageControllerInfoRepoDTO, that.storageControllerInfoRepoDTO) &&
+                Objects.equals(virtualMachineInfoRepoDTO, that.virtualMachineInfoRepoDTO) &&
                 Objects.equals(virtualVolumeInfoRepoDTO, that.virtualVolumeInfoRepoDTO) &&
                 Objects.equals(businessAccountInfoRepoDTO, that.businessAccountInfoRepoDTO);
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(uuid, displayName, entityType, environmentType, priceIndex,
+            priceIndexProjected, state, severity, oid, tags, providers,
+            commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, connectedEntityList,
+            targetIds, applicationInfoRepoDTO, databaseInfoRepoDTO, computeTierInfoRepoDTO,
+            physicalMachineInfoRepoDTO, storageInfoRepoDTO, diskArrayInfoRepoDTO,
+            logicalPoolInfoRepoDTO, storageControllerInfoRepoDTO, virtualMachineInfoRepoDTO,
+            virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO);
+    }
+
+    @Override
     public String toString() {
-        return "ServiceEntityRepoDTO [uuid=" + uuid + ", displayName=" + displayName
-                + ", entityType=" + entityType + ", priceIndex=" + priceIndex
-                + ", environmentType=" + environmentType
-                + ", priceIndexProjected=" + priceIndexProjected
-                + ", state=" + state + ", severity=" + severity + ", oid=" + oid
-                + ", providers=" + providers + ", commoditiesBoughtRepoFromProviderDTOList="
-                + commoditiesBoughtRepoFromProviderDTOList
-                + ", commoditySoldList=" + commoditySoldList
-                + ", connectedEntityList=" + connectedEntityList
-                + ", targetIds=" + targetIds
-                + ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO
-                + ", computerTierInfoRepoDTO=" + computeTierInfoRepoDTO
-                + ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO
-                + ", businessAccountInfoRepoDTO=" + businessAccountInfoRepoDTO
-                + "]";
-    }
-
-    public ApplicationInfoRepoDTO getApplicationInfoRepoDTO() {
-        return applicationInfoRepoDTO;
-    }
-
-    public void setApplicationInfoRepoDTO(final ApplicationInfoRepoDTO applicationInfoRepoDTO) {
-        this.applicationInfoRepoDTO = applicationInfoRepoDTO;
-    }
-
-    public DatabaseInfoRepoDTO getDatabaseInfoRepoDTO() {
-        return databaseInfoRepoDTO;
-    }
-
-    public void setDatabaseInfoRepoDTO(final DatabaseInfoRepoDTO databaseInfoRepoDTO) {
-        this.databaseInfoRepoDTO = databaseInfoRepoDTO;
-    }
-
-    public StorageInfoRepoDTO getStorageInfoRepoDTO() {
-        return storageInfoRepoDTO;
-    }
-
-    public void setStorageInfoRepoDTO(final StorageInfoRepoDTO storageInfoRepoDTO) {
-        this.storageInfoRepoDTO = storageInfoRepoDTO;
-    }
-
-    public PhysicalMachineInfoRepoDTO getPhysicalMachineInfoRepoDTO() {
-        return physicalMachineInfoRepoDTO;
-    }
-
-    public void setPhysicalMachineInfoRepoDTO(final PhysicalMachineInfoRepoDTO physicalMachineInfoRepoDTO) {
-        this.physicalMachineInfoRepoDTO = physicalMachineInfoRepoDTO;
+        return "ServiceEntityRepoDTO{" +
+                "uuid='" + uuid + '\'' +
+                ", displayName='" + displayName + '\'' +
+                ", entityType='" + entityType + '\'' +
+                ", environmentType='" + environmentType + '\'' +
+                ", priceIndex=" + priceIndex +
+                ", priceIndexProjected=" + priceIndexProjected +
+                ", state='" + state + '\'' +
+                ", severity='" + severity + '\'' +
+                ", oid='" + oid + '\'' +
+                ", tags=" + tags +
+                ", providers=" + providers +
+                ", commoditiesBoughtRepoFromProviderDTOList=" + commoditiesBoughtRepoFromProviderDTOList +
+                ", commoditySoldList=" + commoditySoldList +
+                ", connectedEntityList=" + connectedEntityList +
+                ", targetIds=" + targetIds +
+                ", applicationInfoRepoDTO=" + applicationInfoRepoDTO +
+                ", databaseInfoRepoDTO=" + databaseInfoRepoDTO +
+                ", computeTierInfoRepoDTO=" + computeTierInfoRepoDTO +
+                ", physicalMachineInfoRepoDTO=" + physicalMachineInfoRepoDTO +
+                ", storageInfoRepoDTO=" + storageInfoRepoDTO +
+                ", diskArrayInfoRepoDTO=" + diskArrayInfoRepoDTO +
+                ", logicalPoolInfoRepoDTO=" + logicalPoolInfoRepoDTO +
+                ", storageControllerInfoRepoDTO=" + storageControllerInfoRepoDTO +
+                ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO +
+                ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO +
+                ", businessAccountInfoRepoDTO=" + businessAccountInfoRepoDTO +
+                '}';
     }
 }

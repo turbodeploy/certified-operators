@@ -2,8 +2,6 @@ package com.vmturbo.repository.dto;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.builder.ToStringBuilder;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.google.common.base.Objects;
@@ -19,7 +17,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
  * Class that encapsulates the DatabaseInfo data from TopologyEntityDTO.TypeSpecificInfo
  */
 @JsonInclude(Include.NON_EMPTY)
-public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO{
+public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private String edition;
     private String engine;
@@ -81,6 +79,7 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO{
         serviceEntityRepoDTO.setDatabaseInfoRepoDTO(this);
     }
 
+    @Override
     @Nonnull
     public TypeSpecificInfo createTypeSpecificInfo() {
         final DatabaseInfo.Builder databaseInfoBuilder = DatabaseInfo.newBuilder();
@@ -102,16 +101,6 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO{
     }
 
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .append("edition", edition)
-                .append("engine", engine)
-                .append("licenseModel", licenseModel)
-                .append("deploymentType", deploymentType)
-                .toString();
-    }
-
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (!(o instanceof DatabaseInfoRepoDTO)) return false;
@@ -125,5 +114,15 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO{
     @Override
     public int hashCode() {
         return Objects.hashCode(edition, engine, licenseModel, deploymentType);
+    }
+
+    @Override
+    public String toString() {
+        return "DatabaseInfoRepoDTO{" +
+                "edition='" + edition + '\'' +
+                ", engine='" + engine + '\'' +
+                ", licenseModel='" + licenseModel + '\'' +
+                ", deploymentType='" + deploymentType + '\'' +
+                '}';
     }
 }

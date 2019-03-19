@@ -2,7 +2,6 @@ package com.vmturbo.repository.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 
 @JsonInclude(Include.NON_EMPTY)
 public abstract class CommodityBaseRepoDTO {
@@ -89,15 +88,15 @@ public abstract class CommodityBaseRepoDTO {
 
     @Override
     public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("uuid", uuid)
-                .add("type", type)
-                .add("key", key)
-                .add("used", used)
-                .add("peak", peak)
-                .add("providerOid", providerOid)
-                .add("ownerOid", ownerOid)
-                .add("scalingFactor", scalingFactor)
-                .toString();
+        return "CommodityBaseRepoDTO{" +
+                "uuid='" + uuid + '\'' +
+                ", type='" + type + '\'' +
+                ", key='" + key + '\'' +
+                ", used=" + used +
+                ", peak=" + peak +
+                ", providerOid='" + providerOid + '\'' +
+                ", ownerOid='" + ownerOid + '\'' +
+                ", scalingFactor=" + scalingFactor +
+                '}';
     }
 }

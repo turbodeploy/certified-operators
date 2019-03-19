@@ -4,7 +4,6 @@ import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
@@ -49,14 +48,6 @@ public class GuestOSRepoDTO {
     }
 
     @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this)
-                .add("Guest OS type", guestOsType.name())
-                .add("Guest OS name", guestOsName)
-                .toString();
-    }
-
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -73,4 +64,11 @@ public class GuestOSRepoDTO {
         return Objects.hash(guestOsType, guestOsName);
     }
 
+    @Override
+    public String toString() {
+        return "GuestOSRepoDTO{" +
+                "guestOsType=" + guestOsType +
+                ", guestOsName='" + guestOsName + '\'' +
+                '}';
+    }
 }

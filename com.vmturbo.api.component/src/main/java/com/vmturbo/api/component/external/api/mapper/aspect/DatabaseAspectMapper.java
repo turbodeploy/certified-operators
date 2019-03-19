@@ -21,7 +21,7 @@ public class DatabaseAspectMapper implements IAspectMapper {
             if (databaseInfo.hasEdition()) {
                 aspect.setDbEdition(databaseInfo.getEdition().name());
             }
-            if (databaseInfo.hasEdition()) {
+            if (databaseInfo.hasEngine()) {
                 aspect.setDbEngine(databaseInfo.getEngine().name());
             }
             // todo: fill in the other fields

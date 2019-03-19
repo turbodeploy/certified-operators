@@ -5,22 +5,22 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DiskArrayInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageControllerInfo;
 
 /**
- * Topology Extension data related to disk array.
+ * Topology Extension data related to storage controller.
  **/
-public class DiskArrayAspectMapper extends DiskCommonAspectMapper {
+public class StorageControllerAspectMapper extends DiskCommonAspectMapper {
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         final STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
-        if (!entity.getTypeSpecificInfo().hasDiskArray()) {
+        if (!entity.getTypeSpecificInfo().hasStorageController()) {
             return aspect;
         }
-        final DiskArrayInfo daInfo = entity.getTypeSpecificInfo().getDiskArray();
+        final StorageControllerInfo scInfo = entity.getTypeSpecificInfo().getStorageController();
 
-        if (daInfo.hasDiskTypeInfo()) {
-            fillDiskTypeInfo(aspect, daInfo.getDiskTypeInfo());
+        if (scInfo.hasDiskTypeInfo()) {
+            fillDiskTypeInfo(aspect, scInfo.getDiskTypeInfo());
         }
 
         return aspect;
@@ -29,6 +29,6 @@ public class DiskArrayAspectMapper extends DiskCommonAspectMapper {
     @Nonnull
     @Override
     public String getAspectName() {
-        return "diskArrayAspect";
+        return "storageControllerAspect";
     }
 }

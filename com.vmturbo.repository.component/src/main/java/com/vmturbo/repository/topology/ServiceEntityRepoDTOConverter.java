@@ -28,8 +28,11 @@ import com.vmturbo.repository.dto.TypeSpecificInfoRepoDTO;
  */
 public class ServiceEntityRepoDTOConverter {
 
-    public static Set<TopologyEntityDTO> convertToTopologyEntityDTOs(Collection<ServiceEntityRepoDTO> serviceEntities) {
-        return serviceEntities.stream().map(ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO).collect(Collectors.toSet());
+    public static Set<TopologyEntityDTO> convertToTopologyEntityDTOs(
+        Collection<ServiceEntityRepoDTO> serviceEntities) {
+        return serviceEntities.stream()
+            .map(ServiceEntityRepoDTOConverter::convertToTopologyEntityDTO)
+            .collect(Collectors.toSet());
     }
 
 
@@ -91,12 +94,18 @@ public class ServiceEntityRepoDTOConverter {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getDatabaseInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getComputeTierInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getComputeTierInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getVirtualMachineInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualMachineInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getPhysicalMachineInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getPhysicalMachineInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getStorageInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getStorageInfoRepoDTO();
-        } else if (serviceEntityRepoDTO.getVirtualMachineInfoRepoDTO() != null) {
-            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualMachineInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getDiskArrayInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getDiskArrayInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getLogicalPoolInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getLogicalPoolInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getStorageControllerInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getStorageControllerInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getVirtualVolumeInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualVolumeInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO() != null) {
@@ -112,14 +121,14 @@ public class ServiceEntityRepoDTOConverter {
 
         // set DiscoveryOrigin if any
         Optional.ofNullable(serviceEntityRepoDTO.getTargetIds()).ifPresent(targetIds ->
-                topologyEntityBuilder.setOrigin(Origin.newBuilder()
-                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                .addAllDiscoveringTargetIds(
-                                    serviceEntityRepoDTO.getTargetIds().stream()
-                                        .map(Long::valueOf)
-                                        .collect(Collectors.toList()))
-                                .build())
-                        .build())
+            topologyEntityBuilder.setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .addAllDiscoveringTargetIds(
+                        serviceEntityRepoDTO.getTargetIds().stream()
+                            .map(Long::valueOf)
+                            .collect(Collectors.toList()))
+                    .build())
+                .build())
         );
 
         return topologyEntityBuilder.build();

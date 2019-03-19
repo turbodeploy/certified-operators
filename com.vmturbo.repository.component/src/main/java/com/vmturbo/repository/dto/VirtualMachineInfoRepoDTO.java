@@ -8,7 +8,6 @@ import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
@@ -62,7 +61,9 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(this);
     }
 
-    public @Nonnull TypeSpecificInfo createTypeSpecificInfo() {
+    @Override
+    @Nonnull
+    public TypeSpecificInfo createTypeSpecificInfo() {
 
         final VirtualMachineInfo.Builder vmBuilder = VirtualMachineInfo.newBuilder();
 
@@ -139,25 +140,13 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     }
 
     @Override
-    public String toString() {
-        return MoreObjects.toStringHelper(this).omitNullValues()
-                .add("guestOsInfo", guestOsInfo)
-                .add("tenancy", tenancy)
-                .add("ipAddressInfo", ipAddressInfoList)
-                .add("numCpus", numCpus)
-                .add("connectedNetworkOids", connectedNetworks)
-                .toString();
-    }
-    @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         final VirtualMachineInfoRepoDTO that = (VirtualMachineInfoRepoDTO) o;
-
         return Objects.equals(guestOsInfo, that.guestOsInfo) &&
-                Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
                 Objects.equals(tenancy, that.tenancy) &&
+                Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
                 Objects.equals(numCpus, that.numCpus) &&
                 Objects.equals(connectedNetworks, that.connectedNetworks);
     }
@@ -165,5 +154,16 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Override
     public int hashCode() {
         return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, connectedNetworks);
+    }
+
+    @Override
+    public String toString() {
+        return "VirtualMachineInfoRepoDTO{" +
+                "guestOsInfo=" + guestOsInfo +
+                ", tenancy='" + tenancy + '\'' +
+                ", ipAddressInfoList=" + ipAddressInfoList +
+                ", numCpus=" + numCpus +
+                ", connectedNetworks=" + connectedNetworks +
+                '}';
     }
 }
