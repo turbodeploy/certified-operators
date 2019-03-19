@@ -945,8 +945,11 @@ public class ActionSpecMapper {
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         ActionType actionType = actionType(activate, context);
         actionApiDTO.setActionType(actionType);
+        final long targetEntityId = activate.getTarget().getId();
         actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(activate.getTarget().getId())));
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+        actionApiDTO.setCurrentEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
 
         final List<String> reasonCommodityNames =
                 activate.getTriggeringCommoditiesList().stream()
@@ -973,8 +976,11 @@ public class ActionSpecMapper {
                                    @Nonnull final Deactivate deactivate,
                                    @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
+        final long targetEntityId = deactivate.getTarget().getId();
         actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(deactivate.getTarget().getId())));
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+        actionApiDTO.setCurrentEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
 
         // Similar to 6.1, if entity is Disk Array, then it's DELETE, else it's SUSPEND
         ActionType actionType = actionType(deactivate, context);
