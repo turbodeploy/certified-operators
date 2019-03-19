@@ -40,6 +40,9 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
@@ -70,6 +73,8 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.health.HealthStatus;
+import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.EntityToClusterMapping;
@@ -109,6 +114,8 @@ public class GroupRpcServiceTest {
 
     private EntityToClusterMapping entityToClusterMapping = mock(EntityToClusterMapping.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
 
@@ -120,7 +127,7 @@ public class GroupRpcServiceTest {
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         groupRpcService = new GroupRpcService(groupStore, temporaryGroupCache,
                 searchServiceRpc, entityToClusterMapping,
-                dbConfig.dsl(), policyStore, settingStore);
+                dbConfig.dsl(), policyStore, settingStore, userSessionContext);
         when(temporaryGroupCache.get(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.delete(anyLong())).thenReturn(Optional.empty());
     }
@@ -224,6 +231,24 @@ public class GroupRpcServiceTest {
 
         verify(groupStore).newUserGroup(group.getGroup());
         verify(mockObserver).onError(any(IllegalStateException.class));
+    }
+
+    @Test(expected = UserAccessScopeException.class)
+    public void testCreateGroupOutOfScope() {
+        // a user with access only to entity 1 should not be able to create a group containing other enttiies.
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+
+        final GroupInfo groupInfo = GroupInfo.newBuilder()
+                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                        .addStaticMemberOids(2L))
+                .build();
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupRpcService.createGroup(groupInfo, mockObserver);
     }
 
     @Test
@@ -377,6 +402,24 @@ public class GroupRpcServiceTest {
         assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL)
                 .descriptionContains(Long.toString(associatedPolicyId)));
     }
+
+    @Test(expected = UserAccessScopeException.class)
+    public void testDeleteGroupOutOfScope() {
+        // a user with access only to entity 1 should not be able to delete a group containing entities
+        // out of scope.
+        long groupId = 1L;
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                OidSet.EMPTY_OID_SET, null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+        given(groupStore.get(groupId)).willReturn(Optional.of(Group.getDefaultInstance()));
+
+        final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupRpcService.deleteGroup(GroupID.newBuilder().setId(groupId).build(), mockObserver);
+    }
+
 
     @Test
     public void testGetEmptyReq() {
@@ -549,6 +592,76 @@ public class GroupRpcServiceTest {
 
         verify(groupStore).updateUserGroup(id, newInfo);
         verify(mockObserver).onError(any(IllegalStateException.class));
+    }
+
+    @Test(expected = UserAccessScopeException.class)
+    public void testUpdateGroupOutOfScope() throws Exception {
+        // a scoped user should not be able to update a group containing entities out of their scope.
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+
+        final GroupInfo groupInfo = GroupInfo.newBuilder()
+                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                        .addStaticMemberOids(2L))
+                .build();
+
+        long groupId = 10L;
+        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
+                .setId(groupId)
+                .setGroup(groupInfo)
+                .build();
+
+        given(groupStore.get(groupId)).willReturn(Optional.of(group));
+
+        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        // should fail when the old group is inaccessible
+        groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
+                .setId(groupId)
+                .setNewInfo(groupInfo)
+                .build(), mockObserver);
+    }
+
+    @Test(expected = UserAccessScopeException.class)
+    public void testUpdateGroupChangesOutOfScope() throws Exception {
+        // a scoped user should not be able to modify a group so that it would contain entities out
+        // of their scope.
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+
+        final GroupInfo existingGroupInfo = GroupInfo.newBuilder()
+                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                        .addStaticMemberOids(1L))
+                .build();
+
+        long groupId = 10L;
+        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
+                .setId(groupId)
+                .setGroup(existingGroupInfo)
+                .build();
+
+        given(groupStore.get(groupId)).willReturn(Optional.of(group));
+
+        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        final GroupInfo modifiedGroupInfo = GroupInfo.newBuilder()
+                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                        .addStaticMemberOids(1L)
+                        .addStaticMemberOids(2L))
+                .build();
+
+
+        // should fail because the changes are out of scope, even though the current group is accessible
+        groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
+                .setId(groupId)
+                .setNewInfo(modifiedGroupInfo)
+                .build(), mockObserver);
     }
 
     @Test

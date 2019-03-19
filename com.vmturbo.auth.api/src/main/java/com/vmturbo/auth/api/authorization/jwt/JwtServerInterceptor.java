@@ -9,12 +9,13 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import io.grpc.Context;
 import io.grpc.Contexts;
+import io.grpc.ForwardingServerCall;
+import io.grpc.ForwardingServerCallListener.SimpleForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
@@ -22,9 +23,11 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.lang.Collections;
 
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.auth.api.JWTKeyCodec;
+import com.vmturbo.auth.api.authorization.AuthorizationException;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 
@@ -102,7 +105,7 @@ public class JwtServerInterceptor implements ServerInterceptor {
                     .withValue(SecurityConstant.USER_IP_ADDRESS_KEY, claims.get(IP_ADDRESS_CLAIM, String.class))
                     .withValue(SecurityConstant.USER_SCOPE_GROUPS_KEY,
                             (List<Long>) claims.getOrDefault(IAuthorizationVerifier.SCOPE_CLAIM,
-                            java.util.Collections.EMPTY_LIST))
+                                    java.util.Collections.EMPTY_LIST))
                     .withValue(SecurityConstant.CONTEXT_JWT_KEY, jwt);
         } catch (RuntimeException e) {
             // TODO it should be sent to audit log.
@@ -110,7 +113,32 @@ public class JwtServerInterceptor implements ServerInterceptor {
             call.close(Status.UNAUTHENTICATED.withDescription(e.getMessage()).withCause(e), metadata);
             return NOOP_LISTENER;
         }
-        return Contexts.interceptCall(ctx, call, metadata, next);
+
+        // also install a handler that will convert turbo exception types to GRPC codes
+        ServerCall.Listener<ReqT> delegate = Contexts.interceptCall(ctx, call, metadata, next);
+        return new SimpleForwardingServerCallListener<ReqT>(delegate) {
+            @Override
+            public void onHalfClose() {
+                try {
+                    super.onHalfClose();
+                } catch (Throwable t) {
+                    translateException(t);
+                }
+            }
+
+            private void translateException(Throwable t) {
+                final Status returnStatus;
+                if (t instanceof UserAccessScopeException) {
+                    returnStatus = Status.PERMISSION_DENIED;
+                } else if (t instanceof AuthorizationException) {
+                    returnStatus = Status.UNAUTHENTICATED;
+                } else {
+                    returnStatus = Status.fromThrowable(t);
+                }
+                call.close(returnStatus.withCause(t).withDescription(t.getMessage()), new Metadata());
+            }
+        };
+
     }
 
     /**

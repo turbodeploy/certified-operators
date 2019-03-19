@@ -21,12 +21,12 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.PreDestroy;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javaslang.control.Either;
 import javaslang.control.Try;
@@ -118,6 +118,7 @@ public class SearchHandler {
         final List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs, paginationParams);
 
         final ArangoDB arangoDB = arangoDatabaseFactory.getArangoDriver();
+
         final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
 
         try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()){

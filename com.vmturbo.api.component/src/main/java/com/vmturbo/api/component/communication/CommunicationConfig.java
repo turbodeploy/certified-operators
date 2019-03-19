@@ -156,10 +156,15 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public JwtClientInterceptor jwtClientInterceptor() {
+        return new JwtClientInterceptor();
+    }
+
+    @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel())
                 // Intercept client call and add JWT token to the metadata
-                .withInterceptors(new JwtClientInterceptor());
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -246,7 +251,8 @@ public class CommunicationConfig {
 
     @Bean
     public GroupServiceBlockingStub groupRpcService() {
-        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -262,7 +268,7 @@ public class CommunicationConfig {
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyChannel())
-                .withInterceptors(new JwtClientInterceptor());
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -277,7 +283,8 @@ public class CommunicationConfig {
 
     @Bean
     public SearchServiceGrpc.SearchServiceBlockingStub searchServiceBlockingStub() {
-        return SearchServiceGrpc.newBlockingStub(repositoryChannel());
+        return SearchServiceGrpc.newBlockingStub(repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -335,14 +342,14 @@ public class CommunicationConfig {
     public WidgetsetsServiceBlockingStub widgetsetsServiceBlockingStub() {
         return WidgetsetsServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
         // Intercept client call and add JWT token to the metadata
-                .withInterceptors(new JwtClientInterceptor());
+                .withInterceptors(jwtClientInterceptor());
 
     }
 
     @Bean
     public LicenseManagerServiceBlockingStub licenseManagerStub() {
         return LicenseManagerServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
-                .withInterceptors(new JwtClientInterceptor());
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean

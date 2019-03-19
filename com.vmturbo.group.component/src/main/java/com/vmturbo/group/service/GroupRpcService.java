@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +24,8 @@ import org.jooq.impl.DSL;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -42,8 +45,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -85,13 +88,16 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final SettingStore settingStore;
 
+    private final UserSessionContext userSessionContext;
+
     public GroupRpcService(@Nonnull final GroupStore groupStore,
                            @Nonnull final TemporaryGroupCache tempGroupCache,
                            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                            @Nonnull final EntityToClusterMapping entityToClusterMapping,
                            @Nonnull final DSLContext dslContext,
                            @Nonnull final PolicyStore policyStore,
-                           @Nonnull final SettingStore settingStore) {
+                           @Nonnull final SettingStore settingStore,
+                           @Nonnull final UserSessionContext userSessionContext) {
         this.groupStore = Objects.requireNonNull(groupStore);
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
@@ -99,6 +105,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.policyStore = Objects.requireNonNull(policyStore);
         this.settingStore = Objects.requireNonNull(settingStore);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     @Override
@@ -106,6 +113,10 @@ public class GroupRpcService extends GroupServiceImplBase {
         logger.info("Creating a group: {}", groupInfo);
 
         try {
+            if (userSessionContext.isUserScoped()) {
+                // verify that the members of the new group would all be in scope
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(groupInfo));
+            }
             final Group createdGroupOpt = groupStore.newUserGroup(groupInfo);
             responseObserver.onNext(CreateGroupResponse.newBuilder()
                     .setGroup(createdGroupOpt)
@@ -127,8 +138,14 @@ public class GroupRpcService extends GroupServiceImplBase {
             return;
         }
 
+        // check scope access if not a global temp group
+        TempGroupInfo groupInfo = request.getGroupInfo();
+        if (groupInfo.getIsGlobalScopeGroup() && groupInfo.hasMembers()) {
+            UserScopeUtils.checkAccess(userSessionContext, groupInfo.getMembers().getStaticMemberOidsList());
+        }
+
         try {
-            final Group group = tempGroupCache.create(request.getGroupInfo());
+            final Group group = tempGroupCache.create(groupInfo);
             responseObserver.onNext(CreateTempGroupResponse.newBuilder()
                     .setGroup(group)
                     .build());
@@ -152,11 +169,13 @@ public class GroupRpcService extends GroupServiceImplBase {
         logger.debug("Attempting to retrieve group: {}", gid);
 
         try {
-            // Try the temporary group cache first because it's much faster.
-            Optional<Group> group = tempGroupCache.get(gid.getId());
-            if (!group.isPresent()) {
-                group = groupStore.get(gid.getId());
+            Optional<Group> group = getGroupWithId(gid.getId());
+
+            if (userSessionContext.isUserScoped() && group.isPresent()) {
+                // verify that the members of the new group would all be in scope
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(group.get()));
             }
+
             GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
             group.ifPresent(builder::setGroup);
             responseObserver.onNext(builder.build());
@@ -168,6 +187,33 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
+    private Optional<Group> getGroupWithId(Long groupId) {
+        // Try the temporary group cache first because it's much faster.
+        Optional<Group> group = tempGroupCache.get(groupId);
+        if (!group.isPresent()) {
+            group = groupStore.get(groupId);
+        }
+        return group;
+    }
+
+    /**
+     * Check if the user has access to the group identified by Id. A user has access to the group by
+     * default, but if the user is a "scoped" user, they will only have access to the group if all
+     * members of the group are in the user's scope.
+     *
+     * This method will trigger a {@link UserAccessScopeException} if the group exists and the user
+     * does not have access to it, otherwise it will return quietly.
+     *
+     * @param groupId the group id to check
+     *
+     */
+    private void checkUserAccessToGroup(Long groupId) {
+        if (userSessionContext.isUserScoped()) {
+            getGroupWithId(groupId)
+                    .ifPresent(group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group)));
+        }
+    }
+
     @Override
     public void getGroups(GetGroupsRequest request, StreamObserver<Group> responseObserver) {
         logger.trace("Get all user groups");
@@ -176,11 +222,21 @@ public class GroupRpcService extends GroupServiceImplBase {
             request.getResolveClusterSearchFilters();
 
         final Set<Long> requestedIds = new HashSet<>(request.getIdList());
+        // if the user is scoped, set up a filter to restrict the results based on their scope.
+        // if the request is for "all" groups: we will filter results and only return accessible ones.
+        // If the request was for a specific set of groups: we will use a filter that will throw an
+        // access exception if any groups are deemed "out of scope".
+        Predicate<Group> userScopeFilter = userSessionContext.isUserScoped()
+                ? requestedIds.isEmpty()
+                    ? group -> userSessionContext.getUserAccessScope().contains(getNormalGroupMembers(group))
+                    : group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group))
+                : group -> true;
         try {
             final Stream<Group> groupStream =
                 request.hasTypeFilter() && request.getTypeFilter() == Type.TEMP_GROUP ?
                     tempGroupCache.getAll().stream() : groupStore.getAll().stream();
-            groupStream.filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
+            List<Group> responseGroups = groupStream
+                    .filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
                     .filter(group -> !request.hasOriginFilter() ||
                             group.getOrigin().equals(request.getOriginFilter()))
                     .filter(group -> !request.hasTypeFilter() ||
@@ -191,7 +247,10 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .filter(group -> !request.hasClusterFilter() ||
                             GroupProtoUtil.clusterFilterMatcher(group, request.getClusterFilter()))
                     .map(group -> resolveClusterFilters ? resolveClusterFilters(group) : group)
-                    .forEach(responseObserver::onNext);
+                    .filter(userScopeFilter)
+                    .collect(Collectors.toList());
+
+            responseGroups.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (RuntimeException e) {
             logger.error("Failed to query group store for group definitions.", e);
@@ -211,6 +270,13 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
 
         logger.info("Updating a group: {}", request);
+
+        if (userSessionContext.isUserScoped()) {
+            // verify the user has access to the group they are trying to modify
+            checkUserAccessToGroup(request.getId());
+            // verify the modified version would fit in scope too
+            UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(request.getNewInfo()));
+        }
 
         try {
             Group newGroup = groupStore.updateUserGroup(request.getId(), request.getNewInfo());
@@ -254,6 +320,9 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         logger.info("Updating cluster headroom template ID for group {}", request.getGroupId());
 
+        // ensure the user has access to the template group
+        checkUserAccessToGroup(request.getGroupId());
+
         try {
             Group updatedGroup = groupStore.updateClusterHeadroomTemplate(request.getGroupId(),
                     request.getClusterHeadroomTemplateId());
@@ -293,6 +362,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         final long groupId = gid.getId();
 
+        checkUserAccessToGroup(groupId);
+
         logger.info("Deleting a group: {}", groupId);
         final Optional<Group> group = tempGroupCache.delete(groupId);
         if (group.isPresent()) {
@@ -327,16 +398,6 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
-    private GetMembersResponse getStaticMembers(final long groupId, StaticGroupMembers staticGroupMembers) {
-        final List<Long> memberIds = staticGroupMembers.getStaticMemberOidsList();
-        logger.debug("Static group ({}) and its first 10 members {}",
-                groupId,
-                Stream.of(memberIds).limit(10).collect(Collectors.toList()));
-        return GetMembersResponse.newBuilder()
-            .setMembers(Members.newBuilder().addAllIds(memberIds))
-            .build();
-    }
-
     @Override
     public void getMembers(final GroupDTO.GetMembersRequest request,
                            final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
@@ -365,59 +426,18 @@ public class GroupRpcService extends GroupServiceImplBase {
         if (optGroupInfo.isPresent()) {
             final Group group = optGroupInfo.get();
             final GetMembersResponse resp;
-            switch (group.getType()) {
-                case CLUSTER:
-                    resp = getStaticMembers(group.getId(), group.getCluster().getMembers());
-                    break;
-                case GROUP:
-                    final GroupInfo groupInfo = group.getGroup();
-                    if (groupInfo.hasStaticGroupMembers()) {
-                        resp = getStaticMembers(group.getId(), groupInfo.getStaticGroupMembers());
-                    } else {
-                        try {
-                            final List<SearchParameters> searchParameters
-                                = groupInfo.getSearchParametersCollection().getSearchParametersList();
-
-                            // Convert any ClusterMemberFilters to static set member checks based
-                            // on current group membership info
-                            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
-                                    Search.SearchEntityOidsRequest.newBuilder();
-                            try {
-                                for (SearchParameters params : searchParameters) {
-                                    searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
-                                }
-                            } catch (DataAccessException de) {
-                                logger.error("Failed to resolve cluster filters: ", de);
-                                responseObserver.onError(Status.INTERNAL
-                                    .withDescription(de.getLocalizedMessage()).asRuntimeException());
-                                return;
-
-                            }
-                            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
-                            final Search.SearchEntityOidsResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
-                            final List<Long> searchResults = searchResponse.getEntitiesList();
-                            logger.debug("Dynamic group ({}) and its first 10 members {}",
-                                groupId,
-                                Stream.of(searchResults).limit(10).collect(Collectors.toList()));
-
-                            resp = GetMembersResponse.newBuilder()
-                                .setMembers(Members.newBuilder().addAllIds(searchResults))
-                                .build();
-                        } catch (RuntimeException e) {
-                            final String errMsg = "Exception encountered while resolving group " + groupId;
-                            logger.error(errMsg, e);
-                            responseObserver.onError(Status.ABORTED.withCause(e)
-                                .withDescription(e.getMessage()).asRuntimeException());
-                            return;
-                        }
-                    }
-                    break;
-                case TEMP_GROUP:
-                    resp = getStaticMembers(group.getId(), group.getTempGroup().getMembers());
-                    break;
-                default:
-                    throw new IllegalStateException("Invalid group returned.");
+            List<Long> members = getNormalGroupMembers(group);
+            // verify the user has access to all of the group members before returning any of them.
+            if (userSessionContext.isUserScoped()) {
+                UserScopeUtils.checkAccess(userSessionContext, members);
             }
+            // return members
+            logger.debug("Returning group ({}) with {} members", groupId, members.size());
+            resp = GetMembersResponse.newBuilder()
+                    .setMembers(Members.newBuilder()
+                            .addAllIds(members))
+                    .build();
+
             responseObserver.onNext(resp);
             responseObserver.onCompleted();
         } else if (!request.getExpectPresent()){
@@ -428,6 +448,53 @@ public class GroupRpcService extends GroupServiceImplBase {
             final String errMsg = "Cannot find a group with id " + groupId;
             logger.error(errMsg);
             responseObserver.onError(Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
+        }
+    }
+
+    /**
+     * Given a {@link Group} object, return it's list of members.
+     *
+     * @param group the {@link Group} to check
+     * @return a list of member oids.
+     */
+    private List<Long> getNormalGroupMembers(Group group) {
+        switch (group.getType()) {
+            case CLUSTER:
+                return group.getCluster().getMembers().getStaticMemberOidsList();
+            case GROUP:
+                return getNormalGroupMembers(group.getGroup());
+            case TEMP_GROUP:
+                return group.getTempGroup().getMembers().getStaticMemberOidsList();
+            default:
+                throw new IllegalStateException("Invalid group returned.");
+        }
+    }
+
+    /**
+     * Given a {@link GroupInfo} object, return the list of members in the group. This includes
+     * resolution of dynamic groups.
+     *
+     * @param groupInfo
+     * @return
+     */
+    private List<Long> getNormalGroupMembers(GroupInfo groupInfo) {
+        if (groupInfo.hasStaticGroupMembers()) {
+            return groupInfo.getStaticGroupMembers().getStaticMemberOidsList();
+        } else {
+            // resolve a dynamic group
+            final List<SearchParameters> searchParameters
+                    = groupInfo.getSearchParametersCollection().getSearchParametersList();
+
+            // Convert any ClusterMemberFilters to static set member checks based
+            // on current group membership info
+            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
+                    Search.SearchEntityOidsRequest.newBuilder();
+            for (SearchParameters params : searchParameters) {
+                searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
+            }
+            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
+            final Search.SearchEntityOidsResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
+            return searchResponse.getEntitiesList();
         }
     }
 

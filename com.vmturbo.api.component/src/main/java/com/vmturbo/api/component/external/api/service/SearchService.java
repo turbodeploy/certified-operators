@@ -20,6 +20,7 @@ import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -290,15 +291,26 @@ public class SearchService implements ISearchService {
 
         // Must be a search for a ServiceEntity
         final Stream<ServiceEntityApiDTO> entitiesResult;
+        // Patrick: I am scoping this clause of the request on the results side rather than on the
+        // source side (in the search service), because this search is still using REST, and
+        // converting this method to GRPC looks like it will take more time than I have right now.
+        // TODO: Convert the entity search to use GRPC isntead of REST.
+        Predicate<ServiceEntityApiDTO> scopeFilter = userSessionContext.isUserScoped()
+                ? entity -> userSessionContext.getUserAccessScope().contains(Long.valueOf(entity.getUuid()))
+                : entity -> true; // no-op if the user is not scoped
         if (scopes == null || scopes.size() <= 0 ||
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
             entitiesResult = repositoryApi.getSearchResults(query, types,
-                UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType).stream();
+                    UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType)
+                        .stream()
+                        .filter(scopeFilter);
         } else {
             // Fetch service entities matching the given specs
             Collection<ServiceEntityApiDTO> serviceEntities = repositoryApi.getSearchResults(query,
                     types, UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType);
+            // prune according toe user scope
+            serviceEntities.removeIf(scopeFilter.negate());
 
             // expand to include the supplychain for the 'scopes', some of which may be groups or
             // clusters, and derive a list of ServiceEntities

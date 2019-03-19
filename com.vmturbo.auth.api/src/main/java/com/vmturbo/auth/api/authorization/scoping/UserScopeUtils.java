@@ -11,6 +11,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -66,11 +67,11 @@ public class UserScopeUtils {
      * for the user.
      */
     public static boolean checkAccess(@Nonnull final EntityAccessScope scope,
-                               @Nonnull final Collection<Long> oids) throws AccessDeniedException {
+                               @Nonnull final Collection<Long> oids) throws UserAccessScopeException {
         if (scope.contains(oids)) {
             return true;
         }
-        throw new AccessDeniedException("User doesn't have access to all entities in set.");
+        throw new UserAccessScopeException("User doesn't have access to all entities in set.");
     }
 
     /**
@@ -84,7 +85,7 @@ public class UserScopeUtils {
      * @throws AccessDeniedException
      */
     public static boolean checkAccess(@Nonnull final UserSessionContext context,
-                                      @Nonnull final Collection<Long> oids) throws AccessDeniedException {
+                                      @Nonnull final Collection<Long> oids) throws UserAccessScopeException {
         if (!context.isUserScoped()) {
             return true;
         }
@@ -114,7 +115,7 @@ public class UserScopeUtils {
      * @return an {@link OidSet} representing the potentially filtered-down oid set.
      */
     public static OidSet filterEntityRequest(@Nonnull final EntityAccessScope scope,
-                                             final Collection<Long> oids) throws AccessDeniedException {
+                                             final Collection<Long> oids) throws UserAccessScopeException {
         // an empty collection means a request for the whole market.
         // if the request is for "the market", return the "all oids set" if the user is not
         // scoped. If the user IS scoped, then return the members of the users scope groups. This
@@ -138,7 +139,7 @@ public class UserScopeUtils {
         if (scope.contains(oids)) {
             return new RoaringBitmapOidSet(oids);
         } else {
-            throw new AccessDeniedException("User doesn't have access to all entities in request.");
+            throw new UserAccessScopeException("User doesn't have access to all entities in request.");
         }
     }
 

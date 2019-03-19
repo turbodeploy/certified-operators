@@ -1,7 +1,9 @@
 package com.vmturbo.components.common.identity;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -40,13 +42,35 @@ public interface OidFilter {
     boolean contains(long oid);
 
     /**
+     * Given a string oid, check if it passes the filter.
+     *
+     * @param stringOid
+     * @return
+     */
+    default boolean contains(String stringOid) {
+        // non-numeric strings will trigger NumberFormatExceptions -- not attempting to handle these
+        // here.
+        return contains(Long.valueOf(stringOid));
+    }
+
+    /**
      * Given a collection of oids, return true if all oids in the collection pass the filter.
      *
      * @param oids
      * @return true, if all oids in the collection pass the filter. false, if any do not.
      */
-    boolean contains(Collection<Long> oids);
-
+    default boolean contains(Collection<Long> oids) {
+        if (oids == null) {
+            return true;
+        }
+        // return false on the first oid that doesn't match the filter.
+        for (Long oid: oids) {
+            if (! contains(oid)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * Utility function for checking "contains" on a collection of oids represented as strings. If
@@ -100,6 +124,16 @@ public interface OidFilter {
      */
     default Set<Long> filter(Set<Long> inputOids) {
         Set<Long> retVal = new HashSet<>();
+        for (Long oid : inputOids) {
+            if (contains(oid)) {
+                retVal.add(oid);
+            }
+        }
+        return retVal;
+    }
+
+    default List<Long> filter(List<Long> inputOids) {
+        List<Long> retVal = new ArrayList<>();
         for (Long oid : inputOids) {
             if (contains(oid)) {
                 retVal.add(oid);

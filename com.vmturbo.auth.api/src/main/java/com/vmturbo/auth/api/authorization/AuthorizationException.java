@@ -2,6 +2,9 @@ package com.vmturbo.auth.api.authorization;
 
 import java.security.PrivilegedActionException;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
 /**
  * The AuthenticationException represents the authentication exception.
  */
@@ -77,5 +80,20 @@ public class AuthorizationException extends Exception {
     protected AuthorizationException(String message, Throwable cause, boolean enableSuppression,
                                       boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
+    }
+
+    /**
+     * Represents an exception occurring when a user does not have "scope" access to a resource.
+     */
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public static class UserAccessScopeException extends RuntimeException {
+
+        public UserAccessScopeException(String message) {
+            super(message);
+        }
+        public UserAccessScopeException(String message, Throwable t) {
+            super(message, t);
+        }
+
     }
 }

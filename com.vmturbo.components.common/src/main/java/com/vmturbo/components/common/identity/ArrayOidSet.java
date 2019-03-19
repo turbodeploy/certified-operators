@@ -63,20 +63,6 @@ public class ArrayOidSet implements OidSet {
     }
 
     @Override
-    public boolean contains(final Collection<Long> oids) {
-        if (oids == null) {
-            return true;
-        }
-        // return false on the first oid that doesn't match the filter.
-        for (Long oid: oids) {
-            if (! contains(oid)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public OidSet filter(final long[] inputOids) {
         // this may be a little wasteful, but we are going to do this in two steps:
         //

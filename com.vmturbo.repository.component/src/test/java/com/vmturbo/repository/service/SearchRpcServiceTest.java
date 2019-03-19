@@ -24,6 +24,8 @@ import com.google.common.collect.Sets;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -37,6 +39,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
@@ -60,6 +63,9 @@ public class SearchRpcServiceTest {
 
     @Mock
     private SearchHandler searchHandler;
+
+    @Mock
+    private UserSessionContext userSessionContext;
 
     private final SearchParameters searchParameterEntityType = SearchParameters.newBuilder()
             .setStartingFilter(entityTypeFilter("VirtualMachine"))
@@ -130,7 +136,8 @@ public class SearchRpcServiceTest {
     public void setUp() throws Throwable {
         searchRpcService = new SearchRpcService(supplyChainService,
                                           topologyManager,
-                                          searchHandler, 100, 500);
+                                          searchHandler, 100, 500,
+                                            userSessionContext);
 
         given(topologyManager.getRealtimeDatabase()).willReturn(
                 Optional.of(TopologyDatabase.from(db)));
@@ -237,6 +244,27 @@ public class SearchRpcServiceTest {
         verify(mockObserver).onCompleted();
     }
 
+    @Test
+    public void testSearchEntityOidsWithScopedUser() {
+        // a scoped user should see a filtered set of results from the search endpoint.
+        List<Long> accessibleEntities = Arrays.asList(1L);
+        EntityAccessScope userScope = new EntityAccessScope(null, null, new ArrayOidSet(accessibleEntities), null);
+        Mockito.when(userSessionContext.isUserScoped()).thenReturn(true);
+        Mockito.when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
+
+        final List<Long> oids = Arrays.asList(1L, 2L);
+        given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(),
+                Collections.emptyList())).willReturn(Either.right(Arrays.asList("1", "2")));
+
+        final StreamObserver<SearchEntityOidsResponse> mockObserver = Mockito.mock(StreamObserver.class);
+        searchRpcService.searchEntityOids(searchEntityOidsRequest, mockObserver);
+
+        // the scoped user should only see their accessible subset.
+        verify(mockObserver).onNext(SearchEntityOidsResponse.newBuilder()
+                .addEntities(1L)
+                .build());
+    }
+
     public void testCountEntities() {
         final StreamObserver<EntityCountResponse> mockObserver = Mockito.mock(StreamObserver.class);
 
@@ -247,6 +275,25 @@ public class SearchRpcServiceTest {
 
         verify(mockObserver).onNext(EntityCountResponse.newBuilder().setEntityCount(2).build());
         verify(mockObserver).onCompleted();
+    }
+
+    @Test
+    public void testCountEntitiesWithScopedUser() {
+        // a scoped user should see a filtered set of results from the search endpoint.
+        List<Long> accessibleEntities = Arrays.asList(1L);
+        EntityAccessScope userScope = new EntityAccessScope(null, null, new ArrayOidSet(accessibleEntities), null);
+        Mockito.when(userSessionContext.isUserScoped()).thenReturn(true);
+        Mockito.when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
+
+        final List<Long> oids = Arrays.asList(1L, 2L);
+        given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(),
+                Collections.emptyList())).willReturn(Either.right(Arrays.asList("1", "2")));
+
+        final StreamObserver<EntityCountResponse> mockObserver = Mockito.mock(StreamObserver.class);
+        searchRpcService.countEntities(countEntitiesRequest, mockObserver);
+
+        // the scoped user should only see their accessible subset.
+        verify(mockObserver).onNext(EntityCountResponse.newBuilder().setEntityCount(1).build());
     }
 
     @SuppressWarnings("unchecked")
@@ -347,6 +394,40 @@ public class SearchRpcServiceTest {
                 .addAllEntities(Lists.newArrayList(vmEntity)).build());
         verify(mockObserver).onCompleted();
     }
+
+    @Test
+    public void testSearchEntitiesWithScopedUser() {
+        // a scoped user should see a filtered set of results from the search endpoint.
+        List<Long> accessibleEntities = Arrays.asList(123L);
+        EntityAccessScope userScope = new EntityAccessScope(null, null, new ArrayOidSet(accessibleEntities), null);
+        Mockito.when(userSessionContext.isUserScoped()).thenReturn(true);
+        Mockito.when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
+
+        final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
+                .addSearchParameters(searchParameterEntityType)
+                .setPaginationParams(paginationParameters)
+                .build();
+
+        final PaginationParameters plusOnePagination =
+                PaginationParameters.newBuilder(paginationParameters)
+                        .setLimit(paginationParameters.getLimit() + 1)
+                        .build();
+        given(searchHandler.searchEntities(singleReprs.get(0), db, Optional.of(plusOnePagination),
+                Collections.emptyList())).willReturn(
+                Either.right(Arrays.asList(vmRepoDto, vmRepoDtoTwo)));
+
+        final StreamObserver<SearchEntitiesResponse> mockObserver = Mockito.mock(StreamObserver.class);
+        searchRpcService.searchEntities(searchEntitiesRequest, mockObserver);
+
+        // the scoped should should only see the "123" vm, even though both 123 and 124 are available.
+        final Entity vmEntity = SearchDTOConverter.toSearchEntity(vmRepoDto);
+        final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
+                .addEntities(vmEntity);
+
+        verify(mockObserver).onNext(responseBuilder
+                .setPaginationResponse(PaginationResponse.newBuilder()).build());
+    }
+
 
     private static final ServiceEntityRepoDTO vmRepoDto;
 

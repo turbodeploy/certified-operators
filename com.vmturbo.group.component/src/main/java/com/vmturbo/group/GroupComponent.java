@@ -17,8 +17,12 @@ import org.springframework.context.annotation.Import;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+import io.grpc.util.TransmitStatusRuntimeExceptionInterceptor;
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
@@ -35,7 +39,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         SettingConfig.class,
         SQLDatabaseConfig.class,
         GroupApiSecurityConfig.class,
-        GroupDiagnosticsConfig.class})
+        GroupDiagnosticsConfig.class,
+        SpringSecurityConfig.class})
 public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
@@ -55,6 +60,9 @@ public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
     private GroupDiagnosticsConfig diagnosticsConfig;
+
+    @Autowired
+    private SpringSecurityConfig securityConfig;
 
     private static Logger logger = LoggerFactory.getLogger(GroupComponent.class);
 
@@ -84,9 +92,13 @@ public class GroupComponent extends BaseVmtComponent {
         final MonitoringServerInterceptor monitoringInterceptor =
             MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
 
+        // gRPC JWT token interceptor
+        final JwtServerInterceptor jwtInterceptor =
+                new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+
         return Optional.of(builder
             .addService(ServerInterceptors.intercept(rpcConfig.policyService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(rpcConfig.groupService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(rpcConfig.groupService(), jwtInterceptor, monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.settingService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.settingPolicyService(), monitoringInterceptor))
             .build());

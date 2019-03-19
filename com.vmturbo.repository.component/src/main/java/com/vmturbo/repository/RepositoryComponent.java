@@ -396,7 +396,8 @@ public class RepositoryComponent extends BaseVmtComponent {
                 topologyManager(),
                 searchHandler(),
                 repositorySearchPaginationDefaultLimit,
-                repositorySearchPaginationMaxLimit);
+                repositorySearchPaginationMaxLimit,
+                userSessionConfig.userSessionContext());
     }
 
     @Bean
@@ -524,7 +525,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
             return Optional.of(builder
                 .addService(ServerInterceptors.intercept(repositoryRpcService(), monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(searchRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(searchRpcService(), jwtInterceptor, monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(supplyChainRpcService(), jwtInterceptor, monitoringInterceptor))
                 .build());
         } catch (InterruptedException | CommunicationException

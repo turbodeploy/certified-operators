@@ -28,6 +28,7 @@ import reactor.core.publisher.Flux;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
@@ -63,17 +64,20 @@ public class SearchRpcService extends SearchServiceImplBase {
     private final SearchHandler searchHandler;
     private final int defaultPaginationLimit;
     private final int maxPaginationLimit;
+    private final UserSessionContext userSessionContext;
 
     public SearchRpcService(final SupplyChainService supplyChainService,
                             final TopologyLifecycleManager lifecycleManager,
                             final SearchHandler searchHandler,
                             final int defaultPaginationLimit,
-                            final int maxPaginationLimit) {
+                            final int maxPaginationLimit,
+                            final UserSessionContext userSessionContext) {
         this.supplyChainService = checkNotNull(supplyChainService);
         this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
         this.defaultPaginationLimit = defaultPaginationLimit;
         this.maxPaginationLimit = maxPaginationLimit;
+        this.userSessionContext = userSessionContext;
     }
 
     public String getLiveDatabaseName() {
@@ -113,9 +117,11 @@ public class SearchRpcService extends SearchServiceImplBase {
                     responseObserver.onError(aborted.asRuntimeException());
                     return;
                 }
-
+                List<String> foundOids = result.get();
                 // count up the # of entities in the response.
-                entityCount += result.get().size();
+                entityCount += userSessionContext.isUserScoped()
+                        ? foundOids.stream().filter(userSessionContext.getUserAccessScope()::contains).count()
+                        : foundOids.size();
             }
             logger.trace("countEntities for request {} found {} entities.", request, entityCount);
             responseObserver.onNext(EntityCountResponse.newBuilder()
@@ -155,12 +161,17 @@ public class SearchRpcService extends SearchServiceImplBase {
         try {
             // if there is only one search parameter, it can apply pagination directly.
             final List<Long> entities = searchParameters.size() == 1
-                    ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0), Optional.empty(),
-                        searchFunction, convertToLong)
+                    ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
+                    Optional.empty(), searchFunction, convertToLong)
                     : searchEntityOidMultiParametersWithoutPagination(request.getEntityOidList(),
                     searchParameters, Optional.empty());
+            // filter the results by user scope
+            final List<Long> filteredEntities = userSessionContext.isUserScoped()
+                    ? userSessionContext.getUserAccessScope().filter(entities)
+                    : entities;
+
             final SearchEntityOidsResponse.Builder responseBuilder = SearchEntityOidsResponse.newBuilder()
-                    .addAllEntities(entities);
+                    .addAllEntities(filteredEntities);
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         } catch (Throwable e) {
@@ -198,22 +209,30 @@ public class SearchRpcService extends SearchServiceImplBase {
         final Function<ServiceEntityRepoDTO, Entity> convertToEntity = SearchDTOConverter::toSearchEntity;
         final SearchEntityPagination<ServiceEntityRepoDTO> searchFunction = searchHandler::searchEntities;
         final List<SearchParameters> searchParameters = request.getSearchParametersList();
+        List<Long> entityOidList = request.getEntityOidList();
         try {
             // if there is only one search parameter, it can apply pagination directly.
             final List<Entity> entities = (searchParameters.size() == 1)
-                    ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
+                    ? searchWithOnlyOneParameter(entityOidList, searchParameters.get(0),
                     Optional.of(paginationParamsWithLimitPlusOne), searchFunction, convertToEntity)
-                    : searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
+                    : searchEntitiesMultiParameters(entityOidList, searchParameters,
                     Optional.of(paginationParamsWithLimitPlusOne), convertToEntity);
+            // filter the results by user scope
+            final List<Entity> filteredEntities = userSessionContext.isUserScoped()
+                    ? entities.stream()
+                        .filter(entity -> userSessionContext.getUserAccessScope().contains(entity.getOid()))
+                        .collect(Collectors.toList())
+                    : entities;
+
             final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
                     // need to remove last element from result lists.
-                    .addAllEntities(entities.subList(0, Math.min(limit, entities.size())));
+                    .addAllEntities(filteredEntities.subList(0, Math.min(limit, filteredEntities.size())));
             responseBuilder.setPaginationResponse(PaginationResponse.newBuilder());
             final long skipCount = paginationParams.hasCursor()
                     ? Long.parseLong(paginationParams.getCursor())
                     : 0;
             // if result list size is larger than limit number, it means there are more results left.
-            if (entities.size() > limit) {
+            if (filteredEntities.size() > limit) {
                 final long nextCursor = skipCount + paginationParams.getLimit();
                 responseBuilder.getPaginationResponseBuilder()
                         .setNextCursor(String.valueOf(nextCursor));
@@ -252,7 +271,14 @@ public class SearchRpcService extends SearchServiceImplBase {
                             Optional.empty(), searchFunction, convertToTopologyEntityDTO) :
                     searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
                             Optional.empty(), convertToTopologyEntityDTO);
-            responseBuilder.addAllTopologyEntityDtos(entities);
+            // filter the results by user scope
+            final List<TopologyEntityDTO> filteredEntities = userSessionContext.isUserScoped()
+                    ? entities.stream()
+                    .filter(entity -> userSessionContext.getUserAccessScope().contains(entity.getOid()))
+                    .collect(Collectors.toList())
+                    : entities;
+
+            responseBuilder.addAllTopologyEntityDtos(filteredEntities);
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         } catch (Throwable e) {

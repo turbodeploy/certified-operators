@@ -77,20 +77,6 @@ public class RoaringBitmapOidSet implements OidSet {
     }
 
     @Override
-    public boolean contains(final Collection<Long> oids) {
-        if (oids == null) {
-            return true;
-        }
-
-        for (Long oid : oids) {
-            if (! roaringBitmap.contains(oid)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public OidSet filter(final long[] inputOids) {
         if (inputOids == null || inputOids.length == 0) {
             return EMPTY_OID_SET;

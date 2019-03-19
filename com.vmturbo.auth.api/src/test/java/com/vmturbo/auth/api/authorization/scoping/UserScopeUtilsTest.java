@@ -9,6 +9,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.security.access.AccessDeniedException;
 
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 
@@ -18,7 +19,7 @@ import com.vmturbo.components.common.identity.OidSet;
 public class UserScopeUtilsTest {
 
     @Test
-    public void testFullAccess() throws AccessDeniedException {
+    public void testFullAccess() throws UserAccessScopeException {
         List<Long> aCoupleOids = Arrays.asList(1L,2L,3L);
         EntityAccessScope scope = new EntityAccessScope(null, null, null, null);
         // the default scope should have access to everything you can throw at it.
@@ -37,7 +38,7 @@ public class UserScopeUtilsTest {
     }
 
     @Test
-    public void testScopedAccess() throws AccessDeniedException {
+    public void testScopedAccess() throws UserAccessScopeException {
         List<Long> accessibleOids = Arrays.asList(1L,5L);
         Map<String, OidSet> oidsByEntityType = Collections.singletonMap("TestType", new ArrayOidSet(accessibleOids));
         EntityAccessScope scope = new EntityAccessScope(null, new ArrayOidSet(Arrays.asList(1L)),
@@ -60,8 +61,8 @@ public class UserScopeUtilsTest {
 
     }
 
-    @Test(expected = AccessDeniedException.class)
-    public void testScopedAccessDenied() throws AccessDeniedException {
+    @Test(expected = UserAccessScopeException.class)
+    public void testScopedAccessDenied() throws UserAccessScopeException {
         // verify that "access denied" is thrown when the filterEntityRequest() param includes oids
         // not in the accessible set.
         List<Long> accessibleOids = Arrays.asList(1L,5L);

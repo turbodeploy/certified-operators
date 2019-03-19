@@ -52,7 +52,6 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -80,6 +79,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -619,7 +619,7 @@ public class StatsServiceTest {
         Assert.assertEquals(0, response.size());
     }
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UserAccessScopeException.class)
     public void testGetStatsByEntityQueryBlockedByUserScope() throws Exception {
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid(), apiId2.oid());
@@ -630,7 +630,7 @@ public class StatsServiceTest {
                 new ArrayOidSet(Arrays.asList(apiId1.oid())), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
 
-        // verify that the request for for oid 2 will result in an AccessDeniedException
+        // verify that the request for for oid 2 will result in an UserAccessScopeException
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final List<StatSnapshotApiDTO> response = statsService.getStatsByEntityQuery(oid2, inputDto);
     }
@@ -1530,7 +1530,7 @@ public class StatsServiceTest {
         getStatsByUuidsQuery(statsService, inputDto);
     }
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UserAccessScopeException.class)
     public void testGetStatsByUuidsQueryBlockedByUserScope() throws Exception {
         // Arrange
         // configure the user to only have access to entity 1

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -28,7 +29,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         PolicyConfig.class,
         RepositoryClientConfig.class,
         SettingConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        UserSessionConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -52,6 +54,9 @@ public class RpcConfig {
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
 
+    @Autowired
+    private UserSessionConfig userSessionConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -73,7 +78,8 @@ public class RpcConfig {
                 groupConfig.entityToClusterMapping(),
                 databaseConfig.dsl(),
                 policyConfig.policyStore(),
-                settingConfig.settingStore());
+                settingConfig.settingStore(),
+                userSessionConfig.userSessionContext());
     }
 
     @Bean
