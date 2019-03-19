@@ -21,7 +21,7 @@ DROP PROCEDURE IF EXISTS `kill_idle_threads`;
 
 DELIMITER ;;
 -- Kill any long running app transactions which are in "stuck" state
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `kill_idle_threads`(IN idle_timeout_secs INTEGER)
+CREATE DEFINER=CURRENT_USER PROCEDURE `kill_idle_threads`(IN idle_timeout_secs INTEGER)
  BEGIN
 
     DECLARE tid CHAR(22);
@@ -56,7 +56,7 @@ DROP PROCEDURE IF EXISTS `rotate_partition`;
  Create new partitions.
 */
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
+CREATE DEFINER=CURRENT_USER PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
   BEGIN
 
     DECLARE sql_statement varchar (1000);

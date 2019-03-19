@@ -12,7 +12,7 @@ ALTER TABLE market_stats_by_month ADD environment_type TINYINT NOT NULL DEFAULT 
 -- 'market_aggregate' procedure
 DELIMITER //
 DROP PROCEDURE IF EXISTS `market_aggregate`//
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `market_aggregate`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `market_aggregate`(IN statspref CHAR(10))
   BEGIN
     DECLARE v_stats_table varchar(32);
     DECLARE v_snapshot_time datetime;

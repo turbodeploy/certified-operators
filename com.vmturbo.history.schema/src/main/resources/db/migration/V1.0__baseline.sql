@@ -771,7 +771,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_app_primary_keys BEFORE INSERT ON app_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_app_primary_keys BEFORE INSERT ON app_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -1247,7 +1247,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_ch_primary_keys BEFORE INSERT ON ch_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_ch_primary_keys BEFORE INSERT ON ch_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -1933,7 +1933,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_cnt_primary_keys BEFORE INSERT ON cnt_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_cnt_primary_keys BEFORE INSERT ON cnt_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -2144,7 +2144,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_cpod_primary_keys BEFORE INSERT ON cpod_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_cpod_primary_keys BEFORE INSERT ON cpod_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -2389,7 +2389,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_da_primary_keys BEFORE INSERT ON da_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_da_primary_keys BEFORE INSERT ON da_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -2758,7 +2758,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_dpod_primary_keys BEFORE INSERT ON dpod_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_dpod_primary_keys BEFORE INSERT ON dpod_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -3339,7 +3339,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_ds_primary_keys BEFORE INSERT ON ds_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_ds_primary_keys BEFORE INSERT ON ds_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -3962,7 +3962,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_iom_primary_keys BEFORE INSERT ON iom_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_iom_primary_keys BEFORE INSERT ON iom_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -4211,7 +4211,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_lp_primary_keys BEFORE INSERT ON lp_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_lp_primary_keys BEFORE INSERT ON lp_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -5160,7 +5160,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_pm_primary_keys BEFORE INSERT ON pm_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_pm_primary_keys BEFORE INSERT ON pm_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -5810,7 +5810,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_sc_primary_keys BEFORE INSERT ON sc_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_sc_primary_keys BEFORE INSERT ON sc_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -6770,7 +6770,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_sw_primary_keys BEFORE INSERT ON sw_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_sw_primary_keys BEFORE INSERT ON sw_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -7502,7 +7502,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_vdc_primary_keys BEFORE INSERT ON vdc_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_vdc_primary_keys BEFORE INSERT ON vdc_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -8265,7 +8265,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_vm_primary_keys BEFORE INSERT ON vm_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_vm_primary_keys BEFORE INSERT ON vm_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -8698,7 +8698,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`vmtplatform`@`%`*/ /*!50003 TRIGGER set_vpod_primary_keys BEFORE INSERT ON vpod_stats_latest
+/*!50003 CREATE*/ /*!50017 DEFINER=CURRENT_USER*/ /*!50003 TRIGGER set_vpod_primary_keys BEFORE INSERT ON vpod_stats_latest
   FOR EACH ROW BEGIN
   set NEW.hour_key=md5(concat(
                            ifnull(date_format(NEW.snapshot_time,"%Y-%m-%d %H:00:00"),'-'),
@@ -8922,7 +8922,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `aggregate_cluster_event` ON SCHEDULE EVERY 10 MINUTE STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `aggregate_cluster_event` ON SCHEDULE EVERY 10 MINUTE STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call aggregateClusterStats();
 END */ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
@@ -8942,7 +8942,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `aggregate_spend_event` ON SCHEDULE EVERY 1 HOUR STARTS '2018-03-09 17:25:55' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `aggregate_spend_event` ON SCHEDULE EVERY 1 HOUR STARTS '2018-03-09 17:25:55' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call aggregateSpend('service');
   call aggregateSpend('vm');
   call aggregateSpend('app');
@@ -8964,7 +8964,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `aggregate_stats_event` ON SCHEDULE EVERY 10 MINUTE STARTS '2018-03-09 17:32:36' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `aggregate_stats_event` ON SCHEDULE EVERY 10 MINUTE STARTS '2018-03-09 17:32:36' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call market_aggregate('market');
   call aggregate('app');
   call aggregate('ch');
@@ -9001,7 +9001,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `purge_audit_log_expired_days` ON SCHEDULE EVERY 1 DAY STARTS '2018-03-09 17:26:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `purge_audit_log_expired_days` ON SCHEDULE EVERY 1 DAY STARTS '2018-03-09 17:26:00' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   DELETE FROM audit_log_entries where snapshot_time<(select date_sub(current_timestamp, interval retention_period day) from audit_log_retention_policies where policy_name='retention_days');
 END */ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
@@ -9021,7 +9021,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `purge_expired_days_cluster` ON SCHEDULE EVERY 1 DAY STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `purge_expired_days_cluster` ON SCHEDULE EVERY 1 DAY STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call purge_expired_days_cluster();
 END */ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
@@ -9041,7 +9041,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `purge_expired_days_spend` ON SCHEDULE EVERY 1 DAY STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `purge_expired_days_spend` ON SCHEDULE EVERY 1 DAY STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call purge_expired_days_spend('service');
   call purge_expired_days_spend('vm');
   call purge_expired_days_spend('app');
@@ -9063,7 +9063,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `purge_expired_hours_spend` ON SCHEDULE EVERY 1 HOUR STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `purge_expired_hours_spend` ON SCHEDULE EVERY 1 HOUR STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call purge_expired_hours_spend('service');
   call purge_expired_hours_spend('vm');
   call purge_expired_hours_spend('app');
@@ -9085,7 +9085,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `purge_expired_months_cluster` ON SCHEDULE EVERY 1 MONTH STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `purge_expired_months_cluster` ON SCHEDULE EVERY 1 MONTH STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call purge_expired_months_cluster();
 END */ ;;
 /*!50003 SET time_zone             = @saved_time_zone */ ;;
@@ -9105,7 +9105,7 @@ DELIMITER ;;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;;
 /*!50003 SET @saved_time_zone      = @@time_zone */ ;;
 /*!50003 SET time_zone             = 'SYSTEM' */ ;;
-/*!50106 CREATE*/ /*!50117 DEFINER=`vmtplatform`@`%`*/ /*!50106 EVENT `purge_expired_months_spend` ON SCHEDULE EVERY 1 MONTH STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+/*!50106 CREATE*/ /*!50117 DEFINER=CURRENT_USER*/ /*!50106 EVENT `purge_expired_months_spend` ON SCHEDULE EVERY 1 MONTH STARTS '2018-03-09 17:25:56' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
   call purge_expired_months_spend('service');
   call purge_expired_months_spend('vm');
   call purge_expired_months_spend('app');
@@ -9131,7 +9131,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` FUNCTION `CHECKAGGR`() RETURNS int(11)
+CREATE DEFINER=CURRENT_USER FUNCTION `CHECKAGGR`() RETURNS int(11)
   BEGIN
     DECLARE AGGREGATING INTEGER DEFAULT 0;
 
@@ -9154,7 +9154,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `cluster_nm1_factor`(arg_group_name varchar(255)) RETURNS float
+CREATE DEFINER=CURRENT_USER FUNCTION `cluster_nm1_factor`(arg_group_name varchar(255)) RETURNS float
 DETERMINISTIC
   BEGIN
     set @n_hosts := (select count(*) from pm_group_members where internal_name = arg_group_name COLLATE utf8_unicode_ci) ;
@@ -9182,7 +9182,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `cluster_nm2_factor`(arg_group_name varchar(255)) RETURNS float
+CREATE DEFINER=CURRENT_USER FUNCTION `cluster_nm2_factor`(arg_group_name varchar(255)) RETURNS float
 DETERMINISTIC
   BEGIN
     set @n_hosts := (select count(*) from pm_group_members where internal_name = arg_group_name COLLATE utf8_unicode_ci) ;
@@ -9210,7 +9210,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `datetime_from_ms`(ms_time bigint) RETURNS datetime
+CREATE DEFINER=CURRENT_USER FUNCTION `datetime_from_ms`(ms_time bigint) RETURNS datetime
 DETERMINISTIC
   BEGIN
     return from_unixtime(ms_time/1000) ;
@@ -9230,7 +9230,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `date_from_ms`(ms_time bigint) RETURNS date
+CREATE DEFINER=CURRENT_USER FUNCTION `date_from_ms`(ms_time bigint) RETURNS date
 DETERMINISTIC
   BEGIN
     return date(from_unixtime(ms_time/1000)) ;
@@ -9250,7 +9250,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `days_ago`(ndays int) RETURNS date
+CREATE DEFINER=CURRENT_USER FUNCTION `days_ago`(ndays int) RETURNS date
 DETERMINISTIC
   BEGIN
     return date_sub(date(now()), interval ndays day) ;
@@ -9270,7 +9270,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `days_from_now`(ndays int) RETURNS date
+CREATE DEFINER=CURRENT_USER FUNCTION `days_from_now`(ndays int) RETURNS date
 DETERMINISTIC
   BEGIN
     return date_add(date(now()), interval ndays day) ;
@@ -9290,7 +9290,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `end_of_day`(ref_date date) RETURNS date
+CREATE DEFINER=CURRENT_USER FUNCTION `end_of_day`(ref_date date) RETURNS date
 DETERMINISTIC
   BEGIN
     return date(date_add(date_sub(date_format(ref_date, convert('%Y-%m-%d %H:00:00' using utf8)), interval 1 second), interval 1 day)) ;
@@ -9310,7 +9310,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `end_of_hour`(ref_date timestamp) RETURNS timestamp
+CREATE DEFINER=CURRENT_USER FUNCTION `end_of_hour`(ref_date timestamp) RETURNS timestamp
 DETERMINISTIC
   BEGIN
     return timestamp(date_add(date_sub(date_format(ref_date, convert('%Y-%m-%d %H:00:00' using utf8)), interval 1 second), interval 1 hour)) ;
@@ -9330,7 +9330,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `end_of_month`(ref_date date) RETURNS date
+CREATE DEFINER=CURRENT_USER FUNCTION `end_of_month`(ref_date date) RETURNS date
 DETERMINISTIC
   BEGIN
     return date_sub(date_add(start_of_month(ref_date), interval 1 month), interval 1 day) ;
@@ -9350,7 +9350,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `end_of_month_ms`(ref_date date) RETURNS bigint(20)
+CREATE DEFINER=CURRENT_USER FUNCTION `end_of_month_ms`(ref_date date) RETURNS bigint(20)
 DETERMINISTIC
   BEGIN
     return ms_from_date(date_add(start_of_month(ref_date), interval 1 month))-1 ;
@@ -9370,7 +9370,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `ftn_pm_count_for_month`(month_day_1 date) RETURNS int(11)
+CREATE DEFINER=CURRENT_USER FUNCTION `ftn_pm_count_for_month`(month_day_1 date) RETURNS int(11)
 DETERMINISTIC
   BEGIN
 
@@ -9403,7 +9403,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `ftn_vm_count_for_month`(month_day_1 date) RETURNS int(11)
+CREATE DEFINER=CURRENT_USER FUNCTION `ftn_vm_count_for_month`(month_day_1 date) RETURNS int(11)
 DETERMINISTIC
   BEGIN
 
@@ -9436,7 +9436,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `ms_from_date`(the_date date) RETURNS bigint(20)
+CREATE DEFINER=CURRENT_USER FUNCTION `ms_from_date`(the_date date) RETURNS bigint(20)
 DETERMINISTIC
   BEGIN
     return unix_timestamp(the_date)*1000 ;
@@ -9456,7 +9456,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `ms_from_datetime`(the_datetime datetime) RETURNS bigint(20)
+CREATE DEFINER=CURRENT_USER FUNCTION `ms_from_datetime`(the_datetime datetime) RETURNS bigint(20)
 DETERMINISTIC
   BEGIN
     return unix_timestamp(the_datetime)*1000 ;
@@ -9477,7 +9477,7 @@ DELIMITER ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 /* changed for XL */
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `start_of_day`(ref_date datetime) RETURNS datetime
+CREATE DEFINER=CURRENT_USER FUNCTION `start_of_day`(ref_date datetime) RETURNS datetime
 DETERMINISTIC
   BEGIN
     return date(date_format(ref_date, convert('%Y-%m-%d 00:00:00' using utf8))) ;
@@ -9497,7 +9497,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `start_of_hour`(ref_date timestamp) RETURNS timestamp
+CREATE DEFINER=CURRENT_USER FUNCTION `start_of_hour`(ref_date timestamp) RETURNS timestamp
 DETERMINISTIC
   BEGIN
     return timestamp(date_format(ref_date, convert('%Y-%m-%d %H:00:00' using utf8))) ;
@@ -9518,7 +9518,7 @@ DELIMITER ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
 /* changes for xl */
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `start_of_month`(ref_date datetime) RETURNS datetime
+CREATE DEFINER=CURRENT_USER FUNCTION `start_of_month`(ref_date datetime) RETURNS datetime
 DETERMINISTIC
   BEGIN
     return date_sub(ref_date, interval day(ref_date)-1 day) ;
@@ -9538,7 +9538,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` FUNCTION `start_of_month_ms`(ref_date date) RETURNS bigint(20)
+CREATE DEFINER=CURRENT_USER FUNCTION `start_of_month_ms`(ref_date date) RETURNS bigint(20)
 DETERMINISTIC
   BEGIN
     return ms_from_date(start_of_month(ref_date)) ;
@@ -9558,7 +9558,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `aggregate`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `aggregate`(IN statspref CHAR(10))
   aggregate_proc:BEGIN
     DECLARE running_aggregations INT;
     DECLARE number_of_unaggregated_rows INT;
@@ -9882,7 +9882,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `aggregateClusterStats`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `aggregateClusterStats`()
   BEGIN
 
     /* MONTHLY CLUSTER STATS AGGREGATE */
@@ -10026,7 +10026,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `aggregateSpend`(IN spendpref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `aggregateSpend`(IN spendpref CHAR(10))
   BEGIN
 
     /* DAILY AGGREGATE */
@@ -10335,7 +10335,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` PROCEDURE `clusterAggPreviousDay`(IN cluster_internal_name varchar(250))
+CREATE DEFINER=CURRENT_USER PROCEDURE `clusterAggPreviousDay`(IN cluster_internal_name varchar(250))
   begin
 
     insert into cluster_stats_by_day
@@ -10542,7 +10542,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `market_aggregate`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `market_aggregate`(IN statspref CHAR(10))
   BEGIN
     DECLARE v_stats_table varchar(32);
     DECLARE v_snapshot_time datetime;
@@ -10895,7 +10895,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`localhost` PROCEDURE `populate_AllClusters_PreviousDayAggStats`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `populate_AllClusters_PreviousDayAggStats`()
   begin
     DECLARE done INT DEFAULT 0;
     DECLARE cur_clsuter_internal_name varchar(250);
@@ -10930,7 +10930,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_days`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_days`(IN statspref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',statspref,'_stats_by_day
@@ -10958,7 +10958,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_days_cluster`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_days_cluster`()
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM cluster_stats_by_day
@@ -10986,7 +10986,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_days_spend`(IN spendpref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_days_spend`(IN spendpref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',spendpref,'_spend_by_day
@@ -11014,7 +11014,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_hours`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_hours`(IN statspref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',statspref,'_stats_by_hour
@@ -11042,7 +11042,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_hours_spend`(IN spendpref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_hours_spend`(IN spendpref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',spendpref,'_spend_by_hour
@@ -11070,7 +11070,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_latest`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_latest`(IN statspref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',statspref,'_stats_latest
@@ -11098,7 +11098,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_months`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_months`(IN statspref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',statspref,'_stats_by_month
@@ -11126,7 +11126,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_months_cluster`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_months_cluster`()
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM cluster_stats_by_month
@@ -11154,7 +11154,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `purge_expired_months_spend`(IN spendpref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `purge_expired_months_spend`(IN spendpref CHAR(10))
 MODIFIES SQL DATA
   BEGIN
     SET @purge_sql=concat('DELETE FROM ',spendpref,'_spend_by_month
@@ -11182,7 +11182,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
+CREATE DEFINER=CURRENT_USER PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
   BEGIN
 
     # sql statement to be executed
@@ -11329,7 +11329,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `supplychain_stats_roll_up`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `supplychain_stats_roll_up`()
   BEGIN
 
     /*
@@ -11407,7 +11407,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `trigger_purge_expired`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `trigger_purge_expired`()
   BEGIN
     -- purge latest table records
     call purge_expired_latest('app');
@@ -11480,7 +11480,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'IGNORE_SPACE,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `trigger_rotate_partition`()
+CREATE DEFINER=CURRENT_USER PROCEDURE `trigger_rotate_partition`()
   rotation_block: BEGIN
 
     SET @aggregation_in_progress = CHECKAGGR();
@@ -11606,7 +11606,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `active_vms` AS select distinct `vm_stats_by_hour`.`uuid` AS `uuid` from `vm_stats_by_hour` where ((`vm_stats_by_hour`.`property_type` = 'VCPU') and (`vm_stats_by_hour`.`property_subtype` = 'utilization') and (`vm_stats_by_hour`.`max_value` >= 0.010)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11625,7 +11625,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,count(0) AS `samples`,count(0) AS `new_samples` from (`app_spend_by_hour` `a` left join `app_spend_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`provider_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11644,7 +11644,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,count(0) AS `samples`,count(0) AS `new_samples` from (`app_spend_by_hour` `a` left join `app_spend_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`provider_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11663,7 +11663,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_groups` AS select `entity_groups`.`entity_id` AS `entity_id`,`entity_groups`.`group_uuid` AS `group_uuid`,`entity_groups`.`internal_name` AS `internal_name`,`entity_groups`.`group_name` AS `group_name`,`entity_groups`.`group_type` AS `group_type` from `entity_groups` where (`entity_groups`.`group_type` = 'Application') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11682,7 +11682,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`app_stats_latest` `a` left join `app_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11701,7 +11701,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`app_stats_latest` `a` left join `app_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11720,7 +11720,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`app_spend_by_hour` `a` left join `app_spend_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`provider_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 5)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11739,7 +11739,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `app_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`app_spend_by_hour` `a` left join `app_spend_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`provider_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 6)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11758,7 +11758,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ch_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ch_stats_by_hour` `a` left join `ch_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11777,7 +11777,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ch_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ch_stats_by_hour` `a` left join `ch_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11796,7 +11796,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ch_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`ch_stats_latest` `a` left join `ch_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11815,7 +11815,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ch_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`ch_stats_latest` `a` left join `ch_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11834,7 +11834,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ch_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ch_stats_by_day` `a` left join `ch_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11853,7 +11853,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ch_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ch_stats_by_day` `a` left join `ch_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11872,7 +11872,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cluster_members_end_of_month` AS select `cluster_members`.`recorded_on` AS `recorded_on`,`cluster_members`.`group_uuid` AS `group_uuid`,`cluster_members`.`internal_name` AS `internal_name`,`cluster_members`.`group_name` AS `group_name`,`cluster_members`.`group_type` AS `group_type`,`cluster_members`.`member_uuid` AS `member_uuid`,`cluster_members`.`display_name` AS `display_name` from `cluster_members` where (`cluster_members`.`recorded_on` = `end_of_month`(`cluster_members`.`recorded_on`)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11891,7 +11891,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cluster_members_yesterday` AS select `cluster_members`.`recorded_on` AS `recorded_on`,`cluster_members`.`group_uuid` AS `group_uuid`,`cluster_members`.`internal_name` AS `internal_name`,`cluster_members`.`group_name` AS `group_name`,`cluster_members`.`group_type` AS `group_type`,`cluster_members`.`member_uuid` AS `member_uuid`,`cluster_members`.`display_name` AS `display_name` from `cluster_members` where (`cluster_members`.`recorded_on` = cast((now() - interval 1 day) as date)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11910,7 +11910,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cluster_membership` AS select distinct (cast(now() as date) - interval 1 day) AS `recorded_on`,`pm_group_members`.`group_uuid` AS `group_uuid`,`pm_group_members`.`internal_name` AS `internal_name`,`pm_group_members`.`group_name` AS `group_name`,`pm_group_members`.`group_type` AS `group_type`,`pm_group_members`.`member_uuid` AS `member_uuid`,`pm_group_members`.`display_name` AS `display_name` from (`pm_group_members` left join `cluster_membership_helper` on((`pm_group_members`.`group_uuid` = `cluster_membership_helper`.`uuid`))) where ((`pm_group_members`.`internal_name` like 'GROUP-PMsByCluster%') or (`cluster_membership_helper`.`uuid` is not null)) union all select distinct (cast(now() as date) - interval 1 day) AS `recorded_on`,`vm_group_members`.`group_uuid` AS `group_uuid`,`vm_group_members`.`internal_name` AS `internal_name`,`vm_group_members`.`group_name` AS `group_name`,`vm_group_members`.`group_type` AS `group_type`,`vm_group_members`.`member_uuid` AS `member_uuid`,`vm_group_members`.`display_name` AS `display_name` from (`vm_group_members` left join `cluster_membership_helper` on((`vm_group_members`.`group_uuid` = `cluster_membership_helper`.`uuid`))) where ((`vm_group_members`.`internal_name` like 'GROUP-VMsByCluster%') or (`cluster_membership_helper`.`uuid` is not null)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11929,7 +11929,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cluster_membership_helper` AS select distinct `entities`.`uuid` AS `uuid`,`entity_attrs`.`value` AS `val` from (`entity_attrs` join `entities` on((`entity_attrs`.`entity_entity_id` = `entities`.`id`))) where ((`entity_attrs`.`name` = 'groupStatsEnabled') and (`entity_attrs`.`value` = 'true')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11948,7 +11948,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cluster_stats_monthly_ins_vw` AS select date_format(last_day(`a`.`recorded_on`),'%Y-%m-01') AS `recorded_on`,`a`.`internal_name` AS `internal_name`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`value`) AS `value` from (`cluster_stats_by_day` `a` left join `cluster_stats_by_month` `b` on(((date_format(last_day(`a`.`recorded_on`),'%Y-%m-01') <=> `b`.`recorded_on`) and (`a`.`internal_name` <=> `b`.`internal_name`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`recorded_on`) and isnull(`b`.`internal_name`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 2)) group by 1,2,3,4 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11967,7 +11967,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cluster_stats_monthly_upd_vw` AS select date_format(last_day(`a`.`recorded_on`),'%Y-%m-01') AS `recorded_on`,`a`.`internal_name` AS `internal_name`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`value`) AS `value`,sum(`a`.`value`) AS `samples` from (`cluster_stats_by_day` `a` left join `cluster_stats_by_month` `b` on(((date_format(last_day(`a`.`recorded_on`),'%Y-%m-01') <=> `b`.`recorded_on`) and (`a`.`internal_name` <=> `b`.`internal_name`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`recorded_on` is not null) and (`b`.`internal_name` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -11986,7 +11986,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cnt_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`cnt_stats_by_hour` `a` left join `cnt_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12005,7 +12005,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cnt_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`cnt_stats_by_hour` `a` left join `cnt_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12024,7 +12024,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cnt_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`cnt_stats_latest` `a` left join `cnt_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12043,7 +12043,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cnt_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`cnt_stats_latest` `a` left join `cnt_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12062,7 +12062,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cnt_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`cnt_stats_by_day` `a` left join `cnt_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12081,7 +12081,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `cnt_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`cnt_stats_by_day` `a` left join `cnt_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12100,7 +12100,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `dpod_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`dpod_stats_by_hour` `a` left join `dpod_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12119,7 +12119,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `dpod_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`dpod_stats_by_hour` `a` left join `dpod_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12138,7 +12138,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `dpod_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`dpod_stats_latest` `a` left join `dpod_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12157,7 +12157,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `dpod_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`dpod_stats_latest` `a` left join `dpod_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12176,7 +12176,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `dpod_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`dpod_stats_by_day` `a` left join `dpod_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12195,7 +12195,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `dpod_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`dpod_stats_by_day` `a` left join `dpod_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12214,7 +12214,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_capacity_by_day` AS select 'Storage' AS `class_name`,`ds_stats_by_day`.`uuid` AS `uuid`,`ds_stats_by_day`.`producer_uuid` AS `producer_uuid`,`ds_stats_by_day`.`property_type` AS `property_type`,`ds_stats_by_day`.`avg_value` AS `utilization`,`ds_stats_by_day`.`capacity` AS `capacity`,round((`ds_stats_by_day`.`avg_value` * `ds_stats_by_day`.`capacity`),0) AS `used_capacity`,round(((1.0 - `ds_stats_by_day`.`avg_value`) * `ds_stats_by_day`.`capacity`),0) AS `available_capacity`,cast(`ds_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`ds_stats_by_day` join `ds_instances`) where ((`ds_stats_by_day`.`uuid` = `ds_instances`.`uuid`) and (`ds_stats_by_day`.`property_subtype` = 'utilization') and (`ds_stats_by_day`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12233,7 +12233,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_capacity_by_day_per_ds_group` AS select `ds_capacity_by_day`.`class_name` AS `class_name`,`ds_capacity_by_day`.`uuid` AS `uuid`,`ds_capacity_by_day`.`producer_uuid` AS `producer_uuid`,`ds_capacity_by_day`.`property_type` AS `property_type`,`ds_capacity_by_day`.`utilization` AS `utilization`,`ds_capacity_by_day`.`capacity` AS `capacity`,`ds_capacity_by_day`.`used_capacity` AS `used_capacity`,`ds_capacity_by_day`.`available_capacity` AS `available_capacity`,`ds_capacity_by_day`.`recorded_on` AS `recorded_on`,`ds_group_members`.`group_uuid` AS `group_uuid`,`ds_group_members`.`internal_name` AS `internal_name`,`ds_group_members`.`group_name` AS `group_name`,`ds_group_members`.`group_type` AS `group_type`,`ds_group_members`.`member_uuid` AS `member_uuid`,`ds_group_members`.`display_name` AS `display_name` from (`ds_capacity_by_day` join `ds_group_members`) where (`ds_group_members`.`member_uuid` = `ds_capacity_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12252,7 +12252,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_capacity_by_hour` AS select 'Storage' AS `class_name`,`ds_stats_by_hour`.`uuid` AS `uuid`,`ds_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`ds_stats_by_hour`.`property_type` AS `property_type`,`ds_stats_by_hour`.`avg_value` AS `utilization`,`ds_stats_by_hour`.`capacity` AS `capacity`,round((`ds_stats_by_hour`.`avg_value` * `ds_stats_by_hour`.`capacity`),0) AS `used_capacity`,round(((1.0 - `ds_stats_by_hour`.`avg_value`) * `ds_stats_by_hour`.`capacity`),0) AS `available_capacity`,cast(`ds_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`ds_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`ds_stats_by_hour` join `ds_instances`) where ((`ds_stats_by_hour`.`uuid` = `ds_instances`.`uuid`) and (`ds_stats_by_hour`.`property_subtype` = 'utilization') and (`ds_stats_by_hour`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12271,7 +12271,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ds_stats_by_hour` `a` left join `ds_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12290,7 +12290,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ds_stats_by_hour` `a` left join `ds_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12309,7 +12309,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_group_assns` AS select `entity_assns`.`id` AS `assn_id`,`ds_groups`.`group_uuid` AS `group_uuid`,`ds_groups`.`internal_name` AS `internal_name`,`ds_groups`.`group_name` AS `group_name`,`ds_groups`.`group_type` AS `group_type` from (`entity_assns` left join `ds_groups` on((`entity_assns`.`entity_entity_id` = `ds_groups`.`entity_id`))) where ((`entity_assns`.`name` = 'AllGroupMembers') and (`ds_groups`.`group_name` is not null) and (`ds_groups`.`group_type` is not null)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12328,7 +12328,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_group_members` AS select distinct `ds_group_members_helper`.`group_uuid` AS `group_uuid`,`ds_group_members_helper`.`internal_name` AS `internal_name`,`ds_group_members_helper`.`group_name` AS `group_name`,`ds_group_members_helper`.`group_type` AS `group_type`,`entities`.`uuid` AS `member_uuid`,`entities`.`display_name` AS `display_name` from (`ds_group_members_helper` join `entities` on((`entities`.`id` = `ds_group_members_helper`.`entity_dest_id`))) where ((`entities`.`uuid` is not null) and (`entities`.`creation_class` = 'Storage')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12347,7 +12347,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_group_members_helper` AS select `entity_assns_members_entities`.`entity_dest_id` AS `entity_dest_id`,`ds_group_assns`.`group_uuid` AS `group_uuid`,`ds_group_assns`.`internal_name` AS `internal_name`,`ds_group_assns`.`group_name` AS `group_name`,`ds_group_assns`.`group_type` AS `group_type` from (`ds_group_assns` left join `entity_assns_members_entities` on((`ds_group_assns`.`assn_id` = `entity_assns_members_entities`.`entity_assn_src_id`))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12366,7 +12366,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_groups` AS select `entity_groups`.`entity_id` AS `entity_id`,`entity_groups`.`group_uuid` AS `group_uuid`,`entity_groups`.`internal_name` AS `internal_name`,`entity_groups`.`group_name` AS `group_name`,`entity_groups`.`group_type` AS `group_type` from `entity_groups` where (`entity_groups`.`group_type` = 'Storage') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12385,7 +12385,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`ds_stats_latest` `a` left join `ds_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12404,7 +12404,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`ds_stats_latest` `a` left join `ds_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12423,7 +12423,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_instances` AS select `entities`.`name` AS `name`,`entities`.`display_name` AS `display_name`,`entities`.`uuid` AS `uuid` from `entities` where (`entities`.`creation_class` = 'Storage') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12442,7 +12442,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ds_stats_by_day` `a` left join `ds_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12461,7 +12461,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`ds_stats_by_day` `a` left join `ds_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12480,7 +12480,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_stats_by_day_per_ds_group` AS select `ds_group_members`.`group_uuid` AS `group_uuid`,`ds_group_members`.`internal_name` AS `internal_name`,`ds_group_members`.`group_name` AS `group_name`,`ds_group_members`.`group_type` AS `group_type`,`ds_group_members`.`member_uuid` AS `member_uuid`,`ds_group_members`.`display_name` AS `display_name`,`ds_stats_by_day`.`snapshot_time` AS `snapshot_time`,`ds_stats_by_day`.`uuid` AS `uuid`,`ds_stats_by_day`.`producer_uuid` AS `producer_uuid`,`ds_stats_by_day`.`property_type` AS `property_type`,`ds_stats_by_day`.`property_subtype` AS `property_subtype`,`ds_stats_by_day`.`capacity` AS `capacity`,`ds_stats_by_day`.`avg_value` AS `avg_value`,`ds_stats_by_day`.`min_value` AS `min_value`,`ds_stats_by_day`.`max_value` AS `max_value`,`ds_stats_by_day`.`relation` AS `relation`,`ds_stats_by_day`.`commodity_key` AS `commodity_key` from (`ds_group_members` join `ds_stats_by_day`) where (`ds_group_members`.`member_uuid` = `ds_stats_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12499,7 +12499,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_stats_by_hour_per_ds_group` AS select `ds_group_members`.`group_uuid` AS `group_uuid`,`ds_group_members`.`internal_name` AS `internal_name`,`ds_group_members`.`group_name` AS `group_name`,`ds_group_members`.`group_type` AS `group_type`,`ds_group_members`.`member_uuid` AS `member_uuid`,`ds_group_members`.`display_name` AS `display_name`,`ds_stats_by_hour`.`snapshot_time` AS `snapshot_time`,`ds_stats_by_hour`.`uuid` AS `uuid`,`ds_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`ds_stats_by_hour`.`property_type` AS `property_type`,`ds_stats_by_hour`.`property_subtype` AS `property_subtype`,`ds_stats_by_hour`.`capacity` AS `capacity`,`ds_stats_by_hour`.`avg_value` AS `avg_value`,`ds_stats_by_hour`.`min_value` AS `min_value`,`ds_stats_by_hour`.`max_value` AS `max_value`,`ds_stats_by_hour`.`relation` AS `relation`,`ds_stats_by_hour`.`commodity_key` AS `commodity_key` from (`ds_group_members` join `ds_stats_by_hour`) where (`ds_group_members`.`member_uuid` = `ds_stats_by_hour`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12518,7 +12518,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_util_info_yesterday` AS select `ds_util_stats_yesterday`.`snapshot_time` AS `snapshot_time`,`ds_instances`.`display_name` AS `display_name`,`ds_instances`.`uuid` AS `uuid`,`ds_util_stats_yesterday`.`producer_uuid` AS `producer_uuid`,`ds_util_stats_yesterday`.`property_type` AS `property_type`,`ds_util_stats_yesterday`.`property_subtype` AS `property_subtype`,`ds_util_stats_yesterday`.`capacity` AS `capacity`,`ds_util_stats_yesterday`.`avg_value` AS `avg_value`,`ds_util_stats_yesterday`.`min_value` AS `min_value`,`ds_util_stats_yesterday`.`max_value` AS `max_value` from (`ds_util_stats_yesterday` join `ds_instances`) where (`ds_util_stats_yesterday`.`uuid` = `ds_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12537,7 +12537,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `ds_util_stats_yesterday` AS select `ds_stats_by_day`.`snapshot_time` AS `snapshot_time`,`ds_stats_by_day`.`uuid` AS `uuid`,`ds_stats_by_day`.`producer_uuid` AS `producer_uuid`,`ds_stats_by_day`.`property_type` AS `property_type`,`ds_stats_by_day`.`property_subtype` AS `property_subtype`,`ds_stats_by_day`.`capacity` AS `capacity`,`ds_stats_by_day`.`avg_value` AS `avg_value`,`ds_stats_by_day`.`min_value` AS `min_value`,`ds_stats_by_day`.`max_value` AS `max_value`,`ds_stats_by_day`.`relation` AS `relation`,`ds_stats_by_day`.`commodity_key` AS `commodity_key` from `ds_stats_by_day` where ((cast(`ds_stats_by_day`.`snapshot_time` as date) = (cast(now() as date) - interval 1 day)) and (`ds_stats_by_day`.`property_subtype` = 'utilization')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12556,7 +12556,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `entity_group_assns` AS select `entity_assns`.`id` AS `assn_id`,`entity_groups`.`group_uuid` AS `group_uuid`,`entity_groups`.`internal_name` AS `internal_name`,`entity_groups`.`group_name` AS `group_name`,`entity_groups`.`group_type` AS `group_type` from (`entity_assns` left join `entity_groups` on((`entity_assns`.`entity_entity_id` = `entity_groups`.`entity_id`))) where ((`entity_assns`.`name` = 'AllGroupMembers') and (`entity_groups`.`group_name` is not null) and (`entity_groups`.`group_type` is not null)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12575,7 +12575,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `entity_group_members` AS select distinct `entity_group_members_helper`.`group_uuid` AS `group_uuid`,`entity_group_members_helper`.`internal_name` AS `internal_name`,`entity_group_members_helper`.`group_name` AS `group_name`,`entity_group_members_helper`.`group_type` AS `group_type`,`entities`.`uuid` AS `member_uuid`,`entities`.`display_name` AS `display_name` from (`entity_group_members_helper` join `entities` on((`entities`.`id` = `entity_group_members_helper`.`entity_dest_id`))) where (`entities`.`uuid` is not null) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12594,7 +12594,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `entity_group_members_helper` AS select `entity_assns_members_entities`.`entity_dest_id` AS `entity_dest_id`,`entity_group_assns`.`group_uuid` AS `group_uuid`,`entity_group_assns`.`internal_name` AS `internal_name`,`entity_group_assns`.`group_name` AS `group_name`,`entity_group_assns`.`group_type` AS `group_type` from (`entity_group_assns` left join `entity_assns_members_entities` on((`entity_group_assns`.`assn_id` = `entity_assns_members_entities`.`entity_assn_src_id`))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12613,7 +12613,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `entity_groups` AS select `entities`.`id` AS `entity_id`,`entities`.`uuid` AS `group_uuid`,`entities`.`name` AS `internal_name`,`entities`.`display_name` AS `group_name`,max(if((`entity_attrs`.`name` = 'sETypeName'),`entity_attrs`.`value`,'')) AS `group_type` from (`entity_attrs` left join `entities` on((`entity_attrs`.`entity_entity_id` = `entities`.`id`))) where (`entity_attrs`.`name` = 'sETypeName') group by `entities`.`id` having ((`group_name` is not null) and (`group_name` <> '')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12632,7 +12632,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `iom_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`iom_stats_by_hour` `a` left join `iom_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12651,7 +12651,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `iom_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`iom_stats_by_hour` `a` left join `iom_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12670,7 +12670,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `iom_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`iom_stats_latest` `a` left join `iom_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12689,7 +12689,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `iom_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`iom_stats_latest` `a` left join `iom_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12708,7 +12708,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `iom_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`iom_stats_by_day` `a` left join `iom_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12727,7 +12727,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `iom_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`iom_stats_by_day` `a` left join `iom_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12746,7 +12746,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `notifications_risk` AS select `notifications`.`id` AS `id`,`notifications`.`clear_time` AS `clear_time`,`notifications`.`last_notify_time` AS `last_notify_time`,`notifications`.`severity` AS `severity`,`notifications`.`category` AS `category`,`notifications`.`name` AS `name`,`notifications`.`uuid` AS `uuid`,`notifications`.`importance` AS `importance`,`notifications`.`description` AS `description`,`notifications`.`notification_uuid` AS `notification_uuid`,substring_index(`notifications`.`name`,'::',-(1)) AS `risk` from `notifications` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12765,7 +12765,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_capacity_by_day` AS select 'PhysicalMachine' AS `class_name`,`pm_stats_by_day`.`uuid` AS `uuid`,`pm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`pm_stats_by_day`.`property_type` AS `property_type`,`pm_stats_by_day`.`avg_value` AS `utilization`,`pm_stats_by_day`.`capacity` AS `capacity`,round((`pm_stats_by_day`.`avg_value` * `pm_stats_by_day`.`capacity`),0) AS `used_capacity`,round(((1.0 - `pm_stats_by_day`.`avg_value`) * `pm_stats_by_day`.`capacity`),0) AS `available_capacity`,cast(`pm_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`pm_stats_by_day` join `pm_instances`) where ((`pm_stats_by_day`.`uuid` = `pm_instances`.`uuid`) and (`pm_stats_by_day`.`property_subtype` = 'utilization') and (`pm_stats_by_day`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12784,7 +12784,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_capacity_by_day_per_pm_group` AS select `pm_capacity_by_day`.`class_name` AS `class_name`,`pm_capacity_by_day`.`uuid` AS `uuid`,`pm_capacity_by_day`.`producer_uuid` AS `producer_uuid`,`pm_capacity_by_day`.`property_type` AS `property_type`,`pm_capacity_by_day`.`utilization` AS `utilization`,`pm_capacity_by_day`.`capacity` AS `capacity`,`pm_capacity_by_day`.`used_capacity` AS `used_capacity`,`pm_capacity_by_day`.`available_capacity` AS `available_capacity`,`pm_capacity_by_day`.`recorded_on` AS `recorded_on`,`pm_group_members`.`group_uuid` AS `group_uuid`,`pm_group_members`.`internal_name` AS `internal_name`,`pm_group_members`.`group_name` AS `group_name`,`pm_group_members`.`group_type` AS `group_type`,`pm_group_members`.`member_uuid` AS `member_uuid`,`pm_group_members`.`display_name` AS `display_name` from (`pm_capacity_by_day` join `pm_group_members`) where (`pm_group_members`.`member_uuid` = `pm_capacity_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12803,7 +12803,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_capacity_by_hour` AS select 'PhysicalMachine' AS `class_name`,`pm_instances`.`display_name` AS `display_name`,`pm_stats_by_hour`.`uuid` AS `uuid`,`pm_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`pm_stats_by_hour`.`property_type` AS `property_type`,`pm_stats_by_hour`.`avg_value` AS `utilization`,`pm_stats_by_hour`.`capacity` AS `capacity`,round((`pm_stats_by_hour`.`avg_value` * `pm_stats_by_hour`.`capacity`),0) AS `used_capacity`,round(((1.0 - `pm_stats_by_hour`.`avg_value`) * `pm_stats_by_hour`.`capacity`),0) AS `available_capacity`,cast(`pm_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`pm_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`pm_stats_by_hour` join `pm_instances`) where ((`pm_stats_by_hour`.`uuid` = `pm_instances`.`uuid`) and (`pm_stats_by_hour`.`property_subtype` = 'utilization') and (`pm_stats_by_hour`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12822,7 +12822,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`pm_stats_by_hour` `a` left join `pm_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12841,7 +12841,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`pm_stats_by_hour` `a` left join `pm_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12860,7 +12860,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_group_assns` AS select `entity_assns`.`id` AS `assn_id`,`pm_groups`.`group_uuid` AS `group_uuid`,`pm_groups`.`internal_name` AS `internal_name`,`pm_groups`.`group_name` AS `group_name`,`pm_groups`.`group_type` AS `group_type` from (`entity_assns` left join `pm_groups` on((`entity_assns`.`entity_entity_id` = `pm_groups`.`entity_id`))) where ((`entity_assns`.`name` = 'AllGroupMembers') and (`pm_groups`.`group_name` is not null) and (`pm_groups`.`group_type` is not null)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12879,7 +12879,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_group_members` AS select distinct `pm_group_members_helper`.`group_uuid` AS `group_uuid`,`pm_group_members_helper`.`internal_name` AS `internal_name`,`pm_group_members_helper`.`group_name` AS `group_name`,`pm_group_members_helper`.`group_type` AS `group_type`,`entities`.`uuid` AS `member_uuid`,`entities`.`display_name` AS `display_name` from (`pm_group_members_helper` join `entities` on((`entities`.`id` = `pm_group_members_helper`.`entity_dest_id`))) where ((`entities`.`uuid` is not null) and (`entities`.`creation_class` = 'PhysicalMachine')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12898,7 +12898,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_group_members_helper` AS select `entity_assns_members_entities`.`entity_dest_id` AS `entity_dest_id`,`pm_group_assns`.`group_uuid` AS `group_uuid`,`pm_group_assns`.`internal_name` AS `internal_name`,`pm_group_assns`.`group_name` AS `group_name`,`pm_group_assns`.`group_type` AS `group_type` from (`pm_group_assns` left join `entity_assns_members_entities` on((`pm_group_assns`.`assn_id` = `entity_assns_members_entities`.`entity_assn_src_id`))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12917,7 +12917,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_groups` AS select `entity_groups`.`entity_id` AS `entity_id`,`entity_groups`.`group_uuid` AS `group_uuid`,`entity_groups`.`internal_name` AS `internal_name`,`entity_groups`.`group_name` AS `group_name`,`entity_groups`.`group_type` AS `group_type` from `entity_groups` where (`entity_groups`.`group_type` = 'PhysicalMachine') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12936,7 +12936,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`pm_stats_latest` `a` left join `pm_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12955,7 +12955,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`pm_stats_latest` `a` left join `pm_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12974,7 +12974,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_instances` AS select `entities`.`name` AS `name`,`entities`.`display_name` AS `display_name`,`entities`.`uuid` AS `uuid` from `entities` where (`entities`.`creation_class` = 'PhysicalMachine') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -12993,7 +12993,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`pm_stats_by_day` `a` left join `pm_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13012,7 +13012,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`pm_stats_by_day` `a` left join `pm_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13031,7 +13031,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_stats_by_day_per_pm_group` AS select `pm_group_members`.`group_uuid` AS `group_uuid`,`pm_group_members`.`internal_name` AS `internal_name`,`pm_group_members`.`group_name` AS `group_name`,`pm_group_members`.`group_type` AS `group_type`,`pm_group_members`.`member_uuid` AS `member_uuid`,`pm_group_members`.`display_name` AS `display_name`,`pm_stats_by_day`.`snapshot_time` AS `snapshot_time`,`pm_stats_by_day`.`uuid` AS `uuid`,`pm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`pm_stats_by_day`.`property_type` AS `property_type`,`pm_stats_by_day`.`property_subtype` AS `property_subtype`,`pm_stats_by_day`.`capacity` AS `capacity`,`pm_stats_by_day`.`avg_value` AS `avg_value`,`pm_stats_by_day`.`min_value` AS `min_value`,`pm_stats_by_day`.`max_value` AS `max_value`,`pm_stats_by_day`.`relation` AS `relation`,`pm_stats_by_day`.`commodity_key` AS `commodity_key` from (`pm_group_members` join `pm_stats_by_day`) where (`pm_group_members`.`member_uuid` = `pm_stats_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13050,7 +13050,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_stats_by_hour_per_pm_group` AS select `pm_group_members`.`group_uuid` AS `group_uuid`,`pm_group_members`.`internal_name` AS `internal_name`,`pm_group_members`.`group_name` AS `group_name`,`pm_group_members`.`group_type` AS `group_type`,`pm_group_members`.`member_uuid` AS `member_uuid`,`pm_group_members`.`display_name` AS `display_name`,`pm_stats_by_hour`.`snapshot_time` AS `snapshot_time`,`pm_stats_by_hour`.`uuid` AS `uuid`,`pm_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`pm_stats_by_hour`.`property_type` AS `property_type`,`pm_stats_by_hour`.`property_subtype` AS `property_subtype`,`pm_stats_by_hour`.`capacity` AS `capacity`,`pm_stats_by_hour`.`avg_value` AS `avg_value`,`pm_stats_by_hour`.`min_value` AS `min_value`,`pm_stats_by_hour`.`max_value` AS `max_value`,`pm_stats_by_hour`.`relation` AS `relation`,`pm_stats_by_hour`.`commodity_key` AS `commodity_key` from (`pm_group_members` join `pm_stats_by_hour`) where (`pm_group_members`.`member_uuid` = `pm_stats_by_hour`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13069,7 +13069,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_util_info_yesterday` AS select `pm_util_stats_yesterday`.`snapshot_time` AS `snapshot_time`,`pm_instances`.`display_name` AS `display_name`,`pm_instances`.`uuid` AS `uuid`,`pm_util_stats_yesterday`.`producer_uuid` AS `producer_uuid`,`pm_util_stats_yesterday`.`property_type` AS `property_type`,`pm_util_stats_yesterday`.`property_subtype` AS `property_subtype`,`pm_util_stats_yesterday`.`capacity` AS `capacity`,`pm_util_stats_yesterday`.`avg_value` AS `avg_value`,`pm_util_stats_yesterday`.`min_value` AS `min_value`,`pm_util_stats_yesterday`.`max_value` AS `max_value` from (`pm_util_stats_yesterday` join `pm_instances`) where (`pm_util_stats_yesterday`.`uuid` = `pm_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13088,7 +13088,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_util_stats_yesterday` AS select `pm_stats_by_day`.`snapshot_time` AS `snapshot_time`,`pm_stats_by_day`.`uuid` AS `uuid`,`pm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`pm_stats_by_day`.`property_type` AS `property_type`,`pm_stats_by_day`.`property_subtype` AS `property_subtype`,`pm_stats_by_day`.`capacity` AS `capacity`,`pm_stats_by_day`.`avg_value` AS `avg_value`,`pm_stats_by_day`.`min_value` AS `min_value`,`pm_stats_by_day`.`max_value` AS `max_value`,`pm_stats_by_day`.`relation` AS `relation`,`pm_stats_by_day`.`commodity_key` AS `commodity_key` from `pm_stats_by_day` where ((cast(`pm_stats_by_day`.`snapshot_time` as date) = (cast(now() as date) - interval 1 day)) and (`pm_stats_by_day`.`property_subtype` = 'utilization')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13107,7 +13107,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `pm_vm_count_by_day_per_pm_group` AS select `pm_stats_by_day_per_pm_group`.`group_uuid` AS `group_uuid`,`pm_stats_by_day_per_pm_group`.`group_name` AS `group_name`,`pm_stats_by_day_per_pm_group`.`group_type` AS `group_type`,cast(`pm_stats_by_day_per_pm_group`.`snapshot_time` as date) AS `recorded_on`,'HostedVMs' AS `property_type`,'count' AS `property_subtype`,round(sum(`pm_stats_by_day_per_pm_group`.`avg_value`),0) AS `vm_count` from `pm_stats_by_day_per_pm_group` where ((`pm_stats_by_day_per_pm_group`.`group_type` = 'PhysicalMachine') and (`pm_stats_by_day_per_pm_group`.`property_type` = 'Produces')) group by `pm_stats_by_day_per_pm_group`.`group_name`,cast(`pm_stats_by_day_per_pm_group`.`snapshot_time` as date) order by `pm_stats_by_day_per_pm_group`.`group_name`,cast(`pm_stats_by_day_per_pm_group`.`snapshot_time` as date) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13126,7 +13126,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sc_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sc_stats_by_hour` `a` left join `sc_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13145,7 +13145,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sc_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sc_stats_by_hour` `a` left join `sc_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13164,7 +13164,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sc_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`sc_stats_latest` `a` left join `sc_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13183,7 +13183,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sc_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`sc_stats_latest` `a` left join `sc_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13202,7 +13202,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sc_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sc_stats_by_day` `a` left join `sc_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13221,7 +13221,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sc_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sc_stats_by_day` `a` left join `sc_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13240,7 +13240,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `service_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,count(0) AS `samples`,count(0) AS `new_samples` from (`service_spend_by_hour` `a` left join `service_spend_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`provider_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13259,7 +13259,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `service_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,count(0) AS `samples`,count(0) AS `new_samples` from (`service_spend_by_hour` `a` left join `service_spend_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`provider_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13278,7 +13278,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `service_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`service_spend_by_hour` `a` left join `service_spend_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`provider_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 5)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13297,7 +13297,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `service_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`service_spend_by_hour` `a` left join `service_spend_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`provider_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 6)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13316,7 +13316,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sw_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sw_stats_by_hour` `a` left join `sw_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13335,7 +13335,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sw_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sw_stats_by_hour` `a` left join `sw_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13354,7 +13354,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sw_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`sw_stats_latest` `a` left join `sw_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13373,7 +13373,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sw_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`sw_stats_latest` `a` left join `sw_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13392,7 +13392,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sw_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sw_stats_by_day` `a` left join `sw_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13411,7 +13411,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `sw_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`sw_stats_by_day` `a` left join `sw_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13430,7 +13430,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_ds_stats_by_day` AS select `ds_instances`.`display_name` AS `instance_name`,`ds_stats_by_day`.`property_type` AS `property_type`,`ds_stats_by_day`.`property_subtype` AS `property_subtype`,`ds_stats_by_day`.`capacity` AS `capacity`,`ds_stats_by_day`.`avg_value` AS `avg_value`,`ds_stats_by_day`.`min_value` AS `min_value`,`ds_stats_by_day`.`max_value` AS `max_value`,cast(`ds_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`ds_stats_by_day` join `ds_instances`) where (`ds_stats_by_day`.`uuid` = `ds_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13449,7 +13449,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_ds_stats_by_hour` AS select `ds_instances`.`display_name` AS `instance_name`,`ds_stats_by_hour`.`property_type` AS `property_type`,`ds_stats_by_hour`.`property_subtype` AS `property_subtype`,`ds_stats_by_hour`.`capacity` AS `capacity`,`ds_stats_by_hour`.`avg_value` AS `avg_value`,`ds_stats_by_hour`.`min_value` AS `min_value`,`ds_stats_by_hour`.`max_value` AS `max_value`,cast(`ds_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`ds_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`ds_stats_by_hour` join `ds_instances`) where (`ds_stats_by_hour`.`uuid` = `ds_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13468,7 +13468,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_pm_stats_by_day` AS select `pm_instances`.`display_name` AS `instance_name`,`pm_stats_by_day`.`property_type` AS `property_type`,`pm_stats_by_day`.`property_subtype` AS `property_subtype`,`pm_stats_by_day`.`capacity` AS `capacity`,`pm_stats_by_day`.`avg_value` AS `avg_value`,`pm_stats_by_day`.`min_value` AS `min_value`,`pm_stats_by_day`.`max_value` AS `max_value`,cast(`pm_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`pm_stats_by_day` join `pm_instances`) where (`pm_stats_by_day`.`uuid` = `pm_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13487,7 +13487,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_pm_stats_by_hour` AS select `pm_instances`.`display_name` AS `instance_name`,`pm_stats_by_hour`.`property_type` AS `property_type`,`pm_stats_by_hour`.`property_subtype` AS `property_subtype`,`pm_stats_by_hour`.`capacity` AS `capacity`,`pm_stats_by_hour`.`avg_value` AS `avg_value`,`pm_stats_by_hour`.`min_value` AS `min_value`,`pm_stats_by_hour`.`max_value` AS `max_value`,cast(`pm_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`pm_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`pm_stats_by_hour` join `pm_instances`) where (`pm_stats_by_hour`.`uuid` = `pm_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13506,7 +13506,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_vm_stats_by_day` AS select `vm_instances`.`display_name` AS `instance_name`,`vm_stats_by_day`.`property_type` AS `property_type`,`vm_stats_by_day`.`property_subtype` AS `property_subtype`,`vm_stats_by_day`.`capacity` AS `capacity`,`vm_stats_by_day`.`avg_value` AS `avg_value`,`vm_stats_by_day`.`min_value` AS `min_value`,`vm_stats_by_day`.`max_value` AS `max_value`,cast(`vm_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`vm_stats_by_day` join `vm_instances`) where (`vm_stats_by_day`.`uuid` = `vm_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13525,7 +13525,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_vm_stats_by_day_per_group` AS select `vm_group_members`.`group_name` AS `group_name`,`vm_group_members`.`display_name` AS `instance_name`,`vm_stats_by_day`.`property_type` AS `property_type`,`vm_stats_by_day`.`property_subtype` AS `property_subtype`,`vm_stats_by_day`.`capacity` AS `capacity`,`vm_stats_by_day`.`avg_value` AS `avg_value`,`vm_stats_by_day`.`min_value` AS `min_value`,`vm_stats_by_day`.`max_value` AS `max_value`,cast(`vm_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`vm_stats_by_day` join `vm_group_members`) where (`vm_group_members`.`member_uuid` = `vm_stats_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13544,7 +13544,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_vm_stats_by_hour` AS select `vm_instances`.`display_name` AS `instance_name`,`vm_stats_by_hour`.`property_type` AS `property_type`,`vm_stats_by_hour`.`property_subtype` AS `property_subtype`,`vm_stats_by_hour`.`capacity` AS `capacity`,`vm_stats_by_hour`.`avg_value` AS `avg_value`,`vm_stats_by_hour`.`min_value` AS `min_value`,`vm_stats_by_hour`.`max_value` AS `max_value`,cast(`vm_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`vm_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`vm_stats_by_hour` join `vm_instances`) where (`vm_stats_by_hour`.`uuid` = `vm_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13563,7 +13563,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `user_vm_stats_by_hour_per_group` AS select `vm_group_members`.`group_name` AS `group_name`,`vm_group_members`.`display_name` AS `instance_name`,`vm_stats_by_hour`.`property_type` AS `property_type`,`vm_stats_by_hour`.`property_subtype` AS `property_subtype`,`vm_stats_by_hour`.`capacity` AS `capacity`,`vm_stats_by_hour`.`avg_value` AS `avg_value`,`vm_stats_by_hour`.`min_value` AS `min_value`,`vm_stats_by_hour`.`max_value` AS `max_value`,cast(`vm_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`vm_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`vm_stats_by_hour` join `vm_group_members`) where (`vm_group_members`.`member_uuid` = `vm_stats_by_hour`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13582,7 +13582,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vdc_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vdc_stats_by_hour` `a` left join `vdc_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13601,7 +13601,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vdc_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vdc_stats_by_hour` `a` left join `vdc_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13620,7 +13620,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vdc_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`vdc_stats_latest` `a` left join `vdc_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13639,7 +13639,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vdc_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`vdc_stats_latest` `a` left join `vdc_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13658,7 +13658,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vdc_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vdc_stats_by_day` `a` left join `vdc_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13677,7 +13677,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vdc_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vdc_stats_by_day` `a` left join `vdc_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13696,7 +13696,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_capacity_by_day` AS select 'VirtualMachine' AS `class_name`,`vm_stats_by_day`.`uuid` AS `uuid`,`vm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_day`.`property_type` AS `property_type`,`vm_stats_by_day`.`avg_value` AS `utilization`,`vm_stats_by_day`.`capacity` AS `capacity`,round((`vm_stats_by_day`.`avg_value` * `vm_stats_by_day`.`capacity`),0) AS `used_capacity`,round(((1.0 - `vm_stats_by_day`.`avg_value`) * `vm_stats_by_day`.`capacity`),0) AS `available_capacity`,cast(`vm_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`vm_stats_by_day` join `vm_instances`) where ((`vm_stats_by_day`.`uuid` = `vm_instances`.`uuid`) and (`vm_stats_by_day`.`property_subtype` = 'utilization') and (`vm_stats_by_day`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13715,7 +13715,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_capacity_by_day_per_vm_group` AS select `vm_capacity_by_day`.`class_name` AS `class_name`,`vm_capacity_by_day`.`uuid` AS `uuid`,`vm_capacity_by_day`.`producer_uuid` AS `producer_uuid`,`vm_capacity_by_day`.`property_type` AS `property_type`,`vm_capacity_by_day`.`utilization` AS `utilization`,`vm_capacity_by_day`.`capacity` AS `capacity`,`vm_capacity_by_day`.`used_capacity` AS `used_capacity`,`vm_capacity_by_day`.`available_capacity` AS `available_capacity`,`vm_capacity_by_day`.`recorded_on` AS `recorded_on`,`vm_group_members`.`group_uuid` AS `group_uuid`,`vm_group_members`.`internal_name` AS `internal_name`,`vm_group_members`.`group_name` AS `group_name`,`vm_group_members`.`group_type` AS `group_type`,`vm_group_members`.`member_uuid` AS `member_uuid`,`vm_group_members`.`display_name` AS `display_name` from (`vm_capacity_by_day` join `vm_group_members`) where (`vm_group_members`.`member_uuid` = `vm_capacity_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13734,7 +13734,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_capacity_by_hour` AS select 'VirtualMachine' AS `class_name`,`vm_stats_by_hour`.`uuid` AS `uuid`,`vm_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_hour`.`property_type` AS `property_type`,`vm_stats_by_hour`.`avg_value` AS `utilization`,`vm_stats_by_hour`.`capacity` AS `capacity`,round((`vm_stats_by_hour`.`avg_value` * `vm_stats_by_hour`.`capacity`),0) AS `used_capacity`,round(((1.0 - `vm_stats_by_hour`.`avg_value`) * `vm_stats_by_hour`.`capacity`),0) AS `available_capacity`,cast(`vm_stats_by_hour`.`snapshot_time` as date) AS `recorded_on`,hour(`vm_stats_by_hour`.`snapshot_time`) AS `hour_number` from (`vm_stats_by_hour` join `vm_instances`) where ((`vm_stats_by_hour`.`uuid` = `vm_instances`.`uuid`) and (`vm_stats_by_hour`.`property_subtype` = 'utilization') and (`vm_stats_by_hour`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13753,7 +13753,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,count(0) AS `samples`,count(0) AS `new_samples` from (`vm_spend_by_hour` `a` left join `vm_spend_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`provider_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13772,7 +13772,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,count(0) AS `samples`,count(0) AS `new_samples` from (`vm_spend_by_hour` `a` left join `vm_spend_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`provider_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13791,7 +13791,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_group_assns` AS select `entity_assns`.`id` AS `assn_id`,`vm_groups`.`group_uuid` AS `group_uuid`,`vm_groups`.`internal_name` AS `internal_name`,`vm_groups`.`group_name` AS `group_name`,`vm_groups`.`group_type` AS `group_type` from (`entity_assns` left join `vm_groups` on((`entity_assns`.`entity_entity_id` = `vm_groups`.`entity_id`))) where ((`entity_assns`.`name` = 'AllGroupMembers') and (`vm_groups`.`group_name` is not null) and (`vm_groups`.`group_type` is not null)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13810,7 +13810,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_group_members` AS select distinct `vm_group_members_helper`.`group_uuid` AS `group_uuid`,`vm_group_members_helper`.`internal_name` AS `internal_name`,`vm_group_members_helper`.`group_name` AS `group_name`,`vm_group_members_helper`.`group_type` AS `group_type`,`entities`.`uuid` AS `member_uuid`,`entities`.`display_name` AS `display_name` from (`vm_group_members_helper` join `entities` on((`entities`.`id` = `vm_group_members_helper`.`entity_dest_id`))) where ((`entities`.`uuid` is not null) and (`entities`.`creation_class` = 'VirtualMachine')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13829,7 +13829,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_group_members_agg` AS select distinct `vm_group_members_helper`.`group_uuid` AS `group_uuid`,`vm_group_members_helper`.`internal_name` AS `internal_name`,`vm_group_members_helper`.`group_name` AS `group_name`,`vm_group_members_helper`.`group_type` AS `group_type`,`entities`.`uuid` AS `member_uuid`,`entities`.`display_name` AS `display_name` from (`vm_group_members_helper` join `entities` on((`entities`.`id` = `vm_group_members_helper`.`entity_dest_id`))) where ((`entities`.`uuid` is not null) and (`vm_group_members_helper`.`group_name` like 'VMs_%') and (not((`vm_group_members_helper`.`internal_name` like '%VMsByStorage%'))) and (not((`vm_group_members_helper`.`internal_name` like '%VMsByNetwork%'))) and (`entities`.`creation_class` = 'VirtualMachine')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13848,7 +13848,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_group_members_helper` AS select `entity_assns_members_entities`.`entity_dest_id` AS `entity_dest_id`,`vm_group_assns`.`group_uuid` AS `group_uuid`,`vm_group_assns`.`internal_name` AS `internal_name`,`vm_group_assns`.`group_name` AS `group_name`,`vm_group_assns`.`group_type` AS `group_type` from (`vm_group_assns` left join `entity_assns_members_entities` on((`vm_group_assns`.`assn_id` = `entity_assns_members_entities`.`entity_assn_src_id`))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13867,7 +13867,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_groups` AS select `entity_groups`.`entity_id` AS `entity_id`,`entity_groups`.`group_uuid` AS `group_uuid`,`entity_groups`.`internal_name` AS `internal_name`,`entity_groups`.`group_name` AS `group_name`,`entity_groups`.`group_type` AS `group_type` from `entity_groups` where (`entity_groups`.`group_type` = 'VirtualMachine') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13886,7 +13886,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`vm_stats_latest` `a` left join `vm_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13905,7 +13905,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`vm_stats_latest` `a` left join `vm_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13924,7 +13924,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_instances` AS select `entities`.`name` AS `name`,`entities`.`display_name` AS `display_name`,`entities`.`uuid` AS `uuid` from `entities` where (`entities`.`creation_class` = 'VirtualMachine') */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13943,7 +13943,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vm_spend_by_hour` `a` left join `vm_spend_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`provider_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and (`a`.`aggregated` = 5)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13962,7 +13962,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`provider_uuid` AS `provider_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,avg(`a`.`rate`) AS `rate`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vm_spend_by_hour` `a` left join `vm_spend_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`provider_uuid` <=> `b`.`provider_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`provider_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`a`.`aggregated` = 6)) group by 1,2,3,4,5 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -13981,7 +13981,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_stats_by_day_per_vm_group` AS select `vm_group_members`.`group_uuid` AS `group_uuid`,`vm_group_members`.`internal_name` AS `internal_name`,`vm_group_members`.`group_name` AS `group_name`,`vm_group_members`.`group_type` AS `group_type`,`vm_group_members`.`member_uuid` AS `member_uuid`,`vm_group_members`.`display_name` AS `display_name`,`vm_stats_by_day`.`snapshot_time` AS `snapshot_time`,`vm_stats_by_day`.`uuid` AS `uuid`,`vm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_day`.`property_type` AS `property_type`,`vm_stats_by_day`.`property_subtype` AS `property_subtype`,`vm_stats_by_day`.`capacity` AS `capacity`,`vm_stats_by_day`.`avg_value` AS `avg_value`,`vm_stats_by_day`.`min_value` AS `min_value`,`vm_stats_by_day`.`max_value` AS `max_value`,`vm_stats_by_day`.`relation` AS `relation`,`vm_stats_by_day`.`commodity_key` AS `commodity_key` from (`vm_group_members` join `vm_stats_by_day`) where (`vm_group_members`.`member_uuid` = `vm_stats_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14000,7 +14000,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_stats_by_day_per_vm_group_agg` AS select `vm_group_members_agg`.`group_uuid` AS `group_uuid`,`vm_group_members_agg`.`internal_name` AS `internal_name`,`vm_group_members_agg`.`group_name` AS `group_name`,`vm_group_members_agg`.`group_type` AS `group_type`,`vm_group_members_agg`.`member_uuid` AS `member_uuid`,`vm_group_members_agg`.`display_name` AS `display_name`,`vm_stats_by_day`.`snapshot_time` AS `snapshot_time`,`vm_stats_by_day`.`uuid` AS `uuid`,`vm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_day`.`property_type` AS `property_type`,`vm_stats_by_day`.`property_subtype` AS `property_subtype`,`vm_stats_by_day`.`capacity` AS `capacity`,`vm_stats_by_day`.`avg_value` AS `avg_value`,`vm_stats_by_day`.`min_value` AS `min_value`,`vm_stats_by_day`.`max_value` AS `max_value`,`vm_stats_by_day`.`relation` AS `relation`,`vm_stats_by_day`.`commodity_key` AS `commodity_key` from (`vm_group_members_agg` join `vm_stats_by_day`) where (`vm_group_members_agg`.`member_uuid` = `vm_stats_by_day`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14019,7 +14019,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_stats_by_hour_per_vm_group` AS select `vm_group_members`.`group_uuid` AS `group_uuid`,`vm_group_members`.`internal_name` AS `internal_name`,`vm_group_members`.`group_name` AS `group_name`,`vm_group_members`.`group_type` AS `group_type`,`vm_group_members`.`member_uuid` AS `member_uuid`,`vm_group_members`.`display_name` AS `display_name`,`vm_stats_by_hour`.`snapshot_time` AS `snapshot_time`,`vm_stats_by_hour`.`uuid` AS `uuid`,`vm_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_hour`.`property_type` AS `property_type`,`vm_stats_by_hour`.`property_subtype` AS `property_subtype`,`vm_stats_by_hour`.`capacity` AS `capacity`,`vm_stats_by_hour`.`avg_value` AS `avg_value`,`vm_stats_by_hour`.`min_value` AS `min_value`,`vm_stats_by_hour`.`max_value` AS `max_value`,`vm_stats_by_hour`.`relation` AS `relation`,`vm_stats_by_hour`.`commodity_key` AS `commodity_key` from (`vm_group_members` join `vm_stats_by_hour`) where (`vm_group_members`.`member_uuid` = `vm_stats_by_hour`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14038,7 +14038,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_stats_by_hour_per_vm_group_agg` AS select `vm_group_members_agg`.`group_uuid` AS `group_uuid`,`vm_group_members_agg`.`internal_name` AS `internal_name`,`vm_group_members_agg`.`group_name` AS `group_name`,`vm_group_members_agg`.`group_type` AS `group_type`,`vm_group_members_agg`.`member_uuid` AS `member_uuid`,`vm_group_members_agg`.`display_name` AS `display_name`,`vm_stats_by_hour`.`snapshot_time` AS `snapshot_time`,`vm_stats_by_hour`.`uuid` AS `uuid`,`vm_stats_by_hour`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_hour`.`property_type` AS `property_type`,`vm_stats_by_hour`.`property_subtype` AS `property_subtype`,`vm_stats_by_hour`.`capacity` AS `capacity`,`vm_stats_by_hour`.`avg_value` AS `avg_value`,`vm_stats_by_hour`.`min_value` AS `min_value`,`vm_stats_by_hour`.`max_value` AS `max_value`,`vm_stats_by_hour`.`relation` AS `relation`,`vm_stats_by_hour`.`commodity_key` AS `commodity_key` from (`vm_group_members_agg` join `vm_stats_by_hour`) where (`vm_group_members_agg`.`member_uuid` = `vm_stats_by_hour`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14057,7 +14057,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_storage_used_by_day_per_vm_group` AS select `vm_stats_by_day_per_vm_group_agg`.`group_uuid` AS `group_uuid`,`vm_stats_by_day_per_vm_group_agg`.`group_name` AS `group_name`,`vm_stats_by_day_per_vm_group_agg`.`group_type` AS `group_type`,cast(`vm_stats_by_day_per_vm_group_agg`.`snapshot_time` as date) AS `recorded_on`,`vm_stats_by_day_per_vm_group_agg`.`property_type` AS `property_type`,`vm_stats_by_day_per_vm_group_agg`.`property_subtype` AS `property_subtype`,round(sum(`vm_stats_by_day_per_vm_group_agg`.`avg_value`),0) AS `storage_used` from `vm_stats_by_day_per_vm_group_agg` where ((`vm_stats_by_day_per_vm_group_agg`.`property_type` = 'StorageAmount') and (`vm_stats_by_day_per_vm_group_agg`.`property_subtype` = 'used')) group by `vm_stats_by_day_per_vm_group_agg`.`group_name`,cast(`vm_stats_by_day_per_vm_group_agg`.`snapshot_time` as date) order by `vm_stats_by_day_per_vm_group_agg`.`group_name`,cast(`vm_stats_by_day_per_vm_group_agg`.`snapshot_time` as date) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14076,7 +14076,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_util_info_yesterday` AS select `vm_util_stats_yesterday`.`snapshot_time` AS `snapshot_time`,`vm_instances`.`display_name` AS `display_name`,`vm_instances`.`uuid` AS `uuid`,`vm_util_stats_yesterday`.`producer_uuid` AS `producer_uuid`,`vm_util_stats_yesterday`.`property_type` AS `property_type`,`vm_util_stats_yesterday`.`property_subtype` AS `property_subtype`,`vm_util_stats_yesterday`.`capacity` AS `capacity`,`vm_util_stats_yesterday`.`avg_value` AS `avg_value`,`vm_util_stats_yesterday`.`min_value` AS `min_value`,`vm_util_stats_yesterday`.`max_value` AS `max_value` from (`vm_util_stats_yesterday` join `vm_instances`) where (`vm_util_stats_yesterday`.`uuid` = `vm_instances`.`uuid`) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14095,7 +14095,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vm_util_stats_yesterday` AS select `vm_stats_by_day`.`snapshot_time` AS `snapshot_time`,`vm_stats_by_day`.`uuid` AS `uuid`,`vm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_day`.`property_type` AS `property_type`,`vm_stats_by_day`.`property_subtype` AS `property_subtype`,`vm_stats_by_day`.`capacity` AS `capacity`,`vm_stats_by_day`.`avg_value` AS `avg_value`,`vm_stats_by_day`.`min_value` AS `min_value`,`vm_stats_by_day`.`max_value` AS `max_value`,`vm_stats_by_day`.`relation` AS `relation`,`vm_stats_by_day`.`commodity_key` AS `commodity_key` from `vm_stats_by_day` where ((cast(`vm_stats_by_day`.`snapshot_time` as date) = (cast(now() as date) - interval 1 day)) and (`vm_stats_by_day`.`property_subtype` = 'utilization')) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14114,7 +14114,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vpod_daily_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vpod_stats_by_hour` `a` left join `vpod_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14133,7 +14133,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vpod_daily_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vpod_stats_by_hour` `a` left join `vpod_stats_by_day` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14152,7 +14152,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vpod_hourly_ins_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`vpod_stats_latest` `a` left join `vpod_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14171,7 +14171,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vpod_hourly_upd_vw` AS select date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,count(0) AS `samples`,count(0) AS `new_samples` from (`vpod_stats_latest` `a` left join `vpod_stats_by_hour` `b` on(((date_format(`a`.`snapshot_time`,'%Y-%m-%d %H:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14190,7 +14190,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vpod_monthly_ins_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vpod_stats_by_day` `a` left join `vpod_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where (isnull(`b`.`snapshot_time`) and isnull(`b`.`uuid`) and isnull(`b`.`producer_uuid`) and isnull(`b`.`property_type`) and isnull(`b`.`property_subtype`) and isnull(`b`.`relation`) and isnull(`b`.`commodity_key`) and (`a`.`aggregated` = 2)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -14209,7 +14209,7 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-  /*!50013 DEFINER=`vmtplatform`@`%` SQL SECURITY DEFINER */
+  /*!50013 DEFINER=CURRENT_USER SQL SECURITY DEFINER */
   /*!50001 VIEW `vpod_monthly_upd_vw` AS select date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d %H:00:00') AS `snapshot_time`,`a`.`uuid` AS `uuid`,`a`.`producer_uuid` AS `producer_uuid`,`a`.`property_type` AS `property_type`,`a`.`property_subtype` AS `property_subtype`,`a`.`relation` AS `relation`,`a`.`commodity_key` AS `commodity_key`,max(`a`.`capacity`) AS `capacity`,min(`a`.`min_value`) AS `min_value`,max(`a`.`max_value`) AS `max_value`,avg(`a`.`avg_value`) AS `avg_value`,sum(`a`.`samples`) AS `samples`,sum(`a`.`new_samples`) AS `new_samples` from (`vpod_stats_by_day` `a` left join `vpod_stats_by_month` `b` on(((date_format(last_day(`a`.`snapshot_time`),'%Y-%m-%d 00:00:00') <=> `b`.`snapshot_time`) and (`a`.`uuid` <=> `b`.`uuid`) and (`a`.`producer_uuid` <=> `b`.`producer_uuid`) and (`a`.`property_type` <=> `b`.`property_type`) and (`a`.`property_subtype` <=> `b`.`property_subtype`) and (`a`.`relation` <=> `b`.`relation`) and (`a`.`commodity_key` <=> `b`.`commodity_key`)))) where ((`b`.`snapshot_time` is not null) and (`b`.`uuid` is not null) and (`b`.`producer_uuid` is not null) and (`b`.`property_type` is not null) and (`b`.`property_subtype` is not null) and (`b`.`relation` is not null) and (`b`.`commodity_key` is not null) and (`a`.`aggregated` = 3)) group by 1,2,3,4,5,6,7 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;

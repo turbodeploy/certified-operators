@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS aggregation_meta_data (
 -- 'aggregate' procedure
 DELIMITER //
 DROP PROCEDURE IF EXISTS `aggregate`//
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `aggregate`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `aggregate`(IN statspref CHAR(10))
   aggregate_proc:BEGIN
     DECLARE running_aggregations INT;
     DECLARE aggregation_meta_exists INT;

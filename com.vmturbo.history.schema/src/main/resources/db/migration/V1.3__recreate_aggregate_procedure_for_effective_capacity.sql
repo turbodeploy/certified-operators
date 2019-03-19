@@ -6,7 +6,7 @@
 -- 'market_aggregate' procedure
 DELIMITER //
 DROP PROCEDURE IF EXISTS `market_aggregate`//
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `market_aggregate`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `market_aggregate`(IN statspref CHAR(10))
   BEGIN
     DECLARE v_stats_table varchar(32);
     DECLARE v_snapshot_time datetime;
@@ -359,7 +359,7 @@ CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `market_aggregate`(IN statspref CHAR(
 -- 'aggregate' procedure
 DELIMITER //
 DROP PROCEDURE IF EXISTS `aggregate`//
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `aggregate`(IN statspref CHAR(10))
+CREATE DEFINER=CURRENT_USER PROCEDURE `aggregate`(IN statspref CHAR(10))
   aggregate_proc:BEGIN
     DECLARE running_aggregations INT;
     DECLARE number_of_unaggregated_rows INT;

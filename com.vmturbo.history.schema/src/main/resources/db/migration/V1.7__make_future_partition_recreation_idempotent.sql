@@ -19,7 +19,7 @@
 DROP procedure IF EXISTS `rotate_partition`;
 
 DELIMITER $$
-CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
+CREATE DEFINER=CURRENT_USER PROCEDURE `rotate_partition`(IN stats_table CHAR(30))
 BEGIN
 
     DECLARE sql_statement varchar (1000);
