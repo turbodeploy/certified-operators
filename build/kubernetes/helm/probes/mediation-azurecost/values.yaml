@@ -5,12 +5,12 @@
 replicaCount: 1
 
 image:
-  repository: localhost:5000/turbonomic
-  tag: BRANCH
+  repository: turbonomic
+  tag: latest
   pullPolicy: IfNotPresent
 
 java:
-  options: "-XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMPercentage=75.0"
+  options: ""
 
 resources:
   limits:
