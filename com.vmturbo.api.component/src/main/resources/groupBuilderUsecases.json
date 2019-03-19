@@ -145,5 +145,18 @@
         "criteria" : [
           {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "switchByName"}
         ]
+    },
+
+    "VirtualVolume" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualVolumeByName"},
+        {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"}
+      ]
+    },
+
+    "StorageTier" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageTierByName"}
+      ]
     }
 }
