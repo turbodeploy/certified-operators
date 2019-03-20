@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -43,6 +45,7 @@ public class ActionStorehouse {
     // Stores the task futures/promises of the actions which have been submitted for execution.
     private final List<ActionExecutionTask> actionExecutionFutures = new ArrayList<>();
     private final ActionModeCalculator actionModeCalculator;
+    private final Object actionExecutionFuturesLock = new Object();
 
     private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
         .withName("ao_populate_store_duration_seconds")
@@ -69,7 +72,7 @@ public class ActionStorehouse {
                             @Nonnull final IActionStoreLoader storeLoader,
                             @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.actionStoreFactory = actionStoreFactory;
-        this.storehouse = new HashMap<>();
+        this.storehouse = new ConcurrentHashMap<>();
         this.automatedExecutor = automatedActionExecutor;
         storeLoader.loadActionStores().forEach(store -> storehouse.put(store.getTopologyContextId(), store));
         this.actionModeCalculator = actionModeCalculator;
@@ -90,19 +93,16 @@ public class ActionStorehouse {
      * @throws IllegalArgumentException If the input is invalid.
      */
     @Nonnull
-    public synchronized ActionStore storeActions(@Nonnull final ActionPlan actionPlan) {
+    public ActionStore storeActions(@Nonnull final ActionPlan actionPlan) {
         if (!actionPlan.hasTopologyContextId()) {
             throw new IllegalArgumentException("Cannot store actions in action plan " + actionPlan.getId() +
                 " because it has no context ID.");
         }
 
         measureActionPlan(actionPlan);
-        ActionStore store = getStore(actionPlan.getTopologyContextId()).orElseGet(() -> {
-            ActionStore newStore = actionStoreFactory.newStore(actionPlan.getTopologyContextId());
-
-            storehouse.put(actionPlan.getTopologyContextId(), newStore);
-            return newStore;
-        });
+        long topologyContextId = actionPlan.getTopologyContextId();
+        ActionStore store = storehouse.computeIfAbsent(topologyContextId,
+                k -> actionStoreFactory.newStore(topologyContextId));
 
         DataMetricTimer populationTimer = STORE_POPULATION_SUMMARY
             .labels(store.getStoreTypeName())
@@ -112,12 +112,14 @@ public class ActionStorehouse {
 
         if (store.allowsExecution()) {
             try {
-                actionExecutionFutures.removeIf(actionExecutionTask ->
-                        actionExecutionTask.getFuture().isDone() ||
-                            actionExecutionTask.getAction().getState() == ActionState.CLEARED ||
-                            actionExecutionTask.getAction().getState() == ActionState.FAILED ||
-                            actionExecutionTask.getAction().getState() == ActionState.SUCCEEDED);
-                actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
+                synchronized (actionExecutionFuturesLock) {
+                    actionExecutionFutures.removeIf(actionExecutionTask ->
+                            actionExecutionTask.getFuture().isDone() ||
+                                    actionExecutionTask.getAction().getState() == ActionState.CLEARED ||
+                                    actionExecutionTask.getAction().getState() == ActionState.FAILED ||
+                                    actionExecutionTask.getAction().getState() == ActionState.SUCCEEDED);
+                    actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
+                }
             } catch (RuntimeException e) {
                 logger.info("Unable to execute automated actions: ", e);
             }
@@ -133,7 +135,7 @@ public class ActionStorehouse {
      *
      * @param storehouse The storehouse whose action stores should replace the contents of this one's
      */
-    public synchronized void restoreStorehouse(@Nonnull final Map<Long, ActionStore> storehouse) {
+    public void restoreStorehouse(@Nonnull final Map<Long, ActionStore> storehouse) {
         clearStore();
         this.storehouse.putAll(storehouse);
     }
@@ -145,7 +147,7 @@ public class ActionStorehouse {
      * @return The store corresponding to the topology context.
      *         {@link Optional#empty()} if no store exists corresponding to the topology context.
      */
-    public synchronized Optional<ActionStore> getStore(final long topologyContextId) {
+    public Optional<ActionStore> getStore(final long topologyContextId) {
         return Optional.ofNullable(storehouse.get(topologyContextId));
     }
 
@@ -156,7 +158,7 @@ public class ActionStorehouse {
      * @return The severity cache corresponding to the topology context.
      *         {@link Optional#empty()} if no store exists corresponding to the topology context.
      */
-    public synchronized Optional<EntitySeverityCache> getSeverityCache(final long topologyContextId) {
+    public Optional<EntitySeverityCache> getSeverityCache(final long topologyContextId) {
         final ActionStore store = storehouse.get(topologyContextId);
         return store == null ?
             Optional.empty() :
@@ -171,7 +173,7 @@ public class ActionStorehouse {
      * @return The store corresponding to the topology context that was removed.
      *         {@link Optional#empty()} if no store exists corresponding to the topology context.
      */
-    public synchronized Optional<ActionStore> removeStore(final long topologyContextId) {
+    public Optional<ActionStore> removeStore(final long topologyContextId) {
         return Optional.ofNullable(storehouse.remove(topologyContextId));
     }
 
@@ -185,13 +187,13 @@ public class ActionStorehouse {
      *         {@link Optional#empty()} if no store exists corresponding to the topology context.
      * @throws StoreDeletionException if the operation fails.
      */
-    public synchronized Optional<ActionStore> deleteStore(final long topologyContextId) throws StoreDeletionException {
+    public Optional<ActionStore> deleteStore(final long topologyContextId) throws StoreDeletionException {
         Optional<ActionStore> actionStore = getStore(topologyContextId);
         if (!actionStore.isPresent()) {
             return Optional.empty();
         }
 
-        final Optional<StoreDeletionException> deletionException = getStore(topologyContextId)
+        final Optional<StoreDeletionException> deletionException = actionStore
             .map(ActionStore::clear)
             .flatMap(wasCleared -> wasCleared ?
                 Optional.empty() :
@@ -209,31 +211,32 @@ public class ActionStorehouse {
      *
      * @return The number of actions which were cancelled and removed from the queue.
      */
-    public synchronized int cancelQueuedActions() {
+    public int cancelQueuedActions() {
         // Don't cancel actions in progress. Cancel only those tasks which are yet to be executed.
         logger.info("Cancelling all pending automated actions which are waiting to be executed");
-        int cancelledCount = actionExecutionFutures.stream()
-                .filter(actionTask -> actionTask.getAction().getState() == ActionState.QUEUED)
-                .map(actionTask-> {
-                    Action action = actionTask.getAction();
-                    actionTask.getFuture().cancel(false);
-                    action.receive(new NotRecommendedEvent(action.getId()));
-                    return 1;
-                })
-                .reduce(Integer::sum)
-                .orElse(0);
+        synchronized (actionExecutionFuturesLock) {
+            int cancelledCount = actionExecutionFutures.stream()
+                    .filter(actionTask -> actionTask.getAction().getState() == ActionState.QUEUED)
+                    .map(actionTask -> {
+                        Action action = actionTask.getAction();
+                        actionTask.getFuture().cancel(false);
+                        action.receive(new NotRecommendedEvent(action.getId()));
+                        return 1;
+                    })
+                    .reduce(Integer::sum)
+                    .orElse(0);
 
-        logger.info("Cancelled execution of {} queued automated actions. Total automated actions: {}",
-                cancelledCount, actionExecutionFutures.size());
-        actionExecutionFutures.clear();
-
-        return cancelledCount;
+            logger.info("Cancelled execution of {} queued automated actions. Total automated actions: {}",
+                    cancelledCount, actionExecutionFutures.size());
+            actionExecutionFutures.clear();
+            return cancelledCount;
+        }
     }
 
     /**
      * Remove all stores and caches in the storehouse.
      */
-    public synchronized void clearStore() {
+    public void clearStore() {
         storehouse.clear();
     }
 
@@ -241,16 +244,16 @@ public class ActionStorehouse {
      * Get a collection of all {@link ActionStore}s in the {@link ActionStorehouse}
      * @return The collection of all {@link ActionStore}s in the {@link ActionStorehouse}
      */
-    public synchronized Map<Long, ActionStore> getAllStores() {
+    public Map<Long, ActionStore> getAllStores() {
         return ImmutableMap.copyOf(storehouse);
     }
 
     /**
-     * Get the number of stores in the storehouse.
+     * Get the number of stores in the storehouse. This is approximate size.
      *
      * @return The number of stores in the storehouse.
      */
-    public synchronized int size() {
+    public int size() {
         return storehouse.size();
     }
 

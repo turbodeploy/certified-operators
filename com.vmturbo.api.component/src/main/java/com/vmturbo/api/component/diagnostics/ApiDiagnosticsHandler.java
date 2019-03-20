@@ -115,7 +115,9 @@ public class ApiDiagnosticsHandler {
         TelemetryMetricDefinitions.setTurbonomicVersionAndRevision(
             versionAndRevision.version, versionAndRevision.revision);
 
-        collectEntityCounts(versionAndRevision);
+        // Disabling this call as it makes an rpc call to repository. If
+        // repository is slow, api diag dump will be blocked for a while.
+        //collectEntityCounts(versionAndRevision);
     }
 
     @VisibleForTesting

@@ -1,3 +1,12 @@
+#!/bin/bash
+
+set -e
+
+# Update the nginx.conf to the latest version.
+NGINX_CONF_TMPL_SRC="/tmp/nginx.conf.template"
+NGINX_CONF_TMPL_DEST="/var/lib/docker/volumes/docker_nginx-home/_data/conf/nginx.conf.template"
+
+cat > $NGINX_CONF_TMPL_SRC << 'EOF'
 # include any additional config files for the main http block
 include /etc/nginx/userconf/*.conf;
 
@@ -256,3 +265,7 @@ http {
     include /etc/nginx/userconf/http/*.conf;
 }
 
+EOF
+
+# doing cat and re-direct to preserve permissions of the destination file.
+cat $NGINX_CONF_TMPL_SRC > $NGINX_CONF_TMPL_DEST
