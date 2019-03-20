@@ -4,4 +4,5 @@
     <type>vCenter Storage Browsing</type>
     <category>Storage Browsing</category>
     <version>1.0.0</version>
+    <rediscovery-interval-seconds>10800</rediscovery-interval-seconds>
 </probe>
