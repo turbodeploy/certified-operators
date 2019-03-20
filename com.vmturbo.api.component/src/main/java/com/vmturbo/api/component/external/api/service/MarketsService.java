@@ -156,6 +156,8 @@ public class MarketsService implements IMarketsService {
 
     private final MarketMapper marketMapper;
 
+    private StatsService statsService;
+
     private final StatsMapper statsMapper;
 
     private final PaginationMapper paginationMapper;
@@ -559,14 +561,14 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<StatSnapshotApiDTO> getStatsByMarketUuid(final String uuid, final String encodedQuery) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return statsService.getStatsByEntityUuid(uuid, encodedQuery);
     }
 
     @Override
     public List<StatSnapshotApiDTO> getStatsByMarketQuery(final String uuid,
                                                           final StatPeriodApiInputDTO inputDto)
             throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return statsService.getStatsByEntityQuery(uuid, inputDto);
     }
 
     @Override
@@ -824,6 +826,16 @@ public class MarketsService implements IMarketsService {
     private boolean isMergeDataCenterPolicy(final PolicyInfo policyInfo) {
         return policyInfo.hasMerge()
                 && policyInfo.getMerge().getMergeType() == MergeType.DATACENTER;
+    }
+
+    /**
+     * Connect to the stats service.  We use a setter to avoid circular dependencies
+     * in the Spring configuration in the API component.
+     *
+     * @param statsService the stats service.
+     */
+    public void setStatsService(@Nonnull StatsService statsService) {
+        this.statsService = Objects.requireNonNull(statsService);
     }
 
     /**
