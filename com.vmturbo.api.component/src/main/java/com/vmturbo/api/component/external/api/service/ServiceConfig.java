@@ -427,6 +427,7 @@ public class ServiceConfig {
                 magicScopeGateway(),
                 userSessionContext());
         groupsService().setStatsService(statsService);
+        marketsService().setStatsService(statsService);
         return statsService;
     }
 
