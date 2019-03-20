@@ -1,0 +1,4 @@
+services :
+    arangodb:
+        pre_hook:
+          - upgrade_arangodb_version.sh

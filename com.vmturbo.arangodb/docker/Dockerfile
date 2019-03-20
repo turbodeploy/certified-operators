@@ -2,8 +2,8 @@ FROM ubuntu:18.04
 MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
 
 ENV ARCHITECTURE amd64
-ENV ARANGO_VERSION 3.1.21-1
-ENV ARANGO_URL https://download.arangodb.com/arangodb31/xUbuntu_16.04
+ENV ARANGO_VERSION 3.3.22-1
+ENV ARANGO_URL https://download.arangodb.com/arangodb33/xUbuntu_17.04
 ENV ARANGO_PACKAGE arangodb3-${ARANGO_VERSION}_${ARCHITECTURE}.deb
 ENV ARANGO_PACKAGE_URL ${ARANGO_URL}/${ARCHITECTURE}/${ARANGO_PACKAGE}
 
