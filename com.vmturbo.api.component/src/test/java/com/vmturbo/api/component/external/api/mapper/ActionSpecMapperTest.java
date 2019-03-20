@@ -757,7 +757,8 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testMapReadyRecommendMode() throws InterruptedException, UnknownObjectException, UnsupportedActionException, ExecutionException {
+    public void testMapReadyRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
+                                                             UnsupportedActionException, ExecutionException {
         final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
             .setActionState(ActionState.READY)
@@ -770,6 +771,64 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
     }
 
+    @Test
+    public void testMapReadyRecommendModeNotExecutable() throws InterruptedException, UnknownObjectException,
+                                                                UnsupportedActionException, ExecutionException {
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+            .setActionState(ActionState.READY)
+            .setActionMode(ActionMode.RECOMMEND)
+            .setIsExecutable(false)
+            .build();
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        // This special case should get mapped to the RECOMMENDED state.
+        // This will make it non-selectable in the UI!
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
+    }
+
+    @Test
+    public void testMapReadyNotRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
+                                                                UnsupportedActionException, ExecutionException {
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+            // The action is in READY state, and in RECOMMEND mode.
+            .setActionState(ActionState.READY)
+            .setActionMode(ActionMode.MANUAL)
+            .build();
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        // This special case should get mapped to the RECOMMENDED state.
+        // This will make it non-selectable in the UI!
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.PENDING_ACCEPT));
+    }
+
+    @Test
+    public void testMapReadyNotRecommendModeNotExecutable() throws InterruptedException, UnknownObjectException,
+                                                                   UnsupportedActionException, ExecutionException {
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+            .setActionState(ActionState.READY)
+            .setActionMode(ActionMode.MANUAL)
+            .setIsExecutable(false)
+            .build();
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        // This special case should get mapped to the RECOMMENDED state.
+        // This will make it non-selectable in the UI!
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.RECOMMENDED));
+    }
+
+    @Test
+    public void testMapNotReadyRecommendModeExecutable() throws InterruptedException, UnknownObjectException,
+        UnsupportedActionException, ExecutionException {
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+            .setActionState(ActionState.QUEUED)
+            .setActionMode(ActionMode.RECOMMEND)
+            .build();
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        // This special case should get mapped to the RECOMMENDED state.
+        // This will make it non-selectable in the UI!
+        assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.QUEUED));
+    }
 
     @Test
     public void testCreateActionFilterNoInvolvedEntities() {

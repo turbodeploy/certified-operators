@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -27,6 +28,7 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -55,7 +57,7 @@ public class EntitySeverityCacheTest {
     }
 
     @Test
-    public void testRefreshVisibleReady() {
+    public void testRefreshVisibleNotDisabled() {
         ActionView action = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
         when(actionStore.getActionViews())
             .thenReturn(Collections.singletonMap(action.getRecommendation().getId(), action));
@@ -65,22 +67,12 @@ public class EntitySeverityCacheTest {
     }
 
     @Test
-    public void testRefreshVisibleNotReady() {
+    public void testRefreshNotVisibleDisabled() {
         ActionView action = spy(actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL)));
-        when(action.getState()).thenReturn(ActionState.CLEARED);
+        doReturn(ActionMode.DISABLED).when(action).getMode();
 
         final Map<Long, ActionView> actionViews = ImmutableMap.of(action.getRecommendation().getId(), action);
         when(actionStore.getActionViews()).thenReturn(actionViews);
-
-        entitySeverityCache.refresh(actionStore);
-        assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
-    }
-
-    @Test
-    public void testRefreshNotVisibleReady() {
-        ActionView action = actionView(notExecutableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
-        when(actionStore.getActionViews())
-            .thenReturn(Collections.singletonMap(action.getRecommendation().getId(), action));
 
         entitySeverityCache.refresh(actionStore);
         assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));

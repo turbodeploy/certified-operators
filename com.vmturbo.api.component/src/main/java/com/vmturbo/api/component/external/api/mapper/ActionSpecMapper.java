@@ -288,6 +288,20 @@ public class ActionSpecMapper {
     }
 
     @Nonnull
+    public ActionState calculateApiActionState(@Nonnull final ActionSpec actionSpec) {
+        if (actionSpec.getActionState() == ActionDTO.ActionState.READY) {
+            if (actionSpec.getActionMode() == ActionDTO.ActionMode.RECOMMEND ||
+                !actionSpec.getIsExecutable()) {
+                return ActionState.RECOMMENDED;
+            } else {
+                return ActionState.PENDING_ACCEPT;
+            }
+        } else {
+            return ActionState.valueOf(actionSpec.getActionState().name());
+        }
+    }
+
+    @Nonnull
     public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
         if (actionState == ActionDTO.ActionState.READY) {
             // (roman, Jan 7, 2019): We had a special case translation for the
@@ -341,15 +355,10 @@ public class ActionSpecMapper {
         // For plan action, set the state to successes, so it will not be selectable
         // TODO (Gary, Jan 17 2019): handle case when realtimeTopologyContextId is changed (if needed)
         if (topologyContextId == realtimeTopologyContextId) {
-            if (actionSpec.getActionState() == ActionDTO.ActionState.READY &&
-                    actionSpec.getActionMode() == ActionDTO.ActionMode.RECOMMEND) {
-                // The UI uses action states to determine whether to show an action as "executable"
-                // or not. So "ready" actions that we want to be non-executable (due to action
-                // mode) must have the "RECOMMENDED" state when they're returned to the UI.
-                actionApiDTO.setActionState(ActionState.RECOMMENDED);
-            } else {
-                actionApiDTO.setActionState(mapXlActionStateToApi(actionSpec.getActionState()));
-            }
+            // The UI uses action states to determine whether to show an action as "executable"
+            // or not. So "ready" actions that we want to be non-executable (due to action
+            // mode) must have the "RECOMMENDED" state when they're returned to the UI.
+            actionApiDTO.setActionState(calculateApiActionState(actionSpec));
         } else {
             // In classic all the plan actions have "Succeeded" state; in XL all the plan actions
             // have default state (ready). Set the state to "Succeeded" here to make it Not selectable

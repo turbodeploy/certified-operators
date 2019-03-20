@@ -100,13 +100,13 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testManualNotExecutableNotVisible() throws Exception {
+    public void testManualNotExecutableVisible() throws Exception {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
-        assertFalse(new QueryFilter(Optional.of(visibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
-        assertTrue(new QueryFilter(Optional.of(notVisibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertTrue(new QueryFilter(Optional.of(visibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
+        assertFalse(new QueryFilter(Optional.of(notVisibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
     }
 
     @Test
@@ -222,17 +222,10 @@ public class QueryFilterTest {
         // action spec should be visible.
         assertTrue(new QueryFilter(Optional.of(readyVisibleFilter))
                 .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
-    }
-
-    @Test
-    public void testStateAndVisibleNoMatch() throws Exception {
-        final ActionView actionView =
-            notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
-        when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         // Using LiveActionStore's visibility predicate, so the
-        // action spec shouldn't be visible.
-        assertFalse(new QueryFilter(Optional.of(readyVisibleFilter))
+        // action spec should be visible.
+        assertTrue(new QueryFilter(Optional.of(readyVisibleFilter))
                 .test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
     }
 
