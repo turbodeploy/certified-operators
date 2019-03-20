@@ -7,15 +7,18 @@ import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -61,6 +64,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -74,6 +78,7 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -357,6 +362,7 @@ public class ActionSpecMapper {
         // map the recommendation info
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         LogEntryApiDTO risk = new LogEntryApiDTO();
+        actionApiDTO.setImportance((float) recommendation.getImportance());
         risk.setImportance((float)recommendation.getImportance());
         // set the explanation string
 
@@ -665,6 +671,28 @@ public class ActionSpecMapper {
         }
         wrapperDto.addCompoundActions(actions);
         wrapperDto.setDetails(actionDetails(hasPrimarySource, wrapperDto, primaryChange, context));
+
+        wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(moveExplanation));
+    }
+
+    private String getReasonCommodities(MoveExplanation moveExplanation) {
+        // Using set to avoid duplicates
+        Set<CommodityType> reasonCommodities = new HashSet<>();
+        List<ChangeProviderExplanation> changeProviderExplanations = moveExplanation.getChangeProviderExplanationList();
+        for (ChangeProviderExplanation changeProviderExplanation : changeProviderExplanations) {
+            switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
+                case COMPLIANCE:
+                    reasonCommodities.addAll(changeProviderExplanation.getCompliance().getMissingCommoditiesList());
+                    break;
+                case CONGESTION:
+                    reasonCommodities.addAll(changeProviderExplanation.getCongestion().getCongestedCommoditiesList());
+                    break;
+            }
+        }
+
+        return reasonCommodities.stream()
+                .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType.getType()).name())
+                .collect(Collectors.joining(", "));
     }
 
     private ActionApiDTO singleMove(Move move, ActionApiDTO compoundDto,
