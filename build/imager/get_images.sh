@@ -43,6 +43,11 @@ do
             docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
             sudo -n docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
         fi
+        if (( $? ))
+        then
+          echo "Failure" >&2
+          exit 0
+        fi
     fi
 done
 
