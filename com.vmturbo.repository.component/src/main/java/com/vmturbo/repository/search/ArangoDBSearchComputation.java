@@ -152,7 +152,8 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
                                            "displayName: se.displayName," +
                                            "state: se.state," +
                                            "severity: se.severity," +
-                                           "entityType: se.entityType" +
+                                           "entityType: se.entityType," +
+                                           "targetIds: se.targetIds" +
                                        "}" +
                                      "}";
                 }

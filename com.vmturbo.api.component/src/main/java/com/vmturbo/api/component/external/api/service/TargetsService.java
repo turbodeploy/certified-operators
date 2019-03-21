@@ -1001,7 +1001,7 @@ public class TargetsService implements ITargetsService {
      * @return A list of ServiceEntityApiDTO of the target's entities
      * @throws OperationFailedException
      */
-    private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
+    private List<ServiceEntityApiDTO> getTargetEntities(@Nonnull TargetApiDTO targetDTO)
         throws OperationFailedException{
 
         final String targetUuid = targetDTO.getUuid();

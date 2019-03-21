@@ -332,10 +332,6 @@ public class SearchMapper {
         if (entity.getTargetIdsCount() > 0) {
             seDTO.setDiscoveredBy(createDiscoveredBy(String.valueOf(entity.getTargetIdsList().get(0)),
                 targetIdToProbeType));
-        } else if (targetIdToProbeType.size() > 0) {
-            seDTO.setDiscoveredBy(createDiscoveredBy(
-                Long.toString(targetIdToProbeType.keySet().iterator().next()),
-                targetIdToProbeType));
         }
         return seDTO;
     }
