@@ -31,6 +31,7 @@ import com.vmturbo.reports.component.EmailAddressValidator;
 import com.vmturbo.reports.component.ReportRequest;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
+import com.vmturbo.reports.component.data.ReportsDataGenerator;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.templates.TemplateWrapper;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
@@ -59,10 +60,10 @@ public class ReportsGenerator {
     private final Executor executor;
     private final ReportNotificationSender notificationSender;
     private final MailManager mailManager;
+    private final ReportsDataGenerator reportsDataGenerator;
 
     /**
      * Creates instance of reports generator.
-     *
      * @param reportRunner to create report
      * @param templatesOrganizer to use appropriate templates dao and get data from storage
      * @param reportInstanceDao to get instance data from storage
@@ -72,12 +73,13 @@ public class ReportsGenerator {
      * @param notificationSender to send notifications if generation was success or failed
      * @param mailManager mail manager
      */
-    public ReportsGenerator(@Nonnull ComponentReportRunner reportRunner,
-            @Nonnull TemplatesOrganizer templatesOrganizer,
-            @Nonnull ReportInstanceDao reportInstanceDao, @Nonnull EntitiesDao entitiesDao,
-            @Nonnull File outputDirectory, @Nonnull Executor executor,
-            @Nonnull ReportNotificationSender notificationSender,
-            @Nonnull MailManager mailManager) {
+    public ReportsGenerator(@Nonnull final ComponentReportRunner reportRunner,
+                            @Nonnull final TemplatesOrganizer templatesOrganizer,
+                            @Nonnull final ReportInstanceDao reportInstanceDao, @Nonnull EntitiesDao entitiesDao,
+                            @Nonnull final File outputDirectory, @Nonnull Executor executor,
+                            @Nonnull final ReportNotificationSender notificationSender,
+                            @Nonnull final MailManager mailManager,
+                            @Nonnull final ReportsDataGenerator reportsDataGenerator) {
         this.reportRunner = Objects.requireNonNull(reportRunner);
         this.templatesOrganizer = Objects.requireNonNull(templatesOrganizer);
         this.reportInstanceDao = Objects.requireNonNull(reportInstanceDao);
@@ -86,6 +88,7 @@ public class ReportsGenerator {
         this.executor = Objects.requireNonNull(executor);
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.mailManager = Objects.requireNonNull(mailManager);
+        this.reportsDataGenerator = Objects.requireNonNull(reportsDataGenerator);
     }
 
     /**
@@ -120,12 +123,19 @@ public class ReportsGenerator {
         final ReportRequest report =
                 new ReportRequest(template.getTemplateFile(), format, reportAttributes);
         final File file = new File(outputDirectory, Long.toString(reportInstance.getId()));
-        executor.execute(() -> generateReportInternal(report, file, reportInstance,
-                        request.getSubscribersEmailsList()));
+        executor.execute(() -> {
+            if (reportsDataGenerator.generateByTemplateId(templateId.getId())) {
+                generateReportInternal(report, file, reportInstance,
+                    request.getSubscribersEmailsList());
+            }
+        });
+
         final Reporting.ReportInstanceId.Builder resultBuilder = Reporting.ReportInstanceId.newBuilder();
         resultBuilder.setId(reportInstance.getId());
         return resultBuilder.build();
     }
+
+
 
     private Map<String, String> prepareReportAttributes(Map<String, String> parametersMap)
             throws DbException {

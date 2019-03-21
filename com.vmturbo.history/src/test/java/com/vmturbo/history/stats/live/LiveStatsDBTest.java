@@ -84,7 +84,9 @@ public class LiveStatsDBTest {
      */
     private static final String TEST_TOPOLOGY_PATH = "topology/test-topo-1.json.zip";
     private static final String TEST_TOPOLOGY_FILE_NAME = "test-topo-1.json";
-    private static final int NUMBER_OF_ENTITIES = 93;
+    // With V1.9__insert_missing_reportdata.sql two new entries were added to entities table.
+    // The two new entries were "MarketSettingsManager" and "PresentationManager".
+    private static final int NUMBER_OF_ENTITIES = 93 + 2;
 
     @Autowired
     private DbTestConfig dbTestConfig;

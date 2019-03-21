@@ -1,25 +1,28 @@
 package com.vmturbo.reports.component;
 
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.io.File;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import org.apache.commons.mail.EmailException;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.mockito.internal.exceptions.MockitoLimitations;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
@@ -31,6 +34,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
+import com.vmturbo.reports.component.data.ReportsDataGenerator;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
@@ -66,6 +70,7 @@ public class ReportingServiceReportGenerationTest {
     private ReportNotificationSender notificationSender;
     private ExecutorService threadPool;
     private ReportsGenerator reportsGenerator;
+    private ReportsDataGenerator reportsDataGenerator;
 
     @Before
     public void init() throws Exception {
@@ -73,41 +78,43 @@ public class ReportingServiceReportGenerationTest {
                 .setId(ReportTemplateId.newBuilder().setReportType(1).setId(100).build())
                 .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
                 .build();
-        final TemplateWrapper wrapper = Mockito.mock(TemplateWrapper.class);
-        Mockito.when(wrapper.toProtobuf()).thenReturn(reportTemplate);
-        Mockito.when(wrapper.getTemplateFile()).thenReturn("hogwarts-faculties");
+        final TemplateWrapper wrapper = mock(TemplateWrapper.class);
+        when(wrapper.toProtobuf()).thenReturn(reportTemplate);
+        when(wrapper.getTemplateFile()).thenReturn("hogwarts-faculties");
 
         request = GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
                 .setTemplate(reportTemplate.getId())
                 .build();
 
-        templatesOrganizer = Mockito.mock(TemplatesOrganizer.class);
-        Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
+        templatesOrganizer = mock(TemplatesOrganizer.class);
+        when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
                 Mockito.anyInt())).thenReturn(Optional.of(wrapper));
-        reportRunner = Mockito.mock(ComponentReportRunner.class);
-        dirtyRecord = Mockito.mock(ReportInstanceRecord.class);
-        Mockito.when(dirtyRecord.getId()).thenReturn(200L);
-        instancesDao = Mockito.mock(ReportInstanceDao.class);
-        Mockito.when(
+        reportRunner = mock(ComponentReportRunner.class);
+        dirtyRecord = mock(ReportInstanceRecord.class);
+        when(dirtyRecord.getId()).thenReturn(200L);
+        instancesDao = mock(ReportInstanceDao.class);
+        when(
                 instancesDao.createInstanceRecord(Mockito.any(ReportType.class), Mockito.anyInt(),
                         Mockito.any(ReportOutputFormat.class))).thenReturn(dirtyRecord);
-        scheduleDAO = Mockito.mock(ScheduleDAO.class);
+        scheduleDAO = mock(ScheduleDAO.class);
 
-        observer = (StreamObserver<ReportInstanceId>)Mockito.mock(StreamObserver.class);
+        observer = (StreamObserver<ReportInstanceId>)mock(StreamObserver.class);
 
-        notificationSender = Mockito.mock(ReportNotificationSender.class);
+        notificationSender = mock(ReportNotificationSender.class);
         threadPool = Executors.newCachedThreadPool();
 
         final File outputDir = tmpFolder.newFolder();
-        final EntitiesDao entitiesDao = Mockito.mock(EntitiesDao.class);
-        Mockito.when(entitiesDao.getEntityName(Mockito.anyLong()))
+        final EntitiesDao entitiesDao = mock(EntitiesDao.class);
+        when(entitiesDao.getEntityName(Mockito.anyLong()))
                 .thenReturn(Optional.of("entity-name"));
+        reportsDataGenerator = mock(ReportsDataGenerator.class);
         reportsGenerator =
                 new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao, entitiesDao,
-                        outputDir, threadPool, notificationSender, Mockito.mock(MailManager.class));
+                        outputDir, threadPool, notificationSender, mock(MailManager.class), reportsDataGenerator);
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
-                        outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
+                        outputDir, reportsGenerator, mock(Scheduler.class));
+        when(reportsDataGenerator.generateByTemplateId(anyInt())).thenReturn(true);
     }
 
     @After
@@ -147,7 +154,7 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testNoTemplate() throws Exception {
-        Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
+        when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
                 Mockito.anyInt())).thenReturn(Optional.empty());
         reportingServer.generateReport(request, observer);
         Assert.assertThat(expectSyncFailure().getMessage(),
@@ -161,7 +168,7 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testDbErrorFromTemplate() throws Exception {
-        Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
+        when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
                 Mockito.anyInt())).thenThrow(new DbException(EXCEPTION_MESSAGE));
         reportingServer.generateReport(request, observer);
         Assert.assertThat(expectSyncFailure().getMessage(),
@@ -175,7 +182,7 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testDbErrorFromInstances() throws Exception {
-        Mockito.when(
+        when(
                 instancesDao.createInstanceRecord(Mockito.any(ReportType.class), Mockito.anyInt(),
                         Mockito.any())).thenThrow(new DbException(EXCEPTION_MESSAGE));
         reportingServer.generateReport(request, observer);
@@ -223,6 +230,13 @@ public class ReportingServiceReportGenerationTest {
         Mockito.verify(observer).onError(argument.capture());
         Assert.assertThat(argument.getValue().getStatus().getDescription(),
                         CoreMatchers.containsString(EMAIL_EXCEPTION_MESSAGE));
+    }
+
+    @Test
+    public void verifyReportDataGeneratorCalled() throws InterruptedException {
+        reportingServer.generateReport(request, observer);
+        threadPool.awaitTermination(10, TimeUnit.SECONDS);
+        verify(reportsDataGenerator).generateByTemplateId(anyInt());
     }
 
     /**

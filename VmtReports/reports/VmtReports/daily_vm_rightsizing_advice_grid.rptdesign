@@ -112,11 +112,11 @@
       ,AVG(vcpu) AS avg_max_vcpu
       ,AVG(vmem) AS avg_max_vmem
   FROM (SELECT uuid
-              ,MAX(IF(property_type = 'VCPU', max_value, NULL)) AS vcpu
-              ,MAX(IF(property_type = 'VMem', max_value, NULL)) AS vmem
+              ,MAX(IF(property_type = 'VCPU', ROUND(max_value/capacity, 3), NULL)) AS vcpu
+              ,MAX(IF(property_type = 'VMem', ROUND(max_value/capacity, 3), NULL)) AS vmem
           FROM vm_stats_by_day
          WHERE property_type in ('VCPU', 'VMem')
-           AND property_subtype = 'utilization'
+           AND property_subtype = 'used'
            AND snapshot_time = SUBDATE(DATE(now()), 1)
          GROUP BY uuid
        ) vsd
@@ -362,27 +362,26 @@ GROUP BY 1]]></xml-property>
   min(snapshot_time) as data_since,
   currency_value
 from
-
 	(select 
-		snapshot_time,
-		uuid,
-		property_type,
-		property_subtype,
-		max(capacity) as capacity,
-		avg(avg_value) as avg_value,
-		max(max_value) as max_value, 
-		min(min_value) as min_value
-	from 
-		vm_stats_by_day
-	where 
-		property_subtype = 'utilization'
-		and property_type in ('VCPU','VMem')
-		and snapshot_time between 
-			date_sub(date(now()), interval ? day) and date_sub(date(now()), interval 1 day)
-	group by
-		uuid,
-		property_type,
-		property_subtype
+        snapshot_time,
+        uuid,
+        property_type,
+        REPLACE(property_subtype, "used", "utilization") as property_subtype,
+        max(capacity) as capacity,
+        avg(ROUND(avg_value/capacity, 3)) as avg_value,
+        max(ROUND(max_value/capacity, 3)) as max_value, 
+        min(ROUND(min_value/capacity, 3)) as min_value
+    from 
+        vm_stats_by_day
+    where 
+        property_subtype = 'used'
+        and property_type in ('VCPU','VMem')
+        and snapshot_time between 
+            date_sub(date(now()), interval ? day) and date_sub(date(now()), interval 1 day)
+    group by
+        uuid,
+        property_type,
+        property_subtype
 	) as util_data
 natural join    
 	(select 
@@ -879,7 +878,7 @@ BirtDateTime.year(BirtDateTime.addDay(BirtDateTime.today(),-1))
 </value-of>
 </h1></center>
 <p style="margin-top:8px 0;">Operations Manager generates resize actions via its market-based analysis of your environment. This analysis assigns a cost for resource utilization on a consumer, and revenue for resource utilization on a provider. For example, when resizing memory on a VM the action considers the cost of vMEM on the VM, and also the revenue the VM’s host sees by providing MEM to different VMs. Operations Manager recommends resize actions so that VMs get resources at the best possible cost.</p> 
-<p style="margin-top:8px 0;"> This report shows the resize actions that were active when the report was run (by default reports start running at 01:00 on your system clock)</p>
+<p style="margin-top:8px 0;"> This report shows the resize actions that were active when the report was run.</p>
 ]]></text-property>
         </text>
         <label id="1539">

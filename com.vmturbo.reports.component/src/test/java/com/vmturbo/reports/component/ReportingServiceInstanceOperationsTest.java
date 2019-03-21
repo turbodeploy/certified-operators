@@ -1,5 +1,7 @@
 package com.vmturbo.reports.component;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.File;
 import java.sql.Timestamp;
 import java.util.Arrays;
@@ -30,6 +32,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
+import com.vmturbo.reports.component.data.ReportsDataGenerator;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
@@ -67,7 +70,7 @@ public class ReportingServiceInstanceOperationsTest {
                 .setId(ReportTemplateId.newBuilder().setId(100).setReportType(1))
                 .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
                 .build();
-        final TemplateWrapper wrapper = Mockito.mock(TemplateWrapper.class);
+        final TemplateWrapper wrapper = mock(TemplateWrapper.class);
         Mockito.when(wrapper.toProtobuf()).thenReturn(reportTemplate);
         Mockito.when(wrapper.getTemplateFile()).thenReturn("hogwarts-faculties");
 
@@ -85,27 +88,27 @@ public class ReportingServiceInstanceOperationsTest {
         reportInstance2.setTemplateId(TEMPLATE_1);
         reportInstance2.setReportType(ReportType.BIRT_STANDARD);
 
-        final TemplatesOrganizer templatesOrganizer = Mockito.mock(TemplatesOrganizer.class);
+        final TemplatesOrganizer templatesOrganizer = mock(TemplatesOrganizer.class);
         Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
                 Mockito.anyInt())).thenReturn(Optional.of(wrapper));
-        final ComponentReportRunner reportRunner = Mockito.mock(ComponentReportRunner.class);
-        instancesDao = Mockito.mock(ReportInstanceDao.class);
-        final ScheduleDAO scheduleDAO = Mockito.mock(ScheduleDAO.class);
-        observer = (StreamObserver<Reporting.ReportInstance>)Mockito.mock(StreamObserver.class);
+        final ComponentReportRunner reportRunner = mock(ComponentReportRunner.class);
+        instancesDao = mock(ReportInstanceDao.class);
+        final ScheduleDAO scheduleDAO = mock(ScheduleDAO.class);
+        observer = (StreamObserver<Reporting.ReportInstance>)mock(StreamObserver.class);
 
         final ReportNotificationSender notificationSender =
-                Mockito.mock(ReportNotificationSender.class);
+                mock(ReportNotificationSender.class);
         threadPool = Executors.newCachedThreadPool();
 
         final File outputDir = tmpFolder.newFolder();
-        final EntitiesDao entitiesDao = Mockito.mock(EntitiesDao.class);
+        final EntitiesDao entitiesDao = mock(EntitiesDao.class);
         Mockito.when(entitiesDao.getEntityName(Mockito.anyLong()))
                 .thenReturn(Optional.of("entity-name"));
         reportsGenerator =
                 new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao, entitiesDao,
-                        outputDir, threadPool, notificationSender, Mockito.mock(MailManager.class));
+                        outputDir, threadPool, notificationSender, mock(MailManager.class), mock(ReportsDataGenerator.class));
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
-                        outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
+                        outputDir, reportsGenerator, mock(Scheduler.class));
         instanceCaptor = ArgumentCaptor.forClass(Reporting.ReportInstance.class);
         exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
     }

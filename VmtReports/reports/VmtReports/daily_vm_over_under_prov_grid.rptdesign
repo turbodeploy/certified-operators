@@ -391,15 +391,15 @@ from
     min(snapshot_time) as snapshot_time,
     property_type,
     property_subtype,
-    max(avg_value) as avg_value,
-    max(max_value) as max_value,
+    max(ROUND(avg_value/capacity, 3)) as avg_value,
+    max(ROUND(max_value/capacity, 3)) as max_value,
     max(capacity)  as capacity,
-    min(min_value) as min_value
+    min(ROUND(min_value/capacity, 3)) as min_value
   from 
     vm_stats_by_day
   where
     property_type in ('VCPU','VMem','StorageAmount')
-    and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')
+    and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
     and snapshot_time >= date_sub(date(now()), interval 91 day)
   group by
     uuid, property_type, property_subtype 
@@ -1020,15 +1020,15 @@ from
     min(snapshot_time) as snapshot_time,
     property_type,
     property_subtype,
-    max(avg_value) as avg_value,
-    max(max_value) as max_value,
+    max(ROUND(avg_value/capacity, 3)) as avg_value,
+    max(ROUND(max_value/capacity, 3)) as max_value,
     max(capacity)  as capacity,
-    min(min_value) as min_value
+    min(ROUND(min_value/capacity, 3)) as min_value
   from 
     vm_stats_by_day
   where
     property_type in ('VCPU','VMem','StorageAmount')
-    and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')
+    and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
     and snapshot_time >= date_sub(date(now()), interval 90 day)
   group by
     uuid, property_type, property_subtype 
@@ -1330,15 +1330,15 @@ from
     min(snapshot_time) as snapshot_time,
     property_type,
     property_subtype,
-    max(avg_value) as avg_value,
-    max(max_value) as max_value,
+    max(ROUND(avg_value/capacity, 3)) as avg_value,
+    max(ROUND(max_value/capacity, 3)) as max_value,
     max(capacity)  as capacity,
-    min(min_value) as min_value
+    min(ROUND(min_value/capacity, 3)) as min_value
   from 
     vm_stats_by_day
   where
     property_type in ('VCPU','VMem')
-    and property_subtype = 'utilization'
+    and property_subtype = 'used'
     and snapshot_time >= date_sub(date(now()), interval 90 day)
   group by
     uuid, property_type 
@@ -1670,15 +1670,15 @@ from
     min(snapshot_time) as snapshot_time,
     property_type,
     property_subtype,
-    max(avg_value) as avg_value,
-    max(max_value) as max_value,
+    max(ROUND(avg_value/capacity, 3)) as avg_value,
+    max(ROUND(max_value/capacity, 3)) as max_value,
     max(capacity)  as capacity,
-    min(min_value) as min_value
+    min(ROUND(min_value/capacity, 3)) as min_value
   from 
     vm_stats_by_day
   where
     property_type in ('VCPU','VMem','StorageAmount')
-    and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')
+    and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
     and snapshot_time >= date_sub(date(now()), interval 91 day)
   group by
     uuid, property_type, property_subtype 
@@ -2005,15 +2005,15 @@ from
     min(snapshot_time) as snapshot_time,
     property_type,
     property_subtype,
-    max(avg_value) as avg_value,
-    max(max_value) as max_value,
+    max(ROUND(avg_value/capacity, 3)) as avg_value,
+    max(ROUND(max_value/capacity, 3)) as max_value,
     max(capacity)  as capacity,
-    min(min_value) as min_value
+    min(ROUND(min_value/capacity, 3)) as min_value
   from 
     vm_stats_by_day
   where
     property_type in ('VCPU','VMem','StorageAmount')
-    and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')
+    and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
     and snapshot_time >= date_sub(date(now()), interval 90 day)
   group by
     uuid, property_type, property_subtype 
@@ -2327,15 +2327,15 @@ order by
             </list-property>
             <xml-property name="queryText"><![CDATA[select 
 	replace(group_name,'/','/ ') as group_name,
-	avg(if(property_type = 'VCPU',max_value,0))*2 as avg_max_vcpu,
-	avg(if(property_type = 'VMem',max_value,0))*2 as avg_max_vmem
+	avg(if(property_type = 'VCPU',ROUND(max_value/capacity, 3),0))*2 as avg_max_vcpu,
+	avg(if(property_type = 'VMem',ROUND(max_value/capacity, 3),0))*2 as avg_max_vmem
 from 
 	vm_group_members, 
 	(select * from vm_stats_by_day
 		where
 			snapshot_time = date_sub(date(now()), interval 1 day)
 			and property_type in ('VCPU','VMem')
-			and property_subtype = 'utilization'
+			and property_subtype = 'used'
     ) as vm_stats_by_day
 where
     convert(member_uuid using utf8) = convert(uuid using utf8)

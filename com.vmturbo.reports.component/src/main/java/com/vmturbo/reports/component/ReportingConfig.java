@@ -2,14 +2,13 @@ package com.vmturbo.reports.component;
 
 import java.io.File;
 import java.time.Clock;
+import java.util.Map;
 import java.util.Timer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.eclipse.birt.core.exception.BirtException;
 import org.springframework.beans.factory.BeanCreationException;
@@ -19,6 +18,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -29,6 +38,18 @@ import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.ReportingREST.ReportingServiceController;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
+import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
+import com.vmturbo.reports.component.data.ReportDBDataWriter;
+import com.vmturbo.reports.component.data.ReportTemplate;
+import com.vmturbo.reports.component.data.ReportsDataContext;
+import com.vmturbo.reports.component.data.ReportsDataGenerator;
+import com.vmturbo.reports.component.data.pm.Daily_cluster_30_days_avg_stats_vs_thresholds_grid;
+import com.vmturbo.reports.component.data.pm.Monthly_cluster_summary;
+import com.vmturbo.reports.component.data.pm.Monthly_summary;
+import com.vmturbo.reports.component.data.pm.PM_group_monthly_individual_cluster_summary;
+import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid;
+import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid_30_days;
+import com.vmturbo.reports.component.data.vm.Daily_vm_rightsizing_advice_grid;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.entities.EntitiesDaoImpl;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
@@ -41,12 +62,14 @@ import com.vmturbo.reports.component.templates.OnDemandTemplatesDao;
 import com.vmturbo.reports.component.templates.StandardTemplatesDaoImpl;
 import com.vmturbo.reports.component.templates.TemplatesDao;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 /**
  * Spring beans configuration for running reporting.
  */
 @Configuration
-@Import({ReportingDbConfig.class, BaseKafkaProducerConfig.class, GroupClientConfig.class})
+@Import({ReportingDbConfig.class, BaseKafkaProducerConfig.class, GroupClientConfig.class,
+    RepositoryClientConfig.class, ActionOrchestratorClientConfig.class})
 public class ReportingConfig {
 
     @Autowired
@@ -58,11 +81,20 @@ public class ReportingConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private  ActionOrchestratorClientConfig actionOrchestratorClientConfig;
+
     @Value("${report.files.output.dir}")
     private File reportOutputDir;
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
 
     /**
      * Time when scheduled reports should be generated.
@@ -101,7 +133,7 @@ public class ReportingConfig {
     public ReportsGenerator reportsGenerator() {
         return new ReportsGenerator(componentReportRunner(), templatesOrganizer(),
                 reportInstanceDao(), entitiesDao(), reportOutputDir, threadPool(),
-                notificationSender(), mailManager());
+                notificationSender(), mailManager(), reportsDataGenerator());
     }
 
     @Bean
@@ -157,7 +189,53 @@ public class ReportingConfig {
     }
 
     @Bean
+    public GroupServiceBlockingStub groupRpcService() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
     public ReportingServiceController reportingServiceController() {
         return new ReportingServiceController(reportingService());
+    }
+
+    @Bean
+    public ReportDBDataWriter reportDataWriter() {
+        return new ReportDBDataWriter(dbConfig.dsl());
+    }
+
+    @Bean
+    public Channel repositoryChannel() {
+        return repositoryClientConfig.repositoryChannel();
+    }
+
+    @Bean
+    public ActionsServiceBlockingStub actionsRpcService() {
+        return ActionsServiceGrpc.newBlockingStub(actionOrchestratorClientConfig.actionOrchestratorChannel());
+    }
+
+    @Bean
+    public ReportsDataGenerator reportsDataGenerator() {
+        return new ReportsDataGenerator(new ReportsDataContext(groupRpcService(),
+            reportDataWriter(), repositoryChannel(), actionsRpcService(), realtimeTopologyContextId)
+            , getReportMap());
+    }
+
+    private Map<Integer, ReportTemplate> getReportMap() {
+        final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
+        return ImmutableMap.<Integer, ReportTemplate>builder().
+            // VM related reports
+                put(150, new Daily_vm_rightsizing_advice_grid(delegate)).
+                put(184, new Daily_vm_over_under_prov_grid_30_days(delegate)).
+                put(148, new Daily_vm_over_under_prov_grid(delegate)).
+
+            // PM related reports
+                put(146, new Monthly_cluster_summary(delegate)).
+
+                put(147, new Monthly_summary(delegate)).
+                put(14, new PM_group_monthly_individual_cluster_summary(delegate)).
+
+            // both VM and PM
+                put(170, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate))
+            .build();
     }
 }

@@ -385,20 +385,20 @@
 from   
 	(select ifnull((select value from entity_attrs where name = 'utilLowerBound_VCPU'),10.0)/100 as vcpu_lower) as threshold1,   
 	(select ifnull((select value from entity_attrs where name = 'utilLowerBound_VMEM'),10.0)/100 as vmem_lower) as threshold2,   
-	(select     
-			uuid,     
-			min(snapshot_time) as snapshot_time,     
-			property_type,     
-			property_subtype,     
-			max(avg_value) as avg_value,     
-			max(max_value) as max_value,     
-			max(capacity)  as capacity,     
-			min(min_value) as min_value   
+	(select
+			uuid,
+			min(snapshot_time) as snapshot_time,
+			property_type,
+			property_subtype,
+			max(ROUND(avg_value/capacity, 3)) as avg_value,
+			max(ROUND(max_value/capacity, 3)) as max_value,
+			max(capacity)  as capacity,
+			min(ROUND(min_value/capacity, 3)) as min_value
 		from      
 			vm_stats_by_day   
 		where     
 			property_type in ('VCPU','VMem','StorageAmount')     
-			and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')     
+			and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
 			and snapshot_time >= date_sub(date(now()), interval 31 day)   
 		group by     
 			uuid, 
@@ -1009,15 +1009,15 @@ from
 		min(snapshot_time) as snapshot_time,     
 		property_type,     
 		property_subtype,     
-		max(avg_value) as avg_value,     
-		max(max_value) as max_value,     
+		max(ROUND(avg_value/capacity, 3)) as avg_value,
+		max(ROUND(max_value/capacity, 3)) as max_value,
 		max(capacity)  as capacity,     
-		min(min_value) as min_value   
+		min(ROUND(min_value/capacity, 3)) as min_value
 	from      
 		vm_stats_by_day   
 	where     
 		property_type in ('VCPU','VMem','StorageAmount')     
-		and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')     
+		and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
 		and snapshot_time >= date_sub(date(now()), interval 30 day)   
 	group by     
 		uuid, 
@@ -1321,15 +1321,15 @@ from
     min(snapshot_time) as snapshot_time,
     property_type,
     property_subtype,
-    max(avg_value) as avg_value,
-    max(max_value) as max_value,
+    max(ROUND(avg_value/capacity, 3)) as avg_value,
+    max(ROUND(max_value/capacity, 3)) as max_value,
     max(capacity)  as capacity,
-    min(min_value) as min_value
+    min(ROUND(min_value/capacity, 3)) as min_value
   from 
     vm_stats_by_day
   where
     property_type in ('VCPU','VMem')
-    and property_subtype = 'utilization'
+    and property_subtype = 'used'
     and snapshot_time >= date_sub(date(now()), interval 30 day)
   group by
     uuid, property_type 
@@ -1649,15 +1649,15 @@ from
 	min(snapshot_time) as snapshot_time,     
 	property_type,     
 	property_subtype,     
-	max(avg_value) as avg_value,     
-	max(max_value) as max_value,     
+	max(ROUND(avg_value/capacity, 3)) as avg_value,
+	max(ROUND(max_value/capacity, 3)) as max_value,
 	max(capacity)  as capacity,     
-	min(min_value) as min_value   
+	min(ROUND(min_value/capacity, 3)) as min_value
 	from      
 		vm_stats_by_day   
 	where     
 		property_type in ('VCPU','VMem','StorageAmount')     
-		and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')     
+		and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
 		and snapshot_time >= date_sub(date(now()), interval 31 day)   
 	group by     
 		uuid, property_type, property_subtype    
@@ -1965,15 +1965,15 @@ from
 		min(snapshot_time) as snapshot_time,     
 		property_type,     
 		property_subtype,     
-		max(avg_value) as avg_value,     
-		max(max_value) as max_value,     
+		max(ROUND(avg_value/capacity, 3)) as avg_value,
+		max(ROUND(max_value/capacity, 3)) as max_value,
 		max(capacity)  as capacity,     
-		min(min_value) as min_value   
+		min(ROUND(min_value/capacity, 3)) as min_value
 	from      
 		vm_stats_by_day   
 	where     
 		property_type in ('VCPU','VMem','StorageAmount')     
-		and property_subtype in ('utilization', 'thinProvisioned', 'thinUsed')     
+		and property_subtype in ('used', 'thinProvisioned', 'thinUsed')
 		and snapshot_time >= date_sub(date(now()), interval 30 day)   
 	group by     
 		uuid, 
@@ -2286,24 +2286,24 @@ order by
                     <property name="nativeDataType">12</property>
                 </structure>
             </list-property>
-            <xml-property name="queryText"><![CDATA[select  	
-replace(group_name,'/','/ ') as group_name, 	
-avg(if(property_type = 'VCPU',max_value,0))*2 as avg_max_vcpu, 	
-avg(if(property_type = 'VMem',max_value,0))*2 as avg_max_vmem 
-from  	
-vm_group_members,  	
-(select * 
-from 
-	vm_stats_by_day 		
-where 			
-	snapshot_time = date_sub(date(now()), interval 1 day) 			
-	and property_type in ('VCPU','VMem') 			
-	and property_subtype = 'utilization'     
-) as vm_stats_by_day 
-where     
-	convert(member_uuid using utf8) = convert(uuid using utf8) 
-group by     
-	group_name ]]></xml-property>
+            <xml-property name="queryText"><![CDATA[select
+             replace(group_name,'/','/ ') as group_name,
+             avg(if(property_type = 'VCPU',ROUND(max_value/capacity, 3),0))*2 as avg_max_vcpu,
+             avg(if(property_type = 'VMem',ROUND(max_value/capacity, 3),0))*2 as avg_max_vmem
+             from
+             vm_group_members,
+             (select *
+             from
+             	vm_stats_by_day
+             where
+             	snapshot_time = date_sub(date(now()), interval 1 day)
+             	and property_type in ('VCPU','VMem')
+             	and property_subtype = 'used'
+             ) as vm_stats_by_day
+             where
+             	convert(member_uuid using utf8) = convert(uuid using utf8)
+             group by
+             	group_name ]]></xml-property>
         </oda-data-set>
         <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="thresholds" id="2219">
             <list-property name="columnHints">
