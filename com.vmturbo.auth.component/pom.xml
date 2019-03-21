@@ -41,6 +41,7 @@
                             <locations>
                                 <location>com.vmturbo.auth</location>
                                 <location>com.vmturbo.components.common</location>
+                                <location>com.vmturbo.common.protobuf.logging</location>
                             </locations>
                         </apiSource>
                     </apiSources>

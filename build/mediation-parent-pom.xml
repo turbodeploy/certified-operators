@@ -144,6 +144,7 @@
                     <apiSources>
                         <apiSource>
                             <locations>
+                                <location>com.vmturbo.common.protobuf.logging</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>
                         </apiSource>

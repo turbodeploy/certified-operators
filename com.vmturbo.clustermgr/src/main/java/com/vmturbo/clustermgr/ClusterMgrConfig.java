@@ -29,6 +29,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import com.vmturbo.clustermgr.aggregator.DataAggregator;
 import com.vmturbo.clustermgr.collectors.DataMetricLogs;
 import com.vmturbo.clustermgr.transfer.DataTransfer;
+import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
+import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 
 /**
@@ -125,6 +127,17 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     public ClusterMgrService clusterMgrService() {
         final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService());
         return clusterMgrService;
+    }
+
+
+    @Bean
+    public LogConfigurationService logConfigurationService() {
+        return new LogConfigurationService();
+    }
+
+    @Bean
+    public LogConfigurationServiceController logConfigurationServiceController() {
+        return new LogConfigurationServiceController(logConfigurationService());
     }
 
     @Bean

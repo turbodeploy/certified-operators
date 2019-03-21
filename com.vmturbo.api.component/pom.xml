@@ -50,6 +50,7 @@
                                     <locations>
                                         <location>com.vmturbo.api</location>
                                         <location>com.vmturbo.api.xlcontroller</location>
+                                        <location>com.vmturbo.common.protobuf.logging</location>
                                     </locations>
                                     <info>
                                         <title>${external.swagger.name}</title>

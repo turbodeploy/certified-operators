@@ -30,6 +30,7 @@
                         <apiSource>
                             <locations>
                                 <location>com.vmturbo.history</location>
+                                <location>com.vmturbo.common.protobuf.logging</location>
                                 <location>com.vmturbo.common.protobuf.stats</location>
                                 <location>com.vmturbo.history.component.api</location>
                                 <location>com.vmturbo.components.common</location>

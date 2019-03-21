@@ -36,6 +36,7 @@
                             <locations>
                                 <location>com.vmturbo.action</location>
                                 <location>com.vmturbo.common.protobuf.action</location>
+                                <location>com.vmturbo.common.protobuf.logging</location>
                                 <location>com.vmturbo.common.protobuf.workflow</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>

@@ -53,11 +53,14 @@ import io.prometheus.client.hotspot.DefaultExports;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.common.protobuf.logging.LogConfigurationServiceGrpc;
+import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
+import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
@@ -420,6 +423,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                     .permitKeepAliveWithoutCalls(true)
                     .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
                     .maxMessageSize(grpcMaxMessageBytes);
+            // add a log level configuration service that will be available if the
+            // component decides to build a grpc server. (if not, the REST endpoint for it will
+            // still be available).
+            serverBuilder.addService(new LogConfigurationService());
+
             final Optional<Server> builtServer = buildGrpcServer(serverBuilder);
             if (builtServer.isPresent()) {
                 grpcServer = builtServer.get();

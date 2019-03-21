@@ -11,8 +11,10 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistra
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
+import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.migration.MigrationController;
@@ -108,6 +110,16 @@ public class BaseVmtComponentConfig {
     @Bean
     public MigrationController migrationController() {
         return new MigrationController(migrationFramework());
+    }
+
+    @Bean
+    public LogConfigurationService logConfigurationService() {
+        return new LogConfigurationService();
+    }
+
+    @Bean
+    public LogConfigurationServiceController logConfigurationServiceController() {
+        return new LogConfigurationServiceController(logConfigurationService());
     }
 
     /**

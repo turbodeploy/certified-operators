@@ -1,0 +1,41 @@
+syntax = "proto2";
+
+package logging;
+
+option java_package = "com.vmturbo.common.protobuf.logging";
+
+enum LogLevel {
+    UNKNOWN = 0;
+    TRACE = 1;
+    DEBUG = 2;
+    INFO = 3;
+    WARN = 4;
+    ERROR = 5;
+    FATAL = 6;
+}
+
+// A log level setting for a single package expression
+message LogLevelConfig {
+//    optional string package_name = 1 [default = "com.vmturbo"];
+//    optional LogLevel log_level = 2 [default = INFO];
+}
+
+message GetLogLevelsRequest {}
+
+message GetLogLevelsResponse {
+    map<string, LogLevel> log_levels = 1;
+}
+
+message SetLogLevelsRequest {
+    map<string, LogLevel> log_levels = 1;
+}
+
+message SetLogLevelsResponse {
+//    repeated LogLevelConfig set_log_level_configs = 1;
+//    repeated LogLevelConfig rejected_log_level_configs = 2;
+};
+
+service LogConfigurationService {
+    rpc GetLogLevels (GetLogLevelsRequest) returns (GetLogLevelsResponse);
+    rpc SetLogLevels (SetLogLevelsRequest) returns (SetLogLevelsResponse);
+}

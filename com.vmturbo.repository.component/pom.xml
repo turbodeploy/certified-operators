@@ -61,6 +61,7 @@
                         <apiSource>
                             <locations>
                                 <location>com.vmturbo.repository</location>
+                                <location>com.vmturbo.common.protobuf.logging</location>
                                 <location>com.vmturbo.common.protobuf.repository</location>
                                 <location>com.vmturbo.common.protobuf.search</location>
                                 <location>com.vmturbo.components.common</location>
