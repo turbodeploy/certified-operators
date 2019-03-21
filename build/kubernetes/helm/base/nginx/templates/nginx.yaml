@@ -3,25 +3,11 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     zone: public
-    io.kompose.service: nginx-data
-  name: {{ .Chart.Name }}-data
+    io.kompose.service: nginx-home
+  name: {{ .Chart.Name }}-home
 spec:
   accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    zone: public
-    io.kompose.service: nginx-run
-  name: {{ .Chart.Name }}-run
-spec:
-  accessModes:
-  - ReadWriteOnce
+    - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
@@ -33,20 +19,6 @@ metadata:
     zone: public
     io.kompose.service: nginx-certs
   name: {{ .Chart.Name }}-certs
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    zone: public
-    io.kompose.service: nginx-load-status
-  name: {{ .Chart.Name }}-load-status
 spec:
   accessModes:
   - ReadWriteOnce
@@ -104,6 +76,8 @@ spec:
             drop:
             - ALL
         volumeMounts:
+        - mountPath: /home/nginx
+          name: nginx-home
         - mountPath: /etc/nginx/certs
           name: nginx-certs
         - mountPath: /var/www/load-status
@@ -124,18 +98,18 @@ spec:
       securityContext:
         fsGroup: 2000
       volumes:
+      - name: nginx-home
+        persistentVolumeClaim:
+          claimName: nginx-home
       - name: nginx-certs
         persistentVolumeClaim:
           claimName: nginx-certs
       - name: nginx-load-status
-        persistentVolumeClaim:
-          claimName: nginx-load-status
+        emptyDir: {}
       - name: nginx-data
-        persistentVolumeClaim:
-          claimName: nginx-data
+        emptyDir: {}
       - name: nginx-run
-        persistentVolumeClaim:
-          claimName: nginx-run
+        emptyDir: {}
       - name: nginx-tmpfs0
         emptyDir: {}
 ---

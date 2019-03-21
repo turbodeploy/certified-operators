@@ -69,6 +69,8 @@ spec:
           name: mysql-log
         - mountPath: /var/lib/mysql/tmp
           name: mysql-tmp
+        - mountPath: /var/run/mysql
+          name: mysql-run
         - mountPath: /tmp
           name: db-tmpfs0
 {{- if .Values.global }}
@@ -88,6 +90,8 @@ spec:
         persistentVolumeClaim:
           claimName: mysql-log
       - name: mysql-tmp
+        emptyDir: {}
+      - name: mysql-run
         emptyDir: {}
       - name: db-tmpfs0
         emptyDir: {}
