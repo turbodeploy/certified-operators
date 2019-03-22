@@ -659,6 +659,11 @@ public class ActionSpecMapper {
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
             wrapperDto.setCurrentEntity(
                 ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primarySourceId)));
+        } else {
+            // For less brittle UI integration, we set the current entity to an empty object.
+            // The UI sometimes checks the validity of the "currentEntity.uuid" field,
+            // which throws an error if current entity is unset.
+            wrapperDto.setCurrentEntity(new ServiceEntityApiDTO());
         }
         long primaryDestinationId = primaryChange.getDestination().getId();
         wrapperDto.setNewValue(Long.toString(primaryDestinationId));
