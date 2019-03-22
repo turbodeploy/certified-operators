@@ -12,7 +12,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 
 /**
  * Unit tests for {@link RatioRecordFactory}.
@@ -25,7 +25,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testVmsPerHost() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_VMS_PER_HOST,
             ImmutableMap.of(StringConstants.VIRTUAL_MACHINE, 10,
                 StringConstants.PHYSICAL_MACHINE, 2));
@@ -38,7 +38,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testVmsPerHostMissingHostCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_VMS_PER_HOST,
             // No PM count in the map.
             ImmutableMap.of(StringConstants.VIRTUAL_MACHINE, 10));
@@ -51,7 +51,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testVmsPerHostMissingVmCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_VMS_PER_HOST,
             // No VM count in the map.
             ImmutableMap.of(StringConstants.PHYSICAL_MACHINE, 2));
@@ -65,7 +65,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testVmsPerStorage() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_VMS_PER_STORAGE,
             ImmutableMap.of(StringConstants.VIRTUAL_MACHINE, 10,
                 StringConstants.STORAGE, 2));
@@ -78,7 +78,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testVmsPerStorageMissingStorageCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_VMS_PER_STORAGE,
             // No PM count in the map.
             ImmutableMap.of(StringConstants.VIRTUAL_MACHINE, 10));
@@ -91,7 +91,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testVmsPerStorageMissingVmCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_VMS_PER_STORAGE,
             // No VM count in the map.
             ImmutableMap.of(StringConstants.STORAGE, 2));
@@ -104,7 +104,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testContainersPerHost() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_CNT_PER_HOST,
             ImmutableMap.of(StringConstants.CONTAINER, 10,
                 StringConstants.PHYSICAL_MACHINE, 2));
@@ -117,7 +117,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testContainersPerHostMissingHostCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_CNT_PER_HOST,
             // No PM count in the map.
             ImmutableMap.of(StringConstants.CONTAINER, 10));
@@ -130,7 +130,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testContainersPerHostMissingContainerCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_CNT_PER_HOST,
             // No VM count in the map.
             ImmutableMap.of(StringConstants.PHYSICAL_MACHINE, 2));
@@ -144,7 +144,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testContainersPerStorage() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_CNT_PER_STORAGE,
             ImmutableMap.of(StringConstants.CONTAINER, 10,
                 StringConstants.STORAGE, 2));
@@ -157,7 +157,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testContainersPerStorageMissingStorageCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_CNT_PER_STORAGE,
             // No PM count in the map.
             ImmutableMap.of(StringConstants.CONTAINER, 10));
@@ -170,7 +170,7 @@ public class RatioRecordFactoryTest {
 
     @Test
     public void testContainersPerStorageMissingContainerCount() {
-        final MarketStatsLatestRecord record = (MarketStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
+        final PmStatsLatestRecord record = (PmStatsLatestRecord)recordFactory.makeRatioRecord(TIMESTAMP,
             StringConstants.NUM_CNT_PER_STORAGE,
             // No VM count in the map.
             ImmutableMap.of(StringConstants.STORAGE, 2));

@@ -11,7 +11,7 @@ import org.jooq.Record;
 
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 
 /**
  * Factory/creator class for "ratio" records.
@@ -63,9 +63,11 @@ public class RatioRecordFactory {
                 throw new IllegalStateException("Illegal stat name: " + ratioPropName);
         }
 
-        // The specific type of record shouldn't matter, since all our various records have
-        // the same properties.
-        final MarketStatsLatestRecord countRecord = new MarketStatsLatestRecord();
+        // We use the "base" table record (instead of the Market table) so that the record
+        // has all the fields we expect to be set when processing a list of records.
+        // For example, we may try to get the "commodity key" of the record.
+        // The "MarketStatsLatestRecord" doesn't have a commodity key.
+        final PmStatsLatestRecord countRecord = new PmStatsLatestRecord();
         countRecord.setSnapshotTime(timestamp);
         countRecord.setPropertyType(ratioPropName);
         countRecord.setAvgValue(ratio);
