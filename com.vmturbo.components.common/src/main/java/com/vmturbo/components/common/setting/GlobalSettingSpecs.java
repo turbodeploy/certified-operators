@@ -124,7 +124,12 @@ public enum GlobalSettingSpecs {
 
     RICoverageOverride("riCoverageOverride", "RI Coverage Override",
             new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    DisableAllActions("disableAllActions", "Disable All Actions",
+            new BooleanSettingDataType(false),
             Collections.emptyList());
+
 
     /**
      * Setting name to setting enumeration value map for fast access.

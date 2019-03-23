@@ -19,6 +19,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
@@ -47,6 +49,7 @@ import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -61,10 +64,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
@@ -131,20 +133,16 @@ public class SettingsMapper {
             })
             .build();
 
-    /**
-     * (April 10 2017) In the UI, all settings - including global settings - are organized by
-     * entity type. This map contains the "global setting name" -> "entity type" mappings to use
-     * when formatting DTOs to return to the UI.
-     */
-    public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
-        ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.getValue())
-            .build();
+    public static final String GLOBAL_ACTION_SETTING_NAME = "Global Action Mode Defaults";
+
+    public static final int GLOBAL_ACTION_SETTING_NAME_ID = 55555;
 
     /**
      * A constant indicating that a {@link SettingSpec} has no associated setting manager.
      */
     private static final String NO_MANAGER = "";
+
+    private static final String SERVICE_ENTITY = "ServiceEntity";
 
     private final SettingsManagerMapping managerMapping;
 
@@ -159,6 +157,17 @@ public class SettingsMapper {
     private final SettingServiceBlockingStub settingService;
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
+
+    /**
+     * (April 10 2017) In the UI, all settings - including global settings - are organized by
+     * entity type. This map contains the "global setting name" -> "entity type" mappings to use
+     * when formatting DTOs to return to the UI.
+     */
+    public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
+        ImmutableMap.<String, String>builder()
+            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.getValue())
+            .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
+            .build();
 
     public SettingsMapper(@Nonnull final Channel groupComponentChannel,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
@@ -340,7 +349,6 @@ public class SettingsMapper {
         return convertInputPolicy(newPolicy,
                 getResponse.getSettingPolicy().getInfo().getEntityType());
     }
-
 
     /**
      * Convert a {@link SettingsPolicyApiDTO} received as input to create a setting policy into
@@ -524,8 +532,11 @@ public class SettingsMapper {
                             GroupProtoUtil.getGroupDisplayName(group)));
         }
 
+        Map<String, Setting> globalSettingNameToSettingMap = getRelevantGlobalSettings(settingPolicies);
+
         return settingPolicies.stream()
-            .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames))
+            .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames,
+                    globalSettingNameToSettingMap))
             .collect(Collectors.toList());
     }
 
@@ -610,10 +621,13 @@ public class SettingsMapper {
          *                   is required to set the display names of the groups (which the API needs).
          *                   Group IDs that are not found in the map will not be included in the
          *                   resulting {@link SettingsPolicyApiDTO}.
+         * @param globalSettingNameToSettingMap required global settings (like disableAllActions) that need to be
+         *                                      injected to shown in UI with entity settings.
          * @return The resulting {@link SettingsPolicyApiDTO}.
          */
         SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
-                                                  @Nonnull final Map<Long, String> groupNames);
+                                                  @Nonnull final Map<Long, String> groupNames,
+                                                  @Nonnull final Map<String, Setting> globalSettingNameToSettingMap);
     }
 
     /**
@@ -633,13 +647,17 @@ public class SettingsMapper {
 
         @Override
         public SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
-                                                         @Nonnull final Map<Long, String> groupNames) {
+                                                         @Nonnull final Map<Long, String> groupNames,
+                                                         @Nonnull final Map<String, Setting> globalSettingNameToSettingMap) {
             final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
             apiDto.setUuid(Long.toString(settingPolicy.getId()));
-
             final SettingPolicyInfo info = settingPolicy.getInfo();
             apiDto.setDisplayName(info.getName());
-            apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
+            // We need this check because some inject some fake setting policies without any entity
+            // type to show in UI (like Global Action Mode Defaults.)
+            if (info.hasEntityType()) {
+                apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
+            }
             apiDto.setDisabled(!info.getEnabled());
             apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
             apiDto.setReadOnly(settingPolicy.getSettingPolicyType().equals(Type.DISCOVERED));
@@ -681,19 +699,12 @@ public class SettingsMapper {
             // in the UI, it is displayed along with VM default policy. So fetch the global
             // setting and inject it here.
             if (isVmDefaultPolicy(settingPolicy)) {
-                String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
-                GetGlobalSettingResponse response = settingServiceClient.getGlobalSetting(
-                    GetSingleGlobalSettingRequest.newBuilder()
-                        .setSettingSpecName(rateOfResizeSettingName).build());
-                if (response.hasSetting()) {
-                    settingsByMgr.computeIfAbsent(
-                            managerMapping.getManagerUuid(rateOfResizeSettingName).orElse(NO_MANAGER),
-                            k -> new ArrayList<>())
-                        .add(response.getSetting());
-                } else {
-                    logger.error("No global setting {} found! This should not happen " +
-                            "outside of tests!", rateOfResizeSettingName);
-                }
+                injectGlobalSetting(GlobalSettingSpecs.RateOfResize, settingsByMgr,
+                                globalSettingNameToSettingMap);
+            } else if (isGlobalActionModePolicy(settingPolicy)) {
+                apiDto.setEntityType(SERVICE_ENTITY);
+                injectGlobalSetting(GlobalSettingSpecs.DisableAllActions, settingsByMgr,
+                                globalSettingNameToSettingMap);
             }
 
             final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
@@ -716,6 +727,27 @@ public class SettingsMapper {
                     .collect(Collectors.toList()));
 
             return apiDto;
+        }
+
+        /**
+         * Fetches the global setting for given setting spec and injects it in settings by Manager map.
+         * @param settingSpecs to be injected.
+         * @param settingsByMgr map of manager and associated settings.
+         */
+        private void injectGlobalSetting(GlobalSettingSpecs settingSpecs,
+                        Map<String, List<Setting>> settingsByMgr,
+                        final Map<String, Setting> globalSettingNameToSettingMap) {
+            Setting globalSetting = globalSettingNameToSettingMap.get(settingSpecs.getSettingName());
+            if (globalSetting != null) {
+                settingsByMgr.computeIfAbsent(
+                                mapper.getManagerMapping()
+                                    .getManagerUuid(settingSpecs.getSettingName()).orElse(NO_MANAGER),
+                                k -> new ArrayList<>())
+                            .add(globalSetting);
+           } else {
+                logger.error("No global setting {} found! This should not happen.",
+                                settingSpecs.getSettingName());
+           }
         }
 
         /**
@@ -966,6 +998,10 @@ public class SettingsMapper {
         return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
     }
 
+    private static boolean isGlobalActionModePolicy(SettingPolicy settingPolicy) {
+        return settingPolicy.getInfo().getName().equals(GLOBAL_ACTION_SETTING_NAME);
+    }
+
     private static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
         Optional<EntitySettingSpecs> entitySpec =
             EntitySettingSpecs.getSettingByName(settingSpecName);
@@ -1210,6 +1246,82 @@ public class SettingsMapper {
                     .setSettingValue(setting, dtoSkeleton));
         }
 
+    }
+
+    /**
+     * Update global action mode settings based on input setting policy received from UI.
+     * Sets to default value if setDefault is true. Currently only relevant for one global action
+     * mode setting GlobalSettingSpecs.DisableAllActions.
+     * @param setDefault if true then set default value.
+     * @param settingPolicy read value for setting and set this value.
+     * @throws OperationFailedException if we are not able to set value for the setting.
+     */
+    public void updateGlobalActionModeSetting(boolean setDefault, SettingsPolicyApiDTO settingPolicy)
+                    throws OperationFailedException {
+        SettingSpec disableAllActionsSetting = GlobalSettingSpecs.DisableAllActions.createSettingSpec();
+        final boolean valueToSet;
+        if (setDefault) {
+            valueToSet = disableAllActionsSetting.getBooleanSettingValueType().getDefault();
+        } else {
+            Optional<SettingApiDTO> disableAllActionsApiDTO =  settingPolicy.getSettingsManagers().stream()
+                .flatMap(manager -> manager.getSettings().stream())
+                .filter(setting -> setting.getUuid().equals(disableAllActionsSetting.getName()))
+                .findFirst();
+            if (disableAllActionsApiDTO.isPresent()) {
+                valueToSet = Boolean.valueOf(disableAllActionsApiDTO.get().getValue());
+            } else {
+                String errorMsg = disableAllActionsSetting.getName() +
+                    " : not found in Global Settings.";
+                throw new OperationFailedException(errorMsg);
+             }
+        }
+
+        settingService.updateGlobalSetting(
+            UpdateGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(disableAllActionsSetting.getName())
+                .setBooleanSettingValue(SettingDTOUtil.createBooleanSettingValue(valueToSet))
+                .build());
+    }
+
+    private Map<String, Setting> getRelevantGlobalSettings(List<SettingPolicy> settingPolicies) {
+        Set<String> globalSettingNames = settingPolicies.stream()
+                        .map(policy -> {
+                            if (isVmDefaultPolicy(policy)) {
+                                return GlobalSettingSpecs.RateOfResize.getSettingName();
+                            } else if (isGlobalActionModePolicy(policy)) {
+                                return GlobalSettingSpecs.DisableAllActions.getSettingName();
+                            } else {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+
+        Map<String, Setting> globalSettings = new HashMap<String, Setting>();
+
+        if (CollectionUtils.isEmpty(globalSettingNames)) {
+            return globalSettings;
+        }
+
+        try {
+            final GetMultipleGlobalSettingsRequest settingRequest =
+                            GetMultipleGlobalSettingsRequest.newBuilder()
+                                .addAllSettingSpecName(globalSettingNames)
+                                .build();
+            settingService.getMultipleGlobalSettings(settingRequest)
+                .forEachRemaining(setting -> {
+                    globalSettings.put(setting.getSettingSpecName(), setting);
+                });
+
+            if (globalSettings.size() != globalSettingNames.size()) {
+                logger.error("Failed to get requested global settings from group component."
+                                + " Requested {} but received {} .",
+                                globalSettingNames.size(), globalSettings.size());
+            }
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to get global settings from group component.");
+        }
+        return globalSettings;
     }
 }
 

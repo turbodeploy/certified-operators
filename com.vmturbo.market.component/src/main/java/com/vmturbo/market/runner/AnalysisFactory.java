@@ -14,13 +14,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -154,17 +155,24 @@ public interface AnalysisFactory {
 
             final Map<String, Setting> settingsMap = new HashMap<>();
 
-            // for now only interested in one global settings: RateOfResize
-            final GetSingleGlobalSettingRequest settingRequest =
-                    GetSingleGlobalSettingRequest.newBuilder()
-                            .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
-                            .build();
+            // for now only interested in RateOfResize and DisableAllActions global settings.
+            ImmutableList<String> inputSettings = ImmutableList.of(GlobalSettingSpecs.DisableAllActions.getSettingName(),
+                    GlobalSettingSpecs.RateOfResize.getSettingName());
+            final GetMultipleGlobalSettingsRequest settingRequest =
+                            GetMultipleGlobalSettingsRequest.newBuilder()
+                                .addAllSettingSpecName(inputSettings)
+                                .build();
 
             try {
-                final GetGlobalSettingResponse response =
-                        settingServiceClient.getGlobalSetting(settingRequest);
-                if (response.hasSetting()) {
-                    settingsMap.put(response.getSetting().getSettingSpecName(), response.getSetting());
+                settingServiceClient.getMultipleGlobalSettings(settingRequest)
+                    .forEachRemaining(setting -> {
+                        settingsMap.put(setting.getSettingSpecName(), setting);
+                    });
+
+                if (settingsMap.size() != inputSettings.size()) {
+                    logger.error("Failed to get requested global settings from group component."
+                                    + " Requested {} but received {} .",
+                                    inputSettings.size(), settingsMap.size());
                 }
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to get global settings from group component. Will run analysis " +

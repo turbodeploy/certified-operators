@@ -35,7 +35,8 @@
         "resizeVmemBelowMinThreshold",
         "resizeVmemUpInBetweenThresholds",
         "resizeVmemDownInBetweenThresholds",
-        "enforceNonDisruptive"
+        "enforceNonDisruptive",
+        "disableAllActions"
       ],
       // Automation settings are pretty specific in the API/UI,
       // and the design is not finalized. So we put them in

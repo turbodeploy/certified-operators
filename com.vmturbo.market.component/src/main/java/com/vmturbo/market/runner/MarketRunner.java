@@ -14,10 +14,14 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
@@ -103,6 +107,23 @@ public class MarketRunner {
                         .setMaxPlacementsOverride(maxPlacementsOverride)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark));
+
+            if (!analysis.getTopologyInfo().hasPlanInfo()) {
+                Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()
+                                .getGlobalSetting(GlobalSettingSpecs.DisableAllActions);
+                if (disbaleAllActionsSetting.isPresent()
+                        && disbaleAllActionsSetting.get().getBooleanSettingValue().getValue()) {
+                    logger.info("Disabling analysis execution because all actions are disabled from settings.");
+                    try {
+                        // Notify to clear current actions.
+                        serverApi.notifyActionsRecommended(getEmptyActionPlan(topologyInfo));
+                    } catch (CommunicationException | InterruptedException e) {
+                        logger.error("Could not send market notifications", e);
+                    }
+                    return analysis;
+                }
+            }
+
             analysisMap.put(topologyContextId, analysis);
         }
         if (logger.isTraceEnabled()) {
@@ -113,6 +134,16 @@ public class MarketRunner {
         analysis.queued();
         runnerThreadPool.execute(() -> runAnalysis(analysis));
         return analysis;
+    }
+
+    private ActionPlan getEmptyActionPlan(TopologyDTO.TopologyInfo topologyInfo) {
+        return ActionPlan.newBuilder()
+                    .setId(IdentityGenerator.next())
+                    .setTopologyId(topologyInfo.getTopologyId())
+                    .setTopologyContextId(topologyInfo.getTopologyContextId())
+                    .setAnalysisStartTimestamp(System.currentTimeMillis())
+                    .setAnalysisCompleteTimestamp(System.currentTimeMillis())
+                    .build();
     }
 
     /**

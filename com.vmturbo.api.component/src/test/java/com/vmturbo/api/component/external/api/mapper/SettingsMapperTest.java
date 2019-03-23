@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -868,7 +869,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(groupId, groupName));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(groupId, groupName), new HashMap<>());
         assertEquals("foo", retDto.getDisplayName());
         assertEquals("1", retDto.getUuid());
         assertFalse(retDto.getDisabled());
@@ -903,7 +904,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -927,7 +928,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -951,7 +952,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -976,7 +977,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1004,7 +1005,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1031,7 +1032,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1057,7 +1058,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1126,7 +1127,7 @@ public class SettingsMapperTest {
 
         final SettingPolicy policy = SettingPolicy.getDefaultInstance();
         final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
-        when(policyMapper.convertSettingPolicy(policy, Collections.emptyMap()))
+        when(policyMapper.convertSettingPolicy(policy, Collections.emptyMap(), new HashMap<>()))
                 .thenReturn(retDto);
         final List<SettingsPolicyApiDTO> result =
                 mapper.convertSettingPolicies(Collections.singletonList(policy));
@@ -1159,7 +1160,7 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
-        when(policyMapper.convertSettingPolicy(policy, ImmutableMap.of(groupId, groupName)))
+        when(policyMapper.convertSettingPolicy(policy, ImmutableMap.of(groupId, groupName), new HashMap<>()))
                 .thenReturn(retDto);
         when(groupBackend.getGroups(GetGroupsRequest.newBuilder().addId(groupId).build()))
             .thenReturn(Collections.singletonList(group));

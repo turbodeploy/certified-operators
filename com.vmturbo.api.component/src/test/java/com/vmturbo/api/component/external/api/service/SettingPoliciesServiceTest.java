@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import io.grpc.Status;
 
+import com.google.common.collect.ImmutableList;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -122,7 +123,8 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Collections.singletonList(DEFAULT_POLICY));
         // Map should be empty, since the policy is a default type.
-        when(settingsMapper.convertSettingPolicies(eq(Collections.singletonList(DEFAULT_POLICY))))
+        when(settingsMapper.convertSettingPolicies(eq(ImmutableList.of(DEFAULT_POLICY,
+                settingsPoliciesService.createSettingPolicyForGlobalActionMode()))))
             .thenReturn(Collections.singletonList(RET_SP_DTO));
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false, null);

@@ -18,6 +18,8 @@ import io.grpc.Channel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -95,7 +97,32 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                 }
             });
 
+        // Inject settings to make it visible in UI if :
+        // No entity type was provided and none of the settings
+        // have scope (Default settings have no scope).
+        if (acceptableEntityTypes.isEmpty() &&
+                settingPolicies.stream().noneMatch(setting -> setting.getInfo().hasScope())) {
+            settingPolicies.add(createSettingPolicyForGlobalActionMode());
+        }
+
         return settingsMapper.convertSettingPolicies(settingPolicies);
+    }
+
+    /**
+     * "Create Global Action mode" settings policy to make it visible in UI.
+     * Since it is a policy that does not have any entity associated with it we
+     * force its creation for UI visibility.
+     * @return setting policy to inject
+     */
+    @VisibleForTesting
+    SettingPolicy createSettingPolicyForGlobalActionMode() {
+       return SettingPolicy.newBuilder()
+            .setSettingPolicyType(Type.DEFAULT)
+            .setId(SettingsMapper.GLOBAL_ACTION_SETTING_NAME_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setName(SettingsMapper.GLOBAL_ACTION_SETTING_NAME)
+                .setEnabled(true))
+            .build();
     }
 
     @Override
@@ -142,6 +169,9 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                                                    boolean setDefault,
                                                    SettingsPolicyApiDTO settingPolicy)
             throws Exception {
+        if (uuid.equals(String.valueOf(SettingsMapper.GLOBAL_ACTION_SETTING_NAME_ID))) {
+            return editGlobalActionModeSetting(setDefault, settingPolicy);
+        }
         final long id = Long.valueOf(uuid);
         final SettingPolicy editedPolicy;
         try {
@@ -155,13 +185,13 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                 final SettingPolicyInfo policyInfo =
                         settingsMapper.convertEditedInputPolicy(id, settingPolicy);
 
-                final UpdateSettingPolicyResponse response = settingPolicyService.updateSettingPolicy(
-                        UpdateSettingPolicyRequest.newBuilder()
-                                .setId(id)
-                                .setNewInfo(policyInfo)
-                                .build());
-                editedPolicy = response.getSettingPolicy();
-            }
+                    final UpdateSettingPolicyResponse response = settingPolicyService.updateSettingPolicy(
+                                    UpdateSettingPolicyRequest.newBuilder()
+                                            .setId(id)
+                                            .setNewInfo(policyInfo)
+                                            .build());
+                    editedPolicy = response.getSettingPolicy();
+                }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.ALREADY_EXISTS)) {
                 throw new OperationFailedException(e.getStatus().getDescription());
@@ -175,6 +205,12 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         }
 
         return settingsMapper.convertSettingPolicy(editedPolicy);
+    }
+
+    private SettingsPolicyApiDTO editGlobalActionModeSetting(boolean setDefault, SettingsPolicyApiDTO settingPolicy)
+                    throws OperationFailedException {
+        settingsMapper.updateGlobalActionModeSetting(setDefault, settingPolicy);
+        return settingsMapper.convertSettingPolicy(createSettingPolicyForGlobalActionMode());
     }
 
     @Override
