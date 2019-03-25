@@ -37,36 +37,39 @@ public enum EntitySettingSpecs {
     Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
     /**
      * Resize action automation mode.
+     *
+     * For VM, lets say we generate an action to resize some other commodity of  a VM. then it will use this setting.
+     * Also, if we resize reservation attribute instead of capacity attribute, then it will use this.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
+                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
     /**
      * Resize action automation mode for vcpu resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
     ResizeVcpuAboveMaxThreshold("resizeVcpuAboveMaxThreshold", "VCPU Resize Above Max Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize action automation mode for vcpu resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuMinThreshold}.
      */
     ResizeVcpuBelowMinThreshold("resizeVcpuBelowMinThreshold", "VCPU Resize Below Min Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
     /**
      * Resize action automation mode for vcpu resize ups where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
     ResizeVcpuUpInBetweenThresholds("resizeVcpuUpInBetweenThresholds", "VCPU Resize Up In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
     /**
      * Resize action automation mode for vcpu resize downs where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
     ResizeVcpuDownInBetweenThresholds("resizeVcpuDownInBetweenThresholds", "VCPU Resize Down In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
@@ -87,25 +90,25 @@ public enum EntitySettingSpecs {
      * Resize action automation mode for vmem resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
      */
     ResizeVmemAboveMaxThreshold("resizeVmemAboveMaxThreshold", "VMEM Resize Above Max Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize action automation mode for vmem resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemMinThreshold}.
      */
     ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMEM Resize Below Min Threshold", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
     /**
      * Resize action automation mode for vmem resize ups where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
      */
     ResizeVmemUpInBetweenThresholds("resizeVmemUpInBetweenThresholds", "VMEM Resize Up In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
     /**
      * Resize action automation mode for vmem resize downs where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
      */
     ResizeVmemDownInBetweenThresholds("resizeVmemDownInBetweenThresholds", "VMEM Resize Down In Between Thresholds", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
 
     /**
      * The minimum number of vmem cores which is the threshold to decide automation mode.
@@ -128,14 +131,14 @@ public enum EntitySettingSpecs {
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
     /**
      * Provision action automation mode.
      */
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER), actionExecutionMode(), true),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER), actionExecutionModeSetToManual(), true),
     /**
      * Reconfigure action automation mode (not executable).
      */
@@ -147,12 +150,12 @@ public enum EntitySettingSpecs {
     Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionMode(), true),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
     /**
      * Storage Move action automation mode.
      */
     StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
     /**
      * CPU utilization threshold.
      */
@@ -639,8 +642,13 @@ public enum EntitySettingSpecs {
     }
 
     @Nonnull
-    private static SettingDataStructure<?> actionExecutionMode() {
+    private static SettingDataStructure<?> actionExecutionModeSetToManual() {
         return new EnumSettingDataType<>(ActionMode.MANUAL);
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> actionExecutionModeSetToRecommend() {
+        return new EnumSettingDataType<>(ActionMode.RECOMMEND);
     }
 
     @Nonnull
