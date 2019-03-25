@@ -177,8 +177,9 @@ public class ActionTest {
         assertThat(resizeAction.getMode(), is(ActionMode.MANUAL));
         assertThat(activateAction.getMode(), is(ActionMode.MANUAL));
         assertThat(deactivateAction.getMode(), is(ActionMode.MANUAL));
-        assertThat(storageMoveAction.getMode(), is(ActionMode.MANUAL));
         assertThat(reconfigureAction.getMode(), is(ActionMode.RECOMMEND));
+        //default is RECOMMEND for stMove
+        assertThat(storageMoveAction.getMode(), is(ActionMode.RECOMMEND));
     }
 
     @Test
