@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -33,10 +34,17 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
@@ -78,8 +86,9 @@ public class EntitiesServiceTest {
     // service under test
     private EntitiesService service;
 
-    // mocked topology processor service
+    // mocked services and mappers
     private final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+    private final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
 
     // data objects
     private TargetInfo targetInfo;
@@ -183,10 +192,10 @@ public class EntitiesServiceTest {
         service =
             new EntitiesService(
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                mock(ActionSpecMapper.class),
+                actionSpecMapper,
                 CONTEXT_ID,
                 mock(SupplyChainFetcherFactory.class),
-                mock(PaginationMapper.class),
+                new PaginationMapper(),
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(EntityAspectMapper.class),
@@ -301,53 +310,36 @@ public class EntitiesServiceTest {
     }
 
     /**
-     * When calls to topology processor fail, the rest of the data should be fetched successfully
-     * and the discovered-by field of the result should be null.
+     * When topology processor fails to return information about the target
+     * the whole process should fail.
      *
-     * @throws Exception should not happen.
+     * @throws Exception expected: target not found.
      */
-    @Test
+    @Test(expected = UnknownObjectException.class)
     public void testGetEntityByUuidMissingTarget() throws Exception {
         // error while fetching the target
         when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID)))
             .thenThrow(new TopologyProcessorException("boom"));
 
-        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
-            .addTopologyEntityDtos(ST)
-            .build()).when(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-                .addEntityOid(ST_ID)
-                .build());
-
-
-        // call service
+        // call service and fail
         final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(ST_ID), false);
+    }
 
-        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addEntityOid(ST_ID)
-            .build());
+    /**
+     * When topology processor fails to return information about the probe
+     * that discovers the target, the whole process should fail.
+     *
+     * @throws Exception expected: probe not found.
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testGetEntityByUuidMissingProbe() throws Exception {
+        // error while fetching the target
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID)))
+            .thenThrow(new TopologyProcessorException("boom"));
 
-        // For the purpose of this test we don't really care if the consumers/providers got set -
-        // we just make sure to check that the RPC calls got made.
-        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addSearchParameters(SearchMapper.neighbors(ST_ID, TraversalDirection.CONSUMES))
-            .build());
-        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addSearchParameters(SearchMapper.neighbors(ST_ID, TraversalDirection.PRODUCES))
-            .build());
-
-
-        // check basic information
-        Assert.assertEquals(Long.toString(ST_ID), result.getUuid());
-        Assert.assertEquals(ST_DISPLAY_NAME, result.getDisplayName());
-        Assert.assertEquals(
-            EntityType.STORAGE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
-        Assert.assertEquals(ST_STATE, UIEntityState.fromString(result.getState()).toEntityState());
-
-        // there should be no target information; not even an empty record
-        Assert.assertNull(result.getDiscoveredBy());
-
-        // check tags
-        Assert.assertEquals(0, result.getTags().size());
+        // call service and fail
+        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(ST_ID), false);
     }
 
     /**
@@ -453,4 +445,107 @@ public class EntitiesServiceTest {
         // check tags
         Assert.assertEquals(0, result.size());
     }
+
+    /**
+     * An action returned by {@link EntitiesService#getActionByEntityUuid(String, String)}
+     * will contain the discovery target information for all entities it refers to.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetActionByEntityUuid() throws Exception {
+        // add target and probe
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        // fake an action and its translation by the ActionSpecMapper
+        final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
+        final ActionOrchestratorAction dummyActionOrchestratorResponse =
+            ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build();
+        when(actionsService.getAction(any())).thenReturn(dummyActionOrchestratorResponse);
+        final ActionApiDTO actionApiDTO = new ActionApiDTO();
+        final ServiceEntityApiDTO targetEntity = new ServiceEntityApiDTO();
+        targetEntity.setUuid(Long.toString(VM_ID));
+        actionApiDTO.setTarget(targetEntity);
+        when(actionSpecMapper.mapActionSpecToActionApiDTO(
+                    Matchers.eq(dummyActionSpec), Matchers.eq(CONTEXT_ID)))
+            .thenReturn(actionApiDTO);
+        when(searchService.searchTopologyEntityDTOs(
+                Matchers.eq(SearchTopologyEntityDTOsRequest.newBuilder().addEntityOid(VM_ID).build())))
+            .thenReturn(
+                SearchTopologyEntityDTOsResponse.newBuilder()
+                    .addTopologyEntityDtos(VM)
+                    .build());
+
+        // call the service
+        final long dummy = 0L;
+        final ActionApiDTO result =
+            service.getActionByEntityUuid(Long.toString(VM_ID), Long.toString(dummy));
+
+        // check that the targets of the entities of the retrieved action are added correctly
+        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
+        Assert.assertEquals(
+            TARGET_ID, (long)Long.valueOf(result.getTarget().getDiscoveredBy().getUuid()));
+        Assert.assertEquals(
+            TARGET_DISPLAY_NAME, result.getTarget().getDiscoveredBy().getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
+        Assert.assertNull(result.getNewEntity());
+        Assert.assertNull(result.getCurrentEntity());
+    }
+
+    /**
+     * An action returned by {@link EntitiesService#getActionsByEntityUuid}
+     * will contain the discovery target information for all entities it refers to.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetActionsByEntityUuid() throws Exception {
+        // add target and probe
+        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
+        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+
+        // fake an action and its translation by the ActionSpecMapper
+        final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
+        final FilteredActionResponse dummyActionOrchestratorResponse =
+            FilteredActionResponse.newBuilder()
+                .addActions(ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build())
+                .build();
+        when(actionsService.getAllActions(any())).thenReturn(dummyActionOrchestratorResponse);
+        final ActionApiDTO actionApiDTO = new ActionApiDTO();
+        final ServiceEntityApiDTO targetEntity = new ServiceEntityApiDTO();
+        targetEntity.setUuid(Long.toString(VM_ID));
+        actionApiDTO.setTarget(targetEntity);
+        when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong()))
+            .thenReturn(Collections.singletonList(actionApiDTO));
+        final ActionApiInputDTO trivialQuery = new ActionApiInputDTO();
+        when(actionSpecMapper.createActionFilter(Matchers.eq(trivialQuery), any()))
+            .thenReturn(ActionQueryFilter.getDefaultInstance());
+        when(searchService.searchTopologyEntityDTOs(
+            Matchers.eq(SearchTopologyEntityDTOsRequest.newBuilder().addEntityOid(VM_ID).build())))
+            .thenReturn(
+                SearchTopologyEntityDTOsResponse.newBuilder()
+                    .addTopologyEntityDtos(VM)
+                    .build());
+
+        // call the service
+        final ActionPaginationRequest paginationRequest =
+            new ActionPaginationRequest(null, 1, false, null);
+        final ActionApiDTO result =
+            service
+                .getActionsByEntityUuid(Long.toString(VM_ID), trivialQuery, paginationRequest)
+                .getRawResults()
+                .get(0);
+
+        // check that the targets of the entities of the retrieved action are added correctly
+        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
+        Assert.assertEquals(
+                TARGET_ID, (long)Long.valueOf(result.getTarget().getDiscoveredBy().getUuid()));
+        Assert.assertEquals(
+                TARGET_DISPLAY_NAME, result.getTarget().getDiscoveredBy().getDisplayName());
+        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
+        Assert.assertNull(result.getNewEntity());
+        Assert.assertNull(result.getCurrentEntity());
+    }
+
 }

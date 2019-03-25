@@ -44,6 +44,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -71,11 +72,6 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -114,6 +110,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Service implementation of Groups functionality.
@@ -161,6 +158,8 @@ public class GroupsService implements IGroupsService {
 
     private final EntitySeverityServiceBlockingStub entitySeverityServiceStub;
 
+    private final TopologyProcessor topologyProcessor;
+
     private StatsService statsService = null;
 
     private final Logger logger = LogManager.getLogger();
@@ -178,7 +177,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceStub) {
+                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceStub,
+                  @Nonnull final TopologyProcessor topologyProcessor) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -193,6 +193,7 @@ public class GroupsService implements IGroupsService {
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.entitySeverityServiceStub = Objects.requireNonNull(entitySeverityServiceStub);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
     /**
@@ -279,14 +280,6 @@ public class GroupsService implements IGroupsService {
     /**
      * Return a list of {@link ActionApiDTO} object for Service Entities in the given group.
      *
-     * Fetch the ActionSpecs from the Action Orchestrator.
-     *
-     * NOTE: the time window is ignored. The Action Orchestrator has no history.
-     *
-     * NOTE: the type, state, and mode filter lists are ignored. This filtering would be easy to add.
-     *
-     * NOTE: the "getCleared" flag is ignored.
-     *
      * @param uuid ID of the Group for which ActionApiDTOs should be returned
      * @return a list of {@link ActionApiDTO} object reflecting the Actions stored in the ActionOrchestrator for
      * Service Entities in the given group id.
@@ -295,23 +288,17 @@ public class GroupsService implements IGroupsService {
     public ActionPaginationResponse getActionsByGroupUuid(String uuid,
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
-        final ActionQueryFilter filter =
-                        actionSpecMapper.createActionFilter(inputDto, getMemberIds(uuid));
-
-        // Note this is a blocking call.
-        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
-                FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setFilter(filter)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                        .build());
-        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-            response.getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), realtimeTopologyContextId);
-        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results));
+        return
+            SearchUtil.getActionsByEntityUuids(
+                actionOrchestratorRpc,
+                topologyProcessor,
+                searchServiceBlockingStub,
+                actionSpecMapper,
+                paginationMapper,
+                realtimeTopologyContextId,
+                getMemberIds(uuid),
+                inputDto,
+                paginationRequest);
     }
 
     @Override

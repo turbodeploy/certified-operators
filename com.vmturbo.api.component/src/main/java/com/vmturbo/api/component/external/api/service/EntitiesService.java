@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.nio.file.AccessDeniedException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +39,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.controller.GroupsController;
@@ -57,7 +57,6 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -65,12 +64,6 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -79,7 +72,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -91,13 +83,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
-import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TargetData;
-import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 public class EntitiesService implements IEntitiesService {
     // these two constants are used to create hateos links for getEntitiesByUuid only.
@@ -217,57 +204,16 @@ public class EntitiesService implements IEntitiesService {
     public ServiceEntityApiDTO getEntityByUuid(@Nonnull String uuid, boolean includeAspects)
             throws Exception {
         // get information about this entity from the repository
-        final long oid = Long.valueOf(Objects.requireNonNull(uuid));
-        final TopologyEntityDTO entityAsTopologyEntityDTO = getTopologyEntityDTO(oid);
+        final long oid = Long.valueOf(uuid);
+        final TopologyEntityDTO entityAsTopologyEntityDTO = SearchUtil.getTopologyEntityDTO(searchServiceRpc, oid);
         final ServiceEntityApiDTO result =
             ServiceEntityMapper.toServiceEntityApiDTO(
                 entityAsTopologyEntityDTO,
                 includeAspects ? entityAspectMapper : null);
 
         // fetch information about the discovering target
-        if (entityAsTopologyEntityDTO.hasOrigin()
-                && entityAsTopologyEntityDTO.getOrigin().hasDiscoveryOrigin()
-                && entityAsTopologyEntityDTO
-                        .getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsCount() != 0) {
-            // get the target that appears first in the list of discovering targets
-            final long targetId =
-                entityAsTopologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIds(0);
-            try {
-                final TargetApiDTO target = new TargetApiDTO();
-                target.setUuid(Long.toString(targetId));
-                final TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
-                target.setDisplayName(
-                    TargetData.getDisplayName(targetInfo).orElseGet(() -> {
-                        logger.warn(
-                            "Cannot find the display name of target with id {}" +
-                                " as part of the request to get entity with id {} and name {}",
-                            target::getUuid, () -> oid, result::getDisplayName);
-                        return "";
-                    }));
-                final long probeId = targetInfo.getProbeId();
-                try {
-                    final ProbeInfo probeInfo = topologyProcessor.getProbe(probeId);
-                    target.setType(probeInfo.getType());
-                } catch (CommunicationException | TopologyProcessorException e) {
-                    // fetching information about the discovering probe failed
-                    // this information will not be added to the result
-                    // the failure will otherwise be ignored
-                    logger.warn(
-                        "Failure to get information about probe with id {}" +
-                                " as part of the request to get entity with id {} and name {}: {}",
-                            () -> probeId, () -> oid, result::getDisplayName, e::toString);
-                }
-                result.setDiscoveredBy(target);
-            } catch (CommunicationException | IllegalArgumentException | TopologyProcessorException e) {
-                // fetching information about the target failed
-                // this information will not be added to the result
-                // the failure will otherwise be ignored
-                logger.warn(
-                    "Failure to get information about target with id {}" +
-                            " as part of the request to get entity with id {} and name {}: {}",
-                    () -> targetId, () -> oid, result::getDisplayName, e::toString);
-            }
-        }
+        result.setDiscoveredBy(
+            SearchUtil.fetchDiscoveringTarget(topologyProcessor, entityAsTopologyEntityDTO));
 
         // fetch all consumers
         try {
@@ -371,14 +317,6 @@ public class EntitiesService implements IEntitiesService {
     /**
      * Fetch a list of {@link ActionApiDTO} for the Actions generated for the given Service Entity uuid.
      *
-     * The request for the {@link ActionSpec} objects from the Action Orchestrator for the given uuid. Map each
-     * ActionSpec into the corresponding {@link ActionApiDTO}. This requires calls to the Repository component
-     * to look up the displayName() for the corresponding entity, since the Action Orchestrator does not track that information.
-     *
-     * Note that the historical parameters are ignored. There is currently no history in the Action Orchestrator.
-     *
-     * Note that the filtering parameters are ignored. It would be relatively easy to implement these filters.
-     *
      * @param uuid the unique id of Service Entity for which we are requesting actions.
      * @param inputDto A description of filter options on which actions to fetch.
      * @return a list of ActionApiDTOs for the Service Entity indicated by the given uuid.
@@ -388,26 +326,17 @@ public class EntitiesService implements IEntitiesService {
     public ActionPaginationResponse getActionsByEntityUuid(String uuid,
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
-        // The search will be on a long value, not a String
-        final long entityId = Long.valueOf(uuid);
-
-        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
-                                     inputDto, Optional.of(Collections.singleton(entityId)));
-
-        final FilteredActionResponse response = actionOrchestratorRpcService.getAllActions(
-                FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setFilter(filter)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                        .build());
-
-        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-            response.getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), realtimeTopologyContextId);
-        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results));
+        return
+            SearchUtil.getActionsByEntityUuids(
+                actionOrchestratorRpcService,
+                topologyProcessor,
+                searchServiceRpc,
+                actionSpecMapper,
+                paginationMapper,
+                realtimeTopologyContextId,
+                Optional.of(Collections.singleton(Long.valueOf(uuid))),
+                inputDto,
+                paginationRequest);
     }
 
     @Override
@@ -416,20 +345,27 @@ public class EntitiesService implements IEntitiesService {
             throws Exception {
         // remark: the first parameter is completely ignored.
         // an entity id is not needed to get an action by its id.
+        final ActionApiDTO result;
         try {
-            return
+            // get the action object from the action orchestrator
+            // and translate it to an ActionApiDTO object
+            result =
                 actionSpecMapper.mapActionSpecToActionApiDTO(
                     actionOrchestratorRpcService
                         .getAction(
                             SingleActionRequest.newBuilder()
-                                .setActionId(Long.valueOf(Objects.requireNonNull(aUuid)))
+                                .setActionId(Long.valueOf(aUuid))
                                 .setTopologyContextId(realtimeTopologyContextId)
                                 .build())
                         .getActionSpec(),
                     realtimeTopologyContextId);
+
+            // add discovering targets to all entities associated with the action object
+            SearchUtil.populateActionApiDTOWithTargets(topologyProcessor, searchServiceRpc, result);
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
+        return result;
     }
 
     @Override
@@ -580,7 +516,7 @@ public class EntitiesService implements IEntitiesService {
         return
             TagsMapper
                 .convertTagsToApi(
-                    getTopologyEntityDTO(Long.valueOf(Objects.requireNonNull(s))).getTagsMap());
+                    SearchUtil.getTopologyEntityDTO(searchServiceRpc, Long.valueOf(s)).getTagsMap());
     }
 
     @Override
@@ -677,39 +613,6 @@ public class EntitiesService implements IEntitiesService {
                 .replace("http://", "https://")
                 .replace(REPLACEME, UUID);
         return new Link(url).withRel(relation);
-    }
-
-    /**
-     * Fetch an entity in {@link TopologyEntityDTO} form, given its oid.
-     *
-     * @param oid the oid of the entity to fetch.
-     * @return the entity.
-     * @throws UnknownObjectException if the entity was not found.
-     * @throws OperationFailedException if the operation failed.
-     * @throws UnauthorizedObjectException if user does not have proper access privileges.
-     * @throws InterruptedException if thread is interrupted during processing.
-     * @throws AccessDeniedException if user is properly authenticated.
-     */
-    @Nonnull
-    private TopologyEntityDTO getTopologyEntityDTO(long oid)
-            throws Exception {
-        // get information about this entity from the repository
-        final SearchTopologyEntityDTOsResponse searchTopologyEntityDTOsResponse;
-        try {
-            searchTopologyEntityDTOsResponse =
-                searchServiceRpc.searchTopologyEntityDTOs(
-                    SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addEntityOid(oid)
-                        .build());
-        } catch (StatusRuntimeException e) {
-            throw ExceptionMapper.translateStatusException(e);
-        }
-        if (searchTopologyEntityDTOsResponse.getTopologyEntityDtosCount() == 0) {
-            final String message = "Error fetching entity with uuid: " + oid;
-            logger.error(message);
-            throw new UnknownObjectException(message);
-        }
-        return searchTopologyEntityDTOsResponse.getTopologyEntityDtos(0);
     }
 
     /**

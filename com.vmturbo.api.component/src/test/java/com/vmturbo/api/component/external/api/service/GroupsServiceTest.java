@@ -82,6 +82,7 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class GroupsServiceTest {
 
@@ -155,7 +156,8 @@ public class GroupsServiceTest {
                 entityAspectMapper,
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionStatsQueryExecutor,
-                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                mock(TopologyProcessor.class));
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);
