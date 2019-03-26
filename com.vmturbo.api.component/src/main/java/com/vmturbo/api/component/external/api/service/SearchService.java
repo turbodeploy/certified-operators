@@ -53,6 +53,7 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -105,8 +106,10 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 /**
  * Service entry points to search the Repository.
@@ -209,7 +212,10 @@ public class SearchService implements ISearchService {
             // not a group or cluster...fall through
         }
         // The input is the uuid for a single entity.
-        return repositoryApi.getServiceEntityForUuid(Long.valueOf(uuidString));
+        ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuidString));
+        // fetch information about the discovering target
+        entity.setDiscoveredBy(SearchUtil.fetchDiscoveringTarget(topologyProcessor, entity));
+        return entity;
     }
 
     /**
