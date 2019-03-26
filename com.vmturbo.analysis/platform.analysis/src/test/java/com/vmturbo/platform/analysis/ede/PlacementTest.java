@@ -454,7 +454,7 @@ public class PlacementTest {
 
                 // Add trader to economy
                 Trader seller = e.addTrader((int)parameters[1], TraderState.ACTIVE, (Basket)parameters[0], Arrays.asList(bicliques));
-
+                ((TraderSettings) seller).setCanAcceptNewCustomers(true);
                 // Give capacity and utilization upper bound default values
                 for (@NonNull CommoditySold commoditySold : seller.getCommoditiesSold()) {
                     commoditySold.setCapacity(CAPACITY).getSettings().setUtilizationUpperBound(UTILIZATION_UPPER_BOUND);

@@ -153,7 +153,8 @@ final class QuoteSummer {
     public void accept(@NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry) {
         // consider only active sellers while performing SNM
         @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
-                .filter(seller -> seller.getState().isActive()).collect(Collectors.toList());
+                .filter(seller -> seller.getState().isActive()
+                    && seller.getSettings().canAcceptNewCustomers()).collect(Collectors.toList());
         QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers, entry.getKey(), cache_);
 
         totalQuote_ += minimizer.getTotalBestQuote();
