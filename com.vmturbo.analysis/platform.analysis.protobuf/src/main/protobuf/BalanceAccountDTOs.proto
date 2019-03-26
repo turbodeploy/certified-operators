@@ -8,5 +8,5 @@ message BalanceAccountDTO {
     // the budget associates with the business account
     required double budget = 2 [default = 0];
     // the id of the account
-    required int64 id = 3;
+    required int32 id = 3;
 }

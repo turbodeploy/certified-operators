@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -32,7 +31,6 @@ import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -744,7 +742,7 @@ public class BootstrapSupply {
             }
         } else {
             // already placed Buyer
-            if (Double.isInfinite(minimizer.getBestQuote())) {
+            if (Double.isInfinite(minimizer.getBestQuote().getQuoteValue())) {
                 // Start by cloning the best provider that can fit the buyer. If none can fit
                 // the buyer, provision a new seller large enough to fit the demand.
                 if (logger.isTraceEnabled() || isDebugBuyer) {
@@ -752,12 +750,12 @@ public class BootstrapSupply {
                 }
                 allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
                                                          slsThatNeedProvBySupply));
-            } else if (Double.isInfinite(minimizer.getCurrentQuote()) &&
+            } else if (Double.isInfinite(minimizer.getCurrentQuote().getQuoteValue()) &&
                     minimizer.getBestSeller() != shoppingList.getSupplier()) {
                 // If we have a seller that can fit the buyer getting an infiniteQuote,
                 // move buyer to this provider
                 allActions.add(new Move(economy, shoppingList, minimizer.getBestSeller())
-                        .take().setImportance(minimizer.getCurrentQuote()));
+                        .take().setImportance(minimizer.getCurrentQuote().getQuoteValue()));
                 if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                     logger.info("{" + buyerDebugInfo + "} moves to "
                             + sellerDebugInfo + " because its current quote is infinite.");
@@ -811,8 +809,8 @@ public class BootstrapSupply {
             } else {
                 if (minimizer.getBestSeller() != sl.getSupplier()) {
                     allActions.add(new Move(economy, sl, minimizer.getBestSeller()).take()
-                            .setImportance(minimizer.getCurrentQuote()
-                                    - minimizer.getBestQuote()));
+                            .setImportance(minimizer.getCurrentQuote().getQuoteValue()
+                                    - minimizer.getBestQuote().getQuoteValue()));
                 }
             }
         }

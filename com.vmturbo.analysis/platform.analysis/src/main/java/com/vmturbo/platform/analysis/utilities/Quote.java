@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -17,6 +18,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.MoveContext;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.DependentResourcePair;
 
 /**
@@ -81,6 +83,7 @@ public abstract class Quote {
     protected final Trader seller;
 
     protected Double moveCost = 0.0;
+
     /**
      * Create a new {@link Quote}.
      *
@@ -197,6 +200,10 @@ public abstract class Quote {
     @Nullable
     public Trader getSeller() {
         return seller;
+    }
+
+    public Optional<MoveContext> getContext() {
+        return Optional.empty();
     }
 
     /**
@@ -321,6 +328,31 @@ public abstract class Quote {
         public double addCostToMaxQuote(final double additiveCost) {
             quoteValues[2] += additiveCost;
             return quoteValues[2];
+        }
+    }
+
+    /**
+     * Same as CommodityQuote, but with additional information like the RegionId.
+     */
+    public static class CommodityCloudQuote extends CommodityQuote {
+
+        // Context with extra data about the Quote
+        protected MoveContext moveContext;
+
+        protected CommodityCloudQuote(@Nullable final Trader seller,
+                                      final double quoteValue,
+                                      @Nullable final Integer regionId) {
+            super(seller, quoteValue);
+            MoveContext.Builder builder = MoveContext.newBuilder();
+            if (regionId != null) {
+                builder.setRegionId(regionId);
+            }
+            moveContext = builder.build();
+        }
+
+        @Override
+        public Optional<MoveContext> getContext() {
+            return Optional.of(moveContext);
         }
     }
 

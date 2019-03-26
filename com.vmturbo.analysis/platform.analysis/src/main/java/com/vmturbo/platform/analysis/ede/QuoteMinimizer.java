@@ -1,10 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
-import java.util.*;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableList;
-import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -12,6 +9,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
+import org.javatuples.Triplet;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -21,8 +21,8 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.Quote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
-import org.javatuples.Triplet;
 
 /**
  * A mutable collector class used to find the best quote and corresponding seller.
@@ -113,11 +113,11 @@ public final class QuoteMinimizer {
 
     /**
      * Returns the minimum quote between the ones offered by sellers seen by {@code this} minimizer,
-     * or {@link Double#POSITIVE_INFINITY} if no sellers have been seen.
+     * getQuoteValue() will return {@link Double#POSITIVE_INFINITY} if no sellers have been seen.
      */
     @Pure
-    public double getBestQuote(@ReadOnly QuoteMinimizer this) {
-        return bestQuote_.getQuoteValue();
+    public Quote getBestQuote(@ReadOnly QuoteMinimizer this) {
+        return bestQuote_;
     }
 
     /**
@@ -144,11 +144,11 @@ public final class QuoteMinimizer {
 
     /**
      * Returns the quote offered by the current supplier if it was seen by this minimizer, or
-     * {@link Double#POSITIVE_INFINITY} if the current supplier hasn't been seen.
+     * getQuoteValue() will return {@link Double#POSITIVE_INFINITY} if the current supplier hasn't been seen.
      */
     @Pure
-    public double getCurrentQuote(@ReadOnly QuoteMinimizer this) {
-        return currentQuote_.getQuoteValue();
+    public Quote getCurrentQuote(@ReadOnly QuoteMinimizer this) {
+        return currentQuote_;
     }
 
     @Pure

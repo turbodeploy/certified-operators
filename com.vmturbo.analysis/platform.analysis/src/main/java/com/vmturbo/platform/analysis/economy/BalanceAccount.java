@@ -9,9 +9,9 @@ public class BalanceAccount {
 
     private double spent_;
     private double budget_;
-    private long id_;
+    private int id_;
 
-    public BalanceAccount(double spent, double budget, long id) {
+    public BalanceAccount(double spent, double budget, int id) {
         spent_ = spent;
         budget_ = budget;
         id_ = id;
@@ -33,7 +33,7 @@ public class BalanceAccount {
         return budget_;
     }
 
-    public long getId() {
+    public int getId() {
         return id_;
     }
 }

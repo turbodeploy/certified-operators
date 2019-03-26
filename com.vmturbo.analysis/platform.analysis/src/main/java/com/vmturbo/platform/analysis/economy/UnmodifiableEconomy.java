@@ -12,8 +12,9 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
-import com.vmturbo.platform.analysis.topology.Topology;
+
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
 
 /**
@@ -225,7 +226,7 @@ public interface UnmodifiableEconomy {
     /**
      * @return balance account map associates with the {@link Economy}
      */
-    Map<Long, BalanceAccount> getBalanceAccountMap();
+    Map<Integer, BalanceAccount> getBalanceAccountMap();
 
     /**
      * save the {@link Topology} associated with this {@link Economy}

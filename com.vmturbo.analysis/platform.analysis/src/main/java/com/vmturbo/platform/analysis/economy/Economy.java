@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -79,7 +77,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
     private Topology topology_;
     // the map for user to  its balance account
-    private Map<Long, BalanceAccount> balanceAccountMap = new HashMap<>();;
+    private Map<Integer, BalanceAccount> balanceAccountMap = new HashMap<>();
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -924,7 +922,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @return return the balance account map associates with this {@link Economy}
      */
     @Override
-    public Map<Long, BalanceAccount> getBalanceAccountMap() {
+    public Map<Integer, BalanceAccount> getBalanceAccountMap() {
         return balanceAccountMap;
     }
 
