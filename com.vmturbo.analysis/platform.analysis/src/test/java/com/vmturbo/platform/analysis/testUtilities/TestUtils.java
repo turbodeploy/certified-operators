@@ -560,7 +560,7 @@ public class TestUtils {
         );
     }
 
-    private static CostTuple setUpCostTuple(int businessAccountId,
+    private static CostTuple setUpCostTuple(long businessAccountId,
                                             int licenseCommodityType,
                                             int regionId,
                                             double cost) {

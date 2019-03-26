@@ -43,7 +43,7 @@ message CostDTO {
         optional double price = 2;
         // some business account can be used for applying discount, id of business account
         // maps to the discounted price of resource
-        optional int32 business_account_id = 3;
+        optional int64 business_account_id = 3;
         optional int32 region_id = 4;
     }
 
@@ -69,7 +69,7 @@ message CostDTO {
             optional bool is_accumulative_cost = 4; // if the cost should be accumulated
             // some business account can be used for applying discount, id of business account
             // maps to the discounted price of resource
-            optional int32 business_account_id = 5;
+            optional int64 business_account_id = 5;
         }
         // the commodity specification and its price data list
         message StorageResourceCost {

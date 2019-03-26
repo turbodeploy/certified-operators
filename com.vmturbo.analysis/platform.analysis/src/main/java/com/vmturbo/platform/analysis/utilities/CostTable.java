@@ -24,7 +24,7 @@ public class CostTable {
     final static public int NO_VALUE = -1;
 
     private Map<CostTableKey, CostTuple> map = Maps.newHashMap();
-    private Set<Integer> accountIds = Sets.newHashSet();
+    private Set<Long> accountIds = Sets.newHashSet();
 
     /**
      * Create a CostTable from a list of CostTuples, tracking also the cheapest Region.
@@ -59,7 +59,7 @@ public class CostTable {
      */
     @Nullable
     public CostTuple getTuple(int regionId,
-                              int businessAccountId,
+                              long businessAccountId,
                               int licenseCommodityType) {
         return map.get(new CostTableKey(
                 regionId,
@@ -73,7 +73,7 @@ public class CostTable {
      * @param businessAccountId
      * @return
      */
-    public boolean hasAccountId(int businessAccountId) {
+    public boolean hasAccountId(long businessAccountId) {
         return accountIds.contains(businessAccountId);
     }
 
@@ -85,7 +85,7 @@ public class CostTable {
         }
     }
 
-    private CostTableKey createCheapestRegionKey(int businessAccountId,
+    private CostTableKey createCheapestRegionKey(long businessAccountId,
                                                  int licenseCommodityType) {
         return new CostTableKey(
                 NO_VALUE,
@@ -98,10 +98,10 @@ public class CostTable {
      */
     private static class CostTableKey {
         private int regionId;           // -1 if not provided
-        private int businessAccountId; // -1 if not provided
+        private long businessAccountId; // -1 if not provided
         private int licenseCommodityType;
 
-        public CostTableKey(int regionId, int businessAccountId, int licenseCommodityType) {
+        public CostTableKey(int regionId, long businessAccountId, int licenseCommodityType) {
             this.regionId = regionId;
             this.businessAccountId = businessAccountId;
             this.licenseCommodityType = licenseCommodityType;
@@ -126,7 +126,7 @@ public class CostTable {
             final int prime = 31;
             int result = 1;
             result = prime * result + regionId;
-            result = prime * result + businessAccountId;
+            result = prime * result + Long.hashCode(businessAccountId);
             result = prime * result + licenseCommodityType;
             return result;
         }

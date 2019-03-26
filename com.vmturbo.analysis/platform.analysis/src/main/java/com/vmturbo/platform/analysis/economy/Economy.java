@@ -77,7 +77,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
     private Topology topology_;
     // the map for user to  its balance account
-    private Map<Integer, BalanceAccount> balanceAccountMap = new HashMap<>();
+    private Map<Long, BalanceAccount> balanceAccountMap = new HashMap<>();
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -922,7 +922,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @return return the balance account map associates with this {@link Economy}
      */
     @Override
-    public Map<Integer, BalanceAccount> getBalanceAccountMap() {
+    public Map<Long, BalanceAccount> getBalanceAccountMap() {
         return balanceAccountMap;
     }
 
