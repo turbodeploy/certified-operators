@@ -156,8 +156,6 @@ public class MarketsService implements IMarketsService {
 
     private final MarketMapper marketMapper;
 
-    private StatsService statsService;
-
     private final StatsMapper statsMapper;
 
     private final PaginationMapper paginationMapper;
@@ -561,14 +559,14 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<StatSnapshotApiDTO> getStatsByMarketUuid(final String uuid, final String encodedQuery) throws Exception {
-        return statsService.getStatsByEntityUuid(uuid, encodedQuery);
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
     public List<StatSnapshotApiDTO> getStatsByMarketQuery(final String uuid,
                                                           final StatPeriodApiInputDTO inputDto)
             throws Exception {
-        return statsService.getStatsByEntityQuery(uuid, inputDto);
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
@@ -607,7 +605,7 @@ public class MarketsService implements IMarketsService {
         // stats in both realtime and plans, so we will need to expand this method to
         // support both.
         if (UuidMapper.isRealtimeMarket(marketUuid)) {
-            return statsService.getStatsByUuidsQuery(statScopesApiInputDTO, paginationRequest);
+            throw ApiUtils.notImplementedInXL();
         }
 
         // as of now, scoped users can't access plans in classic, so we'll throw an access denied here
@@ -826,16 +824,6 @@ public class MarketsService implements IMarketsService {
     private boolean isMergeDataCenterPolicy(final PolicyInfo policyInfo) {
         return policyInfo.hasMerge()
                 && policyInfo.getMerge().getMergeType() == MergeType.DATACENTER;
-    }
-
-    /**
-     * Connect to the stats service.  We use a setter to avoid circular dependencies
-     * in the Spring configuration in the API component.
-     *
-     * @param statsService the stats service.
-     */
-    public void setStatsService(@Nonnull StatsService statsService) {
-        this.statsService = Objects.requireNonNull(statsService);
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -299,8 +301,7 @@ public class ActionExecutionRpcTest {
     public void testExecutionUsesTranslation() throws Exception {
         final long targetId = 7777;
         final ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionDTO.Action translationResult = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID + 1);
-        assertNotEquals(recommendation, translationResult);
+        final ActionDTO.Action translationResult = ActionOrchestratorTestUtils.createResizeRecommendation(ACTION_ID + 1, CommodityType.VMEM);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionContext = SingleActionRequest.newBuilder()
             .setActionId(ACTION_ID)
