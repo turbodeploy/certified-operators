@@ -45,7 +45,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
@@ -492,18 +491,12 @@ public class SdkToTopologyEntityConverter {
     }
 
     private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(CommonDTO.CommodityDTOOrBuilder commDTO) {
-        final TopologyDTO.CommodityBoughtDTO.Builder retCommBoughtBuilder =
-            TopologyDTO.CommodityBoughtDTO.newBuilder()
-                .setCommodityType(commodityType(commDTO))
-                .setUsed(commDTO.getUsed())
-                .setPeak(commDTO.getPeak())
-                .setActive(commDTO.getActive())
-                .setDisplayName(commDTO.getDisplayName())
-                .addAllAggregates(commDTO.getPropMapList().stream()
-                    .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
-                    .flatMap(prop -> prop.getValuesList().stream())
-                    .collect(Collectors.toList()));
-        return retCommBoughtBuilder.build();
+        return TopologyDTO.CommodityBoughtDTO.newBuilder()
+            .setCommodityType(commodityType(commDTO))
+            .setUsed(commDTO.getUsed())
+            .setPeak(commDTO.getPeak())
+            .setActive(commDTO.getActive())
+            .build();
     }
 
     private static TopologyDTO.CommoditySoldDTO.Builder newCommoditySoldDTOBuilder(
@@ -522,12 +515,7 @@ public class SdkToTopologyEntityConverter {
                 .setReservedCapacity(commDTO.getReservation())
                 .setIsThin(commDTO.getThin())
                 .setActive(commDTO.getActive())
-                .setIsResizeable(commDTO.getResizable())
-                .setDisplayName(commDTO.getDisplayName())
-                .addAllAggregates(commDTO.getPropMapList().stream()
-                    .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
-                    .flatMap(prop -> prop.getValuesList().stream())
-                    .collect(Collectors.toList()));
+                .setIsResizeable(commDTO.getResizable());
 
         if (commDTO.hasLimit() && (commDTO.getLimit() > 0)
                 && commDTO.hasCapacity() && (commDTO.getCapacity() > 0)) {
@@ -564,11 +552,11 @@ public class SdkToTopologyEntityConverter {
         }
         if (commDTO.hasRatioDependency()) {
             retCommSoldBuilder.setRatioDependency(TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
-                .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
-                    .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
-                    .build())
-                .setRatio(commDTO.getRatioDependency().getRatio())
-                .build());
+                    .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
+                            .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
+                            .build())
+                    .setRatio(commDTO.getRatioDependency().getRatio())
+                    .build());
         }
 
         if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {

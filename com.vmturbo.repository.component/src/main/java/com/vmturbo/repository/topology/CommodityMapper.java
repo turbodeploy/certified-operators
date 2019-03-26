@@ -44,8 +44,6 @@ class CommodityMapper {
         commRepo.setUsed(comm.getUsed());
         commRepo.setPeak(comm.getPeak());
         commRepo.setScalingFactor(comm.getScalingFactor());
-        commRepo.setDisplayName(comm.getDisplayName());
-        commRepo.setAggregates(comm.getAggregatesList());
 
         return commRepo;
     }
@@ -69,16 +67,6 @@ class CommodityMapper {
         }
         commodityBoughtBuilder.setCommodityType(commodityTypeBuilder);
         commodityBoughtBuilder.setScalingFactor(commodityBoughtRepoDTO.getScalingFactor());
-
-        if (commodityBoughtRepoDTO.getDisplayName() != null) {
-            commodityBoughtBuilder.setDisplayName(commodityBoughtRepoDTO.getDisplayName());
-        }
-
-        if (commodityBoughtRepoDTO.getAggregates() != null &&
-            !commodityBoughtRepoDTO.getAggregates().isEmpty()) {
-            commodityBoughtBuilder.addAllAggregates(commodityBoughtRepoDTO.getAggregates());
-        }
-
         return commodityBoughtBuilder.build();
     }
 
@@ -111,9 +99,6 @@ class CommodityMapper {
         commRepo.setMaxQuantity(comm.getMaxQuantity());
         commRepo.setScalingFactor(comm.getScalingFactor());
         commRepo.setHotReplaceSupported(getHotReplaceValue(comm));
-        commRepo.setDisplayName(comm.getDisplayName());
-        commRepo.setAggregates(comm.getAggregatesList());
-
         return commRepo;
     }
 
@@ -135,7 +120,7 @@ class CommodityMapper {
         commoditySoldDTOBuilder.setPeak(commoditySoldRepoDTO.getPeak());
         commoditySoldDTOBuilder.setCapacity(commoditySoldRepoDTO.getCapacity());
         commoditySoldDTOBuilder.setEffectiveCapacityPercentage(
-            commoditySoldRepoDTO.getEffectiveCapacityPercentage());
+                commoditySoldRepoDTO.getEffectiveCapacityPercentage());
         commoditySoldDTOBuilder.setReservedCapacity(commoditySoldRepoDTO.getReservedCapacity());
         commoditySoldDTOBuilder.setIsResizeable(commoditySoldRepoDTO.isResizeable());
         commoditySoldDTOBuilder.setIsThin(commoditySoldRepoDTO.isThin());
@@ -153,16 +138,6 @@ class CommodityMapper {
         commoditySoldDTOBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
             .setIsHotReplaceSupported(commoditySoldRepoDTO.isHotReplaceSupported())
             .build());
-
-        if (commoditySoldRepoDTO.getDisplayName() != null) {
-            commoditySoldDTOBuilder.setDisplayName(commoditySoldRepoDTO.getDisplayName());
-        }
-
-        if (commoditySoldRepoDTO.getAggregates() != null &&
-            !commoditySoldRepoDTO.getAggregates().isEmpty()) {
-            commoditySoldDTOBuilder.addAllAggregates(commoditySoldRepoDTO.getAggregates());
-        }
-
         return commoditySoldDTOBuilder.build();
     }
 

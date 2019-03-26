@@ -1,13 +1,10 @@
 package com.vmturbo.repository.dto;
 
-import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
 @JsonInclude(Include.NON_EMPTY)
 public abstract class CommodityBaseRepoDTO {
-
     private String uuid;
 
     private String type;
@@ -24,9 +21,6 @@ public abstract class CommodityBaseRepoDTO {
 
     private double scalingFactor;
 
-    private String displayName;
-
-    private List<String> aggregates;
 
     public String getUuid() {
         return uuid;
@@ -92,22 +86,6 @@ public abstract class CommodityBaseRepoDTO {
         return this.scalingFactor;
     }
 
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public void setDisplayName(final String displayName) {
-        this.displayName = displayName;
-    }
-
-    public List<String> getAggregates() {
-        return aggregates;
-    }
-
-    public void setAggregates(final List<String> aggregates) {
-        this.aggregates = aggregates;
-    }
-
     @Override
     public String toString() {
         return "CommodityBaseRepoDTO{" +
@@ -119,8 +97,6 @@ public abstract class CommodityBaseRepoDTO {
                 ", providerOid='" + providerOid + '\'' +
                 ", ownerOid='" + ownerOid + '\'' +
                 ", scalingFactor=" + scalingFactor +
-                ", displayName='" + displayName + '\'' +
-                ", aggregates=" + aggregates +
                 '}';
     }
 }

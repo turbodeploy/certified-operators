@@ -22,13 +22,12 @@ public class StorageAspectMapperTest extends BaseAspectMapperTest {
     @Test
     public void testMapEntityToAspect() {
         // arrange
-        final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(
-            EntityType.STORAGE,
-            TypeSpecificInfo.newBuilder()
-                .setStorage(StorageInfo.newBuilder()
-                    .setStorageType(TEST_STORAGE_TYPE)
-                    .addExternalName(TEST_EXTERNAL_NAME))
-                .build());
+        final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(EntityType.DISK_ARRAY,
+                TypeSpecificInfo.newBuilder()
+                        .setStorage(StorageInfo.newBuilder()
+                                .setStorageType(TEST_STORAGE_TYPE)
+                                .addExternalName(TEST_EXTERNAL_NAME))
+                        .build());
 
         StorageAspectMapper testMapper = new StorageAspectMapper();
         // act
@@ -38,5 +37,6 @@ public class StorageAspectMapperTest extends BaseAspectMapperTest {
         final STEntityAspectApiDTO storageAspect = (STEntityAspectApiDTO) aspectResult;
         assertEquals(Lists.newArrayList(TEST_EXTERNAL_NAME), storageAspect.getExternalNames());
         assertEquals(TEST_DISPLAY_NAME, storageAspect.getDisplayName());
+        // TODO: test other fields when they are implemented
     }
 }
