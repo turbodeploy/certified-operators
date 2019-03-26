@@ -15,8 +15,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.PropertiesList;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -265,6 +267,19 @@ public class TopologyToSdkEntityConverter {
             builder.setUsedIncrement(commoditySoldDTO.getCapacityIncrement());
         }
 
+        // Copy the display name, if present
+        if (commoditySoldDTO.hasDisplayName()) {
+            builder.setDisplayName(commoditySoldDTO.getDisplayName());
+        }
+
+        // Copy the aggregate commodity keys, if present
+        if (!commoditySoldDTO.getAggregatesList().isEmpty()) {
+            builder.addPropMap(PropertiesList.newBuilder()
+                .setName(SDKConstants.AGGREGATES)
+                .addAllValues(commoditySoldDTO.getAggregatesList())
+                .build());
+        }
+
         // EffectiveCapacityPercentage is not mapped, because we don't know whether to map it back
         // to a Limit or a UtilizationThresholdPct. It may have been derived from either of these
         // fields when originally converted from a CommodityDTO.
@@ -292,7 +307,8 @@ public class TopologyToSdkEntityConverter {
         // Convert the list of CommodityBoughtDTOs into a list of CommodityDTOs
         commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
                 .map(TopologyToSdkEntityConverter::newCommodityDTO)
-                .forEach(commodityDTO -> builder.addBought(commodityDTO));
+                .forEach(commodityDTO -> {
+                    builder.addBought(commodityDTO);});
 
         // Convert the provider type, if present
         if (commoditiesBoughtFromProvider.hasProviderEntityType()) {
@@ -333,6 +349,19 @@ public class TopologyToSdkEntityConverter {
         // Copy the active setting, if present
         if (commodityBoughtDTO.hasActive()) {
             builder.setActive(commodityBoughtDTO.getActive());
+        }
+
+        // Copy the display name, if present
+        if (commodityBoughtDTO.hasDisplayName()) {
+            builder.setDisplayName(commodityBoughtDTO.getDisplayName());
+        }
+
+        // Copy the aggregate commodity keys, if present
+        if (!commodityBoughtDTO.getAggregatesList().isEmpty()) {
+            builder.addPropMap(PropertiesList.newBuilder()
+                .setName(SDKConstants.AGGREGATES)
+                .addAllValues(commodityBoughtDTO.getAggregatesList())
+                .build());
         }
 
         // Scaling factor is not mapped, due to no corresponding setting in the CommodityBoughtDTO

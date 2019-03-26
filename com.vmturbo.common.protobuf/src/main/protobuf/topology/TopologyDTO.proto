@@ -642,6 +642,15 @@ message CommodityBoughtDTO {
     // A historical value which is used in conjunction to the peak value to calculate a
     // weighted peak value
     optional double historical_peak = 7 [default = 0.0];
+
+    // The display name for specific commodity like port channel and net throughput.
+    optional string display_name = 8;
+
+    // The commodity keys of aggregate commodities, mainly for UCS port channel and net throughput.
+    // Aggregates are the commodities under the same entity and parts of the current commodity, say
+    // a port channel may be combined with multiple net throughputs, and these net throughputs are
+    // the aggregates.
+    repeated string aggregates = 9;
 }
 
 message CommoditySoldDTO {
@@ -702,11 +711,20 @@ message CommoditySoldDTO {
 
     optional AdditionalCommodityData additional_commodity_data = 20;
 
+    // The display name for specific commodity like port channel and net throughput.
+    optional string display_name = 21;
+
+    // The commodity keys of aggregate commodities, mainly for UCS port channel and net throughput.
+    // Aggregates are the commodities under the same entity and parts of the current commodity, say
+    // a port channel may be combined with multiple net throughputs, and these net throughputs are
+    // the aggregates.
+    repeated string aggregates = 22;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
-        // the type of commodity whose usage will be used as a factor
+        // The type of commodity whose usage will be used as a factor.
         optional CommodityType base_commodity = 100;
-        // the ratio which will be used to multiply with base commodity's usage
+        // The ratio which will be used to multiply with base commodity's usage.
         optional int32 ratio = 101;
     }
 
@@ -716,10 +734,10 @@ message CommoditySoldDTO {
 }
 
 message IpAddress {
-    // a single IP Address
+    // A single IP Address.
     optional string ip_address = 1;
 
-    // true if the ipAddress is elastic.  This is relevant for cloud targets only.
+    // True if the ipAddress is elastic.  This is relevant for cloud targets only.
     optional bool is_elastic = 2;
 }
 
@@ -732,23 +750,23 @@ message OS {
 }
 
 message DiskTypeInfo {
-    // number of discovered solid state drives
+    // Number of discovered solid state drives.
     optional int64 num_ssd = 1;
 
-    // number of discovered 7200 RPM disks
+    // Number of discovered 7200 RPM disks.
     optional int64 num_7200_disks = 2;
 
-    // number of discovered 10000 RPM disks
+    // Number of discovered 10000 RPM disks.
     optional int64 num_10_k_disks = 3;
 
-    // number of discovered 15000 RPM disks
+    // Number of discovered 15000 RPM disks.
     optional int64 num_15_k_disks = 4;
 
-    // number of discovered VSeries disks
+    // Number of discovered VSeries disks.
     optional int64 num_v_series_disks = 5;
 }
 
-// a short description of what a topology contains. The description is useful when you are interested
+// A short description of what a topology contains. The description is useful when you are interested
 // in the IDEA of topologies but you don't want to have to read the whole thing!
 message TopologySummary {
     optional TopologyInfo topology_info = 1;
