@@ -9,10 +9,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -27,16 +29,16 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -57,6 +59,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
@@ -89,6 +92,11 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
 /**
@@ -163,6 +171,46 @@ public class SearchServiceTest {
             targetId1, probeType1,
             targetId2, probeType2
         )).when(searchService).fetchTargetIdToProbeTypeMap();
+    }
+
+    /**
+     * Test the method {@link SearchService#getObjectByUuid}.
+     *
+     * @throws Exception when something goes wrong (is not expected here)
+     */
+    @Test
+    public void testGetObjectByUuid() throws Exception {
+        final String entityUuid = "203892293934";
+        final long targetUuid = 32;
+        final String targetType = "AppDynamics";
+        final ServiceEntityApiDTO desiredResponse = new ServiceEntityApiDTO();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setUuid(Long.toString(targetUuid));
+        // Note that we are not setting the type on the target, as Repository does not do this
+        // It must be handled by the API layer--this is what we're testing!
+        desiredResponse.setDiscoveredBy(target);
+
+        // Prepare Topology Processor responses
+        final long probeId = 2;
+        final TargetSpec targetSpec = new TargetSpec(probeId, Collections.emptyList());
+        final TargetInfo targetInfo =
+            new TargetRESTApi.TargetInfo(targetUuid, null, targetSpec, null, null, null);
+        final ProbeInfo probeInfo = new ProbeDescription(probeId, targetType, "fakeCategory",
+            Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+
+        // Prepare the mocks
+        doThrow(UnknownObjectException.class)
+            .when(groupsService).getGroupByUuid(anyString(),anyBoolean());
+        doReturn(desiredResponse)
+            .when(repositoryApi).getServiceEntityForUuid(eq(Long.valueOf(entityUuid)));
+        doReturn(targetInfo).when(topologyProcessor).getTarget(targetUuid);
+        doReturn(probeInfo).when(topologyProcessor).getProbe(probeId);
+
+        // Test the search service
+        BaseApiDTO response = searchService.getObjectByUuid(entityUuid);
+
+        // Verify the results
+        assertEquals(desiredResponse, response);
     }
 
     /**
@@ -357,48 +405,6 @@ public class SearchServiceTest {
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
         assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
     }
-
-    /* Patrick: parking this test for now, since I temporarily removed the user scope changes from the search service
-    @Test
-    public void testClusterFiltersWithUserScope() throws Exception {
-        GroupApiDTO cluster1 = new GroupApiDTO();
-        cluster1.setDisplayName("Cluster1");
-        cluster1.setGroupType("PhysicalMachine");
-        cluster1.setIsStatic(true);
-        cluster1.setLogicalOperator("AND");
-        cluster1.setMemberUuidList(Arrays.asList("1","2"));
-        GroupApiDTO cluster2 = new GroupApiDTO();
-        cluster2.setDisplayName("Cluster2");
-        cluster2.setGroupType("PhysicalMachine");
-        cluster2.setIsStatic(true);
-        cluster2.setLogicalOperator("AND");
-        cluster2.setMemberUuidList(Arrays.asList("1"));
-
-        // create a SearchParams for members of Cluster1
-        SearchParameters params = SearchParameters.newBuilder()
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                                .setClusterSpecifier(PropertyFilter.newBuilder()
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("Cluster1|Cluster2"))
-                                        .setPropertyName("displayName"))))
-                .build();
-        when(groupsService.getGroupApiDTOS(anyObject())).thenReturn(Arrays.asList(cluster1,cluster2));
-
-        when(userSessionContext.isUserScoped()).thenReturn(true);
-        // create a user access scope with access to only entity 1.
-        EntityAccessScope accessScope = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(1L)), null);
-        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-
-        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
-
-        // we should only get the members of cluster 2 in the resolved filter, since this user cannot
-        // access entity 2.
-        StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
-        assertEquals("^1$", stringFilter.getStringPropertyRegex());
-    }
-    */
 
     /**
      * For search by cluster filter, make sure resolveClusterFilters method is invoked.
