@@ -422,10 +422,12 @@ public class ServiceConfig {
     @Bean
     public SupplyChainsService supplyChainService() {
         return new SupplyChainsService(communicationConfig.supplyChainFetcher(),
-                communicationConfig.planRpcService(),
-                communicationConfig.getRealtimeTopologyContextId(),
-                communicationConfig.groupExpander(),
-                userSessionConfig.userSessionContext());
+            communicationConfig.planRpcService(),
+            mapperConfig.actionSpecMapper(),
+            communicationConfig.actionsRpcService(),
+            communicationConfig.getRealtimeTopologyContextId(),
+            communicationConfig.groupExpander(),
+            userSessionConfig.userSessionContext());
     }
 
     @Bean

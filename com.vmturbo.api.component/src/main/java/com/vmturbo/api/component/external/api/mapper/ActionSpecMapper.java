@@ -198,7 +198,7 @@ public class ActionSpecMapper {
                     actionApiDTOS.add(actionApiDTO);
                 }
             } catch (UnknownObjectException e) {
-                logger.error(String.format("Coulnd't resolve entity from spec %s", spec), e);
+                logger.error(String.format("Couldn't resolve entity from spec %s", spec), e);
             }
         }
         return actionApiDTOS.build();

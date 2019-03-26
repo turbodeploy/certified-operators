@@ -8,9 +8,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -26,10 +29,12 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -41,9 +46,16 @@ import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -58,10 +70,12 @@ public class SupplyChainsService implements ISupplyChainsService {
     private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP, CLUSTER);
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
-    private final long liveTopologyContextId;
+    private final long realtimeTopologyContextId;
     private final GroupExpander groupExpander;
     private final PlanServiceBlockingStub planRpcService;
     private final UserSessionContext userSessionContext;
+    private final ActionSpecMapper actionSpecMapper;
+    private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
     // criteria in this list require fetching the health summary along with the supplychain
     private static final Collection<EntitiesCountCriteria> SUPPLY_CHAIN_HEALTH_REQUIRED =
@@ -71,13 +85,18 @@ public class SupplyChainsService implements ISupplyChainsService {
 
     SupplyChainsService(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                         @Nonnull final PlanServiceBlockingStub planRpcService,
-                        final long liveTopologyContextId, GroupExpander groupExpander,
-                        final UserSessionContext userSessionContext) {
-        this.liveTopologyContextId = liveTopologyContextId;
+                        @Nonnull final ActionSpecMapper actionSpecMapper,
+                        @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+                        final long realtimeTopologyContextId,
+                        @Nonnull final GroupExpander groupExpander,
+                        @Nonnull final UserSessionContext userSessionContext) {
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
-        this.groupExpander = groupExpander;
         this.planRpcService = planRpcService;
-        this.userSessionContext = userSessionContext;
+        this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
+        this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     @Override
@@ -118,7 +137,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 }
             }
         } else {
-            fetcherBuilder.topologyContextId(liveTopologyContextId).addSeedUuids(uuids);
+            fetcherBuilder.topologyContextId(realtimeTopologyContextId).addSeedUuids(uuids);
         }
 
         return fetcherBuilder.fetch();
@@ -233,7 +252,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 criteriaToGroupBy.get(0) == EntitiesCountCriteria.severity);
         final SupplychainApiDTOFetcherBuilder supplyChainFetcher = this.supplyChainFetcherFactory
                 .newApiDtoFetcher()
-                .topologyContextId(liveTopologyContextId)
+                .topologyContextId(realtimeTopologyContextId)
                 .addSeedUuids(uuids)
                 .entityDetailType(onlyGroupBySeverity ? null : EntityDetailType.entity)
                 .includeHealthSummary(isHealthSummaryNeeded(criteriaToGroupBy));
@@ -256,16 +275,22 @@ public class SupplyChainsService implements ISupplyChainsService {
                     .forEach(severityEntrySet ->
                             generateFilterSetForSeverity(severityEntrySet, entityCountMap));
         } else if (!criteriaToGroupBy.isEmpty()) {
+            // Getting supply chain actions only if groupBy contains riskSubCategory
+            final List<ActionApiDTO> supplyChainActions =
+                (criteriaToGroupBy.contains(EntitiesCountCriteria.riskSubCategory))
+                    ? getSupplyChainActions(supplyChainResponse) : null;
             supplyChainResponse.getSeMap().forEach((entityType, supplychainDTO) -> {
                 // get the filter sets for all entities of this type
                 List<FilterSet> filtersForEntities = calculateFilters(supplychainDTO,
-                        criteriaToGroupBy);
+                    criteriaToGroupBy,supplyChainActions);
                 // tabulate the filter set for each entity type
                 filtersForEntities.forEach(filterSet ->
-                        // increment the count of Filters that match this one
-                        entityCountMap.put(filterSet,
-                                entityCountMap.getOrDefault(filterSet, 0L) + 1));
+                    // increment the count of Filters that match this one
+                    entityCountMap.put(filterSet,
+                        entityCountMap.getOrDefault(filterSet, 0L) + 1));
             });
+
+
         } else {
             // If we're not grouping by anything, just add a single stat for
             // all the entities in the supply chain query.
@@ -310,40 +335,64 @@ public class SupplyChainsService implements ISupplyChainsService {
      * @param supplychainEntryDTO the information about entities of this type
      * @param criteriaToGroupBy what {@link EntitiesCountCriteria}(s) to group by,
      *                          e.g. 'entityType,severity'
+     * @param supplyChainActions a List of {@link ActionApiDTO} representing the supply chain
+     *                           actions. This param will be set only in case 'criteriaToGroupBy'
+     *                           contains 'riskSubCategory'
      * @return a list of criterion sets for this entity type, with one criterion set element for
      * each entity in the type
      */
     private List<FilterSet> calculateFilters(@Nonnull SupplychainEntryDTO supplychainEntryDTO,
-                                             @Nonnull List<EntitiesCountCriteria> criteriaToGroupBy) {
+                                             @Nonnull List<EntitiesCountCriteria> criteriaToGroupBy,
+                                             List<ActionApiDTO> supplyChainActions){
 
         List<FilterSet> filterSetsForAllEntities = Lists.newArrayList();
 
         supplychainEntryDTO.getInstances().values().forEach(entityApiDTO -> {
             FilterSet filtersForEntity = new FilterSet();
             for (EntitiesCountCriteria filter : criteriaToGroupBy) {
-                StatFilterApiDTO resultFilter;
+                StatFilterApiDTO resultFilter = null;
                 switch (filter) {
                     case entityType:
                         resultFilter = buildStatFilter(filter.name(),
-                                entityApiDTO.getClassName());
+                            entityApiDTO.getClassName());
                         break;
                     case state:
                         resultFilter = buildStatFilter(filter.name(),
-                                entityApiDTO.getState());
+                            entityApiDTO.getState());
                         break;
                     case severity:
                         resultFilter = buildStatFilter(filter.name(),
-                                entityApiDTO.getSeverity());
+                            entityApiDTO.getSeverity());
                         break;
                     case riskSubCategory:
+                        List<ActionApiDTO> filteredActions =  supplyChainActions.stream()
+                            .filter(actionApiDTO ->
+                                entityApiDTO.getUuid().equals(actionApiDTO.getTarget().getUuid()))
+                            .collect(Collectors.toList());
+                        for (ActionApiDTO action : filteredActions) {
+                            resultFilter = buildStatFilter(filter.name(),
+                                action.getRisk().getSubCategory());
+                            filtersForEntity.addFilter(resultFilter);
+                        }
+                        break;
                     case template:
                         throw ApiUtils.notImplementedInXL();
                     default:
                         throw new RuntimeException("Unexpected filter criterion: " + filter);
                 }
-                filtersForEntity.addFilter(resultFilter);
+                // Skipping riskSubCategory since adding to filtersForEntity is already done in its
+                // switch case.
+                if(!EntitiesCountCriteria.riskSubCategory.equals(filter)){
+                    filtersForEntity.addFilter(resultFilter);
+                }
+
             }
-            filterSetsForAllEntities.add(filtersForEntity);
+            // filtersForEntity can be null in case groupBy riskSubCategory was required and we
+            // didn't find actions related to the requested entities.
+            if(filtersForEntity != null) {
+                filterSetsForAllEntities.add(filtersForEntity);
+            }
+
         });
 
         return filterSetsForAllEntities;
@@ -388,6 +437,55 @@ public class SupplyChainsService implements ISupplyChainsService {
         statFilter.setType(filterType);
         statFilter.setValue(filterValue);
         return statFilter;
+    }
+
+    /**
+     * Gets the entities that are members of the given Supply Chain.
+     *
+     * @param supplychainApiDTO {@link SupplychainApiDTO} object
+     * @return A set of entities uuids
+     */
+    private Set<Long> getSupplyChainEntitiesUuids(@Nonnull SupplychainApiDTO supplychainApiDTO){
+        Set<Long> uuidSet = new HashSet<>();
+        supplychainApiDTO.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
+                supplychainEntryDTO.getInstances().values().forEach(entityApiDTO -> {
+                    // Getting actions for ACTIVE entities only. This is to comply with our
+                    // requirements
+                    if(EntityState.ACTIVE.name().equals(entityApiDTO.getState())) {
+                        uuidSet.add(Long.parseLong(entityApiDTO.getUuid()));
+                    }
+                });
+        });
+        return uuidSet;
+    }
+
+    /**
+     * Gets the entities actions that are members of the given Supply Chain.
+     *
+     * @param supplychainApiDTO {@link SupplychainApiDTO} object
+     * @return A list of {@link ActionApiDTO} with the actions details
+     * @throws UnknownObjectException,UnsupportedActionException,ExecutionException,InterruptedException
+     * When the actions involve an unrecognized entity uuid
+     */
+    private List<ActionApiDTO> getSupplyChainActions(@Nonnull SupplychainApiDTO supplychainApiDTO)
+        throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+        InterruptedException{
+
+        // Getting the supply chain members uuids to get the actions related to them
+        Set<Long> supplyChainEntitiesUuids = getSupplyChainEntitiesUuids(supplychainApiDTO);
+        // Passing null as inputDto to get all actions for the given entities.
+        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
+            null, Optional.of(supplyChainEntitiesUuids));
+        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+            FilteredActionRequest.newBuilder()
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setFilter(filter)
+                .build());
+        final List<ActionApiDTO> actionsList = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+            response.getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList()), realtimeTopologyContextId);
+        return actionsList;
     }
 
     /**

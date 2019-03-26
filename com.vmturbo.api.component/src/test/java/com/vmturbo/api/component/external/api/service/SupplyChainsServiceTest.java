@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainsService.FilterSet;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -48,6 +49,7 @@ import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -85,6 +87,10 @@ public class SupplyChainsServiceTest {
 
     private UserSessionContext userSessionContext = new UserSessionContext();
 
+    ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
+
+    ActionSpecMapper actionSpecMapper;
+
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
@@ -106,8 +112,11 @@ public class SupplyChainsServiceTest {
         final PlanServiceBlockingStub planServiceMock =
             PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
-        service = new SupplyChainsService(supplyChainsFetcherMock, planServiceMock,
-                LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock, userSessionContext);
+        actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
+
+        service = new SupplyChainsService(supplyChainsFetcherMock, planServiceMock, actionSpecMapper,
+            actionsRpcService,LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock, userSessionContext);
 
 
     }
@@ -250,7 +259,6 @@ public class SupplyChainsServiceTest {
             }
         });
     }
-
 
     @Test
     public void testGetSupplyChainStatsGroupBySeverity() throws Exception {
