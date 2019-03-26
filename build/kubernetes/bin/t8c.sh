@@ -293,5 +293,10 @@ then
   echo "######################################################################"
    /usr/local/bin/helm init
    /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
-   /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace}    --set-string global.repository=${registry}/turbonomic  --set-string global.tag=${turboVersion} --set-string global.externalIP=${node} --set imageCredentials.password=${dockerPassword} --set imageCredentials.username=${dockerUserName}
+   if [ "${registry}" == "dockerhub" ]
+   then
+     /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace} --set-string global.tag=${turboVersion} --set-string global.externalIP=${node} 
+   else
+     /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace}    --set-string global.repository=${registry}/turbonomic  --set-string global.tag=${turboVersion} --set-string global.externalIP=${node} --set imageCredentials.password=${dockerPassword} --set imageCredentials.username=${dockerUserName}
+  fi
 fi
