@@ -180,8 +180,7 @@ public class RepositoryApi {
                         restTemplate.exchange(getEntitiesRequest, HttpMethod.GET, null,
                         new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {})
                         .getBody();
-            // TODO: We should populate the type in the discoveredBy field before returning the entities
-            // To do this, we need to retrieve the probe type associated with that target
+
             return SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, entityDtos);
         } catch (RestClientException e) {
             logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
@@ -225,8 +224,6 @@ public class RepositoryApi {
                 logger.error("More than one entity found for id: {}", serviceEntityId);
                 throw new RuntimeException("more than one entity found for id: " + serviceEntityId);
             }
-            // TODO: We should populate the type in the discoveredBy field before returning the entity
-            // To do this, we need to retrieve the probe type associated with that target
             return SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, results)
                 .iterator()
                 .next();
@@ -265,8 +262,7 @@ public class RepositoryApi {
                     restTemplate.exchange(getEntitiesByIdSetRequest, HttpMethod.POST, idList,
                             new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {});
             final List<ServiceEntityApiDTO> results = response.getBody();
-            // TODO: We should populate the type in the discoveredBy field before returning the entities
-            // To do this, we need to retrieve the probe type associated with that target
+
             results.forEach(seDTO -> retMap.put(Long.parseLong(seDTO.getUuid()), Optional.of(seDTO)));
 
             return retMap;

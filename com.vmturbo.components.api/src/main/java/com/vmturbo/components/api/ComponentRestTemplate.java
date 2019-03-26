@@ -12,7 +12,10 @@ import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
+import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
+import org.springframework.http.converter.xml.MappingJackson2XmlHttpMessageConverter;
 import org.springframework.http.converter.xml.SourceHttpMessageConverter;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.client.RestTemplate;
 
 import com.google.gson.Gson;
@@ -22,6 +25,12 @@ import com.google.gson.Gson;
  * use to make REST requests to each other.serialize and deserialize their responses.
  */
 public class ComponentRestTemplate {
+
+    private static final boolean JAX_B_2_PRESENT =
+            ClassUtils.isPresent("javax.xml.bind.Binder", ComponentRestTemplate.class.getClassLoader());
+
+    private static final boolean jackson2XmlPresent =
+            ClassUtils.isPresent("com.fasterxml.jackson.dataformat.xml.XmlMapper", ComponentRestTemplate.class.getClassLoader());
 
     private static final Gson GSON = ComponentGsonFactory.createGson();
 
@@ -46,6 +55,15 @@ public class ComponentRestTemplate {
         // Add GSON first, so that if both JSON and XML encoding is available and no explicit
         // content type is set we will use GSON.
         converters.add(gsonConverter);
+
+        // The regular RestTemplate also adds the Jackson converter by default, but we will
+        // use GSON. It's probably fine.
+
+        if (jackson2XmlPresent) {
+            converters.add(new MappingJackson2XmlHttpMessageConverter());
+        } else if (JAX_B_2_PRESENT) {
+            converters.add(new Jaxb2RootElementHttpMessageConverter());
+        }
 
         return new RestTemplate(converters);
     }
