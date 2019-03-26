@@ -18,7 +18,6 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
@@ -690,8 +689,8 @@ public class TopologyConverter {
     @Nonnull
     public Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                            @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                            @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
                                             @Nonnull TopologyCostCalculator topologyCostCalculator) {
         return actionInterpreter.interpretAction(actionTO, projectedTopology, originalCloudTopology,
                 projectedCosts, topologyCostCalculator);
