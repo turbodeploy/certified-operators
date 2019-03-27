@@ -10,7 +10,6 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
-import com.vmturbo.topology.processor.discoverydumper.ComponentBasedTargetDumpingSettingsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -35,8 +34,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     PlanConfig.class,
     ControllableConfig.class,
     WorkflowConfig.class,
-    CloudCostConfig.class,
-    ComponentBasedTargetDumpingSettingsConfig.class
+    CloudCostConfig.class
 })
 public class OperationConfig {
 
@@ -73,9 +71,6 @@ public class OperationConfig {
     @Autowired
     private PlanConfig discoveredTemplateDeploymentProfileConfig;
 
-    @Autowired
-    private ComponentBasedTargetDumpingSettingsConfig componentBasedTargetDumpingSettingsConfig;
-
     @Value("${discoveryTimeoutSeconds}")
     private long discoveryTimeoutSeconds;
 
@@ -97,25 +92,24 @@ public class OperationConfig {
     @Bean
     public IOperationManager operationManager() {
         return new OperationManager(identityProviderConfig.identityProvider(),
-            targetConfig.targetStore(),
-            probeConfig.probeStore(),
-            sdkServerConfig.remoteMediation(),
-            apiConfig.topologyProcessorNotificationSender(),
-            entityConfig.entityStore(),
-            groupConfig.discoveredGroupUploader(),
-            workflowConfig.discoveredWorkflowUploader(),
-            cloudCostUploaderConfig.discoveredCloudCostUploader(),
-            discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
-            controllableConfig.entityActionDaoImp(),
-            targetConfig.derivedTargetParser(),
-            targetConfig.groupScopeResolver(),
-            componentBasedTargetDumpingSettingsConfig.componentBasedTargetDumpingSettings(),
-            discoveryTimeoutSeconds,
-            validationTimeoutSeconds,
-            actionTimeoutSeconds,
-            maxConcurrentTargetDiscoveriesPerProbeCount,
-            probeDiscoveryPermitWaitTimeoutMins,
-            probeDiscoveryPermitWaitTimeoutIntervalMins
+                targetConfig.targetStore(),
+                probeConfig.probeStore(),
+                sdkServerConfig.remoteMediation(),
+                apiConfig.topologyProcessorNotificationSender(),
+                entityConfig.entityStore(),
+                groupConfig.discoveredGroupUploader(),
+                workflowConfig.discoveredWorkflowUploader(),
+                cloudCostUploaderConfig.discoveredCloudCostUploader(),
+                discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
+                controllableConfig.entityActionDaoImp(),
+                targetConfig.derivedTargetParser(),
+                targetConfig.groupScopeResolver(),
+                discoveryTimeoutSeconds,
+                validationTimeoutSeconds,
+                actionTimeoutSeconds,
+                maxConcurrentTargetDiscoveriesPerProbeCount,
+                probeDiscoveryPermitWaitTimeoutMins,
+                probeDiscoveryPermitWaitTimeoutIntervalMins
         );
     }
 }

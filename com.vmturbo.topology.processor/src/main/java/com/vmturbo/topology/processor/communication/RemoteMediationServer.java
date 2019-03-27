@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -41,6 +42,7 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeRpcService;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Remote mediation (SDK) server. This class provides routines to interact with remote probes.
