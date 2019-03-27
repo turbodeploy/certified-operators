@@ -55,7 +55,7 @@ public class AzureConversionProbe extends AzureProbe {
     @Nonnull
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull AzureAccount azureAccount,
-            @Nullable DiscoveryContextDTO discoveryContext) {
+            @Nullable DiscoveryContextDTO discoveryContext) throws InterruptedException {
         logger.debug("Started converting discovery response for Azure target {}",
                 azureAccount::getName);
 
@@ -74,7 +74,7 @@ public class AzureConversionProbe extends AzureProbe {
      * Get the raw discovery response from original aws probe.
      */
     DiscoveryResponse getRawDiscoveryResponse(@Nonnull AzureAccount azureAccount,
-            @Nullable DiscoveryContextDTO discoveryContext) {
+            @Nullable DiscoveryContextDTO discoveryContext) throws InterruptedException {
         return super.discoverTarget(azureAccount, discoveryContext);
     }
 

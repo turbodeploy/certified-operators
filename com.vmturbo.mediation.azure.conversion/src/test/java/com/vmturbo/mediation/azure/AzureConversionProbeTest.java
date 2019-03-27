@@ -29,7 +29,7 @@ public class AzureConversionProbeTest {
             "src/test/resources/data/azure_productmgmt.management.core.windows.net.txt";
 
     @Test
-    public void testEngineering() {
+    public void testEngineering() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AZURE_ENGINEERING_FILE_PATH);
         AzureConversionProbe probe = Mockito.spy(new AzureConversionProbe());
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(azureAccount, discoveryContext);
@@ -61,7 +61,7 @@ public class AzureConversionProbeTest {
     }
 
     @Test
-    public void testProductmgmt() {
+    public void testProductmgmt() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AZURE_PRODUCTMGMT_FILE_PATH);
         AzureConversionProbe probe = Mockito.spy(new AzureConversionProbe());
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(azureAccount, discoveryContext);
