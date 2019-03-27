@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -788,7 +786,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
 
     /**
-     * create a list containing a  subset of Markets that have at least one trader that is movable
+     * Create a list containing a subset of Markets that have at least one trader that is movable
      */
     public void composeMarketSubsetForPlacement() {
         marketsForPlacement_.clear();

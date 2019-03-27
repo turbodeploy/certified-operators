@@ -340,7 +340,7 @@ public class StatsUtils {
      * Split String into tokens based on a specified delimiter.
      *
      * @param str  String to split.
-     * @param delimiter The delimiter.
+     * @param delim The delimiter.
      */
     public static String[] getTokens(String str, String delim){
         StringTokenizer stok = new StringTokenizer(str, delim);

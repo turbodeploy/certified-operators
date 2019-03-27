@@ -10,7 +10,6 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -25,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
@@ -68,7 +68,7 @@ final class QuoteSummer {
      * Constructs an empty QuoteSummer that can be used as an identity element for the reduction.
      *
      * @param economy See {@link #getEconomy()}.
-     * @param cliqueID See {@link #getClique()}.
+     * @param quality See {@link #getClique()}.
      */
     public QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache) {
         economy_ = economy;

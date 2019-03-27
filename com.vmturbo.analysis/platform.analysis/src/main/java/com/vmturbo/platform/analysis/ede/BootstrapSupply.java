@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -32,7 +31,6 @@ import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -492,7 +490,7 @@ public class BootstrapSupply {
             if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                 boolean isDebugBuyer = sl.getBuyer().isDebugEnabled();
                 String buyerDebugInfo = sl.getBuyer().getDebugInfoNeverUseInCode();
-                // Since we are moving the buyer to the seller that fits we have to make sure
+                // Since we are moving the buyer to sellerThatFits we have to make sure
                 // that it belongs to the currentClique.
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.of(commonClique));
                 // provision by supply
@@ -506,7 +504,7 @@ public class BootstrapSupply {
                     // cache the sl that need ProvisionBySupply in slsThatNeedProvBySupply
                     // Since we are going to do a compound move of the buyer we have to make sure
                     // all the shopping lists are in the sl list and corresponding seller in
-                    // trader list. The sellerThatFits can be use a seller for now. Eventually
+                    // trader list. The sellerThatFits can be used as seller for now. Eventually
                     // when the provision-by-supply actually happens it will go to something
                     // in the same clique as other shopping lists.
                     slsThatNeedProvBySupply.put(sl, commonClique);

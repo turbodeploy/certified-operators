@@ -182,6 +182,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      *  actually executed in the real environment, the quantities will change in that way.
      * </p>
      *
+     * @param economy The economy <b>traderToUpdate</b> participates in.
      * @param shoppingList The shopping list that will be moved.
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param defaultCombinator A ternary operator (old quantity sold, quantity bought, third parameter)
@@ -221,7 +222,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * becoming a customer of the seller.
      *
      * <p>
-     *  A turnary operator is used to predict the change in quantities and peak quantities sold
+     *  A ternary operator is used to predict the change in quantities and peak quantities sold
      * </p>
      *
      * <p>
