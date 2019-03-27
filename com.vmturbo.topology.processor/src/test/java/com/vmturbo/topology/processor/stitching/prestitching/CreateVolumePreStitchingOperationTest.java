@@ -16,7 +16,6 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -134,7 +133,7 @@ public class CreateVolumePreStitchingOperationTest {
         // mock identity provider
         IdentityProvider identityProvider = Mockito.mock(IdentityProviderImpl.class);
         Mockito.doReturn(ImmutableMap.of(volumeOid1, expectedVolumeDto1, volumeOid2, expectedVolumeDto2))
-            .when(identityProvider).getIdsForEntities(probeId1, Lists.newArrayList(expectedVolumeDto1, expectedVolumeDto2));
+            .when(identityProvider).getIdsForEntities(Mockito.anyLong(), Mockito.anyListOf(EntityDTO.class));
 
         StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3)
             .setTargetStore(targetStore).setIdentityProvider(identityProvider);
@@ -208,11 +207,16 @@ public class CreateVolumePreStitchingOperationTest {
 
     @Test
     public void testNoVirtualVolumeCreatedIfAlreadyExisting() {
-        // set up the env that there is already volume between vm1 and storage1, but not vm1 and storage 2
+        // set up the env that there is already volume between vm1 and storage1, and vm1 and storage 2
         TopologyStitchingEntity volumeStitchingEntity1 = new TopologyStitchingEntity(
             expectedVolumeDto1.toBuilder(), volumeOid1, targetId1, 0);
         vmStitchingEntity1.addConnectedTo(ConnectionType.NORMAL_CONNECTION, volumeStitchingEntity1);
         volumeStitchingEntity1.addConnectedTo(ConnectionType.NORMAL_CONNECTION, storageStitchingEntity1);
+
+        TopologyStitchingEntity volumeStitchingEntity2 = new TopologyStitchingEntity(
+            expectedVolumeDto2.toBuilder(), volumeOid2, targetId1, 0);
+        vmStitchingEntity1.addConnectedTo(ConnectionType.NORMAL_CONNECTION, volumeStitchingEntity2);
+        volumeStitchingEntity2.addConnectedTo(ConnectionType.NORMAL_CONNECTION, storageStitchingEntity2);
 
         // perform operation
         operation.performOperation(Stream.of(vmStitchingEntity1), resultBuilder).getChanges().forEach(
@@ -220,7 +224,7 @@ public class CreateVolumePreStitchingOperationTest {
 
         // verify that no new volume is created for vm1 and storage1
         Mockito.verify(operation, Mockito.never()).createVirtualVolume(vmStitchingEntity1, storageStitchingEntity1);
-        // verify that new volume is created for vm1 and storage2
-        Mockito.verify(operation).createVirtualVolume(vmStitchingEntity1, storageStitchingEntity2);
+        // verify that no new volume is created for vm1 and storage2
+        Mockito.verify(operation, Mockito.never()).createVirtualVolume(vmStitchingEntity1, storageStitchingEntity2);
     }
 }
