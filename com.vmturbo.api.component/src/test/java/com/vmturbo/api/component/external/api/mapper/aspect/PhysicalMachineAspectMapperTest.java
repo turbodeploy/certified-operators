@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 
 public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
 
@@ -35,8 +34,6 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
     private static final String CONNECTED_ENTITY_NAME = "CONNECTED_ENTITY";
     private static final List<String> CONNECTED_ENTITY_NAME_LIST =
         Collections.singletonList(CONNECTED_ENTITY_NAME);
-    private static final String TEST_EXTERNAL_NAME = "TEST_NAME";
-    private static final StorageType TEST_STORAGE_TYPE = StorageType.CIFS_SMB;
 
     SearchServiceBlockingStub searchRpc;
 

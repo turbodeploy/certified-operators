@@ -8,18 +8,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Capture base methods for testing Aspect Mappers
  **/
 public class BaseAspectMapperTest {
+
     protected static final long TEST_OID = 123L;
     protected static final String TEST_DISPLAY_NAME = "TEST_DISPLAY_NAME";
 
     protected TopologyEntityDTO.Builder topologyEntityDTOBuilder(final EntityType entityType,
-                                                                 final TypeSpecificInfo typeSpecificInfo) {
+        final TypeSpecificInfo typeSpecificInfo) {
         return TopologyEntityDTO.newBuilder()
             .setEntityType(entityType.getNumber())
             .setOid(TEST_OID)
             .setDisplayName(TEST_DISPLAY_NAME)
             .setTypeSpecificInfo(typeSpecificInfo);
     }
-
-
-
 }
