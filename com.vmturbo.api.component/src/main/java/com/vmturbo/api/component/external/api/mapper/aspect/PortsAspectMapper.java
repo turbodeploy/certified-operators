@@ -1,5 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import static com.vmturbo.components.common.utils.StringConstants.RELATION;
+import static com.vmturbo.components.common.utils.StringConstants.RELATION_BOUGHT;
+import static com.vmturbo.components.common.utils.StringConstants.RELATION_SOLD;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,10 +40,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  * Map topology extension data that are related to ports.
  **/
 public class PortsAspectMapper implements IAspectMapper {
-
-    private final static String RELATION = "relation";
-    private final static String RELATION_BOUGHT = "bought";
-    private final static String RELATION_SOLD = "sold";
 
     @Nullable
     @Override
