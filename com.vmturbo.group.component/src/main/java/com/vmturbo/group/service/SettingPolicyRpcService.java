@@ -1,10 +1,12 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -25,9 +27,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
@@ -36,6 +42,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyReques
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
@@ -343,16 +350,47 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     public void getEntitySettings(final GetEntitySettingsRequest request,
                           final StreamObserver<GetEntitySettingsResponse> responseObserver) {
         try {
-            final Map<Long, Collection<Setting>> results = entitySettingStore.getEntitySettings(
+            final Map<Long, Collection<SettingToPolicyId>> results = entitySettingStore.getEntitySettings(
                     request.getTopologySelection(),
                     request.getSettingFilter());
 
             final GetEntitySettingsResponse.Builder respBuilder =
                     GetEntitySettingsResponse.newBuilder();
+
+            final Map<Long, String> settingPolicyIdToNameMap = new HashMap<>();
+
+            if (request.getSettingFilter().hasIncludeSettingPolicies() &&
+                    request.getSettingFilter().hasIncludeSettingPolicies()) {
+                Set<Long> settingPolicyIds = results.values().stream()
+                        .flatMap(settingToPolicyIds -> settingToPolicyIds.stream())
+                        .map(SettingToPolicyId::getSettingPolicyId)
+                        .collect(Collectors.toSet());
+
+                SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
+                        .withType(Type.USER)
+                        .withType(Type.DEFAULT);
+
+                settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
+                settingStore.getSettingPolicies(settingPolicyFilter.build())
+                        .forEach(settingPolicy -> settingPolicyIdToNameMap.put(settingPolicy.getId(),
+                                settingPolicy.getInfo().getName()));
+            }
+
             results.forEach((oid, settings) -> respBuilder.addSettings(
                 SettingsForEntity.newBuilder()
                     .setEntityId(oid)
-                    .addAllSettings(settings)
+                    .addAllSettings(settings.stream()
+                            .map(setting -> {
+                                SettingToPolicyName.Builder settingToPolicyName =
+                                        SettingToPolicyName.newBuilder()
+                                                .setSetting(setting.getSetting());
+                                                String name = settingPolicyIdToNameMap.get(setting.getSettingPolicyId());
+                                                if (name != null) {
+                                                    settingToPolicyName.setSettingPolicyName(name);
+                                                }
+                                return settingToPolicyName.build();
+                            })
+                            .collect(Collectors.toList()))
                     .build()));
 
             responseObserver.onNext(respBuilder.build());
@@ -362,5 +400,28 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             responseObserver.onError(Status.NOT_FOUND
                 .withDescription(e.getMessage()).asException());
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getEntitySettingPolicies(final GetEntitySettingPoliciesRequest request,
+                                         final StreamObserver<GetEntitySettingPoliciesResponse> responseStreamObserver) {
+
+        if (!request.hasEntityOid()) {
+            responseStreamObserver.onNext(GetEntitySettingPoliciesResponse.getDefaultInstance());
+            responseStreamObserver.onCompleted();
+            return;
+        }
+
+        GetEntitySettingPoliciesResponse.Builder response =
+                GetEntitySettingPoliciesResponse.newBuilder();
+
+        entitySettingStore.getEntitySettingPolicies(request.getEntityOid())
+                .forEach(settingPolicy -> response.addSettingPolicies(settingPolicy));
+
+        responseStreamObserver.onNext(response.build());
+        responseStreamObserver.onCompleted();
     }
 }

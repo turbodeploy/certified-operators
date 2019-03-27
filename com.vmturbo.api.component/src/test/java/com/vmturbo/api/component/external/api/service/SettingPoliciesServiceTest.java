@@ -34,6 +34,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
@@ -109,7 +110,7 @@ public class SettingPoliciesServiceTest {
     @Before
     public void setup() throws IOException {
         settingsPoliciesService = new SettingsPoliciesService(settingsMapper,
-                grpcTestServer.getChannel());
+                SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
 
         final SettingsManagerApiDTO mgr = new SettingsManagerApiDTO();
         final SettingApiDTO setting = new SettingApiDTO();

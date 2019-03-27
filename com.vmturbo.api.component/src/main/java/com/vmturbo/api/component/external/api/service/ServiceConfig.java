@@ -35,6 +35,8 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.notification.api.impl.NotificationClientConfig;
@@ -214,7 +216,10 @@ public class ServiceConfig {
                 statsService(),
                 actionStatsQueryExecutor(),
                 mapperConfig.uuidMapper(),
-                communicationConfig.historyRpcService());
+                communicationConfig.historyRpcService(),
+                settingPolicyServiceBlockingStub(),
+                communicationConfig.settingRpcService(),
+                mapperConfig.settingsMapper());
     }
 
     @Bean
@@ -390,6 +395,12 @@ public class ServiceConfig {
     @Bean
     public SettingsPoliciesService settingsPoliciesService() {
         return new SettingsPoliciesService(mapperConfig.settingsMapper(),
+                settingPolicyServiceBlockingStub());
+    }
+
+    @Bean
+    public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
+        return SettingPolicyServiceGrpc.newBlockingStub(
                 communicationConfig.groupChannel());
     }
 

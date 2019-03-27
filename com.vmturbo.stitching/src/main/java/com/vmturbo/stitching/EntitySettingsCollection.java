@@ -7,6 +7,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -55,6 +56,7 @@ public class EntitySettingsCollection {
 
         // Return the user setting if it exists, and if not, look up the default setting if it exists.
         return settingsForEntity.getUserSettingsList().stream()
+            .map(SettingToPolicyId::getSetting)
             .filter(setting -> setting.getSettingSpecName().equals(settingName))
             .findFirst()
             .map(Optional::of)
@@ -116,6 +118,7 @@ public class EntitySettingsCollection {
         }
 
         return settingsForEntity.getUserSettingsList().stream()
+            .map(SettingToPolicyId::getSetting)
             .filter(setting -> setting.getSettingSpecName().equals(settingName))
             .findFirst();
     }

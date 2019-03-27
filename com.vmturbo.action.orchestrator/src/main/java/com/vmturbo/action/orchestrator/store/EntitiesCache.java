@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
@@ -173,21 +174,23 @@ public class EntitiesCache {
                     settingPolicyService.getEntitySettings(request);
             return Collections.unmodifiableMap(
                 response.getSettingsList().stream()
-                    .filter(settings -> settings.getSettingsCount() > 0)
+                    .filter(settingsForEntity -> settingsForEntity.getSettingsCount() > 0)
                     .collect(Collectors.toMap(SettingsForEntity::getEntityId,
-                        settings -> Collections.unmodifiableMap(settings.getSettingsList().stream()
-                            .collect(Collectors.toMap(
-                                Setting::getSettingSpecName,
-                                Function.identity(),
-                                (v1, v2) -> {
-                                    // This shouldn't happen, because conflict resolution
-                                    // gets done before entity settings are uploaded and made
-                                    // available to clients.
-                                    logger.error("Settings service returned two setting values for" +
-                                        " entity {}.\nFirst: \n{}\nSecond:\n{}. Choosing first.",
-                                        settings.getEntityId(), v1, v2);
-                                    return v1;
-                                }))
+                        settingsForEntity -> Collections.unmodifiableMap(
+                                settingsForEntity.getSettingsList().stream()
+                                        .map(SettingToPolicyName::getSetting)
+                                        .collect(Collectors.toMap(
+                                                Setting::getSettingSpecName,
+                                                Function.identity(),
+                                                (v1, v2) -> {
+                                                    // This shouldn't happen, because conflict resolution
+                                                    // gets done before entity settings are uploaded and made
+                                                    // available to clients.
+                                                    logger.error("Settings service returned two setting values for" +
+                                                        " entity {}.\nFirst: \n{}\nSecond:\n{}. Choosing first.",
+                                                        settingsForEntity.getEntityId(), v1, v2);
+                                                    return v1;
+                                                }))
                         ))));
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());

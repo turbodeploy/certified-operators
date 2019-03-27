@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
@@ -101,7 +102,9 @@ public class EntitiesCacheTest {
             .thenReturn(GetEntitySettingsResponse.newBuilder()
                     .addSettings(SettingsForEntity.newBuilder()
                             .setEntityId(ENTITY_ID)
-                            .addSettings(setting))
+                            .addSettings(SettingToPolicyName.newBuilder()
+                                    .setSetting(setting)
+                                    .build()))
                     .build());
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))

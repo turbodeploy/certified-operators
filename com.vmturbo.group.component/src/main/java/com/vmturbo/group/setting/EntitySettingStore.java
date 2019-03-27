@@ -1,10 +1,12 @@
 package com.vmturbo.group.setting;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,6 +31,9 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest.SettingPolicyIdentifierCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -160,9 +165,10 @@ public class EntitySettingStore {
      *      the topology specified by the input filter.
      */
     @Nonnull
-    public Map<Long, Collection<Setting>> getEntitySettings(@Nonnull final TopologySelection topologySelection,
+    public Map<Long, Collection<SettingToPolicyId>> getEntitySettings(@Nonnull final TopologySelection topologySelection,
                                                       @Nonnull final EntitySettingFilter filter)
             throws NoSettingsForTopologyException {
+
         ENTITY_SETTING_STORE_QUERY_HIT_COUNT.increment();
         try (final DataMetricTimer timer = ENTITY_SETTING_STORE_QUERY_DURATION.startTimer()) {
             final long contextId = topologySelection.hasTopologyContextId() ?
@@ -188,6 +194,35 @@ public class EntitySettingStore {
             throw e;
         }
     }
+
+    /**
+     * Return the Setting Policies associated with an entity.
+     * @param entityId ID of the entity
+     * @return Stream of Setting Policies associated with the entity.
+     */
+    public Stream<SettingPolicy> getEntitySettingPolicies(@Nonnull final long entityId) {
+        final ContextSettingSnapshotCache contextCache =
+                entitySettingSnapshots.get(realtimeTopologyContextId);
+        if (contextCache == null) {
+            return Stream.empty();
+        }
+        final Optional<EntitySettingSnapshot> snapshot = contextCache.getLatestSnapshot();
+        if (!snapshot.isPresent()) {
+            return Stream.empty();
+        }
+
+        Set<Long> settingPolicyIds =
+                snapshot.get().getEntitySettingPolicyIds(entityId);
+        if (settingPolicyIds.isEmpty()) {
+            return Stream.empty();
+        }
+
+        SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
+                .withType(Type.USER);
+            settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
+        return settingStore.getSettingPolicies(settingPolicyFilter.build());
+    }
+
 
     /**
      * Exception thrown when no entity settings are found for a topology specified by a
@@ -364,7 +399,7 @@ public class EntitySettingStore {
          *         entry for every entity that has settings.
          */
         @Nonnull
-        public Map<Long, Collection<Setting>> getFilteredSettings(final EntitySettingFilter filter) {
+        public Map<Long, Collection<SettingToPolicyId>> getFilteredSettings(final EntitySettingFilter filter) {
             final Set<Long> ids = filter.getEntitiesList().isEmpty() ?
                     settingsByEntity.keySet() : Sets.newHashSet(filter.getEntitiesList());
             return ids.stream()
@@ -373,18 +408,20 @@ public class EntitySettingStore {
         }
 
         @Nonnull
-        private Collection<Setting> getEntitySettings(@Nonnull final Long id) {
+        private Collection<SettingToPolicyId> getEntitySettings(@Nonnull final Long id) {
             final EntitySettings userSettings = settingsByEntity.get(id);
             if (userSettings == null) {
                 return Collections.emptyList();
             }
 
-            final Collection<Setting> settings = new HashSet<>();
+            final List<SettingToPolicyId> settings = new ArrayList<>();
 
             // First add all user settings
             settings.addAll(userSettings.getUserSettingsList());
-            final Set<String> specsPresent = settings.stream().map(Setting::getSettingSpecName)
-                .collect(Collectors.toSet());
+            final Set<String> specsPresent = settings.stream()
+                    .map(SettingToPolicyId::getSetting)
+                    .map(Setting::getSettingSpecName)
+                    .collect(Collectors.toSet());
 
             // Fill in default settings, if any.
             if (userSettings.hasDefaultSettingPolicyId()) {
@@ -393,7 +430,10 @@ public class EntitySettingStore {
                 if (defaultSettingPolicy != null) {
                     defaultSettingPolicy.getInfo().getSettingsList().stream()
                         .filter(setting -> !specsPresent.contains(setting.getSettingSpecName()))
-                        .forEach(settings::add);
+                        .forEach(setting -> settings.add(SettingToPolicyId.newBuilder()
+                                .setSetting(setting)
+                                .setSettingPolicyId(defaultSettingPolicy.getId())
+                                .build()));
                 } else {
                     // This shouldn't happen, because we checked that the default setting policy
                     // exists when constructing the snapshot.
@@ -404,6 +444,26 @@ public class EntitySettingStore {
 
             return settings;
         }
+
+        /**
+         * Return the IDs of the Setting Policies associated with an entity.
+         * @param entityId ID of the entity
+         * @return Set of setting policy ids associated with the entity.
+         */
+        @Nonnull
+        public Set<Long> getEntitySettingPolicyIds(long entityId) {
+            final EntitySettings userSettings = settingsByEntity.get(entityId);
+            if (userSettings == null) {
+                return Collections.emptySet();
+            }
+
+            return userSettings.getUserSettingsList()
+                    .stream()
+                    .filter(SettingToPolicyId::hasSettingPolicyId)
+                    .map(SettingToPolicyId::getSettingPolicyId)
+                    .collect(Collectors.toSet());
+        }
+
     }
 
     /**

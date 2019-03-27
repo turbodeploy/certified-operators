@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.Before;
@@ -48,6 +49,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -71,6 +73,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class EntitySettingsResolverTest {
@@ -274,7 +277,7 @@ public class EntitySettingsResolverTest {
     @Test
     public void testApply() {
 
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap =
+        Map<Long, Map<String, EntitySettingsResolver.SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
 
         Map<String, SettingSpec> settingSpecs = new HashMap<>();
@@ -283,9 +286,9 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.resolveAllEntitySettings(entities, Collections.singletonList(settingPolicy1),
                 scheduleResolver, settingScheduledMap, entitySettingsBySettingNameMap, settingSpecs);
 
-        List<Setting> appliedSettings = new ArrayList<>(
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
-        assertThat(appliedSettings, containsInAnyOrder(setting1, setting2));
+        assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
     }
 
     @Test
@@ -296,7 +299,7 @@ public class EntitySettingsResolverTest {
                 .setInfo(settingPolicy1.getInfo().toBuilder().setSchedule(notNow)).build();
         when(scheduleResolver.appliesAtResolutionInstant(notNow)).thenReturn(false);
 
-        final Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap = new HashMap<>();
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
         final Map<String, SettingSpec> settingSpecs = new HashMap<>();
         Map<Long, Map<String, Boolean>> settingScheduledMap = new HashMap<>();
 
@@ -319,7 +322,7 @@ public class EntitySettingsResolverTest {
         final SettingPolicy settingPolicyNow2 = settingPolicy2.toBuilder()
                 .setInfo(settingPolicy2.getInfo().toBuilder().setSchedule(appliesNow)).build();
 
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap =
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
                 new HashMap<>();
         Map<Long, Map<String, Boolean>> settingScheduledMap = new HashMap<>();
 
@@ -342,10 +345,10 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.resolveAllEntitySettings(entities, Collections.singletonList(settingPolicyNow1),
                 scheduleResolver, settingScheduledMap, entitySettingsBySettingNameMap, settingSpecs);
 
-        List<Setting> appliedSettings = new ArrayList<>(
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
-        assertThat(appliedSettings, containsInAnyOrder(setting1, setting2));
+        assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
                 Collections.singletonList(settingPolicyNow2),
@@ -354,7 +357,7 @@ public class EntitySettingsResolverTest {
         appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
-        assertThat(appliedSettings, hasItem(setting1));
+        assertThat(getSettings(appliedSettings), hasItem(setting1));
         settingScheduledMap.forEach((id, scheduledMap) -> scheduledMap.forEach(
                 (spec, hasSchedule) -> assertTrue(hasSchedule)));
 
@@ -373,7 +376,7 @@ public class EntitySettingsResolverTest {
         final SettingPolicy settingPolicyNow2 = settingPolicy2.toBuilder()
                 .setInfo(settingPolicy2.getInfo().toBuilder().setSchedule(notNow)).build();
 
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap =
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
                 new HashMap<>();
         Map<Long, Map<String, Boolean>> settingScheduledMap = new HashMap<>();
 
@@ -396,10 +399,10 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.resolveAllEntitySettings(entities, Collections.singletonList(settingPolicyNow1),
                 scheduleResolver, settingScheduledMap, entitySettingsBySettingNameMap, settingSpecs);
 
-        List<Setting> appliedSettings = new ArrayList<>(
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
-        assertThat(appliedSettings, containsInAnyOrder(setting1, setting2));
+        assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
                 Collections.singletonList(settingPolicyNow2),
@@ -421,7 +424,7 @@ public class EntitySettingsResolverTest {
         final SettingPolicy settingPolicyNow1 = settingPolicy1.toBuilder()
                 .setInfo(settingPolicy1.getInfo().toBuilder().setSchedule(appliesNow)).build();
 
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap =
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
                 new HashMap<>();
         Map<Long, Map<String, Boolean>> settingScheduledMap = new HashMap<>();
 
@@ -444,10 +447,10 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.resolveAllEntitySettings(entities, Collections.singletonList(settingPolicyNow1),
                 scheduleResolver, settingScheduledMap, entitySettingsBySettingNameMap, settingSpecs);
 
-        List<Setting> appliedSettings = new ArrayList<>(
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
-        assertThat(appliedSettings, containsInAnyOrder(setting1, setting2));
+        assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
 
         entitySettingsResolver.resolveAllEntitySettings(entities,
                 Collections.singletonList(settingPolicy2),
@@ -456,7 +459,7 @@ public class EntitySettingsResolverTest {
         appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
-        assertThat(appliedSettings, hasItem(setting1));
+        assertThat(getSettings(appliedSettings), hasItem(setting1));
 
         assertFalse(settingScheduledMap.get(entityOid1).get("settingSpec4"));
         assertTrue(settingScheduledMap.get(entityOid1).get("settingSpec1"));
@@ -473,7 +476,7 @@ public class EntitySettingsResolverTest {
         final SettingPolicy settingPolicyNow1 = settingPolicy1.toBuilder()
                 .setInfo(settingPolicy1.getInfo().toBuilder().setSchedule(notNow)).build();
 
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap =
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
                 new HashMap<>();
         Map<Long, Map<String, Boolean>> settingScheduledMap = new HashMap<>();
 
@@ -496,7 +499,7 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.resolveAllEntitySettings(entities, Collections.singletonList(settingPolicyNow1),
                 scheduleResolver, settingScheduledMap, entitySettingsBySettingNameMap, settingSpecs);
 
-        List<Setting> appliedSettings = new ArrayList<>(
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
         assertTrue(appliedSettings.isEmpty());
@@ -515,7 +518,7 @@ public class EntitySettingsResolverTest {
     @Test
     public void testApplyConflictResolution() {
 
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap =
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
         Map<Long, Map<String, Boolean>> settingScheduledMap = new HashMap<>();
 
@@ -538,10 +541,10 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver.resolveAllEntitySettings(entities, Collections.singletonList(settingPolicy1),
                 scheduleResolver, settingScheduledMap, entitySettingsBySettingNameMap, settingSpecs);
 
-        List<Setting> appliedSettings = new ArrayList<>(
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
                 entitySettingsBySettingNameMap.get(entityOid1).values());
 
-        assertThat(appliedSettings, containsInAnyOrder(setting1, setting2));
+        assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
 
         // now check if the conflict resolution is done correctly
         entitySettingsResolver.resolveAllEntitySettings(entities,
@@ -553,7 +556,7 @@ public class EntitySettingsResolverTest {
 
         // setting1 and setting3 both have same SettingSpecNames. Since
         // tieBreaker is smaller, setting1 should win
-        assertThat(appliedSettings, hasItem(setting1));
+        assertThat(getSettings(appliedSettings), hasItem(setting1));
         settingScheduledMap.forEach((id, scheduledMap) -> scheduledMap.forEach(
                 (spec, hasSchedule) -> assertFalse(hasSchedule)));
     }
@@ -738,7 +741,7 @@ public class EntitySettingsResolverTest {
                                                 long defaultSettingPolicyId) {
         return EntitySettings.newBuilder()
             .setEntityOid(oid)
-            .addAllUserSettings(userSettings)
+            .addAllUserSettings(createUserSettings(userSettings))
             .setDefaultSettingPolicyId(defaultSettingPolicyId)
             .build();
     }
@@ -747,8 +750,17 @@ public class EntitySettingsResolverTest {
                                                 List<Setting> userSettings) {
         return EntitySettings.newBuilder()
             .setEntityOid(oid)
-            .addAllUserSettings(userSettings)
+            .addAllUserSettings(createUserSettings(userSettings))
             .build();
+    }
+
+    private List<SettingToPolicyId> createUserSettings(List<Setting> userSettings) {
+        return userSettings.stream()
+                .map(setting -> SettingToPolicyId.newBuilder()
+                        .setSetting(setting)
+                        .setSettingPolicyId(1L)
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private EntitySettings createEntitySettings(long oid,
@@ -802,8 +814,8 @@ public class EntitySettingsResolverTest {
     private static boolean hasSetting(String settingSpecName, EntitySettings entitySettings) {
         return entitySettings.getUserSettingsList()
                 .stream()
-                .anyMatch(setting -> setting.hasSettingSpecName() &&
-                        setting.getSettingSpecName().equals(settingSpecName));
+                .anyMatch(settingToPolicyId -> settingToPolicyId.getSetting().hasSettingSpecName() &&
+                        settingToPolicyId.getSetting().getSettingSpecName().equals(settingSpecName));
     }
 
     private static SettingSpec createSettingSpec(String specName, SettingTiebreaker tieBreaker) {
@@ -814,5 +826,11 @@ public class EntitySettingsResolverTest {
                             .setTiebreaker(tieBreaker)
                             .build())
                     .build();
+    }
+
+    private static List<Setting> getSettings(List<SettingAndPolicyIdRecord> settingAndPolicyIdRecords) {
+        return settingAndPolicyIdRecords.stream()
+                .map(settingAndPolicyIdRecord -> settingAndPolicyIdRecord.getSetting())
+                .collect(Collectors.toList());
     }
 }

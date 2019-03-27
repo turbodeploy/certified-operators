@@ -19,7 +19,9 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+import com.google.common.primitives.ImmutableIntArray;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -128,8 +130,8 @@ public class EntitySettingsResolver {
         // let the setting overrides handle any max utilization settings
         settingOverrides.resolveGroupOverrides(groups, groupResolver, topologyGraph);
 
-        // EntityId(OID) -> Map<<Settings.name, Setting> mapping
-        final Map<Long, Map<String, Setting>> userSettingsByEntityAndName = new HashMap<>();
+        // EntityId(OID) -> Map<<Settings.name, SettingAndPolicyIdRecord> mapping
+        final Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName = new HashMap<>();
         // SettingSpecName -> SettingSpec
         final Map<String, SettingSpec> settingNameToSettingSpecs = getAllSettingSpecs();
 
@@ -142,9 +144,9 @@ public class EntitySettingsResolver {
         // For each group, resolve it to get its entities. Then apply the settings
         // from the SettingPolicies associated with the group to the resolved entities
         groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
-            // This may be inefficient as we are walking the graph everytime to resolve a group.
+            // This may be inefficient as we are walking the graph every time to resolve a group.
             // Resolving a bunch of groups at once(ORing of the group search parameters)
-            // would probalby be more efficient.
+            // would probably be more efficient.
             try {
                 final Group group = groups.get(groupId);
                 if (group != null ) {
@@ -205,17 +207,17 @@ public class EntitySettingsResolver {
      */
     @VisibleForTesting
     void resolveAllEntitySettings(final Set<Long> entities,
-               final List<SettingPolicy> settingPolicies,
-               final ScheduleResolver scheduleResolver,
-               Map<Long, Map<String, Boolean>> settingsByEntityAreScheduled,
-               Map<Long, Map<String, Setting>> userSettingsByEntityAndName,
-               final Map<String, SettingSpec> settingNameToSettingSpecs) {
+                                  final List<SettingPolicy> settingPolicies,
+                                  final ScheduleResolver scheduleResolver,
+                                  Map<Long, Map<String, Boolean>> settingsByEntityAreScheduled,
+                                  Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
+                                  final Map<String, SettingSpec> settingNameToSettingSpecs) {
 
         checkNotNull(userSettingsByEntityAndName);
 
         for (Long oid: entities) {
             // settingSpecName-> Setting mapping
-            Map<String, Setting> settingsByName =
+            Map<String, SettingAndPolicyIdRecord> settingsByName =
                 userSettingsByEntityAndName.computeIfAbsent(
                     oid, k -> new HashMap<>());
             Map<String, Boolean> settingsAreScheduled =
@@ -228,14 +230,18 @@ public class EntitySettingsResolver {
                         scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getSchedule())) {
                     sp.getInfo().getSettingsList().forEach((newSetting) -> {
                         final String specName = newSetting.getSettingSpecName();
-                        final Setting existingSetting = settingsByName.get(specName);
+                        final SettingAndPolicyIdRecord existingSetting = settingsByName.get(specName);
                         if (existingSetting != null) {
-                            final Setting conflictWinner = resolveSettingConflict(existingSetting,
-                                    newSetting, settingNameToSettingSpecs, settingsAreScheduled,
+                            final Setting conflictWinner = resolveSettingConflict(
+                                    existingSetting.getSetting(), newSetting,
+                                    settingNameToSettingSpecs, settingsAreScheduled,
                                     policyIsScheduled);
-                            settingsByName.put(specName, conflictWinner);
+                            settingsByName.put(specName,
+                                    conflictWinner.equals(existingSetting.getSetting())
+                                    ? new SettingAndPolicyIdRecord(conflictWinner, existingSetting.getSettingPolicyId())
+                                    : new SettingAndPolicyIdRecord(conflictWinner, sp.getId()));
                         } else {
-                            settingsByName.put(specName, newSetting);
+                            settingsByName.put(specName, new SettingAndPolicyIdRecord(newSetting, sp.getId()));
                             settingsAreScheduled.put(specName, policyIsScheduled);
                         }
                     });
@@ -391,20 +397,26 @@ public class EntitySettingsResolver {
      *  @param userSettings List of user Setting
      *  @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
      *  @param settingOverrides The map of overrides, by setting name. See
-           {@link EntitySettingsResolver#resolveSettings(GroupResolver, TopologyGraph, SettingOverrides)}.
+           {@link EntitySettingsResolver#resolveSettings(GroupResolver, TopologyGraph, SettingOverrides, TopologyInfo)}
      *  @return EntitySettings message
      *
      */
     private EntitySettings createEntitySettingsMessage(TopologyEntity entity,
-                @Nonnull final Collection<Setting> userSettings,
+                @Nonnull final Collection<SettingAndPolicyIdRecord> userSettings,
                 @Nonnull final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType,
                 @Nonnull final SettingOverrides settingOverrides) {
 
         final EntitySettings.Builder entitySettingsBuilder =
             EntitySettings.newBuilder()
                     .setEntityOid(entity.getOid());
-        userSettings.forEach(entitySettingsBuilder::addUserSettings);
-
+        userSettings.forEach(settingRecord ->
+                entitySettingsBuilder.addUserSettings(
+                        EntitySettings.SettingToPolicyId.newBuilder()
+                                .setSetting(settingRecord.getSetting())
+                                .setSettingPolicyId(settingRecord.getSettingPolicyId())
+                                .build())
+                );
+                        ;
         // Override user settings.
         settingOverrides.overrideSettings(entity.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
 
@@ -538,5 +550,30 @@ public class EntitySettingsResolver {
             });
 
         return groups;
+    }
+
+    /**
+     * Helper class to store the setting and the setting policy ID it is associated with.
+     *
+     */
+    @VisibleForTesting
+    class SettingAndPolicyIdRecord {
+
+        private final Setting setting;
+
+        private final long settingPolicyId;
+
+        public SettingAndPolicyIdRecord(final Setting setting, long settingPolicyId) {
+            this.setting = setting;
+            this.settingPolicyId = settingPolicyId;
+        }
+
+        public Setting getSetting() {
+            return setting;
+        }
+
+        public long getSettingPolicyId() {
+            return settingPolicyId;
+        }
     }
 }

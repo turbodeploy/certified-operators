@@ -526,8 +526,7 @@ message EntitySettings {
 
     // The user settings associated with this entity.
     // These are the settings after conflict resolution.
-    // They are arranged by setting name.
-    repeated Setting user_settings = 2;
+    repeated SettingToPolicyId user_settings = 2;
 
     // The default setting policy that applies to this entity, if any. Since there is only one
     // default policy per entity type, each entity has at most one default policy.
@@ -540,6 +539,16 @@ message EntitySettings {
     // values from the default setting policy internally, since it's the authority for setting
     // policy definitions.
     optional int64 default_setting_policy_id = 3;
+
+    message SettingToPolicyId {
+
+        // The setting applied to the entity after conflict resolution.
+        optional Setting setting = 1;
+
+        // The ID of the non-default setting policy the setting is associated with.
+        optional int64 setting_policy_id = 2;
+
+    }
 }
 
 message UploadEntitySettingsRequest {
@@ -573,6 +582,9 @@ message EntitySettingFilter {
     // List of entity OIDs to return settings for.
     // If the OID list is absent or empty, return the settings for all entities.
     repeated int64 entities = 1;
+
+    // include the Setting Policies the settings belong to
+    optional bool includeSettingPolicies = 2;
 }
 
 message GetEntitySettingsRequest {
@@ -585,6 +597,7 @@ message GetEntitySettingsRequest {
     // to restrict the amount of settings (e.g. the Action Orchestrator
     // may not care about Topology settings).
     optional EntitySettingFilter setting_filter = 2;
+
 }
 
 message GetEntitySettingsResponse {
@@ -596,7 +609,10 @@ message GetEntitySettingsResponse {
 
         // The settings on the entity that match the filter in the request.
         // This list may be empty if no matching settings exist.
-        repeated Setting settings = 2;
+        repeated SettingToPolicyName settings = 2;
+
+        // The setting policy this setting is associated with.
+        optional SettingPolicy settingPolicy = 3;
     }
 
     // The settings that match the filters in the request.
@@ -605,6 +621,15 @@ message GetEntitySettingsResponse {
     // for all entities, the response will only return entries for entities that have settings
     // matching the parameters in the request.
     repeated SettingsForEntity settings = 1;
+
+    message SettingToPolicyName {
+
+        // The setting applied to the entity after conflict resolution.
+        optional Setting setting = 1;
+
+        // The name of the non-default setting policy the setting is associated with.
+        optional string setting_policy_name = 2;
+    }
 }
 
 message GetGlobalSettingResponse {
@@ -654,6 +679,17 @@ message ResetSettingPolicyResponse {
     optional SettingPolicy setting_policy = 1;
 }
 
+// Return the setting policies associated with an entity.
+message GetEntitySettingPoliciesRequest{
+
+    optional int64 entity_oid = 1;
+}
+
+message GetEntitySettingPoliciesResponse {
+
+    repeated SettingPolicy setting_policies = 1;
+}
+
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.
 service SettingPolicyService {
     // Create a setting policy
@@ -697,7 +733,9 @@ service SettingPolicyService {
     rpc UploadEntitySettings(UploadEntitySettingsRequest) returns (UploadEntitySettingsResponse);
 
     // Retrieve settings associated with a selection of entities.
-    //
     // Returns a NOT_FOUND status if there is no setting information for the selected topology.
     rpc GetEntitySettings(GetEntitySettingsRequest) returns (GetEntitySettingsResponse);
+
+    // Get setting policies associated with an entity
+    rpc GetEntitySettingPolicies(GetEntitySettingPoliciesRequest) returns (GetEntitySettingPoliciesResponse);
 }

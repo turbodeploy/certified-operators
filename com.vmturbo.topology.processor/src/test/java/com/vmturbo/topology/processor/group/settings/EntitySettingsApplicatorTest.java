@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -608,7 +609,10 @@ public class EntitySettingsApplicatorTest {
                 .setEntityOid(entityId)
                 .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
         for (Setting setting : settings) {
-            settingsBuilder.addUserSettings(setting);
+            settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
+                    .setSetting(setting)
+                    .setSettingPolicyId(1L)
+                    .build());
         }
         final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,

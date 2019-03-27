@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -50,7 +51,7 @@ public class EntitySettingsCollectionTest {
         ENTITY_OID, EntitySettings.newBuilder()
             .setEntityOid(ENTITY_OID)
             .setDefaultSettingPolicyId(DEFAULT_SETTING_ID)
-            .addUserSettings(MOVE_DISABLED_SETTING)
+            .addUserSettings(SettingToPolicyId.newBuilder().setSetting(MOVE_DISABLED_SETTING).build())
             .build());
 
     final Map<Long, EntitySettings> noUserSettings = Collections.singletonMap(

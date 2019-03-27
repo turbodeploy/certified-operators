@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.Before;
@@ -43,9 +44,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRespo
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
@@ -668,8 +671,14 @@ public class SettingPolicyRpcServiceTest {
         EntitySettings es =
             EntitySettings.newBuilder()
                 .setEntityOid(1234)
-                .addAllUserSettings(settingPolicyInfo.getSettingsList())
-            .build();
+                .addAllUserSettings(
+                        settingPolicyInfo.getSettingsList().stream()
+                                .map(setting -> SettingToPolicyId.newBuilder()
+                                        .setSetting(setting)
+                                        .setSettingPolicyId(settingPolicy.getId())
+                                        .build())
+                                .collect(Collectors.toList()))
+                    .build();
 
         List<EntitySettings> esList = new LinkedList<>();
         esList.add(es);
@@ -708,8 +717,21 @@ public class SettingPolicyRpcServiceTest {
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                 .build();
 
+        final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
+                .setSetting(setting)
+                .setSettingPolicyId(1L)
+                .build();
+
         when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
-                .thenReturn(ImmutableMap.of(7L, Collections.singletonList(setting)));
+                .thenReturn(ImmutableMap.of(7L, Collections.singletonList(settingToPolicyId)));
+
+        when(settingStore.getSettingPolicies(any())).thenReturn(
+                Stream.of(SettingPolicy.newBuilder()
+                        .setId(1L)
+                        .setInfo(SettingPolicyInfo.newBuilder()
+                                .setName("Test-SP")
+                                .build())
+                        .build()));
 
         settingPolicyService.getEntitySettings(GetEntitySettingsRequest.newBuilder()
                 .setTopologySelection(topologyFilter)
@@ -726,7 +748,10 @@ public class SettingPolicyRpcServiceTest {
         assertEquals(1, settingList.size());
         final SettingsForEntity settingsForEntity = settingList.get(0);
         assertEquals(7L, settingsForEntity.getEntityId());
-        assertThat(settingsForEntity.getSettingsList(), containsInAnyOrder(setting));
+        assertThat(settingsForEntity.getSettingsList().stream()
+                        .map(SettingToPolicyName::getSetting)
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(settingToPolicyId.getSetting()));
     }
 
     @Test

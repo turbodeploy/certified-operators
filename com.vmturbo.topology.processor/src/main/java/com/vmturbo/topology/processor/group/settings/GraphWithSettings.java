@@ -5,10 +5,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -100,7 +102,10 @@ public class GraphWithSettings {
         final Collection<Setting> settingsByName =
                 new ArrayList<>(defaultSettingPolicy.getInfo().getSettingsList());
         // Override defaults with user-specific settings.
-        settingsByName.addAll(settingsForEntity.getUserSettingsList());
+        settingsByName.addAll(settingsForEntity.getUserSettingsList()
+                .stream()
+                .map(SettingToPolicyId::getSetting)
+                .collect(Collectors.toList()));
 
         return settingsByName;
     }

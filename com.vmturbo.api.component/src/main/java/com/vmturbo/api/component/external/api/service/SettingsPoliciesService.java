@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 
-import io.grpc.Channel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -28,7 +27,6 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
@@ -58,9 +56,9 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
     private final SettingsMapper settingsMapper;
 
     public SettingsPoliciesService(@Nonnull final SettingsMapper settingsMapper,
-                                   @Nonnull final Channel groupChannel) {
+                                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub) {
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
+        this.settingPolicyService = settingPolicyServiceBlockingStub;
     }
 
     /**
