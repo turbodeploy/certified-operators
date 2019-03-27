@@ -214,6 +214,7 @@ public class TopologyPipelineFactory {
 
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
+                .addStage(new Stages.FlowGenerationStage())
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
@@ -231,6 +232,7 @@ public class TopologyPipelineFactory {
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
+                .addStage(new Stages.MatrixUpdateStage())
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))

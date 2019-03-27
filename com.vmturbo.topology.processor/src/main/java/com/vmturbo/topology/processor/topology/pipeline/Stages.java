@@ -18,6 +18,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -861,6 +862,28 @@ public class Stages {
             settingsApplicator.applySettings(getContext().getTopologyInfo(), input);
             // TODO (roman, Oct 23 2018): Information about number of entities modified as part of
             // setting application.
+            return Status.success();
+        }
+    }
+
+    /**
+     * We generate flow commodities in here.
+     */
+    public static class FlowGenerationStage extends PassthroughStage<StitchingContext> {
+        @Override
+        public Status passthrough(final StitchingContext input) throws PipelineStageException {
+            FlowCommoditiesGenerator commoditiesGenerator = new FlowCommoditiesGenerator();
+            commoditiesGenerator.generateCommodities(input.getStitchingGraph());
+            return Status.success();
+        }
+    }
+
+    /**
+     * We update matrix with capacities here.
+     */
+    public static class MatrixUpdateStage extends PassthroughStage<GraphWithSettings> {
+        @Override
+        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             return Status.success();
         }
     }
