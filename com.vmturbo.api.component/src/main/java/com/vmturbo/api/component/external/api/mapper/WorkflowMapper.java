@@ -9,10 +9,10 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Mapper methods between Workflow protobuf and WorkflowApiDTO UI objects.
@@ -46,13 +46,11 @@ public class WorkflowMapper {
                 .map(this::convertToInputFieldDTO)
                 .collect(Collectors.toList());
         answer.setParameters(workflowParameters);
-        answer.setScriptPath(workflowInfo.getScriptPath());
-        answer.setEntityType(EntityType.forNumber(workflowInfo.getEntityType()).name());
-        answer.setActionType(workflowInfo.getActionType().name());
-        answer.setActionPhase(workflowInfo.getActionPhase().name());
-        answer.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
         // fixed response fields - for compatibility
+        answer.setActionType(ActionDTO.ActionType.NONE.toString());
         answer.setClassName(WORKFLOW_API_DTO_CLASSNAME);
+        // empty fields not currently used by the Classic implementation
+        answer.setEntityType(null);
         return answer;
     }
 

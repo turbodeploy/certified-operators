@@ -17,7 +17,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.mediation.actionscript.ActionScriptsManifest.ActionScriptDeclaration;
-import com.vmturbo.mediation.actionscript.SshUtils.SshRunner;
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
 import com.vmturbo.mediation.actionscript.parameter.ActionScriptParameterDefinition;
@@ -60,47 +59,25 @@ public class ActionScriptDiscovery {
      * @return a ValidationResponse, containing any validation errors
      */
     public ValidationResponse validateManifestFile() {
-        try (SshRunner runner = new SshRunner(accountValues, null)) {
-            return validateManifestFile(runner);
-        } catch (RemoteExecutionException | KeyValidationException e) {
-            ErrorDTO errorDTO = createAndLogErrorDTO(null, "Failed to load Action Scripts Manifest file: " + e.getMessage(), e);
-            return ValidationResponse.newBuilder().addErrorDTO(errorDTO).build();
-        }
-    }
-
-    /**
-     * Validate the manifest file, using an existing {@link SshRunner} object;
-     *
-     * @param runner live ssh runner we will use to execute remote commands
-     * @return validation status
-     */
-    ValidationResponse validateManifestFile(SshRunner runner) {
+        final String manifestPath = accountValues.getManifestPath();
+        final String extension = FileUtils.getFileExtension(new File(manifestPath));
         ErrorDTO errorDTO = null;
-        final File manifestFile = new File(accountValues.getManifestPath());
-        String extension = FileUtils.getFileExtension(manifestFile);
-        if (extension == null) {
-            extension = ""; // avoid NPE below
-        }
         ObjectMapper mapper = null;
-        if (!manifestFile.isAbsolute()) {
-            errorDTO = createAndLogErrorDTO(null, "Action script Manifest file path must be an absolute path", null);
-        } else {
-            switch (extension.toLowerCase()) {
-                case "json":
-                    mapper = new ObjectMapper();
-                    break;
-                case "yaml":
-                case "yml":
-                    mapper = new YAMLMapper();
-                    break;
-                default:
-                    errorDTO = createAndLogErrorDTO(null, "Action Scripts Manifest file name must end in .json or .yaml", null);
-                    break;
-            }
+        switch (extension.toLowerCase()) {
+            case "json":
+                mapper = new ObjectMapper();
+                break;
+            case "yaml":
+            case "yml":
+                mapper = new YAMLMapper();
+                break;
+            default:
+                errorDTO = createAndLogErrorDTO(null, "Action Scripts Manifest file name must end in .json or .yaml", null);
+                break;
         }
         if (mapper != null) {
             try {
-                String fileContent = SshUtils.getRemoteFileContent(manifestFile.toString(), runner);
+                String fileContent = SshUtils.getRemoteFileContent(manifestPath, accountValues, null);
                 this.manifest = mapper.readValue(fileContent, ActionScriptsManifest.class);
                 manifest.setManifestFilePath(accountValues.getManifestPath());
             } catch (RemoteExecutionException | KeyValidationException | IOException e) {
@@ -120,27 +97,12 @@ public class ActionScriptDiscovery {
      * @return a DiscoveryResponse, containings discovered scripts as NonMarketEntityDTOs of type Workflow.
      */
     public DiscoveryResponse discoverActionScripts() {
-        try (SshRunner runner = new SshRunner(accountValues, null)) {
-            return discoverActionScripts(runner);
-        } catch (RemoteExecutionException | KeyValidationException e) {
-            ErrorDTO errorDTO = createAndLogErrorDTO(null, "Failed to discover Action Scripts: " + e.getMessage(), e);
-            return DiscoveryResponse.newBuilder().addErrorDTO(errorDTO).build();
-        }
-    }
-
-    /**
-     * Discover all actions declared in the manifest file, using an existing {@link SshRunner} object.
-     *
-     * @param runner live ssh runner we can use to execute remote commands
-     * @return discovery response
-     */
-    DiscoveryResponse discoverActionScripts(SshRunner runner) {
         DiscoveryResponse.Builder response = DiscoveryResponse.newBuilder();
-        final ValidationResponse validation = validateManifestFile(runner);
+        final ValidationResponse validation = validateManifestFile();
         if (validation.getErrorDTOCount() == 0) {
             for (ActionScriptDeclaration script : manifest.getScripts()) {
                 try {
-                    response.addWorkflow(validateScriptDeclaration(script, runner));
+                    response.addWorkflow(validateScriptDeclaration(script));
                 } catch (InvalidActionScriptException e) {
                     response.addErrorDTO(createAndLogErrorDTO(generateWorkflowID(script), "Failed to validate action script " + script.getName() + ": " + e.getLocalizedMessage(), e));
                 }
@@ -151,16 +113,16 @@ public class ActionScriptDiscovery {
         return response.build();
     }
 
-    private Workflow validateScriptDeclaration(ActionScriptDeclaration script, SshRunner runner) throws InvalidActionScriptException {
+    private Workflow validateScriptDeclaration(ActionScriptDeclaration script) throws InvalidActionScriptException {
         if (script.getName() == null) {
             throw new InvalidActionScriptException("Action script display name is missing");
         }
         if (script.getScriptPath() == null) {
             throw new InvalidActionScriptException("Action script path is missing");
         }
-        String fullPath = script.getScriptPath(manifest);
+        String path = script.getScriptPath(manifest);
         try {
-            if (isExecutableFile(fullPath, runner)) {
+            if (isExecutableFile(path)) {
                 return generateWorkflow(script);
             } else {
                 throw new InvalidActionScriptException("Script path does not refer to an executable file on the execution server");
@@ -173,8 +135,8 @@ public class ActionScriptDiscovery {
     private static final int OWNER_EXECUTABLE_MASK = 0100;
     private static final int ALL_USERS_EXECUTABLE_MASK = 0001;
 
-    private boolean isExecutableFile(String path, SshRunner runner) throws RemoteExecutionException, KeyValidationException {
-        Attributes attrs = SshUtils.getRemoteFileAttributes(path, runner);
+    private boolean isExecutableFile(String path) throws RemoteExecutionException, KeyValidationException {
+        Attributes attrs = SshUtils.getRemoteFileAttributes(path, accountValues, null);
         int perms = attrs.getPermissions();
         String owner = attrs.getOwner();
         boolean ownerExecutable = owner != null && owner.equals(accountValues.getUserid()) && (perms & OWNER_EXECUTABLE_MASK) != 0;
@@ -223,9 +185,6 @@ public class ActionScriptDiscovery {
         }
         if (script.getActionPhase() != null) {
             workflowBuilder.setPhase(script.getActionPhase());
-        }
-        if (script.getTimeLimitSeconds() != null) {
-            workflowBuilder.setTimeLimitSeconds(script.getTimeLimitSeconds());
         }
         // Include the standard variables that are available to all scripts
         Arrays.stream(ActionScriptParameterDefinition.values())

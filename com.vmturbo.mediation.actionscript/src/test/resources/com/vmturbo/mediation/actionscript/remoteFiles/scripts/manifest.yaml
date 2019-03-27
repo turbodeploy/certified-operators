@@ -5,7 +5,6 @@ scripts:
     entityType: PHYSICAL_MACHINE
     actionType: MOVE
     actionPhase: REPLACE
-    timeLimitSeconds: 10000
   - name: missing-script
     scriptPath: /no/scripts/here/script.sh
   - name: valid-in-other-dir

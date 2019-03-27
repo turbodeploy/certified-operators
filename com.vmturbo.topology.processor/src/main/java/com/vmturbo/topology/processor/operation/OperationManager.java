@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.operation;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -29,7 +27,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.topology.TopologyDTOREST.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -37,8 +34,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
-import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -55,15 +50,11 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
-import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
-import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
-import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -99,7 +90,7 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 public class OperationManager implements ProbeStoreListener, TargetStoreListener,
         IOperationManager {
 
-    private static final Logger logger = LogManager.getLogger(OperationManager.class);
+    private final Logger logger = LogManager.getLogger(OperationManager.class);
 
     // Mapping from OperationID -> Ongoing Operations
     private final ConcurrentMap<Long, Operation> ongoingOperations = new ConcurrentHashMap<>();
@@ -161,10 +152,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final long actionTimeoutMs;
 
-    private final TargetDumpingSettings targetDumpingSettings;
-
-    private DiscoveryDumper discoveryDumper = null;
-
     /**
      *  Executor service for handling async responses from the probe.
      */
@@ -201,7 +188,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         .withHelp("The number of service entities in a discovery.")
         .build()
         .register();
-
     private DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
     private DiscoveredCloudCostUploader discoveredCloudCostUploader;
@@ -235,7 +221,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final EntityActionDao entityActionDao,
                             @Nonnull final DerivedTargetParser derivedTargetParser,
                             @Nonnull final GroupScopeResolver groupScopeResolver,
-                            @Nonnull final TargetDumpingSettings targetDumpingSettings,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds,
@@ -261,13 +246,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.probeDiscoveryPermitWaitTimeoutMins = probeDiscoveryPermitWaitTimeoutMins;
         this.probeDiscoveryPermitWaitTimeoutIntervalMins = probeDiscoveryPermitWaitTimeoutIntervalMins;
-        this.targetDumpingSettings = targetDumpingSettings;
-        try {
-            this.discoveryDumper = new DiscoveryDumperImpl(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, targetDumpingSettings);
-        } catch (IOException e) {
-            logger.warn("Failed to initialized discovery dumper; discovery responses will not be dumped", e);
-            this.discoveryDumper = null;
-        }
 
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
@@ -341,72 +319,27 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return a newly created {@link }Workflow} DTO
      */
     private Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
-        final Workflow.Builder wfBuilder = Workflow.newBuilder();
-        if (workflowInfo.hasDisplayName()) {
-            wfBuilder.setDisplayName(workflowInfo.getDisplayName());
-        }
-        if (workflowInfo.hasName()) {
-            wfBuilder.setId(workflowInfo.getName());
-        }
-        if (workflowInfo.hasDescription()) {
-            wfBuilder.setDescription(workflowInfo.getDescription());
-        }
-        wfBuilder.addAllParam(workflowInfo.getWorkflowParamList().stream()
-            .map(workflowParam -> {
-                final Workflow.Parameter.Builder parmBuilder = Workflow.Parameter.newBuilder();
-                if (workflowParam.hasDescription()) {
-                    parmBuilder.setDescription(workflowParam.getDescription());
-                }
-                if (workflowParam.hasName()) {
-                    parmBuilder.setName(workflowParam.getName());
-                }
-                if (workflowParam.hasType()) {
-                    parmBuilder.setType(workflowParam.getType());
-                }
-                if (workflowParam.hasMandatory()) {
-                    parmBuilder.setMandatory(workflowParam.getMandatory());
-                }
-                return parmBuilder.build();
-            })
-            .collect(Collectors.toList()));
-        // include the 'property' entries from the Workflow
-        wfBuilder.addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
-            .map(workflowProperty -> {
-                final Workflow.Property.Builder propBUilder = Workflow.Property.newBuilder();
-                if (workflowProperty.hasName()) {
-                    propBUilder.setName(workflowProperty.getName());
-                }
-                if (workflowProperty.hasValue()) {
-                    propBUilder.setValue(workflowProperty.getValue());
-                }
-                return propBUilder.build();
-            })
-            .collect(Collectors.toList()));
-        if (workflowInfo.hasScriptPath()) {
-            wfBuilder.setScriptPath(workflowInfo.getScriptPath());
-        }
-        if (workflowInfo.hasEntityType()) {
-            wfBuilder.setEntityType(EntityDTO.EntityType.forNumber(workflowInfo.getEntityType()));
-        }
-        if (workflowInfo.hasActionType()) {
-
-            ActionType converted = ActionConversions.convertActionType(workflowInfo.getActionType());
-            if (converted != null) {
-                wfBuilder.setActionType(converted);
-            }
-        }
-        if (workflowInfo.hasActionPhase()) {
-            final ActionScriptPhase converted = ActionConversions.convertActionPhase(workflowInfo.getActionPhase());
-            if (converted != null) {
-                wfBuilder.setPhase(converted);
-            }
-        }
-        if (workflowInfo.hasTimeLimitSeconds()) {
-            wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
-        }
-        return wfBuilder.build();
+        return Workflow.newBuilder()
+            .setDisplayName(workflowInfo.getDisplayName())
+            .setId(workflowInfo.getName())
+            .setDescription(workflowInfo.getDescription())
+            .addAllParam(workflowInfo.getWorkflowParamList().stream()
+                .map(workflowParam -> Workflow.Parameter.newBuilder()
+                    .setDescription(workflowParam.getDescription())
+                    .setName(workflowParam.getName())
+                    .setType(workflowParam.getType())
+                    .setMandatory(workflowParam.getMandatory())
+                    .build())
+                .collect(Collectors.toList()))
+            // include the 'property' entries from the Workflow
+            .addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
+                .map(workflowProperty -> Workflow.Property.newBuilder()
+                    .setName(workflowProperty.getName())
+                    .setValue(workflowProperty.getValue())
+                    .build())
+                .collect(Collectors.toList()))
+            .build();
     }
-
 
     /**
      * Request a validation on a target. There may be only a single ongoing validation
@@ -985,19 +918,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
                         response.getNonMarketEntityDTOList(), response.getCostDTOList(),
                         response.getPriceTable());
-                if (discoveryDumper != null) {
-                    final Optional<Target> target = targetStore.getTarget(targetId);
-                    final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                    Optional<String> displayName = target.isPresent() && probeInfo.isPresent()
-                        ? target.get().computeDisplayName()
-                        : Optional.empty();
-                    String targetName = displayName.map(name -> probeInfo.get().getProbeType() + "_" + name).orElse(DiscoveryDumperSettings.UNIDENTIFIED_TARGET_NAME);
-                    if (discovery.getUserInitiated()) {
-                        // make sure we have up-to-date settings if this is a user-initiated discovery
-                        targetDumpingSettings.refreshSettings();
-                    }
-                    discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
-                }
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |

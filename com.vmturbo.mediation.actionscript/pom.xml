@@ -13,11 +13,48 @@
     <artifactId>com.vmturbo.mediation.actionscript</artifactId>
     <packaging>jar</packaging>
 
+    <properties>
+        <!--
+        Use the password-auth profile to set this parameter to true to allow password authentication
+        for ssh during script discovery or execution. This is useful in testing to get around
+        difficulties supplying private keys via the UI.
+
+        Can't just override this param on command line, because that doesn't pass through to
+        modules when building an aggregator. Profile activations do!
+        -->
+        <ssh-allow-password-auth>false</ssh-allow-password-auth>
+    </properties>
+
+    <profiles>
+        <profile>
+            <id>password-auth</id>
+            <properties>
+                <!--
+                This causes maven to expand maven property references into their values when copying
+                the covered resources. It's how we make the ssh-allow-password-auth setting available
+                to the code at runtime.
+                -->
+                <ssh-allow-password-auth>true</ssh-allow-password-auth>
+            </properties>
+        </profile>
+    </profiles>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>vmturbo-sdk-plugin</artifactId>
+            </plugin>
+        </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+    </build>
+
     <dependencies>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.apache.sshd</groupId>
             <artifactId>sshd-core</artifactId>
@@ -25,10 +62,6 @@
         <dependency>
             <groupId>org.apache.sshd</groupId>
             <artifactId>sshd-sftp</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -110,15 +143,6 @@
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>common-protobuf</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 

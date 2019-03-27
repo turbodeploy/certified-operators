@@ -66,7 +66,6 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
-import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -200,14 +199,6 @@ public class OperationControllerTest {
             return grpScopeResolver;
         }
 
-        @Bean
-        TargetDumpingSettings targetDumpingSettings() {
-            TargetDumpingSettings targetDumpingSettings = Mockito.mock(TargetDumpingSettings.class);
-            Mockito.when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
-            Mockito.doNothing().when(targetDumpingSettings).refreshSettings();
-            return targetDumpingSettings;
-        }
-
         @SuppressWarnings("unchecked")
         OperationListener operationListener() {
             return Mockito.mock(OperationListener.class);
@@ -228,7 +219,6 @@ public class OperationControllerTest {
                 controllableDao(),
                 derivedTargetParser(),
                 groupScopeResolver(),
-                targetDumpingSettings(),
                 10, 10, 10,
                     5, 1, 1);
         }

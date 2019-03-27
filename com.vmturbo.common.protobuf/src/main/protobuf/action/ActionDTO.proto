@@ -445,20 +445,6 @@ enum ActionState {
     FAILED = 5;
 }
 
-enum ActionPhase {
-    // Actions may have Action Scripts that are attached through policy. These scripts execute in
-    // phases relative to the primary action itself.
-
-    // A PRE phase script executes before primary action execution
-    PRE = 0;
-
-    // A REPLACE phase script executes in place of the normal primary action implementation
-    REPLACE = 1;
-
-    // A POST phase script executes after the primary action execution
-    POST = 2;
-}
-
 // The ActionDecision provides information about why OperationsManager
 // decided to execute or not to execute a particular action.
 message ActionDecision {

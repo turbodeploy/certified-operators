@@ -2,13 +2,14 @@ package com.vmturbo.topology.processor.actions.data.context;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -21,6 +22,17 @@ public class DeactivateContext extends AbstractActionExecutionContext {
                              @Nonnull final EntityStore entityStore,
                              @Nonnull final EntityRetriever entityRetriever) {
         super(request, dataManager, entityStore, entityRetriever);
+    }
+
+    /**
+     * Get the SDK (probe-facing) type of the over-arching action being executed
+     *
+     * @return the SDK (probe-facing) type of the over-arching action being executed
+     */
+    @Nonnull
+    @Override
+    public ActionType getSDKActionType() {
+        return ActionType.SUSPEND;
     }
 
     /**

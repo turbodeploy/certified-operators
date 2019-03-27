@@ -1,18 +1,45 @@
 package com.vmturbo.mediation.actionscript;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.GeneralSecurityException;
-import java.util.regex.Pattern;
+import java.security.KeyPair;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.util.FileUtils;
+import org.apache.logging.log4j.core.util.IOUtils;
+import org.apache.sshd.common.Factory;
+import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
+import org.apache.sshd.common.keyprovider.ClassLoadableResourceKeyPairProvider;
+import org.apache.sshd.server.Environment;
+import org.apache.sshd.server.ExitCallback;
 import org.apache.sshd.server.SshServer;
+import org.apache.sshd.server.auth.pubkey.KeySetPublickeyAuthenticator;
+import org.apache.sshd.server.command.Command;
+import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
+import org.springframework.util.SocketUtils;
 
 import com.google.common.io.Resources;
 
@@ -28,29 +55,21 @@ import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
  * This folder is where the user will place the executable files (scripts)
  * which the ActionScript probe will invoke in the Executor.
  */
-public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
+public class ActionScriptDiscoveryTest extends Assert {
 
     private static Logger logger = LogManager.getLogger(ActionScriptDiscoveryTest.class);
 
     private SshServer sshd;
     // must be > 8000 for non-privileged process to create it
-    private ActionScriptProbeAccount accountValues;
     private int testPort;
-
+    private ActionScriptProbeAccount accountValues;
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
     @Before
-    public void setup() throws IOException, GeneralSecurityException {
-        this.testPort = startApacheSshd(tempFolder.getRoot());
-        copyResouresToFileTree("remoteFiles", this.getClass().getName(), tempFolder.getRoot());
-        setOwnerExecutable(tempFolder.getRoot(), Pattern.compile("execByOwner-.*"));
-        setAllExecutable(tempFolder.getRoot(), Pattern.compile("execByAll-.*"));
-    }
-
-    @After
-    public void teardown() throws IOException {
-        stopApacheSshd();
+    public void setUp() throws IOException, GeneralSecurityException {
+        setupSshd();
+        setupRemoteFiles();
     }
 
     private ActionScriptProbeAccount createAccountValues(String manifestPath) throws IOException {
@@ -58,7 +77,15 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
             System.getProperty("user.name"),
             Resources.toString(Resources.getResource("ssh/id_rsa"), Charset.defaultCharset()),
             manifestPath,
-            Integer.toString(testPort), null);
+            Integer.toString(testPort));
+    }
+
+
+    @After
+    public void takeDown() throws IOException {
+        if (sshd != null) {
+            sshd.stop();
+        }
     }
 
     @Test
@@ -98,28 +125,6 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
     }
 
     @Test
-    public void testCantReadJsonManifestWithUnrecognizedProperties() throws IOException {
-        final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/unrec-props-manifest.json")).validateManifestFile();
-        assertEquals(1, result.getErrorDTOCount());
-        String msg = result.getErrorDTO(0).getDescription();
-        assertTrue(msg.contains("Unrecognized field \"actionTypo\""));
-    }
-
-    @Test
-    public void testCantReadYamlManifestWithUnrecognizedProperties() throws IOException {
-        final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/unrec-props-manifest.yaml")).validateManifestFile();
-        assertEquals(1, result.getErrorDTOCount());
-        String msg = result.getErrorDTO(0).getDescription();
-        assertTrue(msg.contains("Unrecognized field \"actionTypo\""));
-    }
-
-    @Test
-    public void testCantReadManifestWithRelativePath() throws IOException {
-        final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("scripts/unrec-props-manifest.yaml")).validateManifestFile();
-        assertEquals(1, result.getErrorDTOCount());
-    }
-
-    @Test
     public void testCanDiscoverActions() throws IOException {
         ActionScriptProbeAccount accountValues = createAccountValues("/scripts/manifest.yaml");
         final ActionScriptDiscovery discovery = new ActionScriptDiscovery(accountValues);
@@ -127,13 +132,13 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
         final DiscoveryResponse results = discovery.discoverActionScripts();
         assertEquals(4, results.getWorkflowCount());
         checkScriptValues(results, 0, "valid-in-default-dir", "/scripts/execByAll-valid-in-default-dir.sh",
-            "valid script in default directory", EntityType.PHYSICAL_MACHINE, ActionType.MOVE, ActionScriptPhase.REPLACE, 10000L);
+            "valid script in default directory", EntityType.PHYSICAL_MACHINE, ActionType.MOVE, ActionScriptPhase.REPLACE);
         checkScriptValues(results, 1, "valid-in-other-dir", "/otherscripts/execByAll-valid-in-other-path.sh",
-            null, null, null, null, null);
+            null, null, null, null);
         checkScriptValues(results, 2, "valid-in-rel-dir", "/otherscripts/execByAll-valid-in-relative-path.sh",
-            null, null, null, null, null);
+            null, null, null, null);
         checkScriptValues(results, 3, "valid-owner-exec", "/scripts/execByOwner-valid-in-default-dir.sh",
-            null, null, null, null, null);
+            null, null, null, null);
         assertEquals(4, results.getErrorDTOCount());
         checkErrorValues(results, 0, accountValues.getNameOrAddress(), "missing-script", "/no/scripts/here/script.sh");
         checkErrorValues(results, 1, accountValues.getNameOrAddress(), null, "/scripts/no-name.sh");
@@ -141,15 +146,7 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
         checkErrorValues(results, 3, accountValues.getNameOrAddress(), "non-executable", "/scripts/non-exec.sh");
     }
 
-    @Test
-    public void testCantReadWrongNamedManifest() throws IOException {
-        ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/manifest")).validateManifestFile();
-        assertEquals(1, result.getErrorDTOCount());
-        result = new ActionScriptDiscovery(createAccountValues("/scripts/manifest.json.bogus")).validateManifestFile();
-        assertEquals(1, result.getErrorDTOCount());
-    }
-
-    private void checkScriptValues(DiscoveryResponse results, int index, String name, String path, String description, EntityType entityType, ActionType actionType, ActionScriptPhase actionPhase, Long timeLimitSeconds) {
+    private void checkScriptValues(DiscoveryResponse results, int index, String name, String path, String description, EntityType entityType, ActionType actionType, ActionScriptPhase actionPhase, String... tags) {
         assertTrue("No valid script at position " + index + " in discovery response", index < results.getWorkflowCount());
         final Workflow workflow = results.getWorkflow(index);
         assertEquals(name, workflow.hasDisplayName() ? workflow.getDisplayName() : null);
@@ -158,7 +155,6 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
         assertEquals(entityType, workflow.hasEntityType() ? workflow.getEntityType() : null);
         assertEquals(actionType, workflow.hasActionType() ? workflow.getActionType() : null);
         assertEquals(actionPhase, workflow.hasPhase() ? workflow.getPhase() : null);
-        assertEquals(timeLimitSeconds, workflow.hasTimeLimitSeconds() ? workflow.getTimeLimitSeconds() : null);
     }
 
     private void checkErrorValues(DiscoveryResponse results, int index, String host, String name, String path) {
@@ -167,4 +163,117 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
         assertEquals(expected, results.getErrorDTO(index).getEntityUuid());
     }
 
+    private void setupSshd() throws IOException, GeneralSecurityException {
+        testPort = SocketUtils.findAvailableTcpPort();
+        logger.info("TCP Test Port for SSH: {}", testPort);
+
+        sshd = SshServer.setUpDefaultServer();
+        sshd.setPort(testPort);
+
+        // load the private key id_rsa from the src/test/resources/ssh folder
+        final ClassLoadableResourceKeyPairProvider keyPairProvider
+            = new ClassLoadableResourceKeyPairProvider("ssh/id_rsa");
+        sshd.setKeyPairProvider(keyPairProvider);
+
+        // fetch the private key info for this test from the resource
+        final String privateKeyString = Resources.toString(Resources.getResource("ssh/id_rsa"),
+            Charset.defaultCharset());
+
+        // extract a keypair from the key for this test
+        final KeyPair keyPair = SshUtils.extractKeyPair(privateKeyString);
+
+        // prepare the authenticator to recognize the public key of this pair
+        sshd.setPublickeyAuthenticator(new KeySetPublickeyAuthenticator(
+            Collections.singleton(keyPair.getPublic())));
+
+        // create a fake Shell factory instead of running real shell commands
+        sshd.setShellFactory(new TestShellFactory());
+
+        // chroot sshd to our temp folder
+        sshd.setFileSystemFactory(new VirtualFileSystemFactory(tempFolder.getRoot().toPath()));
+
+        sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
+        sshd.start();
+    }
+
+    /**
+     * Copy the file structure rooted at "remoteFiles" in resources relative to this package, to
+     * the TempFolder object.
+     *
+     * @throws IOException
+     */
+    private void setupRemoteFiles() throws IOException {
+        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        String prefix = ActionScriptDiscoveryTest.class.getPackage().getName().replaceAll("[.]", "/") + "/remoteFiles";
+        File root = tempFolder.getRoot();
+        logger.info("Copying test files to {}", root);
+        for (Resource resource : resolver.getResources("classpath*:" + prefix + "/**/*")) {
+            if (resource.exists() && !resource.getFile().isDirectory()) {
+                String path = resource.getFile().toString();
+                String relPath = path.substring(path.indexOf(prefix) + prefix.length());
+                File dest = new File(root, relPath);
+                FileUtils.makeParentDirs(dest);
+                try (Reader in = new InputStreamReader(resource.getInputStream())) {
+                    try (Writer out = new FileWriter(dest)) {
+                        IOUtils.copy(in, out);
+                    }
+                }
+                // Scripts that are supposed to pass validation must be named "val-". Here we ensure that they are executable.
+                if (dest.getName().startsWith("exec")) {
+                    final Set<PosixFilePermission> perms = Files.getPosixFilePermissions(dest.toPath());
+                    perms.removeAll(Arrays.asList(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.GROUP_EXECUTE, PosixFilePermission.OTHERS_EXECUTE));
+                    // If the script name starts with "val-owner-" then it is intended to be executable by owner; else we make it executable by all
+                    if (dest.getName().startsWith("execByOwner-")) {
+                        perms.add(PosixFilePermission.OWNER_EXECUTE);
+                    } else if (dest.getName().startsWith("execByAll-")) {
+                        perms.add(PosixFilePermission.OTHERS_EXECUTE);
+                    } else {
+                        throw new IllegalArgumentException("Remote file resource name starts with 'exec' followed by neither 'ByOnwer-' nor 'ByAllUsers-'");
+                    }
+                    Files.setPosixFilePermissions(dest.toPath(), perms);
+                }
+            }
+        }
+    }
+
+    /**
+     * A fake Shell factory, to be used instead of running real shell commands
+     */
+    private class TestShellFactory implements Factory<Command> {
+        @Override
+        public Command create() {
+            return new Command() {
+
+                @Override
+                public void start(final Environment environment) throws IOException {
+
+                }
+
+                @Override
+                public void destroy() throws Exception {
+
+                }
+
+                @Override
+                public void setInputStream(final InputStream inputStream) {
+
+                }
+
+                @Override
+                public void setOutputStream(final OutputStream outputStream) {
+
+                }
+
+                @Override
+                public void setErrorStream(final OutputStream outputStream) {
+
+                }
+
+                @Override
+                public void setExitCallback(final ExitCallback exitCallback) {
+
+                }
+            };
+        }
+    }
 }

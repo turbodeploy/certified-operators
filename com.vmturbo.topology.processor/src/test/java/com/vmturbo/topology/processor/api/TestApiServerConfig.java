@@ -44,7 +44,6 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
-import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -239,21 +238,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public TargetDumpingSettings targetDumpingSettings() {
-        TargetDumpingSettings targetDumpingSettings = Mockito.mock(TargetDumpingSettings.class);
-        Mockito.when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
-        Mockito.doNothing().when(targetDumpingSettings).refreshSettings();
-        return targetDumpingSettings;
-    }
-
-    @Bean
     public OperationManager operationManager() {
 
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
                 remoteMediation(), topologyProcessorNotificationSender(),
                 entityRepository(), groupRecorder(), workflowRecorder(), cloudCostUploadRecorder(),
                 discoveredTemplatesUploader(), controllableDao(), derivedTargetParser(),
-                groupScopeResolver(), targetDumpingSettings(), 1L, 1L, 1L,
+                groupScopeResolver(),1L, 1L, 1L,
                 5, 1, 1);
     }
 

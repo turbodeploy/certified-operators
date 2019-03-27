@@ -24,8 +24,10 @@ import javax.servlet.ServletRegistration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
@@ -471,6 +473,38 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
+     * Returns environment variable value.
+     *
+     * @param propertyName environment variable name
+     * @return evironment variable value
+     * @throws IllegalStateException if there is not such environment property set
+     */
+    @Nonnull
+    protected static String requireEnvProperty(@Nonnull String propertyName) {
+        return getOptionalEnvProperty(propertyName)
+                .orElseThrow(() -> new IllegalStateException("System or environment property \"" + propertyName + "\" must be set"));
+    }
+
+    /**
+     * Return the value of a system property or environment value (in that order) with the specified
+     * name, if one is defined, otherwise empty.
+     *
+     * @param propertyName The name of the system or environment property to check.
+     * @return An Optional of the system property value or environment variable, if one was found.
+     */
+    protected static Optional<String> getOptionalEnvProperty(@Nonnull String propertyName) {
+        final String sysPropValue = System.getProperty(propertyName);
+        if (sysPropValue != null) {
+            return Optional.of(sysPropValue);
+        }
+        final String envPropValue = System.getenv(propertyName);
+        if (envPropValue != null) {
+            return Optional.of(envPropValue);
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Get an optional environment property as an int value, returning the default value if the
      * property is not found or not parseable.
      *
@@ -480,7 +514,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     protected static int getOptionalIntEnvProperty(String propertyName, int defaultValue) {
         try {
-            return EnvironmentUtils.getOptionalEnvProperty(propertyName)
+            return getOptionalEnvProperty(propertyName)
                     .map(Integer::parseInt)
                     .orElse(defaultValue);
         } catch (NumberFormatException nfe) {
@@ -530,8 +564,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     protected static ConfigurableApplicationContext startContext(
             @Nonnull ContextConfigurer contextConfigurer) {
         // fetch the component information from the environment
-        componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPNENT_TYPE);
-        instanceId = EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID);
+        componentType = requireEnvProperty(PROP_COMPNENT_TYPE);
+        instanceId = requireEnvProperty(PROP_INSTANCE_ID);
 
         // get a pointer to the ClusterMgr client api
         ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
@@ -543,7 +577,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         fetchConfigurationProperties(clusterMgrClient);
 
         logger.info("Starting web server with spring context");
-        final String serverPort = EnvironmentUtils.requireEnvProperty(PROP_serverHttpPort);
+        final String serverPort = requireEnvProperty(PROP_serverHttpPort);
         System.setProperty("org.jooq.no-logo", "true");
 
         final org.eclipse.jetty.server.Server server =
@@ -569,12 +603,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         return null;
     }
 
-    public static ClusterMgrRestClient getClusterMgrClient() {
+    private static ClusterMgrRestClient getClusterMgrClient() {
         final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
         final int clusterMgrConnectionRetryDelaySecs = EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
         clusterMgrConnectionRetryDelayMs =
                 Duration.ofSeconds(clusterMgrConnectionRetryDelaySecs).toMillis();
-        final String clusterMgrHost = EnvironmentUtils.requireEnvProperty("clustermgr_host");
+        final String clusterMgrHost = requireEnvProperty("clustermgr_host");
 
         logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
         return ClusterMgrClient.createClient(

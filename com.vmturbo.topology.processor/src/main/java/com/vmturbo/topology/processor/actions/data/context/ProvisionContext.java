@@ -34,6 +34,17 @@ public class ProvisionContext extends AbstractActionExecutionContext {
     }
 
     /**
+     * Get the SDK (probe-facing) type of the over-arching action being executed
+     *
+     * @return the SDK (probe-facing) type of the over-arching action being executed
+     */
+    @Nonnull
+    @Override
+    public ActionType getSDKActionType() {
+        return ActionType.PROVISION;
+    }
+
+    /**
      * Get the type of the over-arching action being executed
      *
      * @return the type of the over-arching action being executed
