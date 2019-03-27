@@ -274,6 +274,7 @@ public class ServiceConfig {
                 userSessionContext(),
                 websocketConfig.websocketHandler(),
                 actionStatsQueryExecutor(),
+                communicationConfig.topologyProcessor(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

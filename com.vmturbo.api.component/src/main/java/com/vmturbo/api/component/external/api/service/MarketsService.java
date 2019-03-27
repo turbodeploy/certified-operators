@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -125,7 +126,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
  * Service implementation of Markets.
@@ -172,6 +178,8 @@ public class MarketsService implements IMarketsService {
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
+    private final TopologyProcessor topologyProcessor;
+
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -188,6 +196,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final UserSessionContext userSessionContext,
                           @Nonnull final UINotificationChannel uiNotificationChannel,
                           @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
+                          @Nonnull final TopologyProcessor topologyProcessor,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -207,6 +216,7 @@ public class MarketsService implements IMarketsService {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
     /**
@@ -232,6 +242,51 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public MarketApiDTO getMarketByUuid(String uuid) throws UnknownObjectException {
+        // TODO: The implementation for the environment type might be possibly altered for the case
+        // of a scoped plan (should we consoder only the scoped tergets?)
+        EnvironmentType envType = null;
+        try {
+            Set<Long> probeIds = new HashSet<Long>();
+            Set<TargetInfo> targetInfos = topologyProcessor.getAllTargets();
+            for (TargetInfo targetInfo : targetInfos) {
+                probeIds.add(targetInfo.getProbeId());
+            }
+
+            Set<ProbeInfo> probeInfos = topologyProcessor.getAllProbes();
+            boolean isOnPrem = false;
+            boolean isCloud = false;
+            boolean isHybrid = false;
+            for (ProbeInfo probeInfo : probeInfos) {
+                if (probeIds.contains(probeInfo.getId())) {
+                    switch (ProbeCategory.create(probeInfo.getCategory())) {
+                        case CLOUD_MANAGEMENT:
+                        case CLOUD_NATIVE:
+                        case PAAS:
+                        case FAAS:
+                            isCloud = true;
+                            break;
+                        default:
+                            isOnPrem = true;
+                            break;
+                    }
+                    if (isOnPrem && isCloud) {
+                        isHybrid = true;
+                        break;
+                    }
+                }
+            }
+            if (isHybrid) {
+                envType = EnvironmentType.HYBRID;
+            } else if (isOnPrem) {
+                envType = EnvironmentType.ONPREM;
+            } else {
+                envType = EnvironmentType.CLOUD;
+            }
+
+        } catch (CommunicationException e) {
+            logger.debug("getMarketByUuid(): Error while trying to calculate the environment type: {}",
+                    e.getMessage());
+        }
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
             // TODO (roman, Dec 21 2016): Not sure what the API
@@ -239,8 +294,12 @@ public class MarketsService implements IMarketsService {
             // unplaced entities, state progress, and all that jazz.
             MarketApiDTO realtimeDto = new MarketApiDTO();
             realtimeDto.setUuid(apiId.uuid());
-            realtimeDto.setState("SUCCEEDED");
+            realtimeDto.setDisplayName("Market");
+            realtimeDto.setClassName(apiId.uuid());
+            realtimeDto.setState("RUNNING");
+            realtimeDto.setUnplacedEntities(false);
             realtimeDto.setStateProgress(100);
+            realtimeDto.setEnvironmentType(envType);
             return realtimeDto;
         } else {
             OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
@@ -249,7 +308,18 @@ public class MarketsService implements IMarketsService {
             if (!response.hasPlanInstance()) {
                 throw new UnknownObjectException(uuid);
             }
-            return marketMapper.dtoFromPlanInstance(response.getPlanInstance());
+            MarketApiDTO planDto = marketMapper.dtoFromPlanInstance(response.getPlanInstance());
+            planDto.setEnvironmentType(envType);
+
+            // set unplaced entities
+            try {
+                planDto.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(uuid).isEmpty());
+            } catch (Exception e) {
+                logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
+                        e.getMessage());
+            }
+
+            return planDto;
         }
     }
 

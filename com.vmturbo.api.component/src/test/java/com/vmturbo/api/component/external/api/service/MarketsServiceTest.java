@@ -295,7 +295,7 @@ public class MarketsServiceTest {
                     policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
-                    uiNotificationChannel(), actionStatsQueryExecutor(), REALTIME_CONTEXT_ID);
+                    uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
