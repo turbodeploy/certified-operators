@@ -46,6 +46,9 @@ public class ApplicationInfoMapper extends TypeSpecificInfoMapper {
             if (dbData.hasEngine()) {
                 databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));
             }
+            if (dbData.hasVersion()) {
+                databaseInfoBuilder.setVersion(dbData.getVersion());
+            }
             // we don't yet need 'dbData.getVersion() - but that may change
             appInfo.setDatabase(databaseInfoBuilder);
         }

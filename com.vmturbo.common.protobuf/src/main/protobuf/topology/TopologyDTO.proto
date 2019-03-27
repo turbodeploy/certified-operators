@@ -116,6 +116,9 @@ message TypeSpecificInfo {
 
         // DeploymentType
         optional .common_dto.DeploymentType deployment_type = 4;
+
+        // DB version
+        optional string version = 5;
     }
 
     // specific data for virtual volume

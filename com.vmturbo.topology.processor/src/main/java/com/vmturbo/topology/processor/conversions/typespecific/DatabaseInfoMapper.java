@@ -25,10 +25,11 @@ public class DatabaseInfoMapper extends TypeSpecificInfoMapper {
         final ApplicationData appData = sdkEntity.getApplicationData();
         final DatabaseData dbData = appData.getDbData();
         return TypeSpecificInfo.newBuilder()
-                .setDatabase(DatabaseInfo.newBuilder()
-                        .setEdition(parseDbEdition(dbData.getEdition()))
-                        .setEngine(parseDbEngine(dbData.getEngine()))
-                        .build())
-                .build();
+            .setDatabase(DatabaseInfo.newBuilder()
+                .setEdition(parseDbEdition(dbData.getEdition()))
+                .setEngine(parseDbEngine(dbData.getEngine()))
+                .setVersion(dbData.getVersion())
+                .build())
+            .build();
     }
 }

@@ -22,27 +22,28 @@ public class ApplicationInfoMapperTest {
 
 
     private static final IpAddress TEST_IP_ADDRESS = IpAddress.newBuilder()
-            .setIpAddress("1.2.3.4")
-            .build();
+        .setIpAddress("1.2.3.4")
+        .build();
     private static final DatabaseEngine DATABASE_ENGINE = DatabaseEngine.MARIADB;
     private static final DatabaseEdition DATABASE_EDITION = DatabaseEdition.ORACLE_ENTERPRISE;
+    private static final String DATABASE_VERSION = "1.0";
 
     @Test
     public void testExtractTypeSpecificInfo() {
         // arrange
         final EntityDTOOrBuilder applicationEntityDTO = EntityDTO.newBuilder()
-                .setApplicationData(ApplicationData.newBuilder()
-                        .setIpAddress(TEST_IP_ADDRESS.getIpAddress())
-                        .build());
+            .setApplicationData(ApplicationData.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS.getIpAddress())
+                .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
-                .setApplication(ApplicationInfo.newBuilder()
-                        .setIpAddress(TEST_IP_ADDRESS)
-                        .build())
-                .build();
+            .setApplication(ApplicationInfo.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS)
+                .build())
+            .build();
         final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
         // act
         TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO,
-                Collections.emptyMap());
+            Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }
@@ -55,25 +56,27 @@ public class ApplicationInfoMapperTest {
     public void testExtractDbTypeSpecificInfo() {
         // arrange
         final EntityDTOOrBuilder applicationEntityDTO = EntityDTO.newBuilder()
-                .setApplicationData(ApplicationData.newBuilder()
-                        .setIpAddress(TEST_IP_ADDRESS.getIpAddress())
-                        .setDbData(DatabaseData.newBuilder()
-                                .setEngine(DATABASE_ENGINE.name())
-                                .setEdition(DATABASE_EDITION.name()))
-                        .build());
+            .setApplicationData(ApplicationData.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS.getIpAddress())
+                .setDbData(DatabaseData.newBuilder()
+                    .setEngine(DATABASE_ENGINE.name())
+                    .setEdition(DATABASE_EDITION.name())
+                    .setVersion(DATABASE_VERSION))
+                .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
-                .setApplication(ApplicationInfo.newBuilder()
-                        .setIpAddress(TEST_IP_ADDRESS)
-                        .build())
-                .setDatabase(DatabaseInfo.newBuilder()
-                        .setEngine(DATABASE_ENGINE)
-                        .setEdition(DATABASE_EDITION)
-                        .build())
-                .build();
+            .setApplication(ApplicationInfo.newBuilder()
+                .setIpAddress(TEST_IP_ADDRESS)
+                .build())
+            .setDatabase(DatabaseInfo.newBuilder()
+                .setEngine(DATABASE_ENGINE)
+                .setEdition(DATABASE_EDITION)
+                .setVersion(DATABASE_VERSION)
+                .build())
+            .build();
         final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();
         // act
         TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(applicationEntityDTO,
-                Collections.emptyMap());
+            Collections.emptyMap());
         // assert
         assertThat(result, equalTo(expected));
     }

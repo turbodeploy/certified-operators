@@ -20,9 +20,14 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private String edition;
+
     private String engine;
+
     private String licenseModel;
+
     private String deploymentType;
+
+    private String version;
 
 
     public String getEdition() {
@@ -57,6 +62,14 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.deploymentType = deploymentType;
     }
 
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(final String version) {
+        this.version = version;
+    }
+
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
                                          @Nonnull final ServiceEntityRepoDTO serviceEntityRepoDTO) {
@@ -75,6 +88,9 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (databaseInfo.hasDeploymentType()) {
             setDeploymentType(databaseInfo.getDeploymentType().name());
+        }
+        if (databaseInfo.hasVersion()) {
+            setVersion(databaseInfo.getVersion());
         }
         serviceEntityRepoDTO.setDatabaseInfoRepoDTO(this);
     }
@@ -95,9 +111,12 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (getDeploymentType() != null) {
             databaseInfoBuilder.setDeploymentType(DeploymentType.valueOf(getDeploymentType()));
         }
+        if (getVersion() != null) {
+            databaseInfoBuilder.setVersion(getVersion());
+        }
         return TypeSpecificInfo.newBuilder()
-                .setDatabase(databaseInfoBuilder)
-                .build();
+            .setDatabase(databaseInfoBuilder)
+            .build();
     }
 
     @Override
@@ -108,12 +127,13 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return Objects.equal(edition, that.edition) &&
             Objects.equal(engine, that.engine) &&
             Objects.equal(licenseModel, that.licenseModel) &&
-            Objects.equal(deploymentType, that.deploymentType);
+            Objects.equal(deploymentType, that.deploymentType) &&
+            Objects.equal(version, that.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(edition, engine, licenseModel, deploymentType);
+        return Objects.hashCode(edition, engine, licenseModel, deploymentType, version);
     }
 
     @Override
@@ -123,6 +143,7 @@ public class DatabaseInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 ", engine='" + engine + '\'' +
                 ", licenseModel='" + licenseModel + '\'' +
                 ", deploymentType='" + deploymentType + '\'' +
+                ", version='" + version + '\'' +
                 '}';
     }
 }

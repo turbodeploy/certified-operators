@@ -21,6 +21,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
     private static final DatabaseEngine TEST_DATABASE_ENGINE = DatabaseEngine.MARIADB;
     private static final DeploymentType TEST_DEPLOYMENT_TYPE = DeploymentType.MULTI_AZ;
     private static final LicenseModel TEST_LICENSE_MODEL = LicenseModel.BRING_YOUR_OWN_LICENSE;
+    private static final String TEST_DATABASE_VERSION = "666";
     private static final long TEST_OID = 123L;
 
     @Test
@@ -32,6 +33,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
                 .setDatabase(DatabaseInfo.newBuilder()
                     .setEdition(TEST_DATABASE_EDITION)
                     .setEngine(TEST_DATABASE_ENGINE)
+                    .setVersion(TEST_DATABASE_VERSION)
                     .setDeploymentType(TEST_DEPLOYMENT_TYPE)
                     .setLicenseModel(TEST_LICENSE_MODEL))
                 .build());
@@ -43,6 +45,6 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         DBEntityAspectApiDTO dbAspect = (DBEntityAspectApiDTO) result;
         assertEquals(TEST_DATABASE_EDITION.name(), dbAspect.getDbEdition());
         assertEquals(TEST_DATABASE_ENGINE.name(), dbAspect.getDbEngine());
-        // note that the other database aspect field (dbVersion) is not set yet in the mapper
+        assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());
     }
 }
