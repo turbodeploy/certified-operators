@@ -77,7 +77,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
     private Topology topology_;
     // the map for user to  its balance account
-    private Map<Long, BalanceAccount> balanceAccountMap = new HashMap<>();;
+    private Map<Long, BalanceAccount> balanceAccountMap = new HashMap<>();
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.

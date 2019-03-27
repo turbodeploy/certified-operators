@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -11,7 +14,6 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -37,8 +39,8 @@ public class QuoteMinimizerTest {
         assertTrue(Double.isInfinite(minimizer.getTotalBestQuote()));
         assertTrue(minimizer.getTotalBestQuote() > 0);
         assertNull(minimizer.getBestSeller());
-        assertTrue(Double.isInfinite(minimizer.getCurrentQuote()));
-        assertTrue(minimizer.getCurrentQuote() > 0);
+        assertTrue(Double.isInfinite(minimizer.getCurrentQuote().getQuoteValue()));
+        assertTrue(minimizer.getCurrentQuote().getQuoteValue() > 0);
     }
 
     @SuppressWarnings("unused") // it is used reflectively

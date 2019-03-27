@@ -9,7 +9,8 @@ message CostDTO {
     oneof cost_type {
        ComputeTierCostDTO compute_tier_cost = 1;
        StorageTierCostDTO storage_tier_Cost = 2;
-       CbtpCostDTO cbtp_resource_bundle = 3;
+       DatabaseTierCostDTO database_tier_Cost = 3;
+       CbtpCostDTO cbtp_resource_bundle = 4;
     }
 
     // The DTOs specifically define discounted cost by AWS reserved instances
@@ -43,6 +44,7 @@ message CostDTO {
         // some business account can be used for applying discount, id of business account
         // maps to the discounted price of resource
         optional int64 business_account_id = 3;
+        optional int32 region_id = 4;
     }
 
     message StorageTierCostDTO {
@@ -77,5 +79,14 @@ message CostDTO {
         repeated StorageResourceCost storage_resource_cost = 1; // a list of commodity's pricing information
         repeated StorageResourceLimitation storage_resource_limitation = 2;// a list of commodity's capacity limitation
         repeated StorageResourceDependency storage_resource_dependency = 3; // a list of dependency information
+    }
+
+    // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
+    // database tier service
+    message DatabaseTierCostDTO {
+        repeated CostTuple cost_tuple_list = 1; // a list of cost tuple info
+        optional int32 license_commodity_base_type = 2; // the base type of license commodity
+        optional int32 region_commodity_base_type = 3; // the base type of region commodity
+        required int32 couponBaseType = 4;
     }
 }

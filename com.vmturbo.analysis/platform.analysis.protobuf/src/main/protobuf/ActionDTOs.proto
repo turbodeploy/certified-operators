@@ -28,6 +28,15 @@ message MoveTO {
 
     // The coupon discount
     optional double coupon_discount = 6;
+
+    // Contains additional information about the Move
+    message MoveContext {
+        // The allocated region ID in NumericIDAllocator that has the best cost. Assumed null if missing.
+        optional int32 region_id = 1;
+    }
+
+    // The context of the move, contains additional info.
+    optional MoveContext context = 7;
 }
 
 // a move explanation suggesting unavailability of commodities

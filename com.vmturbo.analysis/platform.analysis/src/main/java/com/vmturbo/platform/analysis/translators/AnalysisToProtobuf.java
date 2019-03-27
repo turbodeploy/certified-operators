@@ -78,7 +78,6 @@ import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * A class containing methods to convert java classes used by analysis to Protobuf messages.
@@ -356,6 +355,9 @@ public final class AnalysisToProtobuf {
             MoveTO.Builder moveTO = MoveTO.newBuilder();
             moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
             moveTO.setCouponId(traderOid.get(newSupplier));
+            if (move.getContext().isPresent()) {
+                moveTO.setContext(move.getContext().get());
+            }
             final Optional<Double> moveTargetCost = move.getTarget().getCost();
             if(moveTargetCost.isPresent()){
                 moveTO.setCouponDiscount(moveTargetCost.get());

@@ -1,8 +1,10 @@
 package com.vmturbo.platform.analysis.utility;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -25,7 +27,10 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.CostTable;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 public class CostFunctionTest {
 
@@ -373,6 +378,97 @@ public class CostFunctionTest {
         assert(quoteCbtp5 > quoteCbtp6);
     }
 
+    /**
+     * Create a CostTable and make sure that given an Account Id and License Type,
+     * the first RegionCost is the one with lowest cost.
+     */
+    @Test
+    public void test_CostTable() {
+        // Create a CostTable with multiple Accounts and Regions cost
+        List<CostTuple> tuples = TestUtils.setUpMultipleRegionsCostTuples();
+        CostTable costTable = new CostTable(tuples);
+
+        // Assert: Account 1, Linux license, cheapest Region
+        CostTuple regionCost = costTable.getTuple(TestUtils.NO_TYPE, 1, TestUtils.LINUX_COMM_TYPE);
+        assertEquals(1.5d, regionCost.getPrice(), 0);
+        assertEquals(300, regionCost.getRegionId());
+
+        // Assert: Account 1, Windows license, cheapest Region
+        regionCost = costTable.getTuple(TestUtils.NO_TYPE, 1, TestUtils.WINDOWS_COMM_TYPE);
+        assertEquals(1.7d, regionCost.getPrice(), 0);
+        assertEquals(300, regionCost.getRegionId());
+
+        // Assert: Region 2, Account 1, Linux license
+        CostTuple costTuple = costTable.getTuple(TestUtils.DC2_COMM_TYPE, 1, TestUtils.LINUX_COMM_TYPE);
+        assertEquals(2.5d, costTuple.getPrice(), 0);
+
+        // Assert: Region 3, Account 2, Windows license
+        costTuple = costTable.getTuple(TestUtils.DC3_COMM_TYPE, 2, TestUtils.WINDOWS_COMM_TYPE);
+        assertEquals(3.9d, costTuple.getPrice(), 0);
+    }
+
+    /**
+     * Create a CostFunction using a CostDTO with multiple Regions,
+     * the resulting Quote contains the RegionId that has the lowest cost.
+     */
+    @Test
+    public void testCostFunction_DatabaseTierComputeFunction() {
+        // Setup a DBS with Linux license on Region DC4 and Account 1
+        Economy economy = new Economy();
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
+        Trader dbs1 = TestUtils.createDBS(economy);
+        dbs1.getSettings().setBalanceAccount(ba);
+        CommoditySpecification linuxComm =
+                new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, 0, 100000, false);
+        CommoditySpecification dcComm =
+                new CommoditySpecification(TestUtils.DC4_COMM_TYPE, TestUtils.DC_COMM_BASE_TYPE, 0, 100000, false);
+        Trader trader = economy.addTrader(1, TraderState.ACTIVE, new Basket(linuxComm, dcComm),
+                Arrays.asList(0l));
+        trader.getSettings().setBalanceAccount(ba);
+        trader.getCommoditiesSold().get(trader.getBasketSold().indexOf(linuxComm)).setCapacity(1000);
+        ShoppingList buyer = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(linuxComm, dcComm), dbs1,
+                new double[]{1, 1}, new double[]{1, 1}, trader);
+
+        // Create a CostFunction with License and Region defined
+        CostFunction cf = CostFunctionFactory.createCostFunction(TestUtils.setUpDatabaseTierCostDTO(
+                TestUtils.LICENSE_COMM_BASE_TYPE,
+                TestUtils.COUPON_COMM_BASE_TYPE,
+                TestUtils.DC_COMM_BASE_TYPE));
+        MutableQuote quote = cf.calculateCost(buyer, trader, false, economy);
+
+        // Assert: the quote contains the cost for WINDOWS License and DC4 Region
+        assertTrue(quote instanceof CommodityCloudQuote);
+        assertTrue(quote.getContext().isPresent());
+        assertEquals(TestUtils.DC4_COMM_TYPE, quote.getContext().get().getRegionId());
+        assertEquals(4.7d, quote.getQuoteValue(), 0);
+
+
+        // Create a CostFunction with Only License defined
+        cf = CostFunctionFactory.createCostFunction(TestUtils.setUpDatabaseTierCostDTO(
+                TestUtils.LICENSE_COMM_BASE_TYPE,
+                TestUtils.COUPON_COMM_BASE_TYPE,
+                TestUtils.NO_TYPE));
+        quote = cf.calculateCost(buyer, trader, false, economy);
+
+        // Assert: the quote contains the cost for WINDOWS License and cheapest Region
+        assertTrue(quote instanceof CommodityCloudQuote);
+        assertTrue(quote.getContext().isPresent());
+        assertEquals(TestUtils.DC1_COMM_TYPE, quote.getContext().get().getRegionId());
+        assertEquals(1.7d, quote.getQuoteValue(), 0);
+
+        // Create a CostFunction with Only Region defined
+        cf = CostFunctionFactory.createCostFunction(TestUtils.setUpDatabaseTierCostDTO(
+                TestUtils.NO_TYPE,
+                TestUtils.COUPON_COMM_BASE_TYPE,
+                TestUtils.DC_COMM_BASE_TYPE));
+        quote = cf.calculateCost(buyer, trader, false, economy);
+
+        // Assert: the quote contains the cost for the no License
+        assertTrue(quote instanceof CommodityCloudQuote);
+        assertTrue(quote.getContext().isPresent());
+        assertEquals(TestUtils.DC4_COMM_TYPE, quote.getContext().get().getRegionId());
+        assertEquals(4.5d, quote.getQuoteValue(), 0);
+    }
     /**
      * Create the cbtp bundle builder
      *

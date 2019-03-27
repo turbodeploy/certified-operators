@@ -3,8 +3,10 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -12,6 +14,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.collect.Lists;
 import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -19,6 +22,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.MoveContext;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
@@ -28,6 +32,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 public class Move extends MoveBase implements Action { // inheritance for code reuse
     // Fields
     private final @Nullable Trader destination_;
+    private final Optional<MoveContext> context_;
 
     // Constructors
 
@@ -39,7 +44,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param destination The trader, target is going to move to.
      */
     public Move(@NonNull Economy economy, @NonNull ShoppingList target, @Nullable Trader destination) {
-        this(economy,target,target.getSupplier(),destination);
+        this(economy,target,target.getSupplier(),destination, Optional.empty());
     }
 
     /**
@@ -54,8 +59,27 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     public Move(@NonNull Economy economy, @NonNull ShoppingList target,
                 @Nullable Trader source, @Nullable Trader destination) {
+        this(economy,target,source,destination, Optional.empty());
+    }
+
+    /**
+     * Constructs a new move action
+     *
+     * @param economy The economy containing target and destination.
+     * @param target The shopping list that will move.
+     * @param source The trader, target is going to move from. Note that this argument is mostly
+     *               needed when combining actions. Another version of the constructor infers it
+     *               from <b>target</b>.
+     * @param destination The trader, target is going to move to.
+     * @param context Additional information about the Move,
+     *               like the region that has the lowest cost.
+     */
+    public Move(@NonNull Economy economy, @NonNull ShoppingList target,
+                @Nullable Trader source, @Nullable Trader destination,
+                Optional<MoveContext> context) {
         super(economy,target,source);
         destination_ = destination;
+        context_ = context;
     }
 
     // Methods
@@ -413,5 +437,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Override
     public ActionType getType() {
         return ActionType.MOVE;
+    }
+
+    public Optional<MoveContext> getContext() {
+        return context_;
     }
 } // end Move class

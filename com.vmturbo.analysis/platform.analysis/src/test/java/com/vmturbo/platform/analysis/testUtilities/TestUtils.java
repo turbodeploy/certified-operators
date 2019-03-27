@@ -11,6 +11,8 @@ import java.util.Map;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
@@ -25,6 +27,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
@@ -42,6 +45,8 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  */
 public class TestUtils {
 
+    public static final int NO_TYPE = -1;
+
     public static final int VM_TYPE = 0;
     public static final int PM_TYPE = 1;
     public static final int ST_TYPE = 2;
@@ -51,6 +56,7 @@ public class TestUtils {
     public static final int CONTAINER_TYPE = 6;
     public static final int VAPP_TYPE = 7;
     public static final int POD_TYPE = 8;
+    public static final int DBS_TYPE = 9;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FlOATING_POINT_DELTA2 = 1e-15;
@@ -59,9 +65,14 @@ public class TestUtils {
     private static int commSpecCounter;
 
     public static final int LICENSE_COMM_BASE_TYPE = 0;
+    public static final int DC_COMM_BASE_TYPE = 1;
     public static final int COUPON_COMM_BASE_TYPE = 64;
     public static final int LINUX_COMM_TYPE = 100;
     public static final int WINDOWS_COMM_TYPE = 200;
+    public static final int DC1_COMM_TYPE = 300;
+    public static final int DC2_COMM_TYPE = 301;
+    public static final int DC3_COMM_TYPE = 302;
+    public static final int DC4_COMM_TYPE = 303;
 
     // CommoditySpecifications to use in tests
     public static final CommoditySpecification CPU = createNewCommSpec();
@@ -281,6 +292,16 @@ public class TestUtils {
                 Arrays.asList(VCPU, VMEM), capacities, true, false, name);
     }
 
+
+    /**
+     * @param economy - Economy where you want to add a DBS.
+     * @return Trader i.e. DBS
+     */
+    public static Trader createDBS(Economy economy) {
+        Trader dbs = economy.addTrader(DBS_TYPE, TraderState.ACTIVE, new Basket());
+        return dbs;
+    }
+
     /**
      * @param economy - Economy where you want to create and place shopping list.
      * @param basketCommodities - Basket's commodities bought in this shopping list.
@@ -494,6 +515,63 @@ public class TestUtils {
                 .build();
         return CostFunctionFactory.createCostFunction(costDTO);
     }
+
+    public static CostDTO setUpDatabaseTierCostDTO(int licenseBaseType,
+                                                   int couponBaseType,
+                                                   int regionBaseType) {
+        DatabaseTierCostDTO dbTierCostBuilder = DatabaseTierCostDTO.newBuilder()
+                .setLicenseCommodityBaseType(licenseBaseType)
+                .setCouponBaseType(couponBaseType)
+                .setRegionCommodityBaseType(regionBaseType)
+                .addAllCostTupleList(setUpMultipleRegionsCostTuples()).build();
+        CostDTO costDTO = CostDTO.newBuilder()
+                .setDatabaseTierCost(dbTierCostBuilder)
+                .build();
+        return costDTO;
+    }
+
+    public static List<CostTuple> setUpMultipleRegionsCostTuples() {
+        return ImmutableList.of(
+                setUpCostTuple(1, LINUX_COMM_TYPE, DC1_COMM_TYPE, 1.5),
+                setUpCostTuple(1, LINUX_COMM_TYPE, DC2_COMM_TYPE, 2.5),
+                setUpCostTuple(1, LINUX_COMM_TYPE, DC3_COMM_TYPE, 3.5),
+                setUpCostTuple(1, LINUX_COMM_TYPE, DC4_COMM_TYPE, 4.5),
+                setUpCostTuple(1, WINDOWS_COMM_TYPE, DC1_COMM_TYPE, 1.7),
+                setUpCostTuple(1, WINDOWS_COMM_TYPE, DC2_COMM_TYPE, 2.7),
+                setUpCostTuple(1, WINDOWS_COMM_TYPE, DC3_COMM_TYPE, 3.7),
+                setUpCostTuple(1, WINDOWS_COMM_TYPE, DC4_COMM_TYPE, 4.7),
+                setUpCostTuple(2, LINUX_COMM_TYPE, DC1_COMM_TYPE, 1.6),
+                setUpCostTuple(2, LINUX_COMM_TYPE, DC2_COMM_TYPE, 2.6),
+                setUpCostTuple(2, LINUX_COMM_TYPE, DC3_COMM_TYPE, 3.6),
+                setUpCostTuple(2, LINUX_COMM_TYPE, DC4_COMM_TYPE, 4.6),
+                setUpCostTuple(2, WINDOWS_COMM_TYPE, DC1_COMM_TYPE, 1.9),
+                setUpCostTuple(2, WINDOWS_COMM_TYPE, DC2_COMM_TYPE, 2.9),
+                setUpCostTuple(2, WINDOWS_COMM_TYPE, DC3_COMM_TYPE, 3.9),
+                setUpCostTuple(2, WINDOWS_COMM_TYPE, DC4_COMM_TYPE, 4.9),
+                // Values for no License
+                setUpCostTuple(1, NO_TYPE, DC1_COMM_TYPE, 1.5),
+                setUpCostTuple(1, NO_TYPE, DC2_COMM_TYPE, 2.5),
+                setUpCostTuple(1, NO_TYPE, DC3_COMM_TYPE, 3.5),
+                setUpCostTuple(1, NO_TYPE, DC4_COMM_TYPE, 4.5),
+                setUpCostTuple(2, NO_TYPE, DC1_COMM_TYPE, 1.6),
+                setUpCostTuple(2, NO_TYPE, DC2_COMM_TYPE, 2.6),
+                setUpCostTuple(2, NO_TYPE, DC3_COMM_TYPE, 3.6),
+                setUpCostTuple(2, NO_TYPE, DC4_COMM_TYPE, 4.6)
+        );
+    }
+
+    private static CostTuple setUpCostTuple(long businessAccountId,
+                                            int licenseCommodityType,
+                                            int regionId,
+                                            double cost) {
+        return CostTuple.newBuilder()
+                .setLicenseCommodityType(licenseCommodityType)
+                .setBusinessAccountId(businessAccountId)
+                .setRegionId(regionId)
+                .setPrice(cost)
+                .build();
+    }
+
     public static void moveSlOnSupplier(Economy e, ShoppingList sl, Trader supplier, double[] quantities) {
         for (int i = 0; i < quantities.length ; i++) {
             sl.setQuantity(i, quantities[i]);

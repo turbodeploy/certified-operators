@@ -2,20 +2,18 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -28,7 +26,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
-import com.vmturbo.platform.analysis.utilities.Quote;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 
 /**
  * Contains static methods related to optimizing the placement of {@link Trader}s in an
@@ -217,7 +215,7 @@ public class Placement {
         final double cheapestQuote = minimizer.getTotalBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
         Trader buyer = shoppingList.getBuyer();
-        final double currentQuote = minimizer.getCurrentQuote();
+        final double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
 
         boolean isDebugTrader = buyer.isDebugEnabled() || logger.isTraceEnabled();
         boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
@@ -268,8 +266,9 @@ public class Placement {
             }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
-            placementResults = PlacementResults.forSingleAction(
-                new Move(economy, shoppingList, cheapestSeller).take().setImportance(savings));
+            Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
+                    cheapestSeller, minimizer.getBestQuote().getContext());
+            placementResults = PlacementResults.forSingleAction(move.take().setImportance(savings));
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
                 myMarket.setPlacementSavings(myMarket.getPlacementSavings() + savings);
@@ -401,7 +400,7 @@ public class Placement {
      * @param minimizer the {@link CliqueMinimizer}
      * @return a list of actions generated
      */
-    public static List<Action> checkAndGenerateCompoundMoveActions(
+public static List<Action> checkAndGenerateCompoundMoveActions(
                     Economy economy,
                     Trader buyer,
                    @NonNull CliqueMinimizer minimizer) {
