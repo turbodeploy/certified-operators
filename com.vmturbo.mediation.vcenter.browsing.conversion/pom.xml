@@ -22,6 +22,35 @@
             <plugin>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>vmturbo-sdk-plugin</artifactId>
+                <configuration>
+                    <externalResourcesDir>${project.build.directory}/vmware-browsing/resources</externalResourcesDir>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-probe</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.vmware.browsing.sdk</artifactId>
+                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/vmware-browsing</outputDirectory>
+                                    <includes>**/resources/*.xml</includes>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
