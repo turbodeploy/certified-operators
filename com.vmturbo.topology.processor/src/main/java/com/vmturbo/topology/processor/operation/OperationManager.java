@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.topology.TopologyDTOREST.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -55,6 +56,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
+import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;

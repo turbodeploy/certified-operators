@@ -50,7 +50,7 @@ public class ActionScriptsManifest {
         private EntityType entityType;
         private ActionType actionType;
         private ActionScriptPhase actionPhase;
-        private List<String> tags;
+        private Long timeLimitSeconds;
 
         public String getName() {
             return name;
@@ -119,12 +119,12 @@ public class ActionScriptsManifest {
             this.actionPhase = actionPhase;
         }
 
-        public List<String> getTags() {
-            return tags;
+        public Long getTimeLimitSeconds() {
+            return timeLimitSeconds;
         }
 
-        public void setTags(final List<String> tags) {
-            this.tags = tags;
+        public void setTimeLimitSeconds(final Long timeLimitSeconds) {
+            this.timeLimitSeconds = timeLimitSeconds;
         }
     }
 }

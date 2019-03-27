@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
@@ -35,12 +36,17 @@ public class ActionScriptProbeAccount {
     final String userid;
 
     @AccountValue(displayName = "Private Token", constraint = MANDATORY, secret = true,
-        description = " SSH Private Token corresponding to the Userid")
+        description = "SSH Private Token corresponding to the Userid")
     final String privateKeyString;
 
     @AccountValue(targetId = true, displayName = "Script Path", constraint = MANDATORY,
         description = "File Path to the Action Script manifest file on the Execution Server")
     final String manifestPath;
+
+    @AccountValue(displayName = "Public Host Key", constraint = OPTIONAL,
+        description = "Public key presented by the SSH server for host authenticaion; "
+            + "if not provided, the presented key will be accepted and integrated into the target definition for future operations")
+    final String hostKey;
 
     /**
      * Default, no-args constructor is required by the vmturbo-sdk-plugin during the build process.
@@ -51,6 +57,7 @@ public class ActionScriptProbeAccount {
         userid = null;
         privateKeyString = null;
         manifestPath = null;
+        hostKey = null;
     }
 
     /**
@@ -67,7 +74,7 @@ public class ActionScriptProbeAccount {
                                     @Nonnull String userid,
                                     @Nonnull String privateKeyString,
                                     @Nonnull String manifestPath) {
-        this(nameOrAddress, userid, privateKeyString, manifestPath, DEFAULT_PORT);
+        this(nameOrAddress, userid, privateKeyString, manifestPath, DEFAULT_PORT, null);
     }
 
     /**
@@ -80,17 +87,21 @@ public class ActionScriptProbeAccount {
      * @param manifestPath filesystem path to the directory containing the scripts on the ActionScript
      *                   server
      * @param port to use to access the ActionScript server
+     * @param hostKey public key expected from host during authentication, or null to accept (and retain)
+     *                whatever key is presented
      */
     public ActionScriptProbeAccount(@Nonnull String nameOrAddress,
                                     @Nonnull String userid,
                                     @Nonnull String privateKeyString,
                                     @Nonnull String manifestPath,
-                                    @Nonnull String port) {
+                                    @Nonnull String port,
+                                    @Nullable String hostKey) {
         this.nameOrAddress = nameOrAddress;
         this.userid = userid;
         this.privateKeyString = privateKeyString;
         this.manifestPath = manifestPath;
         this.port = port;
+        this.hostKey = hostKey;
     }
 
     public String getNameOrAddress() {
@@ -113,6 +124,8 @@ public class ActionScriptProbeAccount {
         return manifestPath;
     }
 
+    public String getHostKey() { return hostKey; }
+
     /**
      * Create a map of field names to field values that define this ActionScriptProbeAccount.
      * @return a map of field name -> field value for this ActionScriptProbeAccount
@@ -125,6 +138,7 @@ public class ActionScriptProbeAccount {
         fieldMap.put("userid", userid);
         fieldMap.put("privateKey", privateKeyString);
         fieldMap.put("manifestPath", manifestPath);
+        fieldMap.put("hostKey", hostKey);
 
         return fieldMap;
     }
@@ -139,7 +153,8 @@ public class ActionScriptProbeAccount {
             Objects.equal(this.port, other.port) &&
             Objects.equal(this.userid, other.userid) &&
             Objects.equal(this.privateKeyString, other.privateKeyString) &&
-            Objects.equal(this.manifestPath, other.manifestPath);
+            Objects.equal(this.manifestPath, other.manifestPath) &&
+            Objects.equal(this.hostKey, other.hostKey);
     }
 
     @Override
@@ -148,7 +163,8 @@ public class ActionScriptProbeAccount {
             this.port,
             this.userid,
             this.privateKeyString,
-            this.manifestPath);
+            this.manifestPath,
+            this.hostKey);
     }
 
     @Override
@@ -158,6 +174,7 @@ public class ActionScriptProbeAccount {
             .add("port", port)
             .add("userid", userid)
             .add("manifestPath", manifestPath)
+            .add("hostKey", hostKey)
             .toString();
     }
 }

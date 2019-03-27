@@ -1,0 +1,39 @@
+{
+	"scripts": [
+		{
+			"name": "valid-in-default-dir",
+			"description": "valid script in default directory",
+			"scriptPath": "execByAll-valid-in-default-dir.sh",
+			"entityType": "PHYSICAL_MACHINE",
+			"actionTypo": "MOVE",
+			"actionPhase": "REPLACE",
+            "timeLimitSeconds": 10000
+		},
+		{
+			"name": "missing-script",
+			"scriptPath": "/no/scripts/here/script.sh"
+		},
+		{
+			"name": "valid-in-other-dir",
+			"scriptPath": "/otherscripts/execByAll-valid-in-other-path.sh"
+		},
+		{
+			"scriptPath": "/scripts/no-name.sh"
+		},
+		{
+			"name": "no-path"
+		},
+		{
+			"name": "valid-in-rel-dir",
+			"scriptPath": "../otherscripts/execByAll-valid-in-relative-path.sh"
+		},
+		{
+			"name": "non-executable",
+			"scriptPath": "non-exec.sh"
+		},
+		{
+			"name": "valid-owner-exec",
+			"scriptPath": "execByOwner-valid-in-default-dir.sh"
+		}
+	]
+}
