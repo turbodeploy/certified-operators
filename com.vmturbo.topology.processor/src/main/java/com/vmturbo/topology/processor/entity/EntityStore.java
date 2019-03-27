@@ -185,8 +185,7 @@ public class EntityStore {
      */
     @Nonnull
     public StitchingContext constructStitchingContext() {
-        final StitchingContext.Builder builder = StitchingContext.newBuilder(entityMap.size())
-            .setIdentityProvider(identityProvider).setTargetStore(targetStore);
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entityMap.size());
         TargetStitchingDataMap stitchingDataMap;
 
         synchronized (topologyUpdateLock) {

@@ -7,7 +7,6 @@ import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -15,12 +14,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
-import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
-import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class RemoveNonMarketEntitiesPreStitchingOperationTest {
 
@@ -63,9 +60,7 @@ public class RemoveNonMarketEntitiesPreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(2)
-            .setTargetStore(Mockito.mock(TargetStore.class))
-            .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(2);
         stitchingContextBuider.addEntity(businessAccount,
                 ImmutableMap.of(businessAccount.getLocalId(), businessAccount));
         stitchingContextBuider.addEntity(vmEntity,

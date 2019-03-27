@@ -25,14 +25,12 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -42,13 +40,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.AddEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityAloneChange;
@@ -107,21 +103,6 @@ public class TopologyStitchingChangesTest {
         final RemoveEntityChange change = new RemoveEntityChange(stitchingContext, entity1);
         change.applyChange(new StitchingJournal<>());
         change.applyChange(new StitchingJournal<>());
-    }
-
-    @Test
-    public void testAddEntitiesChange() {
-        EntityDTO volumeToAdd = EntityDTO.newBuilder()
-            .setId("foo")
-            .setEntityType(EntityType.VIRTUAL_VOLUME)
-            .build();
-        List<EntityToAdd> entitiesToAdd = Lists.newArrayList(
-            new EntityToAdd(volumeToAdd, entity1, entity2, ConnectionType.NORMAL_CONNECTION));
-
-        final AddEntitiesChange change = new AddEntitiesChange(stitchingContext, entitiesToAdd);
-        change.applyChange(new StitchingJournal<>());
-
-        verify(stitchingContext).addEntities(entitiesToAdd);
     }
 
     @Test

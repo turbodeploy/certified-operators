@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,16 +21,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
-import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
-import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -67,16 +59,6 @@ public class StitchingContext {
      */
     private final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget;
 
-    /**
-     * The target store which contains target specific information for the entity.
-     */
-    private final TargetStore targetStore;
-
-    /**
-     * Identity provider to assign ID's to new entities.
-     */
-    private final IdentityProvider identityProvider;
-
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -87,13 +69,10 @@ public class StitchingContext {
      *                                       Map<TargetId, List<Entities of the given type discovered by that target>>
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
-                             @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget,
-                             @Nonnull final TargetStore targetStore,
-                             @Nonnull final IdentityProvider identityProvider) {
+            @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>>
+                    entitiesByEntityTypeAndTarget) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
-        this.targetStore = Objects.requireNonNull(targetStore);
-        this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     /**
@@ -267,69 +246,6 @@ public class StitchingContext {
     }
 
     /**
-     * Add a list of new entities to the existing graph, and set up the relationship with existing
-     * entities provided by {@link EntityToAdd}.
-     *
-     * @param entitiesToAdd the list of {@link EntityToAdd} which wraps the EntityDTO to be added,
-     *                      and related consumer, provider
-     * @return list of new {@link TopologyStitchingEntity}
-     */
-    public List<TopologyStitchingEntity> addEntities(@Nonnull List<EntityToAdd> entitiesToAdd) {
-        try {
-            // group entities by probe id to improve performance when assigning oids
-            final Map<Long, List<EntityDTO>> entitiesToAddByProbeId = entitiesToAdd.stream()
-                .collect(Collectors.groupingBy(entity -> {
-                    Optional<Target> target = targetStore.getTarget(entity.getConsumer().getTargetId());
-                    if (!target.isPresent()) {
-                        throw new IllegalStateException("No target found for id: " +
-                            entity.getConsumer().getTargetId());
-                    }
-                    return target.get().getProbeId();
-                }, Collectors.mapping(EntityToAdd::getEntityDTO, Collectors.toList())));
-            // create a mapping from EntityDTO to EntityToAdd
-            final Map<EntityDTO, EntityToAdd> entityToAddByDTO = entitiesToAdd.stream()
-                .collect(Collectors.toMap(EntityToAdd::getEntityDTO, Function.identity()));
-            // list to keep new added entity
-            List<TopologyStitchingEntity> newTopologyEntities = new ArrayList<>();
-            for (Map.Entry<Long, List<EntityDTO>> entry : entitiesToAddByProbeId.entrySet()) {
-                final Map<Long, EntityDTO> oidToEntityDTO = identityProvider.getIdsForEntities(
-                    entry.getKey(), entry.getValue());
-                oidToEntityDTO.forEach((oid, dto) -> {
-                    EntityToAdd entity = entityToAddByDTO.get(dto);
-                    TopologyStitchingEntity consumer = (TopologyStitchingEntity)entity.getConsumer();
-                    TopologyStitchingEntity provider = (TopologyStitchingEntity)entity.getProvider();
-                    // create new TopologyStitchingEntity
-                    TopologyStitchingEntity newEntity = stitchingGraph.getOrCreateStitchingEntity(
-                        StitchingEntityData.newBuilder(dto.toBuilder())
-                            .oid(oid)
-                            .targetId(consumer.getTargetId())
-                            .lastUpdatedTime(consumer.getLastUpdatedTime())
-                            .build());
-                    // set up connected relationship: consumer --> new entity --> provider
-                    consumer.addConnectedTo(entity.getConnectionType(), newEntity);
-                    newEntity.addConnectedTo(entity.getConnectionType(), provider);
-                    // if it is volume, we also need to set volume id on the related CommodityBought of consumer
-                    if (dto.getEntityType() == EntityType.VIRTUAL_VOLUME) {
-                        consumer.getCommodityBoughtListByProvider().get(provider).forEach(
-                            commoditiesBought -> commoditiesBought.setVolumeId(oid));
-                    }
-                    // add new entity to stitching graph
-                    final Map<Long, List<TopologyStitchingEntity>> existingEntitiesOfTypeByTarget =
-                        entitiesByEntityTypeAndTarget.computeIfAbsent(dto.getEntityType(), eType -> new HashMap<>());
-                    final List<TopologyStitchingEntity> targetEntitiesForType =
-                        existingEntitiesOfTypeByTarget.computeIfAbsent(consumer.getTargetId(), type -> new ArrayList<>());
-                    targetEntitiesForType.add(newEntity);
-                    // add new entity to the result
-                    newTopologyEntities.add(newEntity);
-                });
-            }
-            return newTopologyEntities;
-        } catch (IdentityUninitializedException | IdentityMetadataMissingException | IdentityProviderException e) {
-            throw new IllegalStateException("Exception while adding new entities to stitching graph: " + e);
-        }
-    }
-
-    /**
      * Construct a {@link TopologyGraph} composed of the entities in the {@link StitchingContext}.
      *
      * After stitching, this should return a valid, well-formed topology.
@@ -381,27 +297,13 @@ public class StitchingContext {
 
         private final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget;
 
-        private TargetStore targetStore;
-
-        private IdentityProvider identityProvider;
-
         private Builder(final int entityCount) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
             entitiesByEntityTypeAndTarget = new EnumMap<>(EntityType.class);
         }
 
-        public Builder setIdentityProvider(final IdentityProvider identityProvider) {
-            this.identityProvider = identityProvider;
-            return this;
-        }
-
-        public Builder setTargetStore(final TargetStore targetStore) {
-            this.targetStore = targetStore;
-            return this;
-        }
-
         public StitchingContext build() {
-            return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore, identityProvider);
+            return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget);
         }
 
         /**

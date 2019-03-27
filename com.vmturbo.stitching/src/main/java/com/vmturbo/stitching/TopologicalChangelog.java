@@ -60,10 +60,10 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
  *                         from the entity being removed.
  * 2. Commodities bought - Commodities bought by an entity may be added or removed. These changes will
  *                         automatically be propagated to the sellers of the commodities.
- * 3. The creation of new entities - Adding a new entity to the graph during the pre-stitching stage
  *
  * Changes to entity relationships NOT permitted during stitching:
- * 1. Commodities sold - No destructive mutations are permitted to commodities sold (that is, changes
+ * 1. The creation of new entities.
+ * 2. Commodities sold - No destructive mutations are permitted to commodities sold (that is, changes
  *                       that would change or remove relationships to buyers of the commodities being changed).
  *                       If a use case for this arises, we may consider supporting it in the future.
  *
@@ -172,18 +172,6 @@ public class TopologicalChangelog<ENTITY extends JournalableEntity<ENTITY>> {
          * @return A reference to {@link this} to support method chaining.
          */
         public abstract StitchingChangesBuilder<ENTITY> queueEntityRemoval(@Nonnull final ENTITY entity);
-
-        /**
-         * Request the addition of new entities to the topology. The new entity will be associated
-         * with the same target as consumer defined in {@link EntityToAdd}.
-         *
-         * Currently, only connected relationship is supported. If needed, we can support consumes
-         * relationship (commodity buy/sell), by extending {@link EntityToAdd}.
-         *
-         * @param entities list of {@link EntityToAdd} to be added to the topology
-         * @return A reference to {@link this} to support method chaining.
-         */
-        public abstract StitchingChangesBuilder<ENTITY> queueEntitiesAddition(@Nonnull final List<EntityToAdd> entities);
 
         /**
          * @see com.vmturbo.stitching.utilities.MergeEntities

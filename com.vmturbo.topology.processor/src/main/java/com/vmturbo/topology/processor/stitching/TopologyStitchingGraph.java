@@ -40,10 +40,10 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.Commodit
  *                         from the entity being removed.
  * 2. Commodities bought - Commodities bought by an entity may be added or removed. These changes will
  *                         automatically be propagated to the sellers of the commodities.
- * 3. The creation of new entities - Adding a new entity to the graph during the pre-stitching stage
  *
  * Mutations NOT permitted to the graph:
- * 1. Commodities sold - No destructive mutations are permitted to commodities sold (that is, changes
+ * 1. The creation of new entities.
+ * 2. Commodities sold - No destructive mutations are permitted to commodities sold (that is, changes
  *                       that would change or remove relationships to buyers of the commodities being changed).
  *                       If a use case for this arises, we may consider supporting it in the future.
  *
@@ -256,8 +256,7 @@ public class TopologyStitchingGraph {
      * @return The set of localIds for all entities affected by the removal. The localId of the removed
      *         entity is always in this set unless no entity was actually removed.
      */
-    public Set<TopologyStitchingEntity>
-    removeEntity(@Nonnull final TopologyStitchingEntity toRemove) {
+    public Set<TopologyStitchingEntity> removeEntity(@Nonnull final TopologyStitchingEntity toRemove) {
         final Set<TopologyStitchingEntity> affected = new HashSet<>();
 
         final TopologyStitchingEntity removedEntity = stitchingEntities.remove(toRemove.getEntityBuilder());
@@ -290,7 +289,7 @@ public class TopologyStitchingGraph {
      *                   or created.
      * @return The retrieved or newly created {@link TopologyStitchingEntity} for the entity.
      */
-    public TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
+    private TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
         return getEntity(entityData.getEntityDtoBuilder()).orElseGet(() -> {
             final TopologyStitchingEntity newStitchingEntity = new TopologyStitchingEntity(entityData);
             stitchingEntities.put(newStitchingEntity.getEntityBuilder(), newStitchingEntity);

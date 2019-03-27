@@ -1,19 +1,16 @@
 package com.vmturbo.topology.processor.stitching;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.AddEntitiesChange;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityAloneChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityRelationshipsChange;
 
@@ -47,12 +44,7 @@ public class StitchingResultBuilder extends StitchingChangesBuilder<StitchingEnt
     @Override
     public StitchingChangesBuilder<StitchingEntity> queueEntityRemoval(@Nonnull StitchingEntity entity) {
         changes.add(new RemoveEntityChange(stitchingContext, entity));
-        return this;
-    }
 
-    @Override
-    public StitchingChangesBuilder<StitchingEntity> queueEntitiesAddition(@Nonnull final List<EntityToAdd> entities) {
-        changes.add(new AddEntitiesChange(stitchingContext, entities));
         return this;
     }
 

@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
@@ -78,35 +77,6 @@ public class TopologyStitchingChanges {
             final TopologyStitchingEntity removed = (TopologyStitchingEntity)entityToRemove;
             changeset.observeRemoval(removed);
             stitchingContext.removeEntity(removed);
-        }
-    }
-
-    @Immutable
-    public static class AddEntitiesChange extends BaseTopologicalChange<StitchingEntity> {
-
-        private final StitchingContext stitchingContext;
-
-        private final List<EntityToAdd> entities;
-
-        public AddEntitiesChange(@Nonnull final StitchingContext stitchingContext,
-                                 @Nonnull final List<EntityToAdd> entities) {
-            this.stitchingContext = Objects.requireNonNull(stitchingContext);
-            this.entities = Objects.requireNonNull(entities);
-        }
-
-        @Override
-        protected String getPreamble() {
-            return "Adding " + entities.size() + " new entities and set up relationships";
-        }
-
-        @Override
-        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
-            // track the changes for consumer, for example: connected relationship
-            entities.forEach(entity -> changeset.beforeChange(entity.getConsumer()));
-            // add new entities to graph
-            List<TopologyStitchingEntity> newEntities = stitchingContext.addEntities(entities);
-            // add the new added entities to StitchingJournal
-            newEntities.forEach(entity -> changeset.observeAddition(entity));
         }
     }
 

@@ -23,7 +23,7 @@ public class CommoditiesBought {
 
     private final List<CommodityDTO.Builder> boughtList;
 
-    private Long volumeId;
+    private final Long volumeId;
 
     public CommoditiesBought(@Nonnull final List<CommodityDTO.Builder> boughtList, @Nullable Long volumeId) {
         this.boughtList = Objects.requireNonNull(boughtList);
@@ -43,10 +43,6 @@ public class CommoditiesBought {
     @Nullable
     public Long getVolumeId() {
         return volumeId;
-    }
-
-    public void setVolumeId(@Nonnull Long volumeId) {
-        this.volumeId = volumeId;
     }
 
     /**
