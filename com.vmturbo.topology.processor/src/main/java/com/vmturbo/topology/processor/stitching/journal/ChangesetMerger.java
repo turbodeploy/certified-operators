@@ -132,6 +132,14 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
         private final Set<T> removed;
 
         /**
+         * The entities added as part of this changeset.
+         *
+         * Added entities for a changeset are entered into the journal AFTER changes in the changeset
+         * are entered into the journal.
+         */
+        private final Set<T> added;
+
+        /**
          * The strings used to describe the action of the merged changesets.
          * A collection of the preambles from the changesets that were merged into this one.
          * This list is ordered in the order that the changesets were merged into this changeset.
@@ -178,10 +186,11 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
             // is correct for the purpose of recording entries to the journal changeset.
             final Map<T, T> mutated = new IdentityHashMap<>();
             final Set<T> removed = Collections.newSetFromMap(new IdentityHashMap<>());
+            final Set<T> added = Collections.newSetFromMap(new IdentityHashMap<>());
 
             otherChangesets.stream()
                 .sorted((a, b) -> Integer.compare(a.getChangesetIndex(), b.getChangesetIndex()))
-                .forEach(changeset -> mergeChangeset(changeset, mutated, removed));
+                .forEach(changeset -> mergeChangeset(changeset, mutated, removed, added));
             lowestChangesetIndex = otherChangesets.stream()
                 .mapToInt(JournalChangeset::getChangesetIndex)
                 .min()
@@ -194,6 +203,7 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
             // Make the member references unmodifiable so that the class can be immutable.
             this.mutated = Collections.unmodifiableMap(mutated);
             this.removed = Collections.unmodifiableSet(removed);
+            this.added = Collections.unmodifiableSet(added);
 
             this.verbosity = Objects.requireNonNull(verbosity);
         }
@@ -211,7 +221,8 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
          */
         private void mergeChangeset(@Nonnull final IJournalChangeset<T> otherChangeset,
                                     @Nonnull final Map<T, T> mutated,
-                                    @Nonnull final Set<T> removed) {
+                                    @Nonnull final Set<T> removed,
+                                    @Nonnull final Set<T> added) {
             changesetPreambles.addAll(otherChangeset.getChangesetPreambles());
             otherChangeset.getMutatedEntities().forEach((entity, originalSnapshot) -> {
                 // Because we want the snapshot to be the earliest snapshot and the changesets are added
@@ -222,6 +233,7 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
             });
 
             removed.addAll(otherChangeset.getRemovedEntities());
+            added.addAll(otherChangeset.getAddedEntities());
         }
 
         @Override
@@ -236,8 +248,13 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
             final Stream<String> removalDescriptions = getRemovedEntities().stream()
                 .map(JournalableEntity::removalDescription)
                 .filter(description -> !description.isEmpty());
+            final Stream<String> additionDescriptions = getAddedEntities().stream()
+                .map(JournalableEntity::additionDescription)
+                .filter(description -> !description.isEmpty());
 
-            return Stream.concat(changeDifferences, removalDescriptions)
+            return Stream.of(changeDifferences, removalDescriptions, additionDescriptions)
+                .reduce(Stream::concat)
+                .orElseGet(Stream::empty)
                 .collect(Collectors.toList());
         }
 
@@ -264,6 +281,11 @@ public class ChangesetMerger<T extends JournalableEntity<T>> {
         @Override
         public Collection<T> getRemovedEntities() {
             return removed;
+        }
+
+        @Override
+        public Collection<T> getAddedEntities() {
+            return added;
         }
 
         @Override

@@ -80,6 +80,12 @@ public class TestStitchingEntity implements StitchingEntity {
         return "";
     }
 
+    @Nonnull
+    @Override
+    public String additionDescription() {
+        return "";
+    }
+
     @Override
     public long getTargetId() {
         throw new IllegalStateException();

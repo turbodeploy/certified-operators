@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -53,7 +54,9 @@ public class DiscoveredCloudCostUploaderTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(2);
+        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(2)
+            .setTargetStore(Mockito.mock(TargetStore.class))
+            .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         stitchingContextBuilder.addEntity(ri1, localIdToEntityMap);
         stitchingContextBuilder.addEntity(ri2, localIdToEntityMap);
         stitchingContext = stitchingContextBuilder.build();

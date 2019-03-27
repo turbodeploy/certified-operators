@@ -18,16 +18,20 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class StitchingContextTest {
-    private final StitchingContext.Builder stitchingContextBuilder =
-        StitchingContext.newBuilder(8);
+    private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
+            .setTargetStore(Mockito.mock(TargetStore.class))
+            .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
     private StitchingContext stitchingContext;
 
     @BeforeClass
@@ -166,7 +170,9 @@ public class StitchingContextTest {
     // TODO: Remove this test after adding shared storage support and eliminating collision resolution.
     @Test
     public void testConstructTopologyDuplicateOids() {
-        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8);
+        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
+            .setTargetStore(Mockito.mock(TargetStore.class))
+            .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);
         final StitchingEntityData e1_2DuplicateOid = new StitchingEntityData(e3_2.getEntityDtoBuilder(),

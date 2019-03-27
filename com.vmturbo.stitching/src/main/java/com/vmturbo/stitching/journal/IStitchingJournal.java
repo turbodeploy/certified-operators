@@ -446,6 +446,13 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
         Collection<T> getRemovedEntities();
 
         /**
+         * Get the collection of all new entities in the changeset that were added.
+         *
+         * @return The collection of all new entities in the changeset that were added.
+         */
+        Collection<T> getAddedEntities();
+
+        /**
          * Get the index of the changeset. Changesets can be sorted by their index.
          *
          * @return The index of a changeset. A lower number indicates a changeset was created before a changeset
@@ -535,6 +542,18 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
          */
         private final List<T> removed = new ArrayList<>();
 
+
+        /**
+         * The list of entities added as part of this changeset.
+         *
+         * The list is ordered. Note that it makes no sense to add the same entity multiple times
+         * to this list.
+         *
+         * Added entities for a changeset are entered into the journal AFTER changes in the changeset
+         * are entered into the journal.
+         */
+        private final List<T> added = new ArrayList<>();
+
         /**
          * Create a new journal changeset. Marked as private so that it can be created via the journal.
          *
@@ -601,9 +620,31 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
             return false;
         }
 
+        /**
+         * Add an addition to the changeset. Note that added entities are NOT snapshotted.
+         * If the addition of this entity was already added to the changeset, the additional
+         * addition is ignored.
+         *
+         * If the changeset has a filter, the addition will only be added if the entity passes
+         * the filter.
+         *
+         * @param entry The entry to add to the changeset along.
+         * @return true if the entry was successfully added (ie it was not already in the changeset)
+         *         false if the entry could not be added because the filter doesn't permit the entry
+         *         in the changeset.
+         */
+        public boolean observeAddition(@Nonnull final T entry) {
+            if (filter.shouldEnter(entry)) {
+                added.add(entry);
+                return true;
+            }
+
+            return false;
+        }
+
         @Override
         public int changedEntityCount() {
-            return mutated.size() + removed.size();
+            return mutated.size() + removed.size() + added.size();
         }
 
         /**
@@ -611,7 +652,8 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
          */
         @Override
         public Stream<T> changedEntities() {
-            return Stream.concat(mutated.keySet().stream(), removed.stream());
+            return Stream.of(mutated.keySet().stream(), removed.stream(), added.stream())
+                .reduce(Stream::concat).orElseGet(Stream::empty);
         }
 
         @Override
@@ -622,6 +664,11 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
         @Override
         public Collection<T> getRemovedEntities() {
             return removed;
+        }
+
+        @Override
+        public Collection<T> getAddedEntities() {
+            return added;
         }
 
         @Override

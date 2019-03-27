@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -25,10 +26,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class SharedStorageTest {
     private static double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
@@ -159,7 +162,9 @@ public class SharedStorageTest {
             entityDataList.add(stitchingData);
         }
 
-        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length);
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length)
+            .setTargetStore(Mockito.mock(TargetStore.class))
+            .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         entityDataList.forEach(entity -> builder.addEntity(entity, ImmutableMap.of(entity.getLocalId(), entity)));
 
         stitchingContext = builder.build();

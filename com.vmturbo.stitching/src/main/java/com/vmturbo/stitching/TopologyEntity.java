@@ -115,6 +115,12 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
 
     @Nonnull
     @Override
+    public String additionDescription() {
+        throw new IllegalStateException(); // TopologyEntities should never be added.
+    }
+
+    @Nonnull
+    @Override
     public TopologyEntity snapshot() {
         // Copy consumers
         final List<TopologyEntity> newConsumers = new ArrayList<>(consumers.size());
