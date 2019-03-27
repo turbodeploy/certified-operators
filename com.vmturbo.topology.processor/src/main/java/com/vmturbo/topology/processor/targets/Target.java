@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -13,6 +14,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+
+import org.apache.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -22,7 +25,9 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
+
 import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.crosstier.common.TargetUtil;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
@@ -44,8 +49,8 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  * probe is a VCenter probe, the target will be a VCenter instance.
  */
 public class Target {
+    private static Logger logger = Logger.getLogger(Target.class);
     private final long id;
-
     private final long probeId;
 
     /**
@@ -59,6 +64,8 @@ public class Target {
 
     private final TargetInfo noSecretAnonymousDto;
 
+    private final ProbeInfo probeInfo;
+
     private List<com.vmturbo.platform.common.dto.Discovery.AccountDefEntry> accountDefEntryList;
 
     /**
@@ -70,12 +77,16 @@ public class Target {
      * Create a target from a string as returned by {@link Target#toJsonString()}.
      *
      * @param serializedTarget The string representing the serialized target.
+     * @param probeStore The probe store instance.
      * @throws TargetDeserializationException If failed to de-serialize the target.
+     * @throws InvalidTargetException if probe not found in probe store
      */
-    public Target(@Nonnull final String serializedTarget) throws TargetDeserializationException {
+    public Target(@Nonnull final String serializedTarget, @Nonnull final ProbeStore probeStore) throws TargetDeserializationException, InvalidTargetException {
         this.info = InternalTargetInfo.fromJsonString(serializedTarget);
         this.id = info.targetInfo.getId();
         this.probeId = info.targetInfo.getSpec().getProbeId();
+        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+            new InvalidTargetException("No probe found in store for probe ID " + probeId));
 
         noSecretDto = removeSecretAccountVals(info.targetInfo, info.secretFields);
         noSecretAnonymousDto = removeSecretAnonymousAccountVals(info.targetInfo, info.secretFields);
@@ -138,8 +149,8 @@ public class Target {
 
         final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
 
-        final ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
-                new InvalidTargetException("No probe found in store for probe ID " + probeId));
+        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+            new InvalidTargetException("No probe found in store for probe ID " + probeId));
         accountDefEntryList = probeInfo.getAccountDefinitionList();
         hasGroupScope = checkForGroupScope(accountDefEntryList);
         if (validateAccountValues) {
@@ -299,6 +310,27 @@ public class Target {
         return id;
     }
 
+
+    /**
+     * Compute a display name for a this target, for a given probe.
+     *
+     * @return display name, if it could be computed
+     */
+    public Optional<String> computeDisplayName() {
+        // this logic was adapted from RemoteMediationServer#getTargetid(...) in classic
+        final List<String> targetIdFields = probeInfo.getTargetIdentifierFieldList();
+        final Map<String, String> accountValuesMap = getSpec().getAccountValueList().stream()
+            .filter(av -> av.hasStringValue())
+            .collect(Collectors.toMap(av -> av.getKey(), av -> av.getStringValue()));
+        try {
+            return Optional.of(TargetUtil.getTargetId(probeInfo.getAccountDefinitionList(),
+                accountValuesMap, targetIdFields, TargetNameException::new));
+        } catch (TargetNameException e) {
+            logger.warn(String.format("Failed to compute target display name for [target,probe] [%s,%s]", id, probeId), e);
+        }
+        return Optional.empty();
+    }
+
     /**
      * Retrieve the OID of the probe the target is attached to.
      *
@@ -334,7 +366,7 @@ public class Target {
     }
 
     /**
-     * Serializes the target to a JSON string that's compatible with {@link Target#Target(String)}.
+     * Serializes the target to a JSON string that's compatible with {@link Target#Target(String, ProbeStore)}.
      *
      * @return The JSON string representing the target.
      */

@@ -87,7 +87,7 @@ public class KVBackedTargetStore implements TargetStore {
         this.targetsById = persistedTargets.entrySet().stream()
                 .map(entry -> {
                     try {
-                        final Target newTarget = new Target(entry.getValue());
+                        final Target newTarget = new Target(entry.getValue(), probeStore);
                         addDerivedTargetsRelationships(newTarget);
                         addAccountDefEntryList(newTarget);
                         logger.info("Restored existing target {} for probe {}.", newTarget.getId(),
