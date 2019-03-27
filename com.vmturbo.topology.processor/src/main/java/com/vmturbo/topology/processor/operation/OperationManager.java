@@ -37,6 +37,8 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -97,7 +99,7 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 public class OperationManager implements ProbeStoreListener, TargetStoreListener,
         IOperationManager {
 
-    private final Logger logger = LogManager.getLogger(OperationManager.class);
+    private static final Logger logger = LogManager.getLogger(OperationManager.class);
 
     // Mapping from OperationID -> Ongoing Operations
     private final ConcurrentMap<Long, Operation> ongoingOperations = new ConcurrentHashMap<>();
@@ -339,27 +341,72 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return a newly created {@link }Workflow} DTO
      */
     private Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
-        return Workflow.newBuilder()
-            .setDisplayName(workflowInfo.getDisplayName())
-            .setId(workflowInfo.getName())
-            .setDescription(workflowInfo.getDescription())
-            .addAllParam(workflowInfo.getWorkflowParamList().stream()
-                .map(workflowParam -> Workflow.Parameter.newBuilder()
-                    .setDescription(workflowParam.getDescription())
-                    .setName(workflowParam.getName())
-                    .setType(workflowParam.getType())
-                    .setMandatory(workflowParam.getMandatory())
-                    .build())
-                .collect(Collectors.toList()))
-            // include the 'property' entries from the Workflow
-            .addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
-                .map(workflowProperty -> Workflow.Property.newBuilder()
-                    .setName(workflowProperty.getName())
-                    .setValue(workflowProperty.getValue())
-                    .build())
-                .collect(Collectors.toList()))
-            .build();
+        final Workflow.Builder wfBuilder = Workflow.newBuilder();
+        if (workflowInfo.hasDisplayName()) {
+            wfBuilder.setDisplayName(workflowInfo.getDisplayName());
+        }
+        if (workflowInfo.hasName()) {
+            wfBuilder.setId(workflowInfo.getName());
+        }
+        if (workflowInfo.hasDescription()) {
+            wfBuilder.setDescription(workflowInfo.getDescription());
+        }
+        wfBuilder.addAllParam(workflowInfo.getWorkflowParamList().stream()
+            .map(workflowParam -> {
+                final Workflow.Parameter.Builder parmBuilder = Workflow.Parameter.newBuilder();
+                if (workflowParam.hasDescription()) {
+                    parmBuilder.setDescription(workflowParam.getDescription());
+                }
+                if (workflowParam.hasName()) {
+                    parmBuilder.setName(workflowParam.getName());
+                }
+                if (workflowParam.hasType()) {
+                    parmBuilder.setType(workflowParam.getType());
+                }
+                if (workflowParam.hasMandatory()) {
+                    parmBuilder.setMandatory(workflowParam.getMandatory());
+                }
+                return parmBuilder.build();
+            })
+            .collect(Collectors.toList()));
+        // include the 'property' entries from the Workflow
+        wfBuilder.addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
+            .map(workflowProperty -> {
+                final Workflow.Property.Builder propBUilder = Workflow.Property.newBuilder();
+                if (workflowProperty.hasName()) {
+                    propBUilder.setName(workflowProperty.getName());
+                }
+                if (workflowProperty.hasValue()) {
+                    propBUilder.setValue(workflowProperty.getValue());
+                }
+                return propBUilder.build();
+            })
+            .collect(Collectors.toList()));
+        if (workflowInfo.hasScriptPath()) {
+            wfBuilder.setScriptPath(workflowInfo.getScriptPath());
+        }
+        if (workflowInfo.hasEntityType()) {
+            wfBuilder.setEntityType(EntityDTO.EntityType.forNumber(workflowInfo.getEntityType()));
+        }
+        if (workflowInfo.hasActionType()) {
+
+            ActionType converted = ActionConversions.convertActionType(workflowInfo.getActionType());
+            if (converted != null) {
+                wfBuilder.setActionType(converted);
+            }
+        }
+        if (workflowInfo.hasActionPhase()) {
+            final ActionScriptPhase converted = ActionConversions.convertActionPhase(workflowInfo.getActionPhase());
+            if (converted != null) {
+                wfBuilder.setPhase(converted);
+            }
+        }
+        if (workflowInfo.hasTimeLimitSeconds()) {
+            wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
+        }
+        return wfBuilder.build();
     }
+
 
     /**
      * Request a validation on a target. There may be only a single ongoing validation

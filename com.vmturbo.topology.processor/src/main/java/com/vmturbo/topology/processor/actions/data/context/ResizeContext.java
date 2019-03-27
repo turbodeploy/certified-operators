@@ -4,19 +4,18 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -29,20 +28,6 @@ public class ResizeContext extends AbstractActionExecutionContext {
                          @Nonnull final EntityStore entityStore,
                          @Nonnull final EntityRetriever entityRetriever) {
         super(request, dataManager, entityStore, entityRetriever);
-    }
-
-    /**
-     * Get the SDK (probe-facing) type of the over-arching action being executed
-     *
-     * @return the SDK (probe-facing) type of the over-arching action being executed
-     */
-    @Nonnull
-    @Override
-    public ActionType getSDKActionType() {
-        // TODO (roman, May 16  2017): At the time of this writing, most probes expect RIGHT_SIZE,
-        // and a few expect RESIZE. Need to remove the inconsistencies, especially if we want to
-        // make this usable with third-party probes in the future.
-        return ActionType.RIGHT_SIZE;
     }
 
     /**
