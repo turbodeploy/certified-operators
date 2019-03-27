@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.topology.processor.operation.ActionConversions;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
@@ -51,7 +52,9 @@ public interface ActionExecutionContext {
      * @return the SDK (probe-facing) type of the over-arching action being executed
      */
     @Nonnull
-    ActionItemDTO.ActionType getSDKActionType();
+    default ActionItemDTO.ActionType getSDKActionType() {
+        return ActionConversions.convertActionType(getActionType());
+    }
 
     /**
      * Get the type of the over-arching action being executed

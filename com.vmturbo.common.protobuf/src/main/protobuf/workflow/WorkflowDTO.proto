@@ -3,6 +3,8 @@ package workflow;
 
 option java_package = "com.vmturbo.common.protobuf.workflow";
 
+import "action/ActionDTO.proto";
+
 // A 'Workflow' represents an executable unit provided by an Orchestration target. The Workflow
 // is discovered and recorded in Action Executor. Later, the Workflow may be associated with
 // an Automation Policy which, when applied, will contact the Orchestration target to effect
@@ -33,6 +35,23 @@ message WorkflowInfo {
 
     // Human readable descripton of the workflow discovered from the target
     optional string description = 5;
+
+    // following properties apply to Action Script workflows
+
+    // Entity type to which this workflow may apply; missing means all
+    optional int32 entity_type = 7;
+
+    // full path to action script executable on remote server (required for action scripts)
+    optional string script_path = 8;
+
+    // Action type to which workflow may apply; missing means all
+    optional action.ActionType action_type = 9;
+
+    // phase of action execution to which this workflow may apply ; missing means all
+    optional action.ActionPhase action_phase = 10;
+
+    // time limit for execution of this workflow; missing means default applies
+    optional int64 time_limit_seconds = 11;
 }
 
 // A descriptor for an input parameter to a workflow as specified by the workflow author.

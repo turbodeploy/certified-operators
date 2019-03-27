@@ -30,7 +30,7 @@ public class DiscoveredWorkflowTestUtils {
         return Workflow.newBuilder()
                 .setId("WORKFLOW-" + name)
                 .setDisplayName("WORKFLOW " + name)
-                .setDescription("description of " + "WRKFLOW " + name)
+                .setDescription("description of " + "WORKFLOW " + name)
             .addParam(Workflow.Parameter.newBuilder()
                 .setName("x-" + name)
                 .setType(WORKFLOW_TYPE_GEN_TEXT_INPUT)
@@ -56,6 +56,7 @@ public class DiscoveredWorkflowTestUtils {
         return WorkflowInfo.newBuilder()
                 .setName("WORKFLOW-" + name)
                 .setDisplayName("WORKFLOW " + name)
+                .setDescription("description of " + "WORKFLOW " + name)
                 .setTargetId(targetId)
                 .addAllWorkflowParam(Lists.newArrayList(
                         buildWorkflowParams("x-" + name, WORKFLOW_TYPE_GEN_TEXT_INPUT, true),
