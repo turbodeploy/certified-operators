@@ -1,11 +1,11 @@
 package com.vmturbo.topology.processor.operation;
 
 import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
-
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -37,7 +37,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.identity.store.IdentityStore;
@@ -72,6 +72,7 @@ import com.vmturbo.topology.processor.controllable.EntityActionDaoImp;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
+import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -119,6 +120,8 @@ public class OperationManagerTest {
 
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
+    private final TargetDumpingSettings targetDumpingSettings = Mockito.mock(TargetDumpingSettings.class);
+
     private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
             targetIdentityStore);
 
@@ -165,7 +168,7 @@ public class OperationManagerTest {
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
                 mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
                 discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
-                entityActionDao, derivedTargetParser, groupScopeResolver, 10, 10, 10,
+                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,10, 10, 10,
                 5, 1, 1);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
@@ -181,6 +184,9 @@ public class OperationManagerTest {
 
         when(mockRemoteMediationServer.getMessageHandlerExpirationClock())
                 .thenReturn(Clock.systemUTC());
+
+        when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
+        doNothing().when(targetDumpingSettings).refreshSettings();
     }
 
     /**

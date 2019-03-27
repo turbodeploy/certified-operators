@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.operation;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -50,11 +52,14 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
+import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -152,6 +157,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final long actionTimeoutMs;
 
+    private final TargetDumpingSettings targetDumpingSettings;
+
+    private DiscoveryDumper discoveryDumper = null;
+
     /**
      *  Executor service for handling async responses from the probe.
      */
@@ -188,6 +197,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         .withHelp("The number of service entities in a discovery.")
         .build()
         .register();
+
     private DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
     private DiscoveredCloudCostUploader discoveredCloudCostUploader;
@@ -221,6 +231,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final EntityActionDao entityActionDao,
                             @Nonnull final DerivedTargetParser derivedTargetParser,
                             @Nonnull final GroupScopeResolver groupScopeResolver,
+                            @Nonnull final TargetDumpingSettings targetDumpingSettings,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds,
@@ -246,6 +257,13 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.probeDiscoveryPermitWaitTimeoutMins = probeDiscoveryPermitWaitTimeoutMins;
         this.probeDiscoveryPermitWaitTimeoutIntervalMins = probeDiscoveryPermitWaitTimeoutIntervalMins;
+        this.targetDumpingSettings = targetDumpingSettings;
+        try {
+            this.discoveryDumper = new DiscoveryDumperImpl(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, targetDumpingSettings);
+        } catch (IOException e) {
+            logger.warn("Failed to initialized discovery dumper; discovery responses will not be dumped", e);
+            this.discoveryDumper = null;
+        }
 
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
@@ -918,6 +936,19 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
                         response.getNonMarketEntityDTOList(), response.getCostDTOList(),
                         response.getPriceTable());
+                if (discoveryDumper != null) {
+                    final Optional<Target> target = targetStore.getTarget(targetId);
+                    final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
+                    Optional<String> displayName = target.isPresent() && probeInfo.isPresent()
+                        ? target.get().computeDisplayName()
+                        : Optional.empty();
+                    String targetName = displayName.map(name -> probeInfo.get().getProbeType() + "_" + name).orElse(DiscoveryDumperSettings.UNIDENTIFIED_TARGET_NAME);
+                    if (discovery.getUserInitiated()) {
+                        // make sure we have up-to-date settings if this is a user-initiated discovery
+                        targetDumpingSettings.refreshSettings();
+                    }
+                    discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
+                }
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |
