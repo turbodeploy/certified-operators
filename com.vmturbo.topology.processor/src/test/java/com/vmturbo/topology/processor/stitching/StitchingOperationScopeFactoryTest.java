@@ -28,11 +28,9 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.stitching.StitchingOperationScopeFactory;
-import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingContext.Builder;
-import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -66,7 +64,9 @@ public class StitchingOperationScopeFactoryTest {
 
     @Before
     public void setup() {
-        final Builder contextBuilder = StitchingContext.newBuilder(5);
+        final Builder contextBuilder = StitchingContext.newBuilder(5)
+            .setTargetStore(mock(TargetStore.class))
+            .setIdentityProvider(mock(IdentityProviderImpl.class));
         contextBuilder.addEntity(vm1, targetGraph);
         contextBuilder.addEntity(vm2, targetGraph);
         contextBuilder.addEntity(vm3, targetGraph);

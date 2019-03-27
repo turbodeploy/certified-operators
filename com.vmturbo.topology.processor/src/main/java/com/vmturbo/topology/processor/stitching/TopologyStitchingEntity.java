@@ -108,6 +108,13 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Nonnull
     @Override
+    public String additionDescription() {
+        return String.format("ADDED ENTITY\n\t[%s]",
+            StitchingEntitySemanticDiffer.entityDescription(this));
+    }
+
+    @Nonnull
+    @Override
     public StitchingEntity snapshot() {
         // Create a basic copy
         TopologyStitchingEntity copy = new TopologyStitchingEntity(entityBuilder.clone(), getOid(),

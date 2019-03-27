@@ -76,4 +76,13 @@ public interface JournalableEntity<T extends JournalableEntity> {
      */
     @Nonnull
     String removalDescription();
+
+
+    /**
+     * Compose a string describing the addition of this {@link JournalableEntity} to the topology.
+     *
+     * @return A string describing the addition of this {@link JournalableEntity} to the topology.
+     */
+    @Nonnull
+    String additionDescription();
 }

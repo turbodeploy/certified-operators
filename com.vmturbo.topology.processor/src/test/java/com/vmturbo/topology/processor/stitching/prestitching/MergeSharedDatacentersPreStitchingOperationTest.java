@@ -7,6 +7,7 @@ import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -15,10 +16,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.prestitching.MergeSharedDatacentersPreStitchingOperation;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Integration test for shared storage.
@@ -75,7 +78,9 @@ public class MergeSharedDatacentersPreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(3);
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(3)
+            .setTargetStore(Mockito.mock(TargetStore.class))
+            .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         stitchingContextBuider.addEntity(dcA,
             ImmutableMap.of(dcEntityA.getId(), dcA));
         stitchingContextBuider.addEntity(dcB,

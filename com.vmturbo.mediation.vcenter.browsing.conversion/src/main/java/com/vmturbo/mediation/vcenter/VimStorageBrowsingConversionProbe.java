@@ -21,6 +21,7 @@ import com.vmturbo.mediation.vmware.sdk.VimAccount;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
@@ -47,14 +48,14 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
     );
 
     /**
-     * Map of existing entity type to the MergedEntityMetadataBuilder for that entity type.
+     * Map of existing entity type to the MergedEntityMetadata for that entity type.
      */
-    private static Map<EntityType, MergedEntityMetadataBuilder> MERGED_ENTITY_METADATA_BUILDER_MAP =
-            new ImmutableMap.Builder<EntityType, MergedEntityMetadataBuilder>()
-                    .put(EntityType.VIRTUAL_MACHINE,
-                            createVirtualMachineMergedEntityMetadataBuilder())
-                    .put(EntityType.STORAGE, createStorageMergedEntityMetadataBuilder())
-                    .build();
+    private static Map<EntityType, MergedEntityMetadata> MERGED_ENTITY_METADATA_MAP =
+            new ImmutableMap.Builder<EntityType, MergedEntityMetadata>()
+                .put(EntityType.VIRTUAL_MACHINE, createVirtualMachineMergedEntityMetadata())
+                .put(EntityType.STORAGE, createStorageMergedEntityMetadata())
+                .put(EntityType.VIRTUAL_VOLUME, createVirtualVolumeMergedEntityMetadata())
+                .build();
 
     /**
      * List of new entity types to create supply chain nodes for, which don't
@@ -101,9 +102,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
         for (TemplateDTO templateDTO : super.getSupplyChainDefinition()) {
             if (EXISTING_ENTITY_TYPES.contains(templateDTO.getTemplateClass())) {
                 sc.add(templateDTO.toBuilder()
-                        .setMergedEntityMetaData(MERGED_ENTITY_METADATA_BUILDER_MAP
-                                .get(templateDTO.getTemplateClass())
-                                .build())
+                        .setMergedEntityMetaData(MERGED_ENTITY_METADATA_MAP.get(templateDTO.getTemplateClass()))
                         .build());
             } else {
                 sc.add(templateDTO);
@@ -112,43 +111,64 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
 
         // create supply chain nodes for new entity types
         for (EntityType entityType : NEW_ENTITY_TYPES) {
-            sc.add(new SupplyChainNodeBuilder()
-                    .entity(entityType)
-                    .buildEntity());
+            SupplyChainNodeBuilder nodeBuilder = new SupplyChainNodeBuilder().entity(entityType);
+            if (MERGED_ENTITY_METADATA_MAP.containsKey(entityType)) {
+                nodeBuilder.mergedBy(MERGED_ENTITY_METADATA_MAP.get(entityType));
+            }
+            sc.add(nodeBuilder.buildEntity());
         }
 
         return sc;
     }
 
     /**
-     * Create MergedEntityMetadataBuilder for Storage supply chain node used for stitching.
+     * Create MergedEntityMetadata for Storage supply chain node used for stitching.
      * Storages from the StorageBrowsing probe have an entity property, STORAGE_ID, that
      * matches the ID of a storage from the VC probe.  We have no commodities to merge.  Only the
      * connectedFrom relationship to the VirtualVolume is needed from the StorageBrowsing probe.
      *
-     * @return MergedEntityMetadataBuilder for use by stitching
+     * @return MergedEntityMetadata for use by stitching
      */
-    private static MergedEntityMetadataBuilder createStorageMergedEntityMetadataBuilder() {
+    private static MergedEntityMetadata createStorageMergedEntityMetadata() {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingProperty(SupplyChainConstants.STORAGE_ID)
                 .internalMatchingType(ReturnType.STRING)
-                .externalMatchingField("id", Collections.emptyList())
-                .externalMatchingType(ReturnType.STRING);
+                .externalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
+                .externalMatchingType(ReturnType.STRING)
+                .build();
     }
 
     /**
-     * Create MergedEntityMetadataBuilder for VirtualMachine supply chain node used for stitching.
+     * Create MergedEntityMetadata for VirtualMachine supply chain node used for stitching.
      * The StorageBrowsing VirtualMachine has an INTERNAL_NAME_TGT_ID property that matches the
      * same property on the VC VirtualMachine.  Like storage, we have no commodities to stitch, we
      * only care about the connectedTo relationship with the VirtualVolume.
      *
-     * @return MergedEntityMetadataBuilder for use by stitching
+     * @return MergedEntityMetadata for use by stitching
      */
-    private static MergedEntityMetadataBuilder createVirtualMachineMergedEntityMetadataBuilder() {
+    private static MergedEntityMetadata createVirtualMachineMergedEntityMetadata() {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingProperty(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
                 .internalMatchingType(ReturnType.STRING)
                 .externalMatchingProperty(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
-                .externalMatchingType(ReturnType.STRING);
+                .externalMatchingType(ReturnType.STRING)
+                .build();
+    }
+
+    /**
+     * Create MergedEntityMetadata for VirtualVolume supply chain node used for stitching. The
+     * matching is based on the id of the VirtualVolume. And the field "virtual_volume_data" of
+     * this DTO will be patched to matching virtual volume of main vc probe.
+     *
+     * @return MergedEntityMetadata for use by stitching for VirtualVolume
+     */
+    private static MergedEntityMetadata createVirtualVolumeMergedEntityMetadata() {
+        return new MergedEntityMetadataBuilder()
+                .internalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
+                .internalMatchingType(ReturnType.STRING)
+                .externalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
+                .externalMatchingType(ReturnType.STRING)
+                .mergedField("virtual_volume_data", Collections.emptyList())
+                .build();
     }
 }
