@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.diagnostics;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
@@ -18,6 +19,8 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -49,6 +52,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -224,6 +228,24 @@ public class TopologyProcessorDiagnosticsHandler {
         }
 
         diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
+
+        // discovery dumps
+        File dumpDirInZip = new File("discoveryDumps");
+        for (String dumpFileName: DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY.list()) {
+            File dumpFile = new File(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, dumpFileName);
+            if (dumpFile.exists() && dumpFile.isFile()) {
+                File entryFileName = new File(dumpDirInZip, dumpFileName);
+                try {
+                    diagnosticsWriter.writeZipEntry(entryFileName.toString(), FileUtils.readFileToByteArray(dumpFile), diagnosticZip);
+                } catch (IOException e) {
+                    logger.warn("Failed to write discovery dump file {} to diags zip file", dumpFile);
+                    logger.catching(Level.DEBUG, e);
+                }
+            } else {
+                logger.warn("Not dumping item {} in discovery dump directory; not a regular file", dumpFileName);
+            }
+
+        }
     }
 
     /**
@@ -351,7 +373,7 @@ public class TopologyProcessorDiagnosticsHandler {
     /**
      * Clear the target spec oid table and re-populate the data in json-serialized target identifiers.
      *
-     * @param serializedTargets a list of json-serialized target identifiers data
+     * @param serializedTargetIdentifiers a list of json-serialized target identifiers data
      * @throws IdentityStoreException if deserialization fails
      * @throws DiagnosticsException if restore target identifiers into database fails
      */
