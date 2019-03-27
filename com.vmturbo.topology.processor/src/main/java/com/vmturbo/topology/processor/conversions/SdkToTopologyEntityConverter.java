@@ -661,7 +661,12 @@ public class SdkToTopologyEntityConverter {
     @VisibleForTesting
     static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
             @Nonnull final TopologyStitchingEntity entity) {
-        if (entity.getEntityType() == EntityType.APPLICATION) {
+        if (entity.getEntityType() == EntityType.BUSINESS_APPLICATION ||
+                entity.getEntityType() == EntityType.VIRTUAL_APPLICATION ||
+                entity.getEntityType() == EntityType.APPLICATION_SERVER ||
+                entity.getEntityType() == EntityType.APPLICATION ||
+                entity.getEntityType() == EntityType.DATABASE_SERVER ||
+                entity.getEntityType() == EntityType.DATABASE) {
             return Optional.of(checkAppSuspendability(entity));
         }
         return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
@@ -672,14 +677,19 @@ public class SdkToTopologyEntityConverter {
 
     /**
      * An application is considered suspendable only if it was a discovered entity and
-     * its consumer is a vApp.
+     * its consumer is a vApp with multiple providers and with any level of measured utilization.
      * @param entity is Application.
      * @return true if can be suspended.
      */
     private static boolean checkAppSuspendability(TopologyStitchingEntity entity) {
         return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
-               entity.getConsumers().stream()
-                   .anyMatch(provider -> provider.getEntityType() == EntityType.VIRTUAL_APPLICATION);
+                entity.getConsumers().stream()
+                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.VIRTUAL_APPLICATION &&
+                        consumer.getProviders().size() > 1) &&
+                entity.getCommoditiesSold()
+                        .anyMatch(commodity -> ((commodity.getCommodityType() == CommodityDTO.CommodityType.TRANSACTION ||
+                                commodity.getCommodityType() == CommodityDTO.CommodityType.RESPONSE_TIME) &&
+                                commodity.getUsed() > 0));
     }
 
     /**
