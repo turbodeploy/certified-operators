@@ -22,6 +22,7 @@ import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -111,29 +112,71 @@ public class SearchUtil {
                 && entityAsTopologyEntityDTO.getOrigin().hasDiscoveryOrigin()
                 && entityAsTopologyEntityDTO
                         .getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsCount() != 0) {
-            final TargetApiDTO target = new TargetApiDTO();
 
             // get the target that appears first in the list of discovering targets
             // TODO: fix this; logic to add the most appropriate target should be added
             final long targetId =
                 entityAsTopologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIds(0);
-            target.setUuid(Long.toString(targetId));
 
-            // fetch information about the target
-            final TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
-            target.setDisplayName(
-                TargetData.getDisplayName(targetInfo).orElseGet(() -> {
-                    logger.warn("Cannot find the display name of target with id {}", target::getUuid);
-                    return "";
-                }));
-
-            // fetch information about the probe, and store the probe type in the result
-            final long probeId = targetInfo.getProbeId();
-            final ProbeInfo probeInfo = topologyProcessor.getProbe(probeId);
-            target.setType(probeInfo.getType());
-            return target;
+            return fetchTarget(topologyProcessor, targetId);
         }
         return null;
+    }
+
+    /**
+     * Given a {@link ServiceEntityApiDTO} object, finds a discovering target
+     * and returns it in {@link TargetApiDTO} format.  If no target is found,
+     * {@code null} is returned.
+     *
+     * @param topologyProcessor topology processor interface to be used.
+     * @param serviceEntityApiDTO entity to find a discovering target for.
+     * @throws CommunicationException communication with the topology processor failed.
+     * @throws TopologyProcessorException mandatory data for the target could not be retrieved.
+     * @return a discovering target.
+     */
+    @Nullable
+    public static TargetApiDTO fetchDiscoveringTarget(@Nonnull TopologyProcessor topologyProcessor,
+                                               @Nonnull ServiceEntityApiDTO serviceEntityApiDTO)
+        throws CommunicationException, TopologyProcessorException {
+        final TargetApiDTO target = serviceEntityApiDTO.getDiscoveredBy();
+        if (target != null) {
+            final String targetId = target.getUuid();
+            if (targetId != null) {
+                return fetchTarget(topologyProcessor, Long.parseLong(targetId));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Given a target ID, fetches a corresponding {@link TargetApiDTO}.
+     *
+     * @param topologyProcessor topology processor interface to be used.
+     * @param targetId of the target to be fetched
+     * @throws CommunicationException communication with the topology processor failed.
+     * @throws TopologyProcessorException mandatory data for the target could not be retrieved.
+     * @return the target.
+     */
+    @Nonnull
+    public static TargetApiDTO fetchTarget(
+        @Nonnull TopologyProcessor topologyProcessor,
+        long targetId) throws CommunicationException, TopologyProcessorException {
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setUuid(Long.toString(targetId));
+
+        // fetch information about the target
+        final TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+        target.setDisplayName(
+            TargetData.getDisplayName(targetInfo).orElseGet(() -> {
+                logger.warn("Cannot find the display name of target with id {}", target::getUuid);
+                return "";
+            }));
+
+        // fetch information about the probe, and store the probe type in the result
+        final long probeId = targetInfo.getProbeId();
+        final ProbeInfo probeInfo = topologyProcessor.getProbe(probeId);
+        target.setType(probeInfo.getType());
+        return target;
     }
 
     /**
