@@ -1,14 +1,16 @@
 package com.vmturbo.topology.processor.group.discovery;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.topology.processor.rpc.DiscoveredGroupRpcService;
@@ -39,6 +41,25 @@ public class InterpretedGroup {
     }
 
     /**
+     * Get the static members of the group, if the group is a static group.
+     *
+     * @return A list containing the static members of the group. An empty list if the group is
+     *         not a static group/cluster. Note - from the output of this method there is no way
+     *         to distinguish an empty static group from a non-static group.
+     */
+    @Nonnull
+    public List<Long> getStaticMembers() {
+        if (dtoAsCluster.isPresent()) {
+            return dtoAsCluster.get().getMembers().getStaticMemberOidsList();
+        } else if (dtoAsGroup.isPresent()) {
+            if (dtoAsGroup.get().getSelectionCriteriaCase() == SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
+                return dtoAsGroup.get().getStaticGroupMembers().getStaticMemberOidsList();
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    /**
      * Creates a deep copy of Interpreted group.
      *
      * @param source to make copy of it
@@ -62,6 +83,11 @@ public class InterpretedGroup {
      */
     public Optional<GroupInfo.Builder> getDtoAsGroup() {
         return dtoAsGroup;
+    }
+
+    @Nonnull
+    public CommonDTO.GroupDTO getOriginalSdkGroup() {
+        return dto;
     }
 
     /**

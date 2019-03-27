@@ -6,14 +6,27 @@ import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupCons
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.SELECTION_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STATIC_MEMBER_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
@@ -40,6 +53,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.DefaultPropertyFilterConverter;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.GroupInterpretationContext;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.PropertyFilterConverter;
 
 public class DiscoveredGroupInterpreterTest {
@@ -113,7 +127,9 @@ public class DiscoveredGroupInterpreterTest {
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo.Builder> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        final Optional<GroupInfo.Builder> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, context);
         assertTrue(groupInfoOpt.isPresent());
 
         final GroupInfo groupInfo = groupInfoOpt.get().build();
@@ -132,8 +148,11 @@ public class DiscoveredGroupInterpreterTest {
                 .thenReturn(Optional.of(ImmutableMap.of("2", 2L)));
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo.Builder> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
-        assertFalse(groupInfoOpt.isPresent());
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        final Optional<GroupInfo.Builder> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, context);
+        // In the case of a missing entity we still return the group, with the empty
+        assertTrue(groupInfoOpt.get().getStaticGroupMembers().getStaticMemberOidsList().isEmpty());
     }
 
     @Test
@@ -145,7 +164,9 @@ public class DiscoveredGroupInterpreterTest {
                 .thenReturn(Optional.of(PLACEHOLDER_FILTER));
 
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo.Builder> infoOpt = converter.sdkToGroup(SELECTION_DTO, TARGET_ID);
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        final Optional<GroupInfo.Builder> infoOpt = converter.sdkToGroup(SELECTION_DTO, context);
         assertTrue(infoOpt.isPresent());
 
         final GroupInfo info = infoOpt.get().build();
@@ -172,9 +193,12 @@ public class DiscoveredGroupInterpreterTest {
                 .thenReturn(Optional.of(PLACEHOLDER_FILTER));
 
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo.Builder> infoOpt =
-                converter.sdkToGroup(GroupDTO.newBuilder(SELECTION_DTO).clearDisplayName().build(),
-                        TARGET_ID);
+        final GroupDTO group = GroupDTO.newBuilder(SELECTION_DTO)
+            .clearDisplayName()
+            .build();
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+        final Optional<GroupInfo.Builder> infoOpt = converter.sdkToGroup(group, context);
         assertTrue(infoOpt.isPresent());
 
         final GroupInfo info = infoOpt.get().build();
@@ -200,15 +224,18 @@ public class DiscoveredGroupInterpreterTest {
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        Optional<ClusterInfo.Builder> clusterInfo = converter.sdkToCluster(CommonDTO.GroupDTO.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE)
-                .setDisplayName(DISPLAY_NAME)
-                .setConstraintInfo(ConstraintInfo.newBuilder()
-                        .setConstraintType(ConstraintType.CLUSTER)
-                        .setConstraintId("constraint")
-                        .setConstraintName("name"))
-                .setMemberList(MembersList.newBuilder().addMember("1").build())
-                .build(), TARGET_ID);
+        final GroupDTO group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                .setConstraintType(ConstraintType.CLUSTER)
+                .setConstraintId("constraint")
+                .setConstraintName("name"))
+            .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .build();
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+        Optional<ClusterInfo.Builder> clusterInfo = converter.sdkToCluster(group, context);
         assertTrue(clusterInfo.isPresent());
         assertEquals(Type.COMPUTE, clusterInfo.get().getClusterType());
         assertEquals(DISPLAY_NAME, clusterInfo.get().getDisplayName());
@@ -229,15 +256,18 @@ public class DiscoveredGroupInterpreterTest {
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        Optional<ClusterInfo.Builder> clusterInfo = converter.sdkToCluster(CommonDTO.GroupDTO.newBuilder()
-                .setEntityType(EntityType.STORAGE)
-                .setDisplayName(DISPLAY_NAME)
-                .setConstraintInfo(ConstraintInfo.newBuilder()
-                        .setConstraintType(ConstraintType.CLUSTER)
-                        .setConstraintId("constraint")
-                        .setConstraintName("name"))
-                .setMemberList(MembersList.newBuilder().addMember("1").build())
-                .build(), TARGET_ID);
+        final GroupDTO group = CommonDTO.GroupDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                .setConstraintType(ConstraintType.CLUSTER)
+                .setConstraintId("constraint")
+                .setConstraintName("name"))
+            .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .build();
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
+        Optional<ClusterInfo.Builder> clusterInfo = converter.sdkToCluster(group, context);
         assertTrue(clusterInfo.isPresent());
         assertEquals(Type.STORAGE, clusterInfo.get().getClusterType());
         assertEquals(DISPLAY_NAME, clusterInfo.get().getDisplayName());
@@ -252,41 +282,384 @@ public class DiscoveredGroupInterpreterTest {
                 .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
                 mock(PropertyFilterConverter.class));
-        assertFalse(converter.sdkToCluster(CLUSTER_DTO.toBuilder()
-                .setGroupName("blah")
-                .build(), TARGET_ID).isPresent());
+        final GroupDTO groupNameCluster = CLUSTER_DTO.toBuilder()
+            .setGroupName("blah")
+            .build();
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(groupNameCluster));
+        assertFalse(converter.sdkToCluster(groupNameCluster, context).isPresent());
 
-        assertFalse(converter.sdkToCluster(CLUSTER_DTO.toBuilder()
-                .setConstraintInfo(ConstraintInfo.newBuilder()
-                        // Only ConstraintType.CLUSTER should count as a cluster.
-                        .setConstraintType(ConstraintType.MERGE)
-                        .setConstraintId("constraint")
-                        .setConstraintName("name"))
-                .build(), TARGET_ID).isPresent());
+        final GroupDTO invalidConstraintCluster = CLUSTER_DTO.toBuilder()
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                // Only ConstraintType.CLUSTER should count as a cluster.
+                .setConstraintType(ConstraintType.MERGE)
+                .setConstraintId("constraint")
+                .setConstraintName("name"))
+            .build();
+        final GroupInterpretationContext context2 =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(invalidConstraintCluster));
+        assertFalse(converter.sdkToCluster(invalidConstraintCluster, context2).isPresent());
     }
 
     @Test
     public void testNoClusterBecauseNoMemberList() {
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(mock(EntityStore.class),
                 mock(PropertyFilterConverter.class));
-        assertFalse(converter.sdkToCluster(CLUSTER_DTO.toBuilder()
-                // Using a selection spec instead of a static list - invalid!
-                .setSelectionSpecList(SelectionSpecList.getDefaultInstance())
-                .build(), TARGET_ID).isPresent());
+        final GroupDTO selectionSpecCluster = CLUSTER_DTO.toBuilder()
+            // Using a selection spec instead of a static list - invalid!
+            .setSelectionSpecList(SelectionSpecList.getDefaultInstance())
+            .build();
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(selectionSpecCluster));
+        assertFalse(converter.sdkToCluster(selectionSpecCluster, context).isPresent());
 
-        assertFalse(converter.sdkToCluster(CLUSTER_DTO.toBuilder()
-                // Using a source group ID instead of a static list - invalid!
-                .setSourceGroupId("sourceGroupId")
-                .build(), TARGET_ID).isPresent());
+        final GroupDTO sourceGroupCluster = CLUSTER_DTO.toBuilder()
+            // Using a source group ID instead of a static list - invalid!
+            .setSourceGroupId("sourceGroupId")
+            .build();
+        final GroupInterpretationContext context2 =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(sourceGroupCluster));
+        assertFalse(converter.sdkToCluster(sourceGroupCluster, context2).isPresent());
     }
 
     @Test
     public void testNoClusterInvalidEntityType() {
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(mock(EntityStore.class),
                 mock(PropertyFilterConverter.class));
-        assertFalse(converter.sdkToCluster(CLUSTER_DTO.toBuilder()
-                // Clusters must be PM or Storage
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .build(), TARGET_ID).isPresent());
+        final GroupDTO invalidEntityCluster = CLUSTER_DTO.toBuilder()
+            // Clusters must be PM or Storage
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .build();
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.singletonList(invalidEntityCluster));
+        assertFalse(converter.sdkToCluster(invalidEntityCluster, context).isPresent());
+    }
+
+    /**
+     * Test SDK input where groups contain other groups.
+     * The output should be a "flattened" list of groups with all their leaf members.
+     */
+    @Test
+    public void testGroupOfGroups() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("1", 1L, "2", 2L, "3", 3L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity3 = mock(Entity.class);
+        when(entity3.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        when(store.getEntity(1L))
+            .thenReturn(Optional.of(entity1));
+        when(store.getEntity(2L))
+            .thenReturn(Optional.of(entity2));
+        when(store.getEntity(3L))
+            .thenReturn(Optional.of(entity3));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+        final GroupDTO parentGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("parent")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("child1")
+                .addMember("1"))
+            .build();
+        final GroupDTO child1Group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("child1")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("child2")
+                .addMember("2"))
+            .build();
+        final GroupDTO child2Group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("child2")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("3"))
+            .build();
+
+        final Collection<InterpretedGroup> interpretedGroups =
+            converter.interpretSdkGroupList(Arrays.asList(child1Group, child2Group, parentGroup), TARGET_ID);
+        assertThat(interpretedGroups.size(), is(3));
+
+        final Map<String, InterpretedGroup> groupsByGroupName =
+            converter.interpretSdkGroupList(Arrays.asList(child1Group, child2Group, parentGroup), TARGET_ID)
+                .stream()
+                .collect(Collectors.toMap(
+                    group -> group.getOriginalSdkGroup().getGroupName(),
+                    Function.identity()));
+        assertThat(groupsByGroupName.size(), is(3));
+        assertThat(groupsByGroupName.get(parentGroup.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(1L, 2L, 3L));
+        assertThat(groupsByGroupName.get(child1Group.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(2L, 3L));
+        assertThat(groupsByGroupName.get(child2Group.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(3L));
+    }
+
+    @Test
+    public void testGroupOfGroupsDepth() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("1111", 1111L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity3 = mock(Entity.class);
+        when(entity3.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        when(store.getEntity(1111L))
+            .thenReturn(Optional.of(entity1));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+
+        final int depth = DiscoveredGroupInterpreter.MAX_NESTING_DEPTH;
+        final List<GroupDTO> x = makeNestedGroups(depth);
+        final Map<String, InterpretedGroup> interpretedGroupsByName =
+            converter.interpretSdkGroupList(x, TARGET_ID).stream()
+                .collect(Collectors.toMap(
+                    group -> group.getOriginalSdkGroup().getGroupName(),
+                    Function.identity()));
+        assertThat(interpretedGroupsByName.size(), is(x.size()));
+        assertThat(interpretedGroupsByName.get(Integer.toString(depth - 1)).getStaticMembers(),
+            containsInAnyOrder(1111L));
+    }
+
+    @Test
+    public void testGroupOfGroupsExceedsMaxDepth() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("1111", 1111L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity3 = mock(Entity.class);
+        when(entity3.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        when(store.getEntity(1111L))
+            .thenReturn(Optional.of(entity1));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+
+        final int depth = DiscoveredGroupInterpreter.MAX_NESTING_DEPTH + 1;
+        final List<GroupDTO> x = makeNestedGroups(depth);
+        final Map<String, InterpretedGroup> interpretedGroupsByName =
+            converter.interpretSdkGroupList(x, TARGET_ID).stream()
+                .collect(Collectors.toMap(
+                    group -> group.getOriginalSdkGroup().getGroupName(),
+                    Function.identity()));
+        assertThat(interpretedGroupsByName.size(), is(x.size()));
+        assertTrue(interpretedGroupsByName.get(Integer.toString(depth - 1)).getStaticMembers().isEmpty());
+    }
+
+    @Nonnull
+    private List<GroupDTO> makeNestedGroups(int depth) {
+        final List<GroupDTO> list = new ArrayList<>(depth);
+        if (depth == 0) {
+            return list;
+        }
+
+        final GroupDTO leafGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("leaf")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("1111"))
+            .build();
+        list.add(leafGroup);
+        if (depth <= 1) {
+            return list;
+        }
+
+        for (int i = 1; i < depth; ++i) {
+            list.add(0, leafGroup.toBuilder()
+                .setDisplayName(Integer.toString(i))
+                .setGroupName(Integer.toString(i))
+                .setMemberList(MembersList.newBuilder()
+                    .addMember(list.get(0).getGroupName()))
+                .build());
+        }
+        return list;
+    }
+
+    @Test
+    public void testGroupOfGroupsEntityTypeMismatchError() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("1", 1L, "2", 2L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.STORAGE);
+        when(store.getEntity(1L))
+            .thenReturn(Optional.of(entity1));
+        when(store.getEntity(2L))
+            .thenReturn(Optional.of(entity2));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+        final GroupDTO parentGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("parent")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("child1")
+                .addMember("1"))
+            .build();
+        final GroupDTO child1Group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("child1")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("2"))
+            .build();
+
+        final Map<String, InterpretedGroup> groupsByGroupName =
+            converter.interpretSdkGroupList(Arrays.asList(parentGroup, child1Group), TARGET_ID)
+                .stream()
+                .collect(Collectors.toMap(
+                    group -> group.getOriginalSdkGroup().getGroupName(),
+                    Function.identity()));
+        assertThat(groupsByGroupName.size(), is(2));
+        // The parent group should only contain the VM member
+        assertThat(groupsByGroupName.get(parentGroup.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(1L));
+        assertThat(groupsByGroupName.get(child1Group.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(2L));
+    }
+
+    @Test
+    public void testGroupOfGroupsNonStaticError() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        when(store.getEntity(1L))
+            .thenReturn(Optional.of(entity1));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+        final GroupDTO parentGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("parent")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("child1")
+                .addMember("1"))
+            .build();
+        // The child group is a "dynamic" group.
+        final GroupDTO child1Group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("child1")
+            .setSelectionSpecList(SelectionSpecList.getDefaultInstance())
+            .build();
+
+        final Map<String, InterpretedGroup> groupsByGroupName =
+            converter.interpretSdkGroupList(Arrays.asList(parentGroup, child1Group), TARGET_ID)
+                .stream()
+                .collect(Collectors.toMap(
+                    group -> group.getOriginalSdkGroup().getGroupName(),
+                    Function.identity()));
+        assertThat(groupsByGroupName.size(), is(2));
+
+        // The parent group should only contain the VM member
+        assertThat(groupsByGroupName.get(parentGroup.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(1L));
+    }
+
+    @Test
+    public void testEmptyGroup() {
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(mock(EntityStore.class),
+            mock(PropertyFilterConverter.class));
+        final GroupDTO group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("parent")
+            .build();
+        final Collection<InterpretedGroup> result =
+            converter.interpretSdkGroupList(Collections.singletonList(group), TARGET_ID);
+        assertThat(result.size(), is(1));
+        assertTrue(result.iterator().next().getStaticMembers().isEmpty());
+    }
+
+    @Test
+    public void testGroupOfGroupsCycle() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("1", 1L, "2", 2L)));
+        final Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        final Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+        when(store.getEntity(1L))
+            .thenReturn(Optional.of(entity1));
+        when(store.getEntity(2L))
+            .thenReturn(Optional.of(entity2));
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+        final GroupDTO parentGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("parent")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("child1")
+                .addMember("1"))
+            .build();
+        final GroupDTO child1Group = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("child1")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("parent")
+                .addMember("2"))
+            .build();
+
+        final Map<String, InterpretedGroup> groupsByGroupName =
+            converter.interpretSdkGroupList(Arrays.asList(parentGroup, child1Group), TARGET_ID)
+                .stream()
+                .collect(Collectors.toMap(
+                    group -> group.getOriginalSdkGroup().getGroupName(),
+                    Function.identity()));
+        assertThat(groupsByGroupName.size(), is(2));
+        // In a cyclical dependency, we should just act as if the cycle didn't exist.
+        // The groups only contain the "other" members.
+        assertThat(groupsByGroupName.get(parentGroup.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(1L));
+        assertThat(groupsByGroupName.get(child1Group.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(2L));
+    }
+
+    @Test
+    public void testContextCycle() {
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(TARGET_ID, Collections.emptyList());
+        assertFalse(context.inCycle());
+        context.pushVisitedGroup("foo");
+        // foo
+        assertFalse(context.inCycle());
+        context.pushVisitedGroup("bar");
+        // foo -> bar
+        assertFalse(context.inCycle());
+        context.pushVisitedGroup("foo");
+        // foo -> bar -> foo
+        assertTrue(context.inCycle());
+        context.popVisitedGroup();
+        // foo -> bar
+        assertTrue(context.inCycle());
+        context.popVisitedGroup();
+        // foo
+        assertTrue(context.inCycle());
+
+        context.popVisitedGroup();
+        assertFalse(context.inCycle());
     }
 }

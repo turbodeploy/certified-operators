@@ -1,11 +1,17 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.VC_FOLDER_KEYWORD;
-
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -18,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
@@ -34,6 +41,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersCase;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
@@ -43,8 +51,20 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  * XL system - most notably groups, clusters, and policies.
  */
 class DiscoveredGroupInterpreter {
+    /**
+     * This is the maximum depth of nested groups we allow.
+     * We currently do nested group resolution recursively, and with a stack size of 512k
+     * we can support a nesting depth of about ~350. Instead of reimplementing iteratively,
+     * we limit the depth. 100 seems like more than enough (who will have 100 levels of
+     * nesting?!).
+     *
+     * In the (near) future, we expect to have proper support for group-of-groups. This code
+     * and this limitation will then go away, since we won't be doing group resolution here.
+     */
+    @VisibleForTesting
+    static final int MAX_NESTING_DEPTH = 100;
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final EntityStore entityStore;
 
@@ -85,27 +105,17 @@ class DiscoveredGroupInterpreter {
     @Nonnull
     List<InterpretedGroup> interpretSdkGroupList(@Nonnull final List<CommonDTO.GroupDTO> dtoList,
                                                  final long targetId) {
-        return dtoList.stream()
-            // Filter out folders, because we're currently not supporting mapping
-            // folders to groups in XL. In VC, folders can be identified by the group name.
-            // Filter out also groups with empty displayName, because they will not be visible in
-            // the UI anyway, and can cause discrepancies
-            .filter(groupDTO -> groupDTO.hasDisplayName() && (!groupDTO.hasGroupName() ||
-                    !groupDTO.getGroupName().contains(VC_FOLDER_KEYWORD)))
-            .map(dto -> {
-                if (isCluster(dto)) {
-                    return new InterpretedGroup(dto, Optional.empty(), sdkToCluster(dto, targetId));
-                } else {
-                    return new InterpretedGroup(dto, sdkToGroup(dto, targetId), Optional.empty());
-                }
-            })
-            .collect(Collectors.toList());
-    }
-
-    private boolean isCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
-        // A cluster must have a specific constraint type.
-        return sdkDTO.hasConstraintInfo() &&
-                sdkDTO.getConstraintInfo().getConstraintType().equals(ConstraintType.CLUSTER);
+        final GroupInterpretationContext context =
+            new GroupInterpretationContext(targetId, dtoList);
+        dtoList.stream()
+            .filter(group -> group.hasDisplayName() && group.hasGroupName())
+            .forEach(group -> {
+                // We check to see if we need to interpret this particular group, because the
+                // interpretation of a previous group that contains this one may have already triggered
+                // the interpretation of this one. Re-interpreting it would be wasteful.
+                context.computeInterpretedGroup(group.getGroupName(), () -> interpretGroup(group, context));
+            });
+        return new ArrayList<>(context.interpretedGroups());
     }
 
     /**
@@ -113,14 +123,13 @@ class DiscoveredGroupInterpreter {
      * required criteria to be treated as a cluster in the XL system.
      *
      * @param sdkDTO The {@link CommonDTO.GroupDTO}.
-     * @param targetId The ID of the target that discovered the {@link CommonDTO.GroupDTO}.
      * @return An optional containing the {@link ClusterInfo}, or an empty optional if the
      *         {@link CommonDTO.GroupDTO} does not represent a cluster.
      */
     @VisibleForTesting
     @Nonnull
     Optional<ClusterInfo.Builder> sdkToCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO,
-                                               final long targetId) {
+                                               final GroupInterpretationContext context) {
         // Clusters must be statically-configured.
         if (!isCluster(sdkDTO) || !sdkDTO.getMembersCase().equals(MembersCase.MEMBER_LIST)) {
             return Optional.empty();
@@ -144,7 +153,7 @@ class DiscoveredGroupInterpreter {
             builder.setDisplayName(clusterName);
         }
         final Optional<StaticGroupMembers> parsedMembersOpt =
-                parseMemberList(sdkDTO, targetId);
+                parseMemberList(sdkDTO, context);
         if (parsedMembersOpt.isPresent()) {
             // There may not be any members, but we allow empty clusters.
             builder.setMembers(parsedMembersOpt.get());
@@ -158,17 +167,16 @@ class DiscoveredGroupInterpreter {
     /**
      * Attempt to convert a {@link CommonDTO.GroupDTO} to a {@link GroupInfo} describing a group
      * in the XL system. This should happen after an attempt for
-     * {@link DiscoveredGroupInterpreter#sdkToCluster(GroupDTO, long)}.
+     * {@link DiscoveredGroupInterpreter#sdkToCluster(GroupDTO, GroupInterpretationContext)}.
      *
      * @param sdkDTO The {@link CommonDTO.GroupDTO} discovered by the target.
-     * @param targetId The ID of the target that discovered the group.
      * @return An optional containing the {@link GroupInfo}, or an empty optional if the conversion
      *         is not successful.
      */
     @VisibleForTesting
     @Nonnull
     Optional<GroupInfo.Builder> sdkToGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO,
-                                           final long targetId) {
+                           @Nonnull final GroupInterpretationContext context) {
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
         final String groupName = GroupProtoUtil.extractName(sdkDTO);
@@ -177,19 +185,6 @@ class DiscoveredGroupInterpreter {
             builder.setDisplayName(sdkDTO.getDisplayName());
         } else {
             builder.setDisplayName(groupName);
-        }
-
-        switch (sdkDTO.getInfoCase()) {
-            case GROUP_NAME:
-                // What to do with the group name? Is it important?
-                logger.info("Got GroupDTO with group name {}", sdkDTO.getGroupName());
-                break;
-            case CONSTRAINT_INFO:
-                // Mapping constraints to policies is done in DiscoveredGroupUploader
-                break;
-            default:
-                logger.error("Unhandled SDK group information case: {}", sdkDTO.getInfoCase());
-                return Optional.empty();
         }
 
         switch (sdkDTO.getMembersCase()) {
@@ -221,7 +216,7 @@ class DiscoveredGroupInterpreter {
                 break;
             case MEMBER_LIST:
                 final Optional<StaticGroupMembers> members =
-                        parseMemberList(sdkDTO, targetId);
+                        parseMemberList(sdkDTO, context);
                 if (members.isPresent()) {
                     builder.setStaticGroupMembers(members.get());
                 } else {
@@ -234,7 +229,6 @@ class DiscoveredGroupInterpreter {
         }
 
         // TODO: What to do with entityProperties?
-        logger.info("Skipping entity properties: {}", sdkDTO.getEntityPropertiesList());
 
         return Optional.of(builder);
     }
@@ -246,7 +240,6 @@ class DiscoveredGroupInterpreter {
      * the output members list has OIDs.
      *
      * @param groupDTO The {@link CommonDTO.GroupDTO}
-     * @param targetId The target that discovered the group containing the members.
      * @return An optional containing the {@link StaticGroupMembers} equivalent of the input
      *         members list. If the input is empty, the output should be an optional containing
      *         an empty {@link StaticGroupMembers}.
@@ -255,12 +248,11 @@ class DiscoveredGroupInterpreter {
      */
     private Optional<StaticGroupMembers> parseMemberList(
             @Nonnull final CommonDTO.GroupDTO groupDTO,
-            final long targetId) {
-
+            @Nonnull final GroupInterpretationContext context) {
         final Optional<Map<String, Long>> idMapOpt =
-                entityStore.getTargetEntityIdMap(targetId);
+                entityStore.getTargetEntityIdMap(context.targetId);
         if (!idMapOpt.isPresent()) {
-            logger.warn("No entity ID map available for target {}", targetId);
+            logger.warn("No entity ID map available for target {}", context.targetId);
             return Optional.empty();
         } else {
             /*
@@ -289,62 +281,162 @@ class DiscoveredGroupInterpreter {
                     StaticGroupMembers.newBuilder();
             final AtomicInteger missingMemberCount = new AtomicInteger(0);
             groupDTO.getMemberList().getMemberList()
-                    .stream()
-                    // Filter out folders, because we're currently not supporting mapping
-                    // folders to groups in XL. Some groups have folder members - we
-                    // don't want to take those into account.
-                    .filter(uuid -> !uuid.contains(VC_FOLDER_KEYWORD))
-                    .map(idMap::get)
-                    .map(Optional::ofNullable)
-                    .forEach(optOid -> {
-                        if (optOid.isPresent()) {
-                            Optional<Entity> entity = entityStore.getEntity(optOid.get());
-                            if (entity.isPresent()) {
-                                // Validate that the member entityType is the
-                                // same as that of the group/cluster.
-                                // So far, the only known case of
-                                // entityType!=entitypesOfMembers is in
-                                // VCenter Clusters where a VDC is part of
-                                // the Cluster along with the PhysicalMachine
-                                // entities. After checking with Dmitry
-                                // Illichev, this was done in legacy to
-                                // accomodate license feature - to model vdcs as
-                                // folders - and he thinks that this is now obsolete.
-                                // So the assumption that
-                                // GroupEntityType==EntityTypesOfItsMembers should be
-                                // fine as this is also the assumption made in
-                                // the UI. Even the Group protobuf message is defined
-                                // with this assumption.
-                                if (entity.get().getEntityType() == groupDTO.getEntityType()) {
-                                    staticMemberBldr.addStaticMemberOids(optOid.get());
-                                } else {
-                                    logger.warn("EntityType: {} and groupType: {} doesn't match for oid: {}"
+                .forEach(uuid -> {
+                    final Long discoveredEntityId = idMap.get(uuid);
+                    if (discoveredEntityId != null) {
+                        Optional<Entity> entity = entityStore.getEntity(discoveredEntityId);
+                        if (entity.isPresent()) {
+                            // Validate that the member entityType is the
+                            // same as that of the group/cluster.
+                            // So far, the only known case of
+                            // entityType!=entitypesOfMembers is in
+                            // VCenter Clusters where a VDC is part of
+                            // the Cluster along with the PhysicalMachine
+                            // entities. After checking with Dmitry
+                            // Illichev, this was done in legacy to
+                            // accomodate license feature - to model vdcs as
+                            // folders - and he thinks that this is now obsolete.
+                            // So the assumption that
+                            // GroupEntityType==EntityTypesOfItsMembers should be
+                            // fine as this is also the assumption made in
+                            // the UI. Even the Group protobuf message is defined
+                            // with this assumption.
+                            if (entity.get().getEntityType() == groupDTO.getEntityType()) {
+                                staticMemberBldr.addStaticMemberOids(discoveredEntityId);
+                            } else {
+                                logger.warn("EntityType: {} and groupType: {} doesn't match for oid: {}"
                                         + ". Not adding to the group/cluster members list for groupName: {}, " +
                                         " groupDisplayName: {}.",
-                                        entity.get().getEntityType(), groupDTO.getEntityType(), optOid.get(),
-                                        groupDTO.hasGroupName() ?
-                                            groupDTO.getGroupName() :
-                                            groupDTO.getConstraintInfo().getConstraintName(),
-                                        groupDTO.getDisplayName());
-                                }
+                                    entity.get().getEntityType(), groupDTO.getEntityType(), discoveredEntityId,
+                                    groupDTO.hasGroupName() ?
+                                        groupDTO.getGroupName() :
+                                        groupDTO.getConstraintInfo().getConstraintName(),
+                                    groupDTO.getDisplayName());
                             }
-                         } else {
+                        }
+                    } else {
+                        // If the uuid is not an entity ID, it may refer to another group discovered
+                        // by the target. In that case, we expand the group into the list of "leaf"
+                        // entities, and add those entities to the group definition.
+                        //
+                        // Note (roman, March 25 2019): In the future we will want to preserve
+                        // the group hierarchies.
+                        final Optional<List<Long>> groupMembers = tryExpandMemberGroup(uuid, groupDTO, context);
+                        if (groupMembers.isPresent()) {
+                            // The uuid referred to another one of the discovered groups.
+                            staticMemberBldr.addAllStaticMemberOids(groupMembers.get());
+                        } else {
                             // This may happen if the probe sends members that aren't
                             // discovered (i.e. a bug in the probe) or if the Topology
                             // Processor doesn't record the entities before processing
                             // groups (i.e. a bug in the TP).
                             missingMemberCount.incrementAndGet();
                         }
-                    });
-            if (missingMemberCount.get() == 0) {
-                return Optional.of(staticMemberBldr.build());
-            } else {
-                logger.warn("Failed to find static group members in member list: {}",
-                        groupDTO.getMemberList().getMemberList());
-                return Optional.empty();
+                    }
+                });
+            if (missingMemberCount.get() > 0) {
+                Metrics.MISSING_MEMBER_COUNT.increment((double)missingMemberCount.get());
+                logger.warn("{} members could not be mapped to OIDs when processing group {} (uuid: {})",
+                    missingMemberCount.get(), groupDTO.getDisplayName(), groupDTO.getGroupName());
             }
+            return Optional.of(staticMemberBldr.build());
         }
     }
+
+    @Nonnull
+    private InterpretedGroup interpretGroup(@Nonnull final GroupDTO group,
+                                            @Nonnull GroupInterpretationContext context) {
+        if (isCluster(group)) {
+            Metrics.DISCOVERED_GROUP_COUNT.labels(Group.Type.CLUSTER.name()).increment();
+            return new InterpretedGroup(group, Optional.empty(), sdkToCluster(group, context));
+        } else {
+            Metrics.DISCOVERED_GROUP_COUNT.labels(Group.Type.GROUP.name()).increment();
+            return new InterpretedGroup(group, sdkToGroup(group, context), Optional.empty());
+        }
+    }
+
+    /**
+     * If a {@link GroupDTO} contains a member that's not an entity, check if it's another one
+     * of the discovered groups.
+     *
+     * If it is, expand the discovered group and return its members.
+     *
+     * Note - the process of expanding the group will also interpret it.
+     *
+     * @param memberId The ID of the member - potentially a group.
+     * @param groupDto The parent {@link GroupDTO} - i.e. the group that contains the member group.
+     * @param context The {@link GroupInterpretationContext}, containing information about other
+     *                discovered groups and their interpretations.
+     * @return If memberId is another discovered group, an optional containing the OIDs of it's
+     *         entity members (expanding groups recursively).
+     *         If memberId is not a discovered group, or if there is some kind of illegal
+     *         condition, an empty optional.
+     */
+    @Nonnull
+    private Optional<List<Long>> tryExpandMemberGroup(
+        @Nonnull final String memberId,
+        @Nonnull final GroupDTO groupDto,
+        @Nonnull final GroupInterpretationContext context) {
+        final GroupDTO discoveredGroup = context.getGroupsByUuid().get(memberId);
+        if (discoveredGroup == null) {
+            return Optional.empty();
+        }
+
+        // We push the "parent" group instead of the member group, because it makes the code
+        // simpler. The only reason the pushing exists is for cycle detection, and if the member
+        // group has a nested group we'll push the "member" group when we try to expand.
+        context.pushVisitedGroup(groupDto.getGroupName());
+        try {
+            // If there is an error (cycle, or exceeding max depth), return empty without even
+            // trying to resolve the member group.
+            if (context.inCycle()) {
+                return Optional.empty();
+            } else if (context.maxDepthExceeded()) {
+                // If we've exceeded the max depth, we stop expanding the group, and pretend
+                // this "chain" of nested groups doesn't resolve to any members.
+                Metrics.ERROR_COUNT.labels("max_depth").increment();
+                logger.error("Max depth exceeded. Pretending this chain of " +
+                    "groups has no members.");
+                return Optional.empty();
+            }
+
+            final InterpretedGroup interpretedGroup =
+                context.computeInterpretedGroup(memberId, () -> interpretGroup(discoveredGroup, context));
+            // We may have detected a cycle while interpreting the member group.
+            // If so, we shouldn't include any of that member group's members in this group.
+            if (context.inCycle()) {
+                return Optional.empty();
+            } else {
+                final GroupDTO childGroup = interpretedGroup.getOriginalSdkGroup();
+                if (groupDto.getEntityType() != childGroup.getEntityType()) {
+                    Metrics.ERROR_COUNT.labels("entity_type_mismatch").increment();
+                    logger.error("Group {} (uuid: {}, entity type: {}) has child group " +
+                            "{} (uuid: {}) with a different entity type: {}. Removing child group.",
+                        groupDto.getDisplayName(), groupDto.getGroupName(), groupDto.getEntityType(),
+                        childGroup.getDisplayName(), childGroup.getGroupName(), childGroup.getEntityType());
+                    return Optional.empty();
+                } else {
+                    if (childGroup.getMembersCase() != MembersCase.MEMBER_LIST) {
+                        Metrics.ERROR_COUNT.labels("non_static_child").increment();
+                        logger.warn("Group {} (uuid: {}) has non-static child group {} (uuid: {}). " +
+                                "Not currently supported.",
+                            groupDto.getDisplayName(), groupDto.getGroupName(),
+                            childGroup.getDisplayName(), childGroup.getGroupName());
+                    }
+                    return Optional.of(interpretedGroup.getStaticMembers());
+                }
+            }
+        } finally {
+            context.popVisitedGroup();
+        }
+    }
+
+    private boolean isCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+        // A cluster must have a specific constraint type.
+        return sdkDTO.hasConstraintInfo() &&
+            sdkDTO.getConstraintInfo().getConstraintType().equals(ConstraintType.CLUSTER);
+    }
+
 
     /**
      * The {@link PropertyFilterConverter} is a utility interface to allow mocking of the
@@ -456,5 +548,140 @@ class DiscoveredGroupInterpreter {
                     return Optional.empty();
             }
         }
+    }
+
+    /**
+     * A context object used when interpreting a list of {@link GroupDTO}s discovered from an
+     * SDK target. All interpretations for a single target (i.e. in one call to
+     * {@link DiscoveredGroupInterpreter#interpretSdkGroupList(List, long)}) should use a single
+     * context.
+     *
+     * Used to allow group interpretations to access other group interpretations (for
+     * group-of-group purposes). Also used to detect cycles in group-of-group interpretation.
+     */
+    @VisibleForTesting
+    static class GroupInterpretationContext {
+
+        private final long targetId;
+
+        /**
+         * The groups received from the target, arranged by id (group name).
+         * This map is immutable.
+         */
+        private final Map<String, CommonDTO.GroupDTO> groupsByUuid;
+
+        /**
+         * The interpreted groups, arranged by id (group name).
+         * This map gets populated during interpretation of the groups.
+         */
+        private final Map<String, InterpretedGroup> interpretedGroupByUuid;
+
+        /**
+         * When interpreting groups of groups, we use this stack to detect cycles when
+         * interpreting a single group.
+         */
+        private final Deque<String> groupChain = new ArrayDeque<>();
+
+        /**
+         * When we detect a cycle, this variable is set to true until all the groups in the
+         * cycle are "popped" off the chain. This is so every group in the cycle knows not to
+         * expand a particular member.
+         */
+        private boolean cycleUnwindingInProgress = false;
+
+        @VisibleForTesting
+        GroupInterpretationContext(final long targetId,
+                                   @Nonnull final List<GroupDTO> dtoList) {
+            this.targetId = targetId;
+            this.groupsByUuid = Collections.unmodifiableMap(dtoList.stream()
+                .filter(GroupDTO::hasGroupName)
+                .collect(Collectors.toMap(GroupDTO::getGroupName, Function.identity())));
+            this.interpretedGroupByUuid = new HashMap<>(this.groupsByUuid.size());
+        }
+
+        void pushVisitedGroup(@Nonnull final String groupName) {
+            final boolean cycle = groupChain.contains(groupName);
+            groupChain.push(groupName);
+            if (cycle) {
+                logger.error("Cycle detected: {}", String.join(" - ", groupChain));
+                Metrics.ERROR_COUNT.labels("cycle").increment();
+                cycleUnwindingInProgress = true;
+            }
+        }
+
+        boolean inCycle() {
+            return cycleUnwindingInProgress;
+        }
+
+        boolean maxDepthExceeded() {
+            return groupChain.size() >= MAX_NESTING_DEPTH;
+        }
+
+        void popVisitedGroup() {
+            groupChain.pop();
+            if (groupChain.isEmpty() && cycleUnwindingInProgress) {
+                cycleUnwindingInProgress = false;
+            }
+        }
+
+        @Nonnull
+        Map<String, CommonDTO.GroupDTO> getGroupsByUuid() {
+            return Collections.unmodifiableMap(groupsByUuid);
+        }
+
+        @Nonnull
+        Collection<InterpretedGroup> interpretedGroups() {
+            return interpretedGroupByUuid.values();
+        }
+
+        /**
+         * If a group with the ID has already been interpreted in this context, return the group.
+         * Otherwise, use the provided supplier to interpret the group.
+         * Similar to the {@link Map#computeIfAbsent(Object, Function)} method.
+         *
+         * @param groupId The ID of the group.
+         * @param groupSupplier The supplier of {@link InterpretedGroup}s.
+         * @return The {@link InterpretedGroup} in the context.
+         */
+        @Nonnull
+        InterpretedGroup computeInterpretedGroup(
+                @Nonnull final String groupId,
+                @Nonnull Supplier<InterpretedGroup> groupSupplier) {
+            // Note - we can't use "computeIfAbsent" here, because it may end up recursively
+            // calling itself again, and nested "computeIfAbsent" calls either lead to really
+            // weird bugs, or (after JDK 9) throw ConcurrentModification exceptions.
+            // See: https://bugs.openjdk.java.net/browse/JDK-8172951
+            final InterpretedGroup alreadyInterpretedGroup = interpretedGroupByUuid.get(groupId);
+            if (alreadyInterpretedGroup == null) {
+                final InterpretedGroup newInterpretedGroup = groupSupplier.get();
+                interpretedGroupByUuid.putIfAbsent(groupId, newInterpretedGroup);
+                return newInterpretedGroup;
+            } else {
+                return alreadyInterpretedGroup;
+            }
+        }
+    }
+
+
+    private static class Metrics {
+         private static final DataMetricCounter DISCOVERED_GROUP_COUNT = DataMetricCounter.builder()
+             .withName("tp_discovered_group_count")
+             .withHelp("The number of groups discovered by the topology processor.")
+             .withLabelNames("type")
+             .build()
+             .register();
+
+        private static final DataMetricCounter MISSING_MEMBER_COUNT = DataMetricCounter.builder()
+             .withName("tp_discovered_group_missing_member_count")
+             .withHelp("The number of members of discovered groups that could not be resolved.")
+             .build()
+             .register();
+
+        private static final DataMetricCounter ERROR_COUNT = DataMetricCounter.builder()
+            .withName("tp_discovered_group_error_count")
+            .withHelp("The number of errors encountered during discovered group processing.")
+            .withLabelNames("type")
+            .build()
+            .register();
     }
 }
