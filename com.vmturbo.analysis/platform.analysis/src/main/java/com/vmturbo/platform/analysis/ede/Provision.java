@@ -86,7 +86,7 @@ public class Provision {
      * @param economy - the economy whose traders we want to clone if profitable while remaining
      *                  in the desired state
      * @param ledger - the class that contains exp/rev about all the traders and commodities in
-     *                  the ecomomy
+     *                  the economy
      * @param ede - the Economic decision engine
      *
      * @return list of provision and move actions
@@ -300,7 +300,7 @@ public class Provision {
 
         List<ShoppingList> buyers = market.getBuyers();
         // there is no point in cloning in a market with a single buyer, and the single buyer
-        // is not a guaranteedbuyer
+        // is not a guaranteed buyer
         if (buyers.size() == 1 && !buyers.get(0).getBuyer().getSettings().isGuaranteedBuyer()) {
             return false;
         }
@@ -333,7 +333,7 @@ public class Provision {
         double roiOfRichestTrader = 0;
         double mostProfitableCommRev = 0;
         CommoditySpecification commSpec = null;
-        // consider only sellers available for placements. Considering a seller with clonable false
+        // consider only sellers available for placements. Considering a seller with cloneable false
         // is going to fail acceptanceCriteria since none its customers will move
         for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
             boolean isDebugTrader = seller.isDebugEnabled();
@@ -432,7 +432,7 @@ public class Provision {
     }
 
     /**
-     * remove {@Link incomeStatement} of a trader and rollback action after acceptanceCriteria fails
+     * Remove {@link IncomeStatement} of a trader and rollback action after acceptanceCriteria fails
      *
      * @param ledger - the ledger that holds the incomeStatement of the trader that is being removed
      * @param provisionedTrader - {@link Trader} that was cloned

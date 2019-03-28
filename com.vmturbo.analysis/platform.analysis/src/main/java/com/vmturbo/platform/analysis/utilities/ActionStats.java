@@ -210,7 +210,7 @@ public class ActionStats {
                     String entityType = extractEntityType(resizeTrader);
                     String commType = extractEntityType(resizeCommodity);
 
-                    // use the encoding entitytype|commodityType to store it in the map
+                    // use the encoding entityType|commodityType to store it in the map
                     increaseEntityCount(actionStatsData, action.getType(), entityType + "|" + commType);
                     break;
                 case PROVISION_BY_DEMAND:

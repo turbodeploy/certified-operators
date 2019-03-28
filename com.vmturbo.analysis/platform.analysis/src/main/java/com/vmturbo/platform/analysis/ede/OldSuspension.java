@@ -48,7 +48,7 @@ public class OldSuspension {
      *        and commodities in the economy
      * @param ede - the {@link Ede} which contains the utility method to break down the compound
      *        move actions
-     * @param isShopTpgether - the boolean to indicate if shopTogether should be used to make
+     * @param isShopTogether - the boolean to indicate if shopTogether should be used to make
      *        placement decisions or not
      * @return a list of actions with regard to supply change and the move actions after applying
      *         the supply change actions
@@ -142,9 +142,6 @@ public class OldSuspension {
      * Return the best trader to suspend after checking the engagement criteria for all
      * traders of a particular market
      *
-     * @param economy - the {@link Economy} in which the suspend action is taken place
-     * @param market - the {@link Market} whose sellers are considered to verify profitability that
-     *                 implies eligibility to suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
      * @return the best trader satisfy the engagement criteria if there is any, otherwise NULL
      */
@@ -183,7 +180,7 @@ public class OldSuspension {
      * @param market - the {@link Market} whose sellers are considered to verify profitability that
      *                 implies eligibility to suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
-     * @param candidateTrader - the {@link Trader} that is suspended
+     * @param suspensionCandidate - the {@link Trader} that is suspended
      * @param actions - a list of placement actions generated after the supply change action
      * @param affectedTraders the traders that are the destinations of placement actions
      * @return true - if the acceptance criteria is met by every trader in market
@@ -269,7 +266,7 @@ public class OldSuspension {
         for (Trader trader : economy.getTraders()) {
             List<Market> marketsAsSeller = economy.getMarketsAsSeller(trader);
             // being the sole provider means the seller is the only active seller in a market
-            // and it has some customers which are not the shoppinglists from guaranteed buyers
+            // and it has some customers which are not the shopping lists from guaranteed buyers
             if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellers().size() == 1 && m
                             .getBuyers().stream()
                             .anyMatch(sl -> !sl.getBuyer().getSettings().isGuaranteedBuyer()))) {

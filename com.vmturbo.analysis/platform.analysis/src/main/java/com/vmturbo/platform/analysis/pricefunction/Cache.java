@@ -35,14 +35,14 @@ class Cache {
 
     // Methods
 
-    /*
+    /**
      * Validation function for utilization
      */
     private static boolean isInvalid (double utilization) {
         return Double.isNaN(utilization) || utilization > 1;
     }
 
-    /*
+    /**
      * The standard price function used by most commodities in the first incarnation of the market.
      * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for u < 1, and
      * Double.POSITIVE_INFINITY for isInvalid(u).
@@ -59,7 +59,7 @@ class Cache {
         return pf;
     }
 
-    /*
+   /**
     * Same as standard price function but returns finite value MAX_UNIT_PRICE for utilization > 1.
     */
    public static synchronized PriceFunction createFiniteStandardWeightedPriceFunction(double weight) {
@@ -74,7 +74,7 @@ class Cache {
        return pf;
    }
 
-   /*
+   /**
     * A constant function. The formula is P(u) = parameter if u <= 1
     * and Double.POSITIVE_INFINITY for isInvalid(u).
     */
@@ -88,7 +88,7 @@ class Cache {
         return pf;
     }
 
-    /*
+    /**
      * A step function.
      * The formula is P(u) = if u < stepAt then priceBelow else priceAbove, if u <= 1
      * and Double.POSITIVE_INFINITY for isInvalid(u).

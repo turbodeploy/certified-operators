@@ -187,7 +187,7 @@ public class CompoundMove extends ActionImpl {
                     combinedMoveResult.add(combined);
                 }
             } else {
-                // a shopping list is found in first compoundmove but not in the second compoundMove
+                // a shopping list is found in first compoundMove but not in the second compoundMove
                 // we keep the move and put into result list
                 combinedMoveResult.add(move1);
             }
@@ -198,7 +198,7 @@ public class CompoundMove extends ActionImpl {
             @NonNull
             Move move2 = entry2.getValue();
             if (!slPerMoveMap1.containsKey(sl2)) {
-                // a shopping list is found in second compoundmove but not in the first compoundMove
+                // a shopping list is found in second compoundMove but not in the first compoundMove
                 // we keep it and put into result list
                 combinedMoveResult.add(move2);
             }

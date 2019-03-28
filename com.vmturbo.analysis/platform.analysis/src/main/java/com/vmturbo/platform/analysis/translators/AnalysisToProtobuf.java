@@ -270,8 +270,8 @@ public final class AnalysisToProtobuf {
      * @param trader The {@link Trader} to convert.
      * @param traderToOidMap The trader to oid mapping which includes both original traders and newly
      * provisioned traders
-     * @param shoppingListOid The shoppinglist to oid mapping which includes both original and newly
-     * provisioned shoppinglists
+     * @param shoppingListOid The ShoppingList to oid mapping which includes both original and newly
+     * provisioned ShoppingLists
      * @return The resulting {@link TraderTO}.
      */
     public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader,
@@ -439,8 +439,8 @@ public final class AnalysisToProtobuf {
                 .keySet()
                 .stream()
                 .forEach(topology::addProvisionedShoppingList);
-            // if the provisionedSeller has a guaranteedbuyer, there is a new sl from
-            // guaranteedbuyer to provisionedSeller needs to be added to
+            // if the provisionedSeller has a guaranteed buyer, there is a new sl from
+            // guaranteed buyer to provisionedSeller needs to be added to
             // topology.shoppingListOids_
             provDemand.getProvisionedSeller().getCustomers().stream().filter(sl ->
                             sl.getBuyer().getSettings().isGuaranteedBuyer())
@@ -502,8 +502,8 @@ public final class AnalysisToProtobuf {
                 .keySet()
                 .stream()
                 .forEach(topology::addProvisionedShoppingList);
-            // if the provisionedSeller has a guaranteedbuyer, there is a new sl from guaranteedbuyer
-            // to provisionedSeller needs to be added to topology.shoppingListOids_
+            // if the provisionedSeller has a guaranteed buyer, there is a new sl from guaranteed
+            // buyer to provisionedSeller needs to be added to topology.shoppingListOids_
             provSupply.getProvisionedSeller().getCustomers().stream().filter(sl ->
                             sl.getBuyer().getSettings().isGuaranteedBuyer())
                             .forEach(topology::addProvisionedShoppingList);
@@ -540,12 +540,8 @@ public final class AnalysisToProtobuf {
     // Methods for converting CommunicationDTOs.
 
     /**
-     * wrapper method that converts a move to a shoppinglist
+     * wrapper method that converts a move to a shopping list
      *
-     * @param move
-     * @param economy
-     * @param newSupplier
-     * @return
      */
     private static Trader replaceNewSupplier(Move move, UnmodifiableEconomy economy, Trader newSupplier) {
         ShoppingList buyer = move.getTarget();
@@ -555,10 +551,6 @@ public final class AnalysisToProtobuf {
     /**
      * returns the template provider if the newSupplier is a cbtp.
      *
-     * @param buyer
-     * @param economy
-     * @param newSupplier
-     * @return
      */
     public static Trader replaceNewSupplier(ShoppingList buyer, UnmodifiableEconomy economy, Trader newSupplier) {
         final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =
@@ -634,7 +626,7 @@ public final class AnalysisToProtobuf {
         // oid for new shopping list happens in conversion
         builder.addAllNewShoppingListToBuyerEntry(createNewShoppingListToBuyerMap(topology));
         final UnmodifiableEconomy economy = topology.getEconomy();
-        // compulate the endPriceIndex
+        // populate the endPriceIndex
         PriceStatement endPriceStatement = new PriceStatement().computePriceIndex(economy);
         List<TraderPriceStatement> startTraderPriceStmts = startPriceStatement.getTraderPriceStatements();
         // populate AnalysisResults with priceIndex info
@@ -785,7 +777,7 @@ public final class AnalysisToProtobuf {
                     } else {
                         CommoditySold newCommSold = newSupplier.getCommoditySold(commBought);
                         FunctionalOperator updatingFunction = newCommSold.getSettings().getUpdatingFunction();
-                        // if the comm utilization is less than min desired util, we dont consider
+                        // if the comm utilization is less than min desired util, we don't consider
                         // it as reason commodities even though the quote at destination may be
                         // smaller, because from a user's point of view, move away from such a low
                         // utilized supplier is not congestion

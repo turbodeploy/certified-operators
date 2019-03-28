@@ -202,7 +202,7 @@ public abstract class CommoditySold implements Serializable {
     /**
      * Sets the value of maximum quantity.
      *
-     * @param quantity Maximum quantity value.
+     * @param maxQuantity Maximum quantity value.
      * @return {@code this}
      */
     @Deterministic

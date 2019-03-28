@@ -464,7 +464,7 @@ public class Ledger {
                     }
                     // TODO: make indexOf return 2 values minIndex and the maxIndex.
                     // All comm's btw these indices will be of this type
-                    // (needed when we have 2 comms of same type bought)
+                    // (needed when we have 2 commodities of same type bought)
                     boolean commBoughtExists = typeOfCommsBought.stream()
                         .anyMatch(commType -> basketBought.indexOfBaseType(commType.intValue()) != -1);
                     for (Integer typeOfCommBought : typeOfCommsBought) {
@@ -481,7 +481,7 @@ public class Ledger {
                             // is found in the shopping list to be bought by the supplier.
                             // For example, DBMem commodity has DBCacheHitRate and VMem in the
                             // raw materials map. VMem is found in the shopping list while
-                            // DBCacheHirate is not because it is sold just like DBMem, but DBMem
+                            // DBCacheHitRate is not because it is sold just like DBMem, but DBMem
                             // is charged by it.
                             if (commBoughtExists && buyer.getBasketSold()
                                 .get(commSoldIndex).getBaseType() != typeOfCommBought) {

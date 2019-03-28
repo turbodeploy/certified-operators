@@ -583,7 +583,7 @@ public class EstimateSupply {
         /**
          * Get price function of this commodity.
          *
-         * @return PriceFuction
+         * @return PriceFunction
          */
         public double getQuantity() {
             return quantity_;

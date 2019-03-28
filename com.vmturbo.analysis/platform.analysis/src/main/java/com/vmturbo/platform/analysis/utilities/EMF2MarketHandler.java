@@ -314,7 +314,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             // Keys are the same as above
             // Values are the commodities that consume commodities from this seller
             Map<Attributes, List<Attributes>> sellerAttr2commsBoughtAttr = Maps.newLinkedHashMap();
-            // Key is the uuid of the trader and value is the bilique keys bought from that trader
+            // Key is the uuid of the trader and value is the biclique keys bought from that trader
             Map<String ,String> traderUuid2bcKeysBought = new HashMap<>();
             for (Attributes commBoughtAttr : trader2commoditiesBought.get(traderUuid)) {
                 printAttributes("    Buys ", commBoughtAttr, Level.TRACE);

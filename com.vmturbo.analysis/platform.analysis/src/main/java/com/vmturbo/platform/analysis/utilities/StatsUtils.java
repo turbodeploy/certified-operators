@@ -247,7 +247,6 @@ public class StatsUtils {
     /**
      * Duration between Instant prior and now.
      *
-     * @param prior.
      * @param isFirst is this first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
@@ -259,8 +258,6 @@ public class StatsUtils {
      * Duration between Instant prior and now.
      * By default it's not the first in a list of values to be written and
      * it's not ready to be written to file yet.
-     *
-     * @param prior
      */
     public void after(@NonNull Instant prior) {
         append(getDurationInMilliSec(prior, Instant.now()));
@@ -344,7 +341,6 @@ public class StatsUtils {
      *
      * @param str  String to split.
      * @param delim The delimiter.
-     * @return
      */
     public static String[] getTokens(String str, String delim){
         StringTokenizer stok = new StringTokenizer(str, delim);

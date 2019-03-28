@@ -10,7 +10,6 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -25,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
@@ -32,7 +32,7 @@ import com.vmturbo.platform.analysis.utilities.QuoteTracker;
  * {@link ShoppingList}s assuming the best supplier for each one.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
  * </p>
  *
  * Often used in conjunction with {@link CliqueMinimizer}. For example usage

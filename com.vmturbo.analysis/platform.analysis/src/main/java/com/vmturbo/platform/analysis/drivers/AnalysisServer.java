@@ -78,7 +78,7 @@ public class AnalysisServer implements AutoCloseable {
     }
 
     /**
-     * Performes polling for new analysis results, ready for send. As soon as they arrive, this
+     * Performs polling for new analysis results, ready for send. As soon as they arrive, this
      * method will try to send them to analysis client.
      */
     private void pollOutgoingMessages() {
@@ -121,7 +121,7 @@ public class AnalysisServer implements AutoCloseable {
 
     /**
      * Registers new endpoint, able to request market analysis, so AnalysisServer will receive
-     * requests from this endpoint and send respoinses to it.
+     * requests from this endpoint and send responses to it.
      *
      * @param endpoint new endpoint appeared
      */
@@ -145,7 +145,7 @@ public class AnalysisServer implements AutoCloseable {
 
     /**
      * Unregisters endpoint, when it is no longer needed (closed). This endpoint will no longer
-     * be used for sending responces.
+     * be used for sending responses.
      *
      * @param endpoint endpoint to unregister.
      */
@@ -216,7 +216,7 @@ public class AnalysisServer implements AutoCloseable {
     }
 
     /**
-     * Sets {@link Economy#forceStop} true when receiving {@link com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.ForcePlanStop}
+     * Calls {@link Economy#setForceStop} with true when receiving {@link com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.ForcePlanStop}
      */
     private void forceStopAnalysis(AnalysisCommand message) {
         logger.info("Received a message to stop running analysis");
@@ -389,7 +389,7 @@ public class AnalysisServer implements AutoCloseable {
                 );
                 // run another round of analysis on the new state of the economy with provisions enabled
                 // and resize disabled. We add only the provision recommendations to the list of actions generated.
-                // We neglect suspensions since there might be associated moves that we dont want to include
+                // We neglect suspensions since there might be associated moves that we don't want to include
                 @NonNull List<Action> secondRoundActions = new ArrayList<>();
                 AnalysisResults.Builder builder = results.toBuilder();
                 economy.getSettings().setResizeDependentCommodities(false);
@@ -413,7 +413,7 @@ public class AnalysisServer implements AutoCloseable {
             }
             if (isReplayOrRealTime) {
                 ReplayActions newReplayActions = ede.getReplayActions();
-                // the oids have to be updated after analysisResults
+                // the OIDs have to be updated after analysisResults
                 newReplayActions.setTraderOids(lastComplete.getTraderOids());
                 if (instInfo.isReplayActions()) {
                     newReplayActions.setActions(actions);

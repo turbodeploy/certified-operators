@@ -61,7 +61,7 @@ import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
  *      the other sellers in the market. If none fits the demand, provision a new seller large
  *      enough to fit the demand.
  *
- * @author shravan
+ * @author Shravan
  *
  */
 public class BootstrapSupply {
@@ -74,7 +74,7 @@ public class BootstrapSupply {
      * Guarantee enough supply to place all demand at utilization levels that comply to user-set
      * upper limits.
      *
-     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param economy the {@link Economy} for which we want to guarantee enough supply.
      * @return list of actions that might include provision, move and reconfigure.
      */
     public static @NonNull List<@NonNull Action>
@@ -89,7 +89,7 @@ public class BootstrapSupply {
      * Guarantee enough supply to place all demand at utilization levels that comply to user-set upper limits,
      * when shop-together is enabled.
      *
-     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param economy the {@link Economy} for which we want to guarantee enough supply.
      * @return a list of actions that needed to generate supply
      */
     protected static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
@@ -231,7 +231,7 @@ public class BootstrapSupply {
                             // Should be an assert or an exception.
                             logger.error("No shopping list with infinite quote for trader {}", traderToBePlaced);
                         }
-                    } //end looking for infinteQuote SL.
+                    } //end looking for infiniteQuote SL.
                 } else {
                     @NonNull Trader buyer = entry.getKey().getBuyer();
                     if (logger.isTraceEnabled() || isDebugBuyer) {
@@ -265,7 +265,6 @@ public class BootstrapSupply {
      * @param shoppingList ShoppingList whose quote needs to computed.
      * @param market The market in which the SL's quote has to be computed.
      * @param newSeller The newly created seller.
-     * @return
      */
     private static boolean hasSlInfiniteQuote(
                     final Economy economy,
@@ -301,7 +300,7 @@ public class BootstrapSupply {
      * Create enough supply through ProvisionByDemand if needed to place a buyer at utilization levels
      * that comply to user-set upper limits, when shop-together is enabled.
      *
-     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param economy the {@link Economy} for which we want to guarantee enough supply.
      * @param buyingTrader the trader whose placement will be evaluated
      * @param slsThatNeedProvBySupply the list to hold shopping lists that may require provisions
      * @return a list of actions that needed to generate supply
@@ -353,9 +352,9 @@ public class BootstrapSupply {
     /**
      * Consider all cliques the buyer can buy from. Find the clique which
      * need only provision by supply. If all the cliques need a provision by
-     * demand then pick the clique for which the sellers are clonable.
+     * demand then pick the clique for which the sellers are cloneable.
      *
-     * @param economy economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param economy economy the {@link Economy} for which we want to guarantee enough supply.
      * @param buyer the shop-together buyer
      * @param commonCliques the set of cliques which the buyer can buy
      */
@@ -363,7 +362,7 @@ public class BootstrapSupply {
             Economy economy,
             Trader buyer,
             Set<Long>  commonCliques) {
-        // If none of the cliques has clonable sellers for all
+        // If none of the cliques has cloneable sellers for all
         // shopping lists then we cannot do provisioning by demand at all.
         // so returning the first clique is fine as this variable will never be updated.
         Long cliqueNeedsProvisionByDemandButClonable = commonCliques.iterator().next();
@@ -392,8 +391,8 @@ public class BootstrapSupply {
                         needsProvisionByDemand = true;
                         List<Trader> clonableSellers = sellers.stream().filter(s ->
                                 s.getSettings().isCloneable()).collect(Collectors.toList());
-                        //if the clique1 had a host with clonable true. and clique2 had no host with clonable true.
-                        // and we have to do provisionbydemand with clique2 we will not be able to  provision.
+                        //if the clique1 had a host with cloneable true. and clique2 had no host with cloneable true.
+                        // and we have to do provision-by-demand with clique2 we will not be able to  provision.
                         if (clonableSellers.isEmpty()) {
                             isSelersInCliqueClonable = false;
                             break;
@@ -421,7 +420,7 @@ public class BootstrapSupply {
      * will be processed later or Provision {@link Trader} that can fit the buyer through
      * {@link ProvisionByDemand} and make the buyer consume from the seller.
      *
-     * @param economy economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param economy economy the {@link Economy} for which we want to guarantee enough supply.
      * @param buyer the shop-together buyer
      * @param commonClique the clique which restrains the sellers that the buyer can buy from
      * @param slsThatNeedProvBySupply the list to hold shopping lists that may require provisions
@@ -491,7 +490,7 @@ public class BootstrapSupply {
             if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                 boolean isDebugBuyer = sl.getBuyer().isDebugEnabled();
                 String buyerDebugInfo = sl.getBuyer().getDebugInfoNeverUseInCode();
-                // Since we are moving the buyer to the sellerthatfits we have to make sure
+                // Since we are moving the buyer to sellerThatFits we have to make sure
                 // that it belongs to the currentClique.
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.of(commonClique));
                 // provision by supply
@@ -504,10 +503,10 @@ public class BootstrapSupply {
                     }
                     // cache the sl that need ProvisionBySupply in slsThatNeedProvBySupply
                     // Since we are going to do a compound move of the buyer we have to make sure
-                    // all the shopping list are in the sllist and corresponding seller in
-                    // traderlist. The sellerThatFits can be use a seller for now. Eventually
-                    // when the provisionbysupply actually happens it will go to something
-                    // in the same clique as other shoppinglists.
+                    // all the shopping lists are in the sl list and corresponding seller in
+                    // trader list. The sellerThatFits can be used as seller for now. Eventually
+                    // when the provision-by-supply actually happens it will go to something
+                    // in the same clique as other shopping lists.
                     slsThatNeedProvBySupply.put(sl, commonClique);
                     if (!sellerThatFits.getState().isActive()) {
                         // if sellerThatFits is inactive, pass in the activated seller
@@ -609,10 +608,10 @@ public class BootstrapSupply {
      *  as an argument
      * </p>
      *
-     * @param sellerThatFits is the {@Link Trader} that when cloned can fit the buyer
+     * @param sellerThatFits is the {@link Trader} that when cloned can fit the buyer
      * @param market is the {@link Market} in which the sellerThatFits sells
-     * @param actions the list of {@Link Action}s generated during bootstrap
-     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param actions the list of {@link Action}s generated during bootstrap
+     * @param economy the {@link Economy} for which we want to guarantee enough supply.
      * @param commSpec commodity that led to provision or activation.
      * @return a {@link Trader} the activated/provisioned trader
      */
@@ -641,7 +640,7 @@ public class BootstrapSupply {
      * Guarantee enough supply to place all demand at utilization levels that comply to user-set
      * upper limits, when shop-together is disabled.
      *
-     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param economy the {@link Economy} for which we want to guarantee enough supply.
      * @return a list of actions that needed to generate supply
      */
     protected static @NonNull List<@NonNull Action> nonShopTogetherBootstrap(Economy economy) {
@@ -919,8 +918,8 @@ public class BootstrapSupply {
      * {@link Trader} that can fit the buyer through {@link ProvisionBySupply} and make the buyer
      * consume from the trader.
      *
-     * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
-     * @param shoppingList is the {@Link ShoppingList} of the unplaced trader
+     * @param economy the {@link Economy} that contains the unplaced {@link Trader}
+     * @param shoppingList is the {@link ShoppingList} of the unplaced trader
      * @param market is the market containing the inactiveSellers
      * @param slsThatNeedProvBySupply the list to hold shopping lists that may require provisions
      *
@@ -1010,7 +1009,7 @@ public class BootstrapSupply {
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info("Generating a reconfigure action for " + buyerDebugInfo + ".");
             }
-            // set movable false so that we dont generate duplicate reconfigure recommendations
+            // set movable false so that we don't generate duplicate reconfigure recommendations
             shoppingList.setMovable(false);
             return actions;
         }
@@ -1027,15 +1026,15 @@ public class BootstrapSupply {
      * Out of a list sellers, we check if, we can clone any seller in particular
      * that can fit the buyer.
      *
-     * @param buyerShoppingList is the {@Link shoppingList} of the buyer
+     * @param buyerShoppingList is the {@link ShoppingList} of the buyer
      * @param candidateSellers is the list of candidate {@link Trader sellers} to examine
      * @param market is the {@link Market} in which we try finding the best provider to
      * reactivate/clone
-     * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
+     * @param economy the {@link Economy} that contains the unplaced {@link Trader}
      * @param clique a optional parameter, if it is present, the sell's clique list must contains it.
      *
-     * @return the any of the candidateSellers that can fit the buyer when cloned, or NULL if none
-     * is big enough
+     * @return the any of the candidateSellers that can fit the buyer when cloned, or {@code null}
+     * if none is big enough
      */
     private static Trader findTraderThatFitsBuyer(ShoppingList buyerShoppingList, List<Trader>
                                                   candidateSellers, Market market, Economy economy,

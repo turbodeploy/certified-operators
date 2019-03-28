@@ -26,7 +26,6 @@ public class StatsManager {
      * that knows where to route queued writes to.
      *
 .    * @param filename
-     * @return
      */
     public synchronized StatsWriter init() {
         if (sw == null || !sw.isAlive()) {

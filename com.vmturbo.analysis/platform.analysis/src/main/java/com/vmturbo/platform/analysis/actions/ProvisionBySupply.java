@@ -195,7 +195,7 @@ public class ProvisionBySupply extends ActionImpl {
                                 getReason());
                 subsequentActions_.add(provisionedSupplier.take());
                 subsequentActions_.addAll(provisionedSupplier.getSubsequentActions());
-                // move the sl of the provisionedSeller directly to the newly cloned manditorySeller
+                // move the sl of the provisionedSeller directly to the newly cloned mandatorySeller
                 Trader clonedMandatorySupplier = provisionedSupplier.getProvisionedSeller();
                 provisionedSellerSl.move(clonedMandatorySupplier);
                 Move.updateQuantities(getEconomy(), provisionedSellerSl,
@@ -261,7 +261,7 @@ public class ProvisionBySupply extends ActionImpl {
         // keep only the overhead in the commSold, otherwise, set the quantity and peak quantity to 0
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
         // if the trader being cloned is a provider for a guaranteedBuyer, then the clone should
-        // be a provider for that guranteedBuyer as well
+        // be a provider for that guaranteedBuyer as well
         if (slBetweenModelSellerAndGuaranteedBuyer.size() != 0) {
             List<BuyerInfo> guaranteedBuyerInfoList = GuaranteedBuyerHelper
                             .storeGuaranteedbuyerInfo(slBetweenModelSellerAndGuaranteedBuyer,

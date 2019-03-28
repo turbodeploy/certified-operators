@@ -109,6 +109,7 @@ public interface Action {
 
     /**
      * A key to look up "combinable" actions - actions that can be {@link #combine}d
+     *
      * @return the key identifying actions that can be combined
      */
     @Pure
@@ -120,9 +121,10 @@ public interface Action {
      * Computes an {@link Action} that, when {@link #take}n, achieves the same result as
      * taking {@code this} action and then the argument action. The default behavior is
      * to return {@code action}, i.e. the next action cancels the previous one.
+     *
      * @param action an {@link Action} to combine with {@code this}
      * @return the combined {@link Action}. Null means the actions cancel each other.
-     * @see #collapsed
+     * @see ActionCollapse#collapsed
      */
     @Pure
     default @Nullable Action combine(@NonNull @ReadOnly Action action) {
@@ -131,11 +133,11 @@ public interface Action {
     }
 
     /**
-     * Reason commodity for this action.
-     * For example : commodity specification that led to activation/provision.
-     * TODO : Generalize this to return "Reason" for all actions.
-     * @return
+     * Returns the 'reason' commodity for this action.
+     *
+     * <p>For example : commodity specification that led to activation/provision.</p>
      */
+    // TODO : Generalize this to return "Reason" for all actions.
     @Pure
     default @Nullable CommoditySpecification getReason() {
         return null;

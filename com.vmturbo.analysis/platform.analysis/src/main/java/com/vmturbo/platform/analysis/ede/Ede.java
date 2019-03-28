@@ -63,7 +63,7 @@ public final class Ede {
      * Generate Actions.
      *
      * Add 'collapse' argument
-     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)}
+     * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
@@ -76,7 +76,7 @@ public final class Ede {
     /** Generate Actions.
      *
      * Add 'collapse' and 'replay' argument
-     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)}
+     * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
@@ -97,7 +97,7 @@ public final class Ede {
      * @param collapse whether to collapse the returned list of actions.
      * @return A list of actions suggested by the economic decisions engine.
      *
-     * @see {@link Action#collapsed(List)}
+     * @see ActionCollapse#collapsed(List)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
@@ -122,7 +122,7 @@ public final class Ede {
      *          delimited by "|"
      * @return A list of actions suggested by the economic decisions engine.
      *
-     * @see {@link Action#collapsed(List)}
+     * @see ActionCollapse#collapsed(List)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                     boolean classifyActions, boolean isProvision, boolean isSuspension,
@@ -171,7 +171,7 @@ public final class Ede {
         // current cost (cloud) sorted high to low.
         economy.sortBuyersofMarket();
 
-        // create a subset list of markets that have atleast one buyer that can move
+        // create a subset list of markets that have at least one buyer that can move
         economy.composeMarketSubsetForPlacement();
 
         Ledger ledger = new Ledger(economy);
@@ -346,7 +346,7 @@ public final class Ede {
      * @param isRealTime True for analysis of a realtime topology
      * @return A list of actions suggested by the economic decisions engine.
      *
-     * @see {@link Action#collapsed(List)}
+     * @see ActionCollapse#collapsed(List)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
@@ -382,7 +382,7 @@ public final class Ede {
      * @return A list of actions suggested after running a capacityPlan using
      *          the the economic decisions engine.
      *
-     * @see {@link Action#collapsed(List)}
+     * @see ActionCollapse#collapsed(List)
      */
     public @NonNull List<@NonNull Action> generateHeadroomActions(@NonNull Economy economy,
                     boolean isProvision, boolean isSuspension,

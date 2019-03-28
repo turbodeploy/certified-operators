@@ -4,6 +4,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.economy.Market;
+
 /**
  * Purchasing tendency of an entity that trades/is traded in a {@link Market}.
  *
@@ -50,7 +52,7 @@ public class IncomeStatement {
      * </p>
      *
      * @return expense of this entity.
-     * @see #setExpenses()
+     * @see #setExpenses(double)
      */
     public double getExpenses() {
         return expenses_;
@@ -82,7 +84,7 @@ public class IncomeStatement {
      * </p>
      *
      * @return revenue of this entity.
-     * @see #setRevenues()
+     * @see #setRevenues(double)
      */
     public double getRevenues() {
         return revenues_;
@@ -118,7 +120,7 @@ public class IncomeStatement {
      * </p>
      *
      * @return minDesiredExpense for this entity
-     * @see #setMinDesiredExpenses()
+     * @see #setMinDesiredExpenses(double)
      */
     public double getMinDesiredExpenses() {
         return minDesiredExpenses_;
@@ -154,7 +156,7 @@ public class IncomeStatement {
     * </p>
     *
     * @return maxDesiredExpense for this entity
-    * @see #setMaxDesiredExpenses()
+    * @see #setMaxDesiredExpenses(double)
     */
     public double getMaxDesiredExpenses() {
         return maxDesiredExpenses_;
@@ -190,7 +192,7 @@ public class IncomeStatement {
     * </p>
     *
     * @return minDesiredRevenue for this entity
-    * @see #setMinDesiredRevenues()
+    * @see #setMinDesiredRevenues(double)
     */
     public double getMinDesiredRevenues() {
         return minDesiredRevenues_;
@@ -225,7 +227,7 @@ public class IncomeStatement {
      * </p>
      *
      * @return maxDesiredRevenue for this entity
-     * @see #setMaxDesiredRevenues()
+     * @see #setMaxDesiredRevenues(double)
      */
     public double getMaxDesiredRevenues() {
         return maxDesiredRevenues_;
@@ -258,7 +260,7 @@ public class IncomeStatement {
     * </p>
     *
     * @return desired revenue for this entity
-    * @see #setDesiredRevenues()
+    * @see #setDesiredRevenues(double)
     */
     public double getDesiredRevenues() {
         return desiredRevenues_;
@@ -284,8 +286,8 @@ public class IncomeStatement {
     /**
      * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding revenues and expenses of the Trader or Commodity
      *
-     * @see #setRevenues()
-     * @see #setExpenses()
+     * @see #setRevenues(double)
+     * @see #setExpenses(double)
      */
     public double getROI() {
         // checkArgument(0 < expenses_, "expenses = " + expenses_);
@@ -300,8 +302,8 @@ public class IncomeStatement {
      * Returns the min Return On Investment of a Trader or a Commodity sold, while all commodities contributing to the expenses and revenues remain
      * within the Desired utilization range.
      *
-     * @see #setMinDesiredRevenues()
-     * @see #setMaxDesiredExpenses()
+     * @see #setMinDesiredRevenues(double)
+     * @see #setMaxDesiredExpenses(double)
      */
     public double getMinDesiredROI() {
         // checkArgument(0 < maxDesiredExpenses_, "maxDesiredExpenses = " + maxDesiredExpenses_);
@@ -316,8 +318,8 @@ public class IncomeStatement {
      * Returns the max Return On Investment of a Trader or a Commodity sold, while all commodities contributing to the expenses and revenues remain
      * within the Desired utilization range.
      *
-     * @see #setMaxDesiredRevenues()
-     * @see #setMinDesiredExpenses()
+     * @see #setMaxDesiredRevenues(double)
+     * @see #setMinDesiredExpenses(double)
      */
     public double getMaxDesiredROI() {
         // checkArgument(0 < minDesiredExpenses_, "minDesiredExpenses = " + minDesiredExpenses_);

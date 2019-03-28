@@ -39,7 +39,8 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the boolean which indicates if action classification is needed.
-     * @param classifyActions
+     *
+     * @param classifyActions The new value for the flag.
      */
     public void setClassifyActions(boolean classifyActions) {
         this.classifyActions = classifyActions;
@@ -47,7 +48,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * True if action classification is needed.
-     * @return
      */
     public boolean isClassifyActions() {
         return classifyActions;
@@ -55,7 +55,8 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the boolean which indicates if action replay is needed.
-     * @param replayActions
+     *
+     * @param replayActions The new value for the flag.
      */
     public void setReplayActions(boolean replayActions) {
         this.replayActions = replayActions;
@@ -63,7 +64,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * True if action replay is needed.
-     * @return
      */
     public boolean isReplayActions() {
         return replayActions;
@@ -71,7 +71,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * True if provision algorithm is enabled.
-     * @return
      */
     public boolean isProvisionEnabled() {
         return isProvisionEnabled;
@@ -79,7 +78,8 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the global flag which enables the provision algorithm.
-     * @param isProvisionEnabled
+     *
+     * @param isProvisionEnabled The new value for the flag.
      */
     public void setProvisionEnabled(boolean isProvisionEnabled) {
         this.isProvisionEnabled = isProvisionEnabled;
@@ -87,7 +87,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * True if suspension algorithm is enabled.
-     * @return
      */
     public boolean isSuspensionEnabled() {
         return isSuspensionEnabled;
@@ -95,7 +94,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Returns the market name of the topology.
-     * @return
      */
     public String getMarketName() {
         return marketName_;
@@ -103,7 +101,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Returns the market data which is used by the stats file.
-     * @return
      */
     public String getMarketData() {
         return marketData_;
@@ -111,7 +108,8 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the global flag which enables the suspension algorithm.
-     * @param isSuspensionEnabled
+     *
+     * @param isSuspensionEnabled The new value for the flag.
      */
     public void setSuspensionEnabled(boolean isSuspensionEnabled) {
         this.isSuspensionEnabled = isSuspensionEnabled;
@@ -119,7 +117,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * True if the resize algorithm is enabled.
-     * @return
      */
     public boolean isResizeEnabled() {
         return isResizeEnabled;
@@ -127,7 +124,8 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the global flag which enables the resize algorithm.
-     * @param isResizeEnabled
+     *
+     * @param isResizeEnabled The new value for the flag.
      */
     public void setResizeEnabled(boolean isResizeEnabled) {
         this.isResizeEnabled = isResizeEnabled;
@@ -135,7 +133,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Returns the topology which is the most recent and complete.
-     * @return
      */
     public Topology getLastComplete() {
         return lastComplete_;
@@ -143,7 +140,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the topology which is the most recent and complete.
-     * @param lastComplete
      */
     public void setLastComplete(Topology lastComplete) {
         this.lastComplete_ = lastComplete;
@@ -151,7 +147,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Returns the topology currently being populated.
-     * @return
      */
     public Topology getCurrentPartial() {
         return currentPartial_;
@@ -159,7 +154,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the topology currently being populated.
-     * @param currentPartial
      */
     public void setCurrentPartial(Topology currentPartial) {
         this.currentPartial_ = currentPartial;
@@ -167,7 +161,8 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the market name of the topology.
-     * @param marketName
+     *
+     * @param marketName The new name.
      */
     public void setMarketName(String marketName) {
         marketName_ = marketName;
@@ -175,7 +170,6 @@ public class AnalysisInstanceInfo {
 
     /**
      * Sets the market data which is used by the stats file.
-     * @param marketData
      */
     public void setMarketData(String marketData) {
         marketData_ = marketData;
@@ -183,15 +177,13 @@ public class AnalysisInstanceInfo {
 
     /**
      * True if the topology is from real time market.
-     * @return
      */
     public boolean isRealTime() {
         return isRealTime;
     }
 
     /**
-     * Sets {@link isRealTime} true if the topology is from real time market.
-     * @param isRealTime
+     * Sets {@link #isRealTime()} to true if the topology is from a real time market.
      */
     public void setRealTime(boolean isRealTime) {
         this.isRealTime = isRealTime;

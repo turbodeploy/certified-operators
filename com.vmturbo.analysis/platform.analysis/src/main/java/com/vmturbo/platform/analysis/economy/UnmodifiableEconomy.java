@@ -229,8 +229,9 @@ public interface UnmodifiableEconomy {
     Map<Long, BalanceAccount> getBalanceAccountMap();
 
     /**
-     * save the {@link Topology} associated with this {@link Economy}
-     * @param topology
+     * Sets the {@link Topology} associated with this {@link Economy}
+     *
+     * @param topology The new associated topology
      */
     public void setTopology(Topology topology);
 

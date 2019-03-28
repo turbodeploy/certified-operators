@@ -55,7 +55,7 @@ public class PriceStatement {
         * </p>
         *
         * @return priceIndex of the entity
-        * @see #setPriceIndex()
+        * @see #setPriceIndex(double)
         */
         public double getPriceIndex() {
             return priceIndex_;
@@ -93,8 +93,6 @@ public class PriceStatement {
      * Calculates the priceIndex of all the {@link Trader}s in an economy
      *
      * @param economy the {@link UnmodifiableEconomy} for whose entities we compute the priceIndex
-     * @param isStart value of true indicates that we compute the startPriceIndex and
-     *        false indicates that we compute the endPriceIndex for all Traders
      * @return {@code this}
      *
      */

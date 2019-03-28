@@ -349,7 +349,7 @@ public class Suspension {
         for (Trader trader : economy.getTraders()) {
             List<Market> marketsAsSeller = economy.getMarketsAsSeller(trader);
             // being the sole provider means the seller is the only active seller in a market
-            // and it has some customers which are not the shoppinglists from guaranteed buyers
+            // and it has some customers which are not the shopping lists from guaranteed buyers
             if (marketsAsSeller.stream()
                     .anyMatch((m) -> m.getActiveSellersAvailableForPlacement()
                             .size() == 1 && m.getBuyers().stream().anyMatch(
@@ -375,8 +375,6 @@ public class Suspension {
     /**
      * Identifies sole providers of guaranteed buyers of given trader. We do not want to
      * suspend the last supplier of a guaranteed buyer.
-     * @param economy
-     * @param trader
      */
     public void updateSoleProviders(Economy economy, Trader trader) {
         final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
@@ -409,7 +407,7 @@ public class Suspension {
 
     /**
      * Make co-sellers of suspension candidate inactive.
-     * get Markets susp candidate sells in, although INACTIVE
+     * get Markets suspension candidate sells in, although INACTIVE
      * disable suspension of all other traders in markets where deactivated trader
      * is a seller including inactive sellers as they may have been picked in the
      * previous round

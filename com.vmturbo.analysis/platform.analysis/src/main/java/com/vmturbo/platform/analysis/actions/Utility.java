@@ -64,7 +64,6 @@ public final class Utility {
      * @param trader this is the {@link Trader} for whom the overhead is to be calculated
      * @param specSold the spec for which the overhead is to be calculated
      * @param economy  that the Trader is a part of
-     * @return
      */
     public static double calculateCommodityOverhead(Trader trader, CommoditySpecification specSold,
                     Economy economy) {

@@ -50,7 +50,7 @@ public final class Topology implements Serializable {
     // A map from OIDs of traders we haven't seen yet to shopping lists that need to be
     // placed on them. It is needed if we can receive a customer before its supplier.
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>> danglingShoppingLists_ = new HashMap<>();
-    // A map to record the newly provisioned trader's shoppinglist to the provisioned trader
+    // A map to record the newly provisioned trader's shopping list to the provisioned trader
     private final @NonNull Map<@NonNull Long, @NonNull Long> newShoppingListToBuyerMap_ = new HashMap<>();
     // Id that uniquely identifies the topology
     private long topologyId_;
@@ -140,7 +140,7 @@ public final class Topology implements Serializable {
      * supplier.
      *
      * <p>
-     *  Clients should use this method if the supplier for the buyer participation might not have
+     *  Clients should use this method if the supplier for the shopping list might not have
      *  been added to {@code this} topology yet, so that the topology can automatically update the
      *  reference to the supplier when the supplier is finally added.
      * </p>
@@ -164,7 +164,7 @@ public final class Topology implements Serializable {
         if (supplier != null) {
             shoppingList.move(supplier);
         } else {
-            // ...and if not, make a note of the fact so that we can update the buyer participation
+            // ...and if not, make a note of the fact so that we can update the shopping list
             // when it's added.
             @NonNull List<@NonNull ShoppingList> shoppingLists = danglingShoppingLists_.get(supplierOid);
             if (shoppingLists == null) {
@@ -316,7 +316,7 @@ public final class Topology implements Serializable {
     }
 
     /**
-     * adding a {@link trader} which should shop together to the shopTogetherTraders list in the economy
+     * adding a {@link Trader} which should shop together to the shopTogetherTraders list in the economy
      */
     public void addShopTogetherTraders(@NonNull Trader trader) {
         economy_.getModifiableShopTogetherTraders().add(trader);

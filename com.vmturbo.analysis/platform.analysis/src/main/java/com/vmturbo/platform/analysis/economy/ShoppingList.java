@@ -390,9 +390,11 @@ public class ShoppingList implements Serializable {
 
     /**
      * Sets unique UUID for this shopping list.
-     * UUID is automatically assigned to every shopping list during its creation.
-     * It is used in clones to establish relation with its source.
-     * @param shoppingListId
+     *
+     * <p>UUID is automatically assigned to every shopping list during its creation.
+     * It is used in clones to establish relation with its source.</p>
+     *
+     * @param shoppingListId The new UUID for this shopping list
      */
     public void setShoppingListId(UUID shoppingListId) {
         this.shoppingListId = shoppingListId;

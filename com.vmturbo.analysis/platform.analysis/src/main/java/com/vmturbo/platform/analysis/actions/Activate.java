@@ -34,8 +34,8 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
      *
      * @param target The trader that will be activated as a result of taking {@code this} action.
      * @param sourceMarket The market that benefits from activating target.
-     * @param modelSeller the trader which will be used  the shopping
-     * @param commCausingProvision commodity that led to activation
+     * @param modelSeller The trader whose high profits led to activation.
+     * @param commCausingActivation commodity that led to activation
      */
     public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket,
                     @NonNull Trader modelSeller,

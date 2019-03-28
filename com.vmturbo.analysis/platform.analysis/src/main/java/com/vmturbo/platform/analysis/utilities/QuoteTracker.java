@@ -203,7 +203,7 @@ public class QuoteTracker {
             "Attempt to combine quote trackers with different shopping lists: {} vs {}",
             shoppingList, other.shoppingList);
 
-        /**
+        /*
          * First check placement status and validity of the trackers being combined.
          */
         if (successfullyPlaced()) {
@@ -222,7 +222,7 @@ public class QuoteTracker {
             return;
         }
 
-        /**
+        /*
          * Both quote trackers are tracking unplaced shopping lists. Use their ranks to determine
          * how to combine their state.
          */
