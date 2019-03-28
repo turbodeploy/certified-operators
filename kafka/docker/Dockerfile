@@ -1,33 +1,31 @@
-FROM ubuntu:18.04
-MAINTAINER Pavel Baranchikov <pavel.baranchikov@turbonomic.com>
+FROM registry.access.redhat.com/rhel7
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-SHELL ["/bin/bash", "-c"]
 # This is the release of Kafka and Scala to pull in.
 COPY kafka.profile /etc/kafka.profile
+COPY start-kafka /
 
 # Create a kafka user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
 # The kafka-logs dir is used by Kafka to store data.
-RUN addgroup kafka && \
-    adduser --system --disabled-password -home /home/kafka --ingroup kafka --disabled-login --shell /bin/bash kafka
+RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash -u 101 kafka && \
+    passwd -l root
 
-COPY start-kafka /
+RUN yum install -y rsyslog java-1.8.0-openjdk-headless && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 RUN source /etc/kafka.profile && \
-    apt-get update -q -y && apt-get upgrade -q -y && \
-    apt-get install -q -y openjdk-8-jdk iproute2 wget bash rsyslog && \
     cd /tmp && \
-    wget -q --no-check-certificate -O kafka.tgz  https://10.10.150.66/repository/xl/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
-    tar -C /opt -xvf kafka.tgz && \
+    curl -k -s -O https://10.10.150.66/repository/xl/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
+    tar -C /opt -xvf kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     ln -s kafka_${SCALA_VERSION}-${KAFKA_VERSION} /opt/kafka && \
-    rm kafka.tgz && \
+    rm kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     mkdir /opt/kafka/logs && \
     chown -R kafka /opt/kafka/logs && \
     mkdir $KAFKA_DATA_DIR && \
     chown -R kafka $KAFKA_DATA_DIR && \
-    chmod a+x /start-kafka && \
-    apt-get purge -y --auto-remove wget unzip && \
-    rm -rf /var/lib/apt/lists/* && apt-get clean
+    chmod a+x /start-kafka
 
 # rsyslog
 ADD rsyslog.conf /etc

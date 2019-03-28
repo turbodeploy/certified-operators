@@ -61,7 +61,7 @@
                                 <label>com.vmturbo.version=${project.version}</label>
                                 <label>com.vmturbo.build=${buildNumber}</label>
                             </labels>
-                            <serverId>docker-registry</serverId>
+                            <serverId>docker-hub</serverId>
                             <!-- include the support files - entrypoint.sh and collect_diags.sh -->
                             <resources>
                                 <resource>
@@ -102,6 +102,17 @@
                                 <configuration>
                                     <image>${docker.image.prefix}/vmt-component-base</image>
                                     <newName>${docker.registry}/${docker.image.prefix}/vmt-component-base:${project.version}</newName>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>tag-docker-image-latest</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>tag</goal>
+                                </goals>
+                                <configuration>
+                                    <image>${docker.image.prefix}/vmt-component-base</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/vmt-component-base:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>

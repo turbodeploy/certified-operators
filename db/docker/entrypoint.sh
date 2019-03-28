@@ -30,7 +30,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
     do
         echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
-              FLUSH PRIVILEGES; " | /usr/bin/mysql -uroot &>/dev/null
+              FLUSH PRIVILEGES; " | /usr/bin/mysql -S /var/run/mysqld/mysqld.sock -uroot &>/dev/null
         if [ "$?" -eq 0 ]; then
             echo '+++ MariaDB privileges grant successful.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
             break
