@@ -66,7 +66,7 @@ spec:
           name: nginx-certs
         - mountPath: /var/www/load-status
           name: nginx-load-status
-        - mountPath: /var/lib/nginx
+        - mountPath: /var/cache/nginx
           name: nginx-data
         - mountPath: /var/run
           name: nginx-run

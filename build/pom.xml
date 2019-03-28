@@ -115,7 +115,7 @@
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
         <!-- docker registry for turbonomic -->
-        <docker.registry>registry.turbonomic.com</docker.registry>
+        <docker.registry>docker.io</docker.registry>
         <docker.image.prefix>turbonomic</docker.image.prefix>
 
         <immutables.version>2.7.3</immutables.version>
