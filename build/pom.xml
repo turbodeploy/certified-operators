@@ -665,7 +665,6 @@
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
-                <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
@@ -733,7 +732,6 @@
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
-                <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
@@ -781,35 +779,11 @@
         <profile>
             <id>release</id>
             <modules>
-                <!-- There is a non-maven dependency between any module
-                     that builds a docker image and the baseimage module.
-                     The baseimage module creates the docker image that
-                     all other images should be based on, but the poms don't
-                     capture that relationship.
-
-                     Therefore, keep this at the top of the modules list
-                     so that it gets built first despite not being explicitly
-                     depended on by other modules.
-
-                     For order of module building see:
-                     https://maven.apache.org/guides/mini/guide-multiple-modules.html -->
-                <module>../com.vmturbo.components.baseimage</module>
-
-                <!-- Infrequently changing dependencies. Essentially the equivalent of
-                     libraries from the XL developer's point of view.
-                     There may be non-maven dependencies between the development modules
-                     and these libraries, so keep them towards the top of the module list. -->
-                <module>../syslog</module>
-                <module>../db</module>
-                <module>../com.vmturbo.arangodb</module>
                 <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-grpc-moles</module>
                 <module>../diags</module>
-                <module>../kafka</module>
-                <module>../zookeeper</module>
-                <module>../nginx</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.auth.api</module>
@@ -819,7 +793,6 @@
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
-                <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
@@ -859,6 +832,8 @@
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
+                <module>../com.vmturbo.mediation.delegatingprobe</module>
+                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
@@ -880,8 +855,6 @@
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
-                <module>../com.vmturbo.mediation.delegatingprobe</module>
-                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
