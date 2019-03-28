@@ -882,6 +882,7 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../versioning</module>
 
                 <!-- Mediation container with all the probes inside. -->
                 <module>../com.vmturbo.mediation.component</module>
