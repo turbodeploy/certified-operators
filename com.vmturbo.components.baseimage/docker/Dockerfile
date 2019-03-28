@@ -1,9 +1,9 @@
 FROM ubuntu:18.04
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN apt-get update -q -y && apt-get upgrade -q -y && \
-apt-get install -q -y --no-install-recommends rsyslog python2.7 openjdk-8-jre-headless ca-certificates-java && \
-rm -rf /var/lib/apt/lists/* && apt-get clean
+RUN yum install -y rsyslog java-1.8.0-openjdk-headless && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 COPY entrypoint.sh /
 COPY collect_diags.sh /
