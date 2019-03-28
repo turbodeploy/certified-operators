@@ -1,30 +1,30 @@
-FROM registry.access.redhat.com/rhel7
-MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
+FROM ubuntu:18.04
+MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
 
-ENV ARCHITECTURE x86_64
+ENV ARCHITECTURE amd64
 ENV ARANGO_VERSION 3.3.22-1
-ENV ARANGO_URL https://download.arangodb.com/arangodb33/CentOS_7
-ENV ARANGO_PACKAGE arangodb3-${ARANGO_VERSION}.${ARCHITECTURE}.rpm
+ENV ARANGO_URL https://download.arangodb.com/arangodb33/xUbuntu_17.04
+ENV ARANGO_PACKAGE arangodb3-${ARANGO_VERSION}_${ARCHITECTURE}.deb
 ENV ARANGO_PACKAGE_URL ${ARANGO_URL}/${ARCHITECTURE}/${ARANGO_PACKAGE}
 
-RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-        yum update -y && \
-        yum install -y \
-        jemalloc \
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends upgrade && \
+    apt-get install -q -y --no-install-recommends \
+        libjemalloc1 \
         rsyslog \
-        snappy \
+        libsnappy1v5 \
         libssl1.0.0 \
         ca-certificates \
         pwgen \
         curl \
         python-flask \
-    yum clean all && \
-    rm -rf /var/cache/yum
-
-RUN mkdir /docker-entrypoint-initdb.d && \
-	curl -k -s -O ${ARANGO_PACKAGE_URL} && \
-    rpm -i ${ARANGO_PACKAGE} && \
-    rm -rf /var/lib/arangodb3/* &&\
+    && \
+    rm -rf /var/lib/apt/lists/* && \
+	mkdir /docker-entrypoint-initdb.d && \
+	curl -s -O ${ARANGO_PACKAGE_URL} &&       \
+    (echo arangodb3 arangodb3/password password test | debconf-set-selections) && \
+    (echo arangodb3 arangodb3/password_again password test | debconf-set-selections) && \
+    DEBIAN_FRONTEND="noninteractive" dpkg -i ${ARANGO_PACKAGE} && \
+    rm -rf /var/lib/arangodb3/* && \
     sed -ri \
 # https://docs.arangodb.com/latest/Manual/Administration/Configuration/Endpoint.html
         -e 's!127\.0\.0\.1!0.0.0.0!g' \
@@ -33,7 +33,10 @@ RUN mkdir /docker-entrypoint-initdb.d && \
 # run as arangodb:arangodb
         -e 's!^#\s*uid\s*=.*!uid = arangodb!' \
         -e 's!^#\s*gid\s*=.*!gid = arangodb!' \
-        /etc/arangodb3/arangod.conf && \
+        /etc/arangodb3/arangod.conf \
+    && \
+    DEBIAN_FRONTEND="noninteractive" apt-get purge -y --auto-remove ca-certificates && \
+    DEBIAN_FRONTEND="noninteractive" apt-get purge -y --auto-remove curl && \
     rm -f ${ARANGO_PACKAGE}*
 
 # Initialization

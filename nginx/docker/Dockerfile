@@ -1,35 +1,31 @@
-FROM registry.access.redhat.com/rhel7
-MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
+FROM ubuntu:18.04
+MAINTAINER Patrick Soo Hoo <patrick.soohoo@turbonomic.com>
 
-# Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
-RUN groupadd -g 1000 nginx && useradd -r -g 1000 -s /bin/bash -u 102 nginx && \
-passwd -l root
+SHELL ["/bin/bash", "-c"]
 
 # Install nginx and other tools
-RUN echo "[nginx]" > /etc/yum.repos.d/nginx.repo && \
-    echo "name=nginx repo" >> /etc/yum.repos.d/nginx.repo && \
-    echo "baseurl=http://nginx.org/packages/rhel/7/x86_64/" >> /etc/yum.repos.d/nginx.repo && \
-    echo "gpgcheck=0" >> /etc/yum.repos.d/nginx.repo && \
-    echo "enabled=1" >> /etc/yum.repos.d/nginx.repo && \
-    yum install -y openssl nginx rsyslog gettext && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+RUN apt-get -q -y update && apt-get -q -y --no-install-recommends upgrade && \
+    apt-get install -q -y --no-install-recommends bash net-tools vim-tiny rsyslog openssl nginx gettext-base && \
+    rm -rf /var/lib/apt/lists/* && apt-get clean
 
 # Create a user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
-RUN mkdir -p /var/log/nginx/logs && \
-    chown -R nginx:nginx /var/log/nginx/logs && \
-    mkdir -p /var/cache/nginx && \
-    chown -R nginx:nginx /var/cache/nginx && \
+RUN addgroup nginx && \
+    adduser --system --disabled-password -home /var/cache/nginx --ingroup nginx --disabled-login --shell /bin/bash nginx && \
     touch /var/run/nginx.pid && \
     chown -R nginx:nginx /var/run/nginx.pid && \
     mkdir -p /etc/nginx/certs && \
-    chown -R nginx:nginx /etc/nginx/certs
+    chown -R nginx:nginx /etc/nginx/certs && \
+    mkdir -p /var/log/nginx && \
+    mkdir -p /home/nginx/conf && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /var/lib/nginx
 
 # rsyslog
 ADD rsyslog.conf /etc
 
-COPY nginx.conf.template /etc/nginx/
+COPY nginx.conf.template /home/nginx/conf/
+RUN chown -R nginx:nginx /home/nginx
 COPY entrypoint.sh /
 
 # copy static html resources
@@ -38,8 +34,6 @@ COPY www /var/www/
 # forward request and error logs to docker log collector
 RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
 	ln -sf /dev/stderr /var/log/nginx/error.log && \
-    ln -sf /dev/stdout /var/log/nginx/logs/access.log && \
-	ln -sf /dev/stderr /var/log/nginx/logs/error.log && \
 	chmod 755 /entrypoint.sh
 
 EXPOSE 8000

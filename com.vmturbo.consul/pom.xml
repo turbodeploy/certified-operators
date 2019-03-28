@@ -65,17 +65,6 @@
                                 </configuration>
                             </execution>
                             <execution>
-                                <id>tag-docker-image-latest</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>tag</goal>
-                                </goals>
-                                <configuration>
-                                    <image>${docker.image.prefix}/com.vmturbo.consul</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/com.vmturbo.consul:latest</newName>
-                                </configuration>
-                            </execution>
-                            <execution>
                                 <id>push-docker-image</id>
                                 <phase>deploy</phase>
                                 <goals>

@@ -30,6 +30,7 @@
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
                             </labels>
+                            <serverId>docker-registry</serverId>
                         </configuration>
                         <executions>
                             <execution>
@@ -46,19 +47,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/arangodb</image>
+                                    <image>/${docker.image.prefix}/arangodb</image>
                                     <newName>${docker.registry}/${docker.image.prefix}/arangodb:${project.version}</newName>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>tag-docker-image-latest</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>tag</goal>
-                                </goals>
-                                <configuration>
-                                    <image>${docker.image.prefix}/arangodb</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/arangodb:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>
