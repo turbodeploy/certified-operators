@@ -1,12 +1,6 @@
 FROM registry.access.redhat.com/rhel7
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-# BEGIN Remove later
-#RUN subscription-manager register --username it@vmturbo.com --password sysdreamworks \
-#&& subscription-manager attach --auto && subscription-manager repos --enable rhel-7-server-rpms \
-#&& subscription-manager repos --enable=rhel-7-server-optional-rpms
-## END Remove later
-
 RUN yum install -y rsyslog java-1.8.0-openjdk-headless && \
     yum clean all && \
     rm -rf /var/cache/yum
