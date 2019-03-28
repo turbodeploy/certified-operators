@@ -28,7 +28,6 @@
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
                             </labels>
-                            <serverId>docker-registry</serverId>
                         </configuration>
                         <executions>
                             <execution>
@@ -47,6 +46,17 @@
                                 <configuration>
                                     <image>${docker.image.prefix}/kafka</image>
                                     <newName>${docker.registry}/${docker.image.prefix}/kafka:${project.version}</newName>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>tag-docker-image-latest</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>tag</goal>
+                                </goals>
+                                <configuration>
+                                    <image>${docker.image.prefix}/kafka</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/kafka:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>

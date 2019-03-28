@@ -1,15 +1,18 @@
-FROM ubuntu:18.04
-MAINTAINER Michael Borodiansky<michael.borodiansky@turbonomic.com>
+FROM registry.access.redhat.com/rhel7
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN apt-get update -q -y && apt-get upgrade -q -y && \
-apt-get install -q -y ca-certificates python2.7 zip xz-utils rsyslog bash && \
-addgroup --gid 1000 vmtsyslog && adduser --uid 1000 --system --disabled-password -home /home/vmtsyslog --ingroup vmtsyslog --disabled-login --shell /bin/bash vmtsyslog && \
-mkdir -p /home/vmtsyslog/rsyslog && \
-chown -R vmtsyslog:vmtsyslog /home/vmtsyslog && \
-mkdir -p /var/lib/logrotate && \
-chmod a+w /var/lib/logrotate && \
-mkdir -p /var/log/turbonomic && \
-chown -R vmtsyslog:vmtsyslog /var/log/turbonomic
+RUN groupadd -g 1000 vmtsyslog && useradd -m -r -d /home/vmtsyslog -g 1000 -s /bin/bash -u 1000 vmtsyslog && \
+    passwd -l root
+
+RUN yum install -y rsyslog zip && \
+    yum clean all && \
+    rm -rf /var/cache/yum && \
+    mkdir -p /home/vmtsyslog/rsyslog && \
+    chown -R vmtsyslog:vmtsyslog /home/vmtsyslog && \
+    mkdir -p /var/lib/logrotate && \
+    chmod a+w /var/lib/logrotate && \
+    mkdir -p /var/log/turbonomic && \
+    chown -R vmtsyslog:vmtsyslog /var/log/turbonomic
 
 COPY entrypoint.sh /
 ADD rsyslog.conf /etc

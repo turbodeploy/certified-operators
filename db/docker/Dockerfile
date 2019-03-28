@@ -1,14 +1,19 @@
-# increased the version because we were hitting a bug in the latest version of mariadb that was
-# available in ubuntu 17:10
-# strangely enough, ubuntu 18:10 has a version lower than the 17:10 (not sure why)
-# old version: 10.1.30-MariaDB-0ubuntu0.17.10.1
-# new version: 10.1.29-MariaDB-6ubuntu2
-FROM ubuntu:18.04
-MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
+FROM registry.access.redhat.com/rhel7
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-RUN apt-get update -q -y && apt-get upgrade -q -y && \
-apt-get install -q -y --no-install-recommends ca-certificates rsyslog libaio1 mariadb-server mariadb-client && \
-rm -rf /var/run/mysqld && rm -rf /var/lib/mysql
+RUN groupadd -g 101 mysql && useradd -r -g 101 -s /bin/bash -u 101 mysql
+
+ENV VERSION=10.1.38
+
+RUN echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
+    echo "name = MariaDB-${VERSION}" >> /etc/yum.repos.d/MariaDB.repo && \
+    echo "baseurl = http://yum.mariadb.org/${VERSION}/centos7-amd64" >> /etc/yum.repos.d/MariaDB.repo && \
+    echo "gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB" >> /etc/yum.repos.d/MariaDB.repo && \
+    echo "gpgcheck=1" >> /etc/yum.repos.d/MariaDB.repo && \
+    yum install -y rsyslog MariaDB-server MariaDB-client net-tools && \
+    rm -rf /var/run/mysqld && rm -rf /var/lib/mysql && \
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 # Copy the files where needed.
 # The files are copied as root.
@@ -22,14 +27,14 @@ ADD rsyslog.conf /etc
 
 # Done with everything. Time to chown and chmod before turning off root.
 RUN mkdir -p /var/lib/mysql &&\
-chown -R mysql:mysql /var/lib/mysql && \
-mkdir -p /var/lib/mysql/tmp && \
-chown -R mysql:mysql /var/lib/mysql/tmp && \
-mkdir -p /var/run/mysqld && \
-chown -R mysql:mysql /var/run/mysqld && \
-mkdir -p /var/log/mysql && \
-chown -R mysql:mysql /var/log/mysql && \
-chmod 755 /entrypoint.sh && passwd -l root
+    chown -R mysql:mysql /var/lib/mysql && \
+    mkdir -p /var/lib/mysql/tmp && \
+    chown -R mysql:mysql /var/lib/mysql/tmp && \
+    mkdir -p /var/run/mysqld && \
+    chown -R mysql:mysql /var/run/mysqld && \
+    mkdir -p /var/log/mysql && \
+    chown -R mysql:mysql /var/log/mysql && \
+    chmod 755 /entrypoint.sh && passwd -l root
 
 USER mysql
 

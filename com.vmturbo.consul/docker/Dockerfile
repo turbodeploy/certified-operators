@@ -1,23 +1,23 @@
-FROM ubuntu:18.04
-MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
+FROM registry.access.redhat.com/rhel7
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # This is the release of Consul to pull in.
 ENV CONSUL_VERSION=0.8.3
 # This is the release of the HashiCorp-built version of dumb-init.
 ENV DOCKER_DUMBINIT=1.2.0
 
-RUN apt-get update -q -y && apt-get upgrade -q -y && \
-    apt-get install -q -y openssl unzip iproute2 wget bash rsyslog && \
+RUN yum install -y openssl iproute unzip rsyslog && \
     cd /tmp && \
-    wget -q -O consul.zip https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_linux_amd64.zip && \
-    unzip -d /bin consul.zip && \
-    rm consul.zip && \
+    curl -k -s -O https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_linux_amd64.zip && \
+    unzip -d /bin consul_${CONSUL_VERSION}_linux_amd64.zip && \
+    rm consul_${CONSUL_VERSION}_linux_amd64.zip && \
     set -x \
     cd /tmp && \
-    wget -q -O /bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v${DOCKER_DUMBINIT}/dumb-init_${DOCKER_DUMBINIT}_amd64 && \
+    curl -k -s -O https://github.com/Yelp/dumb-init/releases/download/v${DOCKER_DUMBINIT}/dumb-init_${DOCKER_DUMBINIT}_amd64 && \
+    mv /tmp/dumb-init_${DOCKER_DUMBINIT}_amd64 /bin/dumb-init && \
     chmod +x /bin/dumb-init && \
-    apt-get purge -y --auto-remove wget unzip && \
-    rm -rf /var/lib/apt/lists/* && apt-get clean
+    yum clean all && \
+    rm -rf /var/cache/yum
 
 # Create a consul user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
@@ -25,8 +25,8 @@ RUN apt-get update -q -y && apt-get upgrade -q -y && \
 # with /consul/config/local as the configuration directory so you can add additional
 # config files in that location. There are client and server-specific locations so
 # we can supply some default configs via this base image as well.
-RUN addgroup consul && \
-    adduser --system --disabled-password -home /home/consul --ingroup consul --disabled-login --shell /bin/bash consul && \
+RUN groupadd -g 1000 consul && useradd -m -r -d /home/consul -g 1000 -s /bin/bash -u 102 consul && \
+passwd -l root && \
     mkdir -p /consul/data && \
     mkdir -p /consul/config/local && \
     mkdir -p /consul/config/client && \
