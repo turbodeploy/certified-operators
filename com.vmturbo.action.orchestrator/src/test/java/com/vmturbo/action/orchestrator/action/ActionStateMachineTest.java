@@ -1,19 +1,20 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static junit.framework.TestCase.assertEquals;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
@@ -22,6 +23,9 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
@@ -34,6 +38,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Integration tests for the {@link ActionStateMachine} interaction with {@link Action}s.
@@ -72,7 +80,7 @@ public class ActionStateMachineTest {
         assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
 
         Assert.assertEquals(ActionState.QUEUED, action.getState());
-        verifyQueuedExecutionStep(action.getExecutableStep().get());
+        verifyQueuedExecutionStep(action.getCurrentExecutableStep().get());
     }
 
     @Test
@@ -83,7 +91,7 @@ public class ActionStateMachineTest {
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
 
         assertEquals(ActionState.QUEUED, action.getState());
-        verifyQueuedExecutionStep(action.getExecutableStep().get());
+        verifyQueuedExecutionStep(action.getCurrentExecutableStep().get());
     }
 
     @Test
@@ -92,6 +100,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
+        assertEquals(ActionState.PRE_IN_PROGRESS, action.receive(new PrepareExecutionEvent()).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
         assertEquals(
                 ExecutionDecision.Reason.AUTOMATICALLY_ACCEPTED,
@@ -110,6 +119,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
         assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
+        assertEquals(ActionState.PRE_IN_PROGRESS, action.receive(new PrepareExecutionEvent()).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
         assertEquals(
                 ExecutionDecision.Reason.MANUALLY_ACCEPTED,
@@ -172,17 +182,18 @@ public class ActionStateMachineTest {
         Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
 
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
-        Assert.assertEquals(Status.QUEUED, action.getExecutableStep().get().getStatus());
+        Assert.assertEquals(Status.QUEUED, action.getCurrentExecutableStep().get().getStatus());
 
+        action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
-        Assert.assertTrue(action.getExecutableStep().isPresent());
-        Assert.assertEquals(Status.IN_PROGRESS, action.getExecutableStep().get().getStatus());
-        Assert.assertEquals(0, (int)action.getExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
-        Assert.assertNotNull(action.getExecutableStep().get().getStartTime());
+        Assert.assertTrue(action.getCurrentExecutableStep().isPresent());
+        Assert.assertEquals(Status.IN_PROGRESS, action.getCurrentExecutableStep().get().getStatus());
+        Assert.assertEquals(0, (int)action.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
+        Assert.assertNotNull(action.getCurrentExecutableStep().get().getStartTime());
 
         Assert.assertEquals(
             ExecutableStep.INITIAL_EXECUTION_DESCRIPTION,
-            action.getExecutableStep().flatMap(ExecutableStep::getProgressDescription).get()
+            action.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressDescription).get()
         );
     }
 
@@ -192,20 +203,21 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
         Assert.assertEquals(ActionState.IN_PROGRESS, action.receive(new ProgressEvent(10, "Setting clip-jawed monodish to 6")).getAfterState());
-        Assert.assertEquals(10, (int)action.getExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
+        Assert.assertEquals(10, (int)action.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
         Assert.assertEquals(
             "Setting clip-jawed monodish to 6",
-            action.getExecutableStep().flatMap(ExecutableStep::getProgressDescription).get()
+            action.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressDescription).get()
         );
 
         Assert.assertEquals(ActionState.IN_PROGRESS, action.receive(new ProgressEvent(93, "Decompressing amplitude device")).getAfterState());
-        Assert.assertEquals(93, (int)action.getExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
+        Assert.assertEquals(93, (int)action.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
         Assert.assertEquals(
             "Decompressing amplitude device",
-            action.getExecutableStep().flatMap(ExecutableStep::getProgressDescription).get()
+            action.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressDescription).get()
         );
     }
 
@@ -215,13 +227,17 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
-        ExecutableStep executableStep = action.getExecutableStep().get();
+        ExecutableStep executableStep = action.getCurrentExecutableStep().get();
         Assert.assertEquals(Status.IN_PROGRESS, executableStep.getStatus());
 
-        Assert.assertEquals(ActionState.SUCCEEDED, action.receive(new SuccessEvent()).getAfterState());
-        Assert.assertEquals(Status.SUCCESS, action.getExecutableStep().get().getStatus());
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+            action.receive(new SuccessEvent()).getAfterState());
+        Assert.assertEquals(ActionState.SUCCEEDED,
+            action.receive(new AfterSuccessEvent()).getAfterState());
+        Assert.assertEquals(Status.SUCCESS, action.getCurrentExecutableStep().get().getStatus());
         Assert.assertEquals(Status.SUCCESS, executableStep.getStatus());
         Assert.assertEquals(0, executableStep.getErrors().size());
         Assert.assertNotNull(executableStep.getCompletionTime());
@@ -233,17 +249,105 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
-        ExecutableStep executableStep = action.getExecutableStep().get();
+        ExecutableStep executableStep = action.getCurrentExecutableStep().get();
         Assert.assertEquals(Status.IN_PROGRESS, executableStep.getStatus());
         Assert.assertEquals(0, executableStep.getErrors().size());
         Assert.assertFalse(executableStep.getCompletionTime().isPresent());
 
-        Assert.assertEquals(ActionState.FAILED, action.receive(new FailureEvent("Insufficient haptic fozzlers")).getAfterState());
-        Assert.assertEquals("Insufficient haptic fozzlers", executableStep.getErrors().get(0));
+        final String errorDescription = "Insufficient haptic fozzlers";
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+            action.receive(new FailureEvent(errorDescription)).getAfterState());
+        Assert.assertEquals(ActionState.FAILED,
+            action.receive(new AfterFailureEvent(errorDescription)).getAfterState());
+        Assert.assertEquals(errorDescription, executableStep.getErrors().get(0));
         Assert.assertEquals(Status.FAILED, executableStep.getStatus());
         Assert.assertTrue(executableStep.getCompletionTime().isPresent());
+    }
+
+    @Test
+    public void testPostAfterActionSuccess() {
+        // Define a workflow to be executed in the POST phase
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+            .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
+        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new PrepareExecutionEvent());
+        action.receive(new BeginExecutionEvent());
+
+        ExecutableStep executableStep = action.getCurrentExecutableStep().get();
+        Assert.assertEquals(Status.IN_PROGRESS, executableStep.getStatus());
+
+        // Action will progress to POST_IN_PROGRESS after successful completion of the main action execution
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS, action.receive(new SuccessEvent()).getAfterState());
+        // Action will not progress to SUCCEEDED when there is a POST workflow still to execute
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+            action.receive(new AfterSuccessEvent()).getAfterState());
+        // Action will finally enter the SUCCEEDED state, when the POST workflow completes successfully
+        Assert.assertEquals(ActionState.SUCCEEDED,
+            action.receive(new SuccessEvent()).getAfterState());
+        Assert.assertEquals(Status.SUCCESS, action.getCurrentExecutableStep().get().getStatus());
+        Assert.assertEquals(Status.SUCCESS, executableStep.getStatus());
+        Assert.assertEquals(0, executableStep.getErrors().size());
+        Assert.assertNotNull(executableStep.getCompletionTime());
+    }
+
+    @Test
+    public void testPostAfterActionFailure() {
+        // Define a workflow to be executed in the POST phase
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+            .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
+        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new PrepareExecutionEvent());
+        action.receive(new BeginExecutionEvent());
+
+        ExecutableStep executableStep = action.getCurrentExecutableStep().get();
+        Assert.assertEquals(Status.IN_PROGRESS, executableStep.getStatus());
+        Assert.assertEquals(0, executableStep.getErrors().size());
+        Assert.assertFalse(executableStep.getCompletionTime().isPresent());
+
+
+        final String errorDescription = "Insufficient haptic fozzlers";
+        // Action will enter POST phase to execute the POST workflow, even after action failure
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+            action.receive(new FailureEvent(errorDescription)).getAfterState());
+        // Action will not progress to FAILED when there is a POST workflow still to execute
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+            action.receive(new AfterFailureEvent(errorDescription)).getAfterState());
+        // Action will not transition to SUCCEEDED, since the main execution failed
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+            action.receive(new SuccessEvent()).getAfterState());
+        // Action will finally enter the FAILED state, when the POST workflow completes successfully
+        final String postFailureDescription = "Failing action due to previous failure.";
+        Assert.assertEquals(ActionState.FAILED,
+            action.receive(new FailureEvent(postFailureDescription)).getAfterState());
+        // Get the results of the main action execution phase
+        executableStep = action.getExecutableSteps().get(ActionState.IN_PROGRESS);
+        Assert.assertEquals(errorDescription, executableStep.getErrors().get(0));
+        Assert.assertEquals(Status.FAILED, executableStep.getStatus());
+        Assert.assertTrue(executableStep.getCompletionTime().isPresent());
+        // Get the results of the POST action execution phase
+        ExecutableStep postExecutableStep = action.getExecutableSteps().get(ActionState.POST_IN_PROGRESS);
+        Assert.assertEquals(postFailureDescription, postExecutableStep.getErrors().get(0));
+        Assert.assertEquals(Status.FAILED, postExecutableStep.getStatus());
+        Assert.assertTrue(postExecutableStep.getCompletionTime().isPresent());
+
+    }
+
+    private static Map<String, Setting> makePostMoveWorkflowSetting(ActionMode mode, String workflowName) {
+        final String settingName = EntitySettingSpecs.PostMoveActionWorkflow.getSettingName();
+        return ImmutableMap.of(settingName, Setting.newBuilder()
+            .setSettingSpecName(settingName)
+            .setStringSettingValue(StringSettingValue.newBuilder()
+                .setValue(workflowName)).build(),
+            "move", Setting.newBuilder()
+                .setSettingSpecName("move")
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                    .setValue(mode.toString()).build())
+            .build());
     }
 
     private void verifyQueuedExecutionStep(@Nonnull final ExecutableStep executableStep) {

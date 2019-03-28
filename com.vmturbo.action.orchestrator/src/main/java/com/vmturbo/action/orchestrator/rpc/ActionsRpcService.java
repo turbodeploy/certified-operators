@@ -30,6 +30,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -644,6 +645,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
                                                         final long targetId) {
         try {
+            // A prepare event prepares the action for execution, and initiates a PRE
+            // workflow if one is associated with this action.
+            action.receive(new PrepareExecutionEvent());
+            // Allows the action to begin execution, if a PRE workflow is not running
             action.receive(new BeginExecutionEvent());
             actionTranslator.translate(action);
             final Optional<ActionDTO.Action> translatedRecommendation =

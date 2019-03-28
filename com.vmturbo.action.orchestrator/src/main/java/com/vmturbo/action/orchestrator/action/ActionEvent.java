@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.state.machine.StateMachineEvent;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
@@ -100,7 +101,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when a user manually accepts an action.
+     * An event generated when a user manually accepts an action.
      * For a manually accepted action, the authorizer ID will be the ID of the user who accepted the action.
      */
     public static class ManualAcceptanceEvent extends AcceptanceEvent {
@@ -115,7 +116,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when a user automatically accepts an action.
+     * An event generated when a user automatically accepts an action.
      */
     public static class AutomaticAcceptanceEvent extends AcceptanceEvent {
         public AutomaticAcceptanceEvent(String policyCreatingUserUuid, long targetId) {
@@ -128,7 +129,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when the action begins to be executed.
+     * An event generated when the action begins to be executed.
      */
     public static class BeginExecutionEvent extends ActionEvent {
         public BeginExecutionEvent() {
@@ -137,7 +138,17 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when the Action Orchestrator receives a progress
+     * An event generated when the action begins to be prepared for execution.
+     * This may involve executing a workflow, if a policy defines a PRE workflow for the action
+     */
+    public static class PrepareExecutionEvent extends ActionEvent {
+        public PrepareExecutionEvent() {
+            super();
+        }
+    }
+
+    /**
+     * An event generated when the Action Orchestrator receives a progress
      * report about an action currently being executed.
      */
     public static class ProgressEvent extends ActionEvent {
@@ -168,7 +179,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when action execution succeeds.
+     * An event generated when action execution succeeds.
      */
     public static class SuccessEvent extends ActionEvent {
         public SuccessEvent() {
@@ -177,7 +188,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when action execution fails.
+     * An event generated when action execution fails.
      *
      * Includes a description of the error that caused the failure.
      */
@@ -193,6 +204,38 @@ public abstract class ActionEvent implements StateMachineEvent {
         public String getErrorDescription() {
             return errorDescription;
         }
+    }
+
+    /**
+     * An event generated when the action execution has completed successfully.
+     * This event is intended to follow the SuccessEvent and allow for cleanup.
+     * This may involve executing a workflow, if a policy defines a POST workflow for the action.
+     */
+    public static class AfterSuccessEvent extends SuccessEvent {
+
+        /**
+         * Create an event that signals the action to run a POST workflow, if one is configured
+         */
+        public AfterSuccessEvent() {
+            super();
+        }
+
+    }
+
+    /**
+     * An event generated when the action execution has failed.
+     * This event is intended to follow the FailureEvent and allow for cleanup.
+     * This may involve executing a workflow, if a policy defines a POST workflow for the action.
+     */
+    public static class AfterFailureEvent extends FailureEvent {
+
+        /**
+         * Create an event that signals the action to run a POST workflow, if one is configured
+         */
+        public AfterFailureEvent(String errorDescription) {
+            super(errorDescription);
+        }
+
     }
 
     /**
@@ -224,7 +267,7 @@ public abstract class ActionEvent implements StateMachineEvent {
 
 
     /**
-     * An action generated when the action executor receives an action
+     * An event generated when the action executor receives an action
      * plan in which an action in a READY state is no longer recommended
      * after being previously recommended.
      * <p/>
@@ -251,7 +294,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An action generated when the action executor receives an action
+     * An event generated when the action executor receives an action
      * plan in which an action in a READY state is no longer recommended.
      * <p/>
      * The authorizer id will be the ID of the probe that was expected to

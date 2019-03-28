@@ -66,7 +66,7 @@ public class ActionScriptActionExecutor implements AutoCloseable {
 
         if (actionExecutionDTO.hasWorkflow()) {
             final Workflow actionScriptWorkflow = actionExecutionDTO.getWorkflow();
-            logger.info("Executing ActionScript ", actionScriptWorkflow.getDisplayName());
+            logger.info("Executing ActionScript {}", actionScriptWorkflow.getDisplayName());
             executeWorkflow(actionExecutionDTO, actionScriptProbeAccount);
 
             // TODO: implement the script execution with an async status update and 'wait for completion'

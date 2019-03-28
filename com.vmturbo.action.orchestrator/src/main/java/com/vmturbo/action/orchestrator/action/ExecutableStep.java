@@ -28,7 +28,7 @@ public class ExecutableStep {
 
     /**
      * Create a new Execution step. Initializes start time to {@link LocalDateTime#now()},
-     * errors to empty, and status to IN_PROGRESS.
+     * errors to empty, and status to QUEUED.
      *
      * @param targetId The ID of the target where this step of the action will be executed.
      */

@@ -431,7 +431,7 @@ enum ActionState {
     CLEARED = 1;
 
     // Actions in the QUEUED state have been accepted (ie by a user or policy), but cannot be
-    //executed because, for instance, the target associated with the action is busy processing
+    // executed because, for instance, the target associated with the action is busy processing
     // many other actions and would be overwhelmed by sending additional requests.
     QUEUED = 2;
 
@@ -443,6 +443,15 @@ enum ActionState {
 
     // A completed action that has completed but had errors.
     FAILED = 5;
+
+    // Actions in the PREP state are preparing to run. Depending on automation policies, this
+    // may involve invoking a workflow, or it may do nothing.
+    PRE_IN_PROGRESS = 6;
+
+    // Actions in the POST state are cleaning up after execution. Depending on automation policies,
+    // this may involve invoking a workflow, or it may do nothing.
+    // Note: The POST state is entered regardless of whether the action succeeded or failed
+    POST_IN_PROGRESS = 7;
 }
 
 enum ActionPhase {

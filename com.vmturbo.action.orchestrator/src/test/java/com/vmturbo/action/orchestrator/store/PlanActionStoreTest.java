@@ -176,7 +176,7 @@ public class PlanActionStoreTest {
         assertTrue(actionView.getRecommendation().getExecutable());
         assertEquals(ActionMode.MANUAL, actionView.getMode());
         assertFalse(actionView.getDecision().isPresent());
-        assertFalse(actionView.getExecutableStep().isPresent());
+        assertFalse(actionView.getCurrentExecutableStep().isPresent());
     }
 
     @Test

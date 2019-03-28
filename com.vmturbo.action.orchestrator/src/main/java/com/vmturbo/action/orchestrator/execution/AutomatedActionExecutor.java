@@ -26,6 +26,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
@@ -168,7 +169,10 @@ public class AutomatedActionExecutor {
                 // in the ActionStorehouse after calling this method.
                 try {
                     Future<Action> actionFuture = executionService.submit(() -> {
-
+                        // A prepare event prepares the action for execution, and initiates a PRE
+                        // workflow if one is associated with this action.
+                        action.receive(new PrepareExecutionEvent());
+                        // Allows the action to begin execution, if a PRE workflow is not running
                         action.receive(new BeginExecutionEvent());
                         actionTranslator.translate(action);
                         Optional<ActionDTO.Action> translated =

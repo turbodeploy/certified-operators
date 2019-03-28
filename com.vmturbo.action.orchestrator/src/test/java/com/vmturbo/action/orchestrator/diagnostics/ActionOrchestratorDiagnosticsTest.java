@@ -38,10 +38,10 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -115,6 +115,7 @@ public class ActionOrchestratorDiagnosticsTest {
     public void testReadyAction() throws Exception {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1));
+            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
         });
     }
@@ -133,6 +134,7 @@ public class ActionOrchestratorDiagnosticsTest {
     public void testSuccessfulAction() throws Exception {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1L));
+            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
             action.receive(new SuccessEvent());
         });
@@ -142,6 +144,7 @@ public class ActionOrchestratorDiagnosticsTest {
     public void testFailedAction() throws Exception {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1L));
+            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
             action.receive(new FailureEvent("It was a trap!"));
         });
@@ -151,6 +154,7 @@ public class ActionOrchestratorDiagnosticsTest {
     public void testInProgressAction() throws Exception {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1L));
+            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
             action.receive(new ProgressEvent(10, "Star date 20184..."));
         });

@@ -12,23 +12,24 @@ import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
+import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -48,6 +49,8 @@ public class ActionStateUpdaterTest {
     private final ActionStore actionStore = mock(ActionStore.class);
     private final ActionOrchestratorNotificationSender notificationSender = mock(ActionOrchestratorNotificationSender.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+    private final ActionExecutor actionExecutorMock = mock(ActionExecutor.class);
+    private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
     private final long realtimeTopologyContextId = 0;
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
             actionStream.map(action -> {
@@ -56,7 +59,7 @@ public class ActionStateUpdaterTest {
             })));
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private final ActionStateUpdater actionStateUpdater =
-        new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,  realtimeTopologyContextId);
+        new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId);
 
     private final long actionId = 123456;
     private final long notFoundId = 99999;
@@ -81,6 +84,7 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         testAction.receive(new ManualAcceptanceEvent("99", 102));
+        testAction.receive(new PrepareExecutionEvent());
         testAction.receive(new BeginExecutionEvent());
     }
 
@@ -94,9 +98,9 @@ public class ActionStateUpdaterTest {
 
         actionStateUpdater.onActionProgress(progress);
         assertEquals(ActionState.IN_PROGRESS, testAction.getState());
-        assertEquals(33, (int)testAction.getExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
+        assertEquals(33, (int)testAction.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
         assertEquals("Moving vm from foo to bar",
-            testAction.getExecutableStep().flatMap(ExecutableStep::getProgressDescription).get());
+            testAction.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressDescription).get());
         verify(notificationSender).notifyActionProgress(progress);
     }
 
@@ -121,7 +125,7 @@ public class ActionStateUpdaterTest {
 
         actionStateUpdater.onActionSuccess(success);
         assertEquals(ActionState.SUCCEEDED, testAction.getState());
-        assertEquals(Status.SUCCESS, testAction.getExecutableStep().get().getStatus());
+        assertEquals(Status.SUCCESS, testAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionSuccess(success);
         SerializationState serializedAction = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
@@ -154,7 +158,7 @@ public class ActionStateUpdaterTest {
 
         actionStateUpdater.onActionFailure(failure);
         assertEquals(ActionState.FAILED, testAction.getState());
-        assertEquals(Status.FAILED, testAction.getExecutableStep().get().getStatus());
+        assertEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(failure);
         SerializationState serializedAction = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),

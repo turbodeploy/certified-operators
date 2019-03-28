@@ -95,7 +95,7 @@ public interface ActionView {
      *
      * @return An optional of the executable step. Empty if the action has not been accepted.
      */
-    Optional<ExecutableStep> getExecutableStep();
+    Optional<ExecutableStep> getCurrentExecutableStep();
 
     /**
      * Get the translation of the action from the market's domain-agnostic representation into
@@ -137,6 +137,22 @@ public interface ActionView {
         return getRecommendation().getExecutable() &&
             getState().equals(ActionState.READY);
     }
+
+    /**
+     * Determine whether the action has at least one remaining step to execute
+     * This could include PRE and POST workflow executions, in addition to the main execution
+     * of the action. Steps that are currently in-progress count as a pending execution.
+     *
+     * @return  true, if the action has at least one remaining step to execute
+     */
+    boolean hasPendingExecution();
+
+    /**
+     * Whether this action has at least one execution step in a failed state
+     *
+     * @return true, if this action has at least one execution step in a failed state
+     */
+    boolean hasFailures();
 
     /**
      * Fetch an Optional of the {@link WorkflowDTO.Workflow} corresponding to this Action, if any.

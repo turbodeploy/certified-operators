@@ -13,6 +13,9 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
@@ -35,9 +38,11 @@ public class ActionStateMachine {
      *   |-> CLEARED
      *   |      ^
      *   |      |
-     *   |-> QUEUED |---------> IN_PROGRESS
-     *                              |-------> SUCCEEDED
-     *                              |-------> FAILED
+     *   |-> QUEUED |---> PRE_IN_PROGRESS ---> IN_PROGRESS ----> POST_IN_PROGRESS
+     *                      |                                     |
+     *                      |                                     |-------> SUCCEEDED
+     *                      |                                     |
+     *                      |------------------------------------>|-------> FAILED
      *
      * Transitions from READY -> QUEUED are guarded by checks that verify the action
      * is in an appropriate mode that allows such a transition.
@@ -54,51 +59,99 @@ public class ActionStateMachine {
         final long actionId = action.getId();
 
         return StateMachine.<ActionState, ActionEvent>newBuilder(currentState)
-                // The legal state transitions
-                .addTransition(from(ActionState.READY).to(ActionState.CLEARED)
-                        .onEvent(NotRecommendedEvent.class)
-                        .after(action::onActionCleared))
-                .addTransition(from(ActionState.READY).to(ActionState.CLEARED)
-                        .onEvent(CannotExecuteEvent.class)
-                        .after(action::onActionCleared))
+            // The legal state transitions
+            .addTransition(from(ActionState.READY).to(ActionState.CLEARED)
+                .onEvent(NotRecommendedEvent.class)
+                .after(action::onActionCleared))
+            .addTransition(from(ActionState.READY).to(ActionState.CLEARED)
+                .onEvent(CannotExecuteEvent.class)
+                .after(action::onActionCleared))
 
-                .addTransition(from(ActionState.READY).to(ActionState.QUEUED)
-                        .onEvent(ManualAcceptanceEvent.class)
-                        .guardedBy(action::acceptanceGuard)
-                        .after(action::onActionAccepted))
-                .addTransition(from(ActionState.READY).to(ActionState.QUEUED)
-                        .onEvent(AutomaticAcceptanceEvent.class)
-                        .guardedBy(action::acceptanceGuard)
-                        .after(action::onActionAccepted))
+            .addTransition(from(ActionState.READY).to(ActionState.QUEUED)
+                .onEvent(ManualAcceptanceEvent.class)
+                .guardedBy(action::acceptanceGuard)
+                .after(action::onActionAccepted))
+            .addTransition(from(ActionState.READY).to(ActionState.QUEUED)
+                .onEvent(AutomaticAcceptanceEvent.class)
+                .guardedBy(action::acceptanceGuard)
+                .after(action::onActionAccepted))
 
-                .addTransition(from(ActionState.QUEUED).to(ActionState.IN_PROGRESS)
-                        .onEvent(BeginExecutionEvent.class)
-                        .after(action::onActionExecuted))
-                .addTransition(from(ActionState.QUEUED).to(ActionState.FAILED)
-                        .onEvent(FailureEvent.class)
-                        .after(action::onActionFailure))
-                .addTransition(from(ActionState.QUEUED).to(ActionState.CLEARED)
-                        .onEvent(NotRecommendedEvent.class)
-                        .after(action::onActionCleared))
+            .addTransition(from(ActionState.QUEUED).to(ActionState.PRE_IN_PROGRESS)
+                .onEvent(PrepareExecutionEvent.class)
+                .after(action::onActionPrepare))
+            .addTransition(from(ActionState.QUEUED).to(ActionState.FAILED)
+                .onEvent(FailureEvent.class)
+                .after(action::onActionFailure))
+            .addTransition(from(ActionState.QUEUED).to(ActionState.CLEARED)
+                .onEvent(NotRecommendedEvent.class)
+                .after(action::onActionCleared))
 
-                .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.IN_PROGRESS)
-                        .onEvent(ProgressEvent.class)
-                        .after(action::onActionProgress))
+            // Handle progress events while in PRE
+            .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.PRE_IN_PROGRESS)
+                .onEvent(ProgressEvent.class)
+                .after(action::onActionProgress))
 
-                .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.SUCCEEDED)
-                        .onEvent(SuccessEvent.class)
-                        .after(action::onActionSuccess))
+            // Transition from PRE_IN_PROGRESS to IN_PROGRESS when no PRE workflow is required
+            // If a pre workflow is in progress, this will not transition.
+            .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.IN_PROGRESS)
+                .onEvent(BeginExecutionEvent.class)
+                // Guard against attempts to begin action execution while a PRE workflow
+                // is still running.
+                .guardedBy(action::executionGuard)
+                .after(action::onActionStart))
+            // Transition from PRE_IN_PROGRESS to IN_PROGRESS when a PRE workflow completes successfully
+            .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.IN_PROGRESS)
+                .onEvent(SuccessEvent.class)
+                .after(action::onPreExecuted))
+            .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.FAILED)
+                .onEvent(FailureEvent.class)
+                .after(action::onActionFailure))
 
-                .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.FAILED)
-                        .onEvent(FailureEvent.class)
-                        .after(action::onActionFailure))
+            .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.IN_PROGRESS)
+                .onEvent(ProgressEvent.class)
+                .after(action::onActionProgress))
 
-                // Called on all events
-                .addEventListener((preState, postState, event, performedTransition) -> {
-                    onActionEvent(actionId, preState, postState, event, performedTransition);
-                })
+            .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.POST_IN_PROGRESS)
+                .onEvent(SuccessEvent.class)
+                .after(action::onActionPostSuccess))
 
-                .build();
+            .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.POST_IN_PROGRESS)
+                .onEvent(FailureEvent.class)
+                .after(action::onActionPostFailure))
+
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.POST_IN_PROGRESS)
+                .onEvent(ProgressEvent.class)
+                .after(action::onActionProgress))
+
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.SUCCEEDED)
+                .onEvent(AfterSuccessEvent.class)
+                // Guard against attempts to complete action execution while a POST workflow
+                // still needs to be run.
+                .guardedBy(action::completionGuard)
+                .after(action::onActionSuccess))
+
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)
+                .onEvent(AfterFailureEvent.class)
+                // Guard against attempts to complete action execution while a POST workflow
+                // still needs to be run.
+                .guardedBy(action::completionGuard)
+                .after(action::onActionFailure))
+
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.SUCCEEDED)
+                .onEvent(SuccessEvent.class)
+                .guardedBy(action::successGuard)
+                .after(action::onActionSuccess))
+
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)
+                .onEvent(FailureEvent.class)
+                .after(action::onActionFailure))
+
+            // Called on all events
+            .addEventListener((preState, postState, event, performedTransition) -> {
+                onActionEvent(actionId, preState, postState, event, performedTransition);
+            })
+
+            .build();
     }
 
     /**

@@ -7,7 +7,9 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
@@ -15,7 +17,11 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
  * Configuration for integration with the {@link TopologyProcessorClient}.
  */
 @Configuration
-@Import({ActionStoreConfig.class, ActionOrchestratorGlobalConfig.class, ActionOrchestratorApiConfig.class})
+@Import({ActionStoreConfig.class,
+    ActionOrchestratorGlobalConfig.class,
+    ActionOrchestratorApiConfig.class,
+    ActionExecutionConfig.class,
+    WorkflowConfig.class})
 public class NotificationsConfig {
 
     @Autowired
@@ -26,12 +32,20 @@ public class NotificationsConfig {
 
     @Autowired ActionOrchestratorApiConfig apiConfig;
 
+    @Autowired
+    private ActionExecutionConfig actionExecutionConfig;
+
+    @Autowired
+    private WorkflowConfig workflowConfig;
+
     @Bean
     public ActionExecutionListener actionExecutionListener() {
         final ActionExecutionListener executionListener = new ActionStateUpdater(
             actionStoreConfig.actionStorehouse(),
             apiConfig.actionOrchestratorNotificationSender(),
             actionStoreConfig.actionHistory(),
+            actionExecutionConfig.actionExecutor(),
+            workflowConfig.workflowStore(),
             globalConfig.realtimeTopologyContextId()
         );
 

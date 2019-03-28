@@ -251,7 +251,7 @@ public class ActionTranslator {
 
         actionView.getDecision()
             .ifPresent(specBuilder::setDecision);
-        actionView.getExecutableStep()
+        actionView.getCurrentExecutableStep()
             .ifPresent(step -> specBuilder.setExecutionStep(step.getExecutionStep()));
 
         return specBuilder.build();

@@ -69,7 +69,17 @@
         "moveActionWorkflow",
         "provisionActionWorkflow",
         "resizeActionWorkflow",
-        "suspendActionWorkflow"
+        "suspendActionWorkflow",
+        "preActivateActionWorkflow",
+        "preMoveActionWorkflow",
+        "preProvisionActionWorkflow",
+        "preResizeActionWorkflow",
+        "preSuspendActionWorkflow",
+        "postActivateActionWorkflow",
+        "postMoveActionWorkflow",
+        "postProvisionActionWorkflow",
+        "postResizeActionWorkflow",
+        "postSuspendActionWorkflow"
       ]
     },
     "marketsettingsmanager": {

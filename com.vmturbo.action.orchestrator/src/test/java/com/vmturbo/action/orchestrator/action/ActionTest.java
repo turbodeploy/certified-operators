@@ -5,7 +5,6 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -24,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -132,8 +132,8 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
             .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
-        Assert.assertTrue(moveAction.getExecutableStep().isPresent());
-        Assert.assertEquals(targetId, moveAction.getExecutableStep().get().getTargetId());
+        Assert.assertTrue(moveAction.getCurrentExecutableStep().isPresent());
+        Assert.assertEquals(targetId, moveAction.getCurrentExecutableStep().get().getTargetId());
     }
 
     @Test
@@ -143,6 +143,7 @@ public class ActionTest {
                 .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
+        moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
     }
 

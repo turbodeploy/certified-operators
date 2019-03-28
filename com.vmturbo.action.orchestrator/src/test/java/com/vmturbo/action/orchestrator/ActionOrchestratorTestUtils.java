@@ -112,11 +112,11 @@ public class ActionOrchestratorTestUtils {
         Assert.assertEquals(expected.getRecommendationTime(), got.getRecommendationTime());
         Assert.assertEquals(expected.getState(), got.getState());
         Assert.assertEquals(expected.getActionPlanId(), got.getActionPlanId());
-        if (expected.getExecutableStep().isPresent()) {
-            Assert.assertTrue(got.getExecutableStep().isPresent());
-            assertExecutionStepsEqual(expected.getExecutableStep().get(), got.getExecutableStep().get());
+        if (expected.getCurrentExecutableStep().isPresent()) {
+            Assert.assertTrue(got.getCurrentExecutableStep().isPresent());
+            assertExecutionStepsEqual(expected.getCurrentExecutableStep().get(), got.getCurrentExecutableStep().get());
         } else {
-            Assert.assertFalse(got.getExecutableStep().isPresent());
+            Assert.assertFalse(got.getCurrentExecutableStep().isPresent());
         }
 
         Assert.assertEquals(expected.getDecision(), got.getDecision());

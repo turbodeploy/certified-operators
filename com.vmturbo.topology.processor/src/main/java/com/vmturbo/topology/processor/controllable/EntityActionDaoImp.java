@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -66,13 +67,27 @@ public class EntityActionDaoImp implements EntityActionDao {
             final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
             final DSLContext transactionDsl = DSL.using(configuration);
             for (final long entityId : entityIds) {
-                transactionDsl.insertInto(ENTITY_ACTION)
+                // Initial state is "queued"
+                final EntityActionStatus initialEntityStatus = EntityActionStatus.queued;
+                // If there is already a row for this action/entity combination, update instead of
+                // insert. This is possible when using PREP/POST workflows, for example.
+                Optional<EntityActionRecord> existingRecord =
+                    getRecord(transactionDsl, actionId, entityId);
+                if (existingRecord.isPresent()) {
+                    EntityActionRecord actionRecord = existingRecord.get();
+                    actionRecord.setStatus(initialEntityStatus);
+                    actionRecord.setUpdateTime(now);
+                    transactionDsl.batchUpdate(actionRecord).execute();
+                } else {
+                    // Insert a new row for this aciton/entity combination.
+                    transactionDsl.insertInto(ENTITY_ACTION)
                         .set(ENTITY_ACTION.ACTION_ID, actionId)
                         .set(ENTITY_ACTION.ENTITY_ID, entityId)
                         .set(ENTITY_ACTION.ACTION_TYPE, getActionType(actionType))
-                        .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
+                        .set(ENTITY_ACTION.STATUS, initialEntityStatus)
                         .set(ENTITY_ACTION.UPDATE_TIME, now)
                         .execute();
+                }
             }
         });
         logger.info("Queued action {} into controllable table", actionId);
@@ -288,6 +303,30 @@ public class EntityActionDaoImp implements EntityActionDao {
             throw new ControllableRecordNotFoundException(actionId);
         }
         return records;
+    }
+
+    /**
+     * Get the record representing the intersection of the provided action and entity IDs.
+     *
+     * @param transactionDsl the transaction context in which to execute this query
+     * @param actionId the id of the action whose record to retrieve
+     * @param entityId the id of the entity whose record to retrieve
+     * @return an EntityActionRecord if the row exists, or Optional.empty if not
+     */
+    private Optional<EntityActionRecord> getRecord(final @Nonnull DSLContext transactionDsl,
+                                                   final long actionId,
+                                                   final long entityId) {
+        List<EntityActionRecord> records = transactionDsl.selectFrom(ENTITY_ACTION)
+            .where(ENTITY_ACTION.ACTION_ID.eq(actionId)
+                .and(ENTITY_ACTION.ENTITY_ID.eq(entityId)))
+            .fetch();
+        if (records.size() > 1) {
+            // This shouldn't happen, but if it does the functionality should still work
+            logger.warn("Duplicate entity_action records detected for action {} and entity {}!",
+                actionId, entityId);
+        }
+        return records.stream().findFirst();
+
     }
 
     private EntityActionStatus getActionState(@Nonnull final ActionState actionState)

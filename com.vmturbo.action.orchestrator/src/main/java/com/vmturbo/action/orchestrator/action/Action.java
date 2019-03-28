@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
@@ -13,12 +14,17 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.StringUtils;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AuthorizedActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ClearingEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
@@ -35,9 +41,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
+import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -115,11 +124,15 @@ public class Action implements ActionView {
     private final StateMachine<ActionState, ActionEvent> stateMachine;
 
     /**
-     * The executable step for actions that the system decides should be executed.
+     * The current executable step for actions that the system decides should be executed.
      * Tracks the progress of an action as it is executed by the appropriate target(s).
-     * TODO: DavidBlinn 8/26/2016 Support for multiple execution steps
      */
-    private Optional<ExecutableStep> executableStep;
+    private Optional<ExecutableStep> currentExecutableStep;
+
+    /**
+     * Stores previous executable steps for this action that have already been completed.
+     */
+    private final Map<ActionState, ExecutableStep> executableSteps = Maps.newHashMap();
 
     /**
      * Cached settings for entities.
@@ -166,7 +179,7 @@ public class Action implements ActionView {
                   @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = savedState.recommendation;
         this.actionPlanId = savedState.actionPlanId;
-        this.executableStep = Optional.ofNullable(ExecutableStep.fromExecutionStep(savedState.executionStep));
+        this.currentExecutableStep = Optional.ofNullable(ExecutableStep.fromExecutionStep(savedState.executionStep));
         this.recommendationTime = savedState.recommendationTime;
         this.decision = new Decision();
         if (savedState.actionDecision != null) {
@@ -187,7 +200,7 @@ public class Action implements ActionView {
         this.actionPlanId = actionPlanId;
         this.recommendationTime = Objects.requireNonNull(recommendationTime);
         this.stateMachine = ActionStateMachine.newInstance(this);
-        this.executableStep = Optional.empty();
+        this.currentExecutableStep = Optional.empty();
         this.decision = new Decision();
         this.entitiesCache = null;
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
@@ -204,7 +217,7 @@ public class Action implements ActionView {
         this.actionPlanId = actionPlanId;
         this.recommendationTime = Objects.requireNonNull(recommendationTime);
         this.stateMachine = ActionStateMachine.newInstance(this);
-        this.executableStep = Optional.empty();
+        this.currentExecutableStep = Optional.empty();
         this.decision = new Decision();
         this.entitiesCache = Objects.requireNonNull(entitySettings);
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
@@ -376,17 +389,20 @@ public class Action implements ActionView {
     @Nonnull
     public Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore) {
         Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
-        // fetch the setting, if any, that defines whether a Workflow should be applied
+        // Fetch the setting, if any, that defines whether a Workflow should be applied in the *next*
+        // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
+        // on the policies defined and the current state of the action.
         final Optional<SettingProto.Setting> workflowSettingOpt = getWorkflowSetting();
-        if (workflowSettingOpt.isPresent()) {
+        // An empty value indicates no workflow has been set
+        if (hasNonEmptyStringSetting(workflowSettingOpt)) {
             final String workflowIdString = workflowSettingOpt.get().getStringSettingValue()
-                    .getValue();
+                .getValue();
             try {
                 // the value of the Workflow Setting denotes the ID of the Workflow to apply
                 final long workflowId = Long.valueOf(workflowIdString);
                 workflowOpt = Optional.of(workflowStore.fetchWorkflow(workflowId)
-                        .orElseThrow(() -> new IllegalStateException("Workflow not found, id: " +
-                                workflowIdString)));
+                    .orElseThrow(() -> new IllegalStateException("Workflow not found, id: " +
+                        workflowIdString)));
             } catch (NumberFormatException e) {
                 logger.error("Invalid workflow ID: " + workflowIdString, e);
                 return Optional.empty();
@@ -398,6 +414,22 @@ public class Action implements ActionView {
         return workflowOpt;
     }
 
+    private boolean hasWorkflowForCurrentState() {
+        return hasNonEmptyStringSetting(getWorkflowSetting());
+    }
+
+    private boolean hasWorkflowForState(ActionState actionState) {
+        return hasNonEmptyStringSetting(getWorkflowSetting(actionState));
+    }
+
+    private boolean hasNonEmptyStringSetting(Optional<SettingProto.Setting> settingOpt) {
+        return settingOpt.map(setting -> hasNonEmptyStringValue(setting)).orElse(false);
+    }
+
+    private boolean hasNonEmptyStringValue(Setting setting) {
+        return setting.hasStringSettingValue()
+            && !StringUtils.isEmpty(setting.getStringSettingValue().getValue());
+    }
 
     /**
      * Get the ID of the action. This ID is the same as the one provided by the market in its
@@ -429,8 +461,8 @@ public class Action implements ActionView {
      * @return An optional of the executable step. Empty if the action has not been accepted.
      */
     @Override
-    public Optional<ExecutableStep> getExecutableStep() {
-        return executableStep;
+    public Optional<ExecutableStep> getCurrentExecutableStep() {
+        return currentExecutableStep;
     }
 
     /**
@@ -473,20 +505,39 @@ public class Action implements ActionView {
 
     /**
      * Find the Setting for a Workflow Orchestration Policy, if there is one, that applies to
-     * the current Action. The calculation uses the ActionDTO.Action and the EntitySettingsCache.
+     * the current Action in its current state (e.g. PRE, POST).
+     * The calculation uses the ActionDTO.Action and the EntitySettingsCache.
      *
      * @return an Optional containing the Setting for a Workflow Orchestration Policy, if there
      * is one defined for this action, or Optional.empty() otherwise
      */
     @Nonnull
     private Optional<SettingProto.Setting> getWorkflowSetting() {
+        return getWorkflowSetting(stateMachine.getState());
+    }
+
+    /**
+     * Find the Setting for a Workflow Orchestration Policy, if there is one, that applies to
+     * the current Action in the given state (e.g. PRE, POST).
+     * The calculation uses the ActionDTO.Action and the EntitySettingsCache.
+     *
+     * @param actionState the state for which to retrieve the workflow
+     * @return an Optional containing the Setting for a Workflow Orchestration Policy, if there
+     * is one defined for this action, or Optional.empty() otherwise
+     */
+    @Nonnull
+    private Optional<SettingProto.Setting> getWorkflowSetting(ActionState actionState) {
         // To avoid holding the lock for a long time, save the reference to the recommendation at
         // the time the method is called. Note that the underlying protobuf is immutable.
         final ActionDTO.Action curRecommendation;
         synchronized (recommendationLock) {
             curRecommendation = recommendation;
         }
-        return ActionModeCalculator.calculateWorkflowSetting(curRecommendation, entitiesCache);
+        // Fetch the setting, if any, that defines whether a Workflow should be applied in the *next*
+        // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
+        // on the policies defined and the current state of the action.
+        return ActionModeCalculator
+            .calculateWorkflowSetting(curRecommendation, entitiesCache, actionState);
     }
 
 
@@ -506,12 +557,53 @@ public class Action implements ActionView {
      * If it returns true, the action may be accepted for the given event.
      * If it returns false, the action may NOT be accepted for the given event.
      *
-     * @param event The event that caused the failure.
+     * @param event The event that caused the acceptance.
      * @return true if the action may be accepted, false if not.
      */
     boolean acceptanceGuard(@Nonnull final AuthorizedActionEvent event) {
         return modePermitsExecution() && hasPermissionToAccept(event.getAuthorizerUuid());
+    }
 
+    /**
+     * Guard against attempts to begin action execution while a PRE workflow is still running.
+     * If it returns true, the action may begin execution.
+     * If it returns false, the action may NOT begin execution yet.
+     *
+     * @param event The event that caused the execution.
+     * @return true if the action may begin execution, false if not.
+     */
+    boolean executionGuard(@Nonnull final BeginExecutionEvent event) {
+        boolean runningPreWorkflow = ActionState.PRE_IN_PROGRESS == getState() && hasWorkflowForCurrentState();
+        return !runningPreWorkflow;
+    }
+
+    /**
+     * Guard against attempts to complete action execution before POST workflow execution,
+     * when a POST workflow is defined.
+     *
+     * If it returns true, the action may complete (succeeded or failed).
+     * If it returns false, the action may NOT complete (a post workflow must be run first).
+     *
+     * @param event The event that signaled the end of regular execution.
+     * @return true if the action may complete execution, false if not.
+     */
+    boolean completionGuard(@Nonnull final ActionEvent event) {
+        boolean runningPostWorkflow = ActionState.POST_IN_PROGRESS == getState() && hasWorkflowForCurrentState();
+        return !runningPostWorkflow;
+    }
+
+    /**
+     * Guard against attempts to complete action execution successfully, when any action
+     * execution phase has failed.
+     *
+     * If it returns true, the action may complete (succeeded or failed).
+     * If it returns false, the action may NOT complete (a post workflow must be run first).
+     *
+     * @param event The event that signaled the end of regular execution.
+     * @return true if the action may complete execution, false if not.
+     */
+    boolean successGuard(@Nonnull final SuccessEvent event) {
+        return !hasFailures();
     }
 
     /**
@@ -523,6 +615,33 @@ public class Action implements ActionView {
     private boolean hasPermissionToAccept(String userUuid) {
         // Until we implement users and authorization, always grant permission.
         return true;
+    }
+
+    @Override
+    public boolean hasPendingExecution() {
+        return currentExecutableStep.map(step -> hasPendingExecution(step)).orElse(false);
+    }
+
+    private boolean hasPendingExecution(@Nonnull ExecutableStep step) {
+        switch (step.getStatus()) {
+            case QUEUED:
+            case IN_PROGRESS:
+                return true;
+            case FAILED:
+            case SUCCESS:
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    public boolean hasFailures() {
+        return executableSteps.values().stream()
+                .anyMatch(step -> Status.FAILED == step.getStatus());
+    }
+
+    public Map<ActionState, ExecutableStep> getExecutableSteps() {
+        return executableSteps;
     }
 
     /**
@@ -537,21 +656,61 @@ public class Action implements ActionView {
     }
 
     /**
-     * Called when an action begins execution.
+     * Called when an action enters the PRE state, preparing to execute an action
+     * @param event The event that caused the execution preparation.
+     */
+    void onActionPrepare(@Nonnull final PrepareExecutionEvent event) {
+        // Store the fact that this action was accepted and why (manual/automated)
+        decide(builder -> builder.setExecutionDecision(
+            ExecutionDecision.newBuilder()
+                .setUserUuid(executionAuthorizerId)
+                .setReason(acceptanceReason)
+                .build()));
+        // If a PRE workflow is associated with this action, it will be invoked automatically
+        // during execution
+        if (hasWorkflowForCurrentState()) {
+            // Add the current executable step to the map of all steps with the PRE_IN_PROGRESS key
+            executableSteps.put(getState(), currentExecutableStep.get());
+            // Mark this action as in-progress
+            // (PRE_IN_PROGRESS, IN_PROGRESS and POST_IN_PROGRESS states all count as in-progress)
+            updateExecutionStatus(step -> {
+                    step.execute();
+                    IN_PROGRESS_ACTION_COUNTS_GAUGE
+                        .labels(getActionType().name())
+                        .increment();
+                }, event.getEventName()
+            );
+        }
+    }
+
+    /**
+     * Called when an action begins execution (when no PRE workflow is configured).
      *
      * @param event The event that caused the execution.
      */
-    void onActionExecuted(@Nonnull final BeginExecutionEvent event) {
-        decide(builder -> builder.setExecutionDecision(
-                ExecutionDecision.newBuilder()
-                        .setUserUuid(executionAuthorizerId)
-                        .setReason(acceptanceReason)
-                        .build()));
+    void onActionStart(@Nonnull final BeginExecutionEvent event) {
+        // A PRE workflow was not run, so the current executionStep is still waiting to be used
+        // Add the current executable step to the map of all steps with the IN_PROGRESS key
+        executableSteps.put(getState(), currentExecutableStep.get());
+        // Mark the main execution step of this action as in-progress
         updateExecutionStatus(step -> {
                 step.execute();
-                IN_PROGRESS_ACTION_COUNTS_GAUGE
-                    .labels(getActionType().name())
-                    .increment();
+            }, event.getEventName()
+        );
+    }
+
+    /**
+     * Called when an action begins execution (after the PRE state has completed successfully).
+     *
+     * @param event The event that caused the execution.
+     */
+    void onPreExecuted(@Nonnull final SuccessEvent event) {
+        // A PRE workflow was run, and we need to replace the executionStep with a fresh one for
+        // tracking the primary action execution
+        replaceExecutionStep(event.getEventName());
+        // Mark the main execution step of this action as in-progress
+        updateExecutionStatus(step -> {
+                step.execute();
             }, event.getEventName()
         );
     }
@@ -575,6 +734,56 @@ public class Action implements ActionView {
             step.fail().addError(event.getErrorDescription());
             onActionComplete(step);
         }, event.getEventName());
+    }
+
+    /**
+     * Called when an action enters the POST state, after executing an action successfully
+     *
+     * @param event The success event signaling the end of action execution
+     */
+    void onActionPostSuccess(@Nonnull final SuccessEvent event) {
+        // Store the success
+        onActionSuccess(event);
+        // Progress to the Post phase, preparing to possibly run a POST execution workflow
+        onActionPost(event);
+    }
+
+    /**
+     * Called when an action enters the POST state, after executing an action unsuccessfully
+     *
+     * @param event The failure event signaling the end of action execution
+     */
+    void onActionPostFailure(@Nonnull final FailureEvent event) {
+        // Store the failure, including error message
+        onActionFailure(event);
+        // Progress to the Post phase, preparing to possibly run a POST execution workflow
+        onActionPost(event);
+    }
+
+    /**
+     * Called when an action enters the POST state, after executing an action.
+     *
+     * Helper method for onActionPostSuccess and onActionPostFailure.
+     *
+     * @param event The event signaling the end of action execution
+     */
+    private void onActionPost(@Nonnull final ActionEvent event) {
+        if (hasWorkflowForCurrentState()) {
+            final String outcomeDescription = currentExecutableStep.map(ExecutableStep::getStatus)
+                .map(status -> Status.SUCCESS == status)
+                .orElse(false) ? "succeeded" : "failed";
+            logger.debug("Running POST workflow for action {} after execution {}.",
+                getId(), outcomeDescription);
+            // An action execution was run, and we need to replace the executionStep with a fresh one for
+            // tracking the POST action execution
+            replaceExecutionStep(event.getEventName());
+            // Mark the main execution step of this action as in-progress
+            updateExecutionStatus(step -> {
+                    step.execute();
+                }, event.getEventName()
+            );
+            // ActionStateUpdater will kick off the actual execution of the POST workflow
+        }
     }
 
     /**
@@ -614,20 +823,48 @@ public class Action implements ActionView {
      */
     private void updateExecutionStatus(@Nonnull final ExecutionStatusUpdater updateMethod,
                                        @Nonnull final String eventName) {
-        if (executableStep.isPresent()) {
-            updateMethod.updateExecutionStep(executableStep.get());
+        if (currentExecutableStep.isPresent()) {
+            updateMethod.updateExecutionStep(currentExecutableStep.get());
         } else {
             throw new IllegalStateException(eventName + " received with no execution step available.");
         }
     }
 
     private void createExecutionStep(final long targetId) {
-        if (executableStep.isPresent()) {
+        if (currentExecutableStep.isPresent()) {
             throw new IllegalStateException("createExecutionStep for target " + targetId +
                 " called when execution step already present");
         }
 
-        executableStep = Optional.of(new ExecutableStep(targetId));
+        final ExecutableStep newExecutableStep = new ExecutableStep(targetId);
+        // Set the current executable step to the newly created one
+        currentExecutableStep = Optional.of(newExecutableStep);
+    }
+
+    private void replaceExecutionStep(@Nonnull final String eventName) {
+        if (currentExecutableStep.isPresent()) {
+            // A previous execution step has completed running
+            final ExecutableStep previousExecutableStep = currentExecutableStep.get();
+
+            // Currently, all executable steps hold the same targetId, namely the targetId which
+            // was provided when originally invoking action execution. A workflow will actually
+            // execute on the target that discovered the workflow, regardless of what is set here.
+            // TODO: Consider whether it is worth the effort to insert the targetId of the workflow
+            //  target instead (if different), when running a workflow
+            final long targetId = previousExecutableStep.getTargetId();
+
+            // Create a fresh executable step for tracking the next step of action execution
+            final ExecutableStep newExecutableStep = new ExecutableStep(targetId);
+            // Add the new executable step to the map of all steps with the current state as the key
+            executableSteps.put(getState(), newExecutableStep);
+            // Set the current executable step to the newly created one
+            currentExecutableStep = Optional.of(newExecutableStep);
+
+        } else {
+            throw new IllegalStateException(eventName + " received with no execution step available.");
+        }
+
+
     }
 
     /**
@@ -761,7 +998,7 @@ public class Action implements ActionView {
             this.recommendation = action.recommendation;
             this.recommendationTime = action.recommendationTime;
             this.actionDecision = action.decision.getDecision().orElse(null);
-            this.executionStep = action.executableStep.map(ExecutableStep::getExecutionStep).orElse(null);
+            this.executionStep = action.currentExecutableStep.map(ExecutableStep::getExecutionStep).orElse(null);
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
             this.actionCategory = action.getActionCategory();

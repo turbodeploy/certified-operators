@@ -2,6 +2,16 @@ package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ActivateActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.MoveActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostActivateActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostMoveActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostProvisionActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostResizeActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostSuspendActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreActivateActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreMoveActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreProvisionActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreResizeActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreSuspendActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ProvisionActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendActionWorkflow;
@@ -11,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -28,9 +39,10 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -81,14 +93,48 @@ public class ActionModeCalculator {
      * TODO: We should define a dynamic process for Orchestration probe types to add dynamically
      * to the supported workflow types.
      */
-    private static final Map<ActionTypeCase, EntitySettingSpecs> WORKFLOW_ACTION_TYPE_MAP =
-            new ImmutableMap.Builder<ActionTypeCase, EntitySettingSpecs>()
-                    .put(ActionTypeCase.ACTIVATE, ActivateActionWorkflow)
-                    .put(ActionTypeCase.DEACTIVATE, SuspendActionWorkflow)
-                    .put(ActionTypeCase.MOVE, MoveActionWorkflow)
-                    .put(ActionTypeCase.PROVISION, ProvisionActionWorkflow)
-                    .put(ActionTypeCase.RESIZE, ResizeActionWorkflow)
-                    .build();
+    private static final Map<ActionType, EntitySettingSpecs> WORKFLOW_ACTION_TYPE_MAP =
+            new ImmutableMap.Builder<ActionType, EntitySettingSpecs>()
+                .put(ActionType.ACTIVATE, ActivateActionWorkflow)
+                .put(ActionType.START, ActivateActionWorkflow)
+                .put(ActionType.DEACTIVATE, SuspendActionWorkflow)
+                .put(ActionType.SUSPEND, SuspendActionWorkflow)
+                .put(ActionType.MOVE, MoveActionWorkflow)
+                .put(ActionType.PROVISION, ProvisionActionWorkflow)
+                .put(ActionType.RESIZE, ResizeActionWorkflow)
+                .build();
+
+    /**
+     * Map from an actionType -> corresponding PRE Workflow Action EntitySettingsSpec if
+     * the actionType may be overridden. Used to calculate the action mode for PRE Workflow
+     * policy applications, if any, to the supported workflow types.
+     */
+    private static final Map<ActionType, EntitySettingSpecs> PREP_WORKFLOW_ACTION_TYPE_MAP =
+        new ImmutableMap.Builder<ActionType, EntitySettingSpecs>()
+            .put(ActionType.ACTIVATE, PreActivateActionWorkflow)
+            .put(ActionType.START, PreActivateActionWorkflow)
+            .put(ActionType.DEACTIVATE, PreSuspendActionWorkflow)
+            .put(ActionType.SUSPEND, PreSuspendActionWorkflow)
+            .put(ActionType.MOVE, PreMoveActionWorkflow)
+            .put(ActionType.PROVISION, PreProvisionActionWorkflow)
+            .put(ActionType.RESIZE, PreResizeActionWorkflow)
+            .build();
+
+    /**
+     * Map from an actionType -> corresponding POST Workflow Action EntitySettingsSpec if
+     * the actionType may be overridden. Used to calculate the action mode for POST Workflow
+     * policy applications, if any, to the supported workflow types.
+     */
+    private static final Map<ActionType, EntitySettingSpecs> POST_WORKFLOW_ACTION_TYPE_MAP =
+        new ImmutableMap.Builder<ActionType, EntitySettingSpecs>()
+            .put(ActionType.ACTIVATE, PostActivateActionWorkflow)
+            .put(ActionType.START, PostActivateActionWorkflow)
+            .put(ActionType.DEACTIVATE, PostSuspendActionWorkflow)
+            .put(ActionType.SUSPEND, PostSuspendActionWorkflow)
+            .put(ActionType.MOVE, PostMoveActionWorkflow)
+            .put(ActionType.PROVISION, PostProvisionActionWorkflow)
+            .put(ActionType.RESIZE, PostResizeActionWorkflow)
+            .build();
 
     /**
      * Map from an {@link EntitySettingSpecs} for each Workflow to the corresponding "base"
@@ -249,8 +295,8 @@ public class ActionModeCalculator {
                     .getSettingsForEntity(actionTargetEntityId);
 
             // Are there ever workflow overrides defined for this action?
-            final ActionTypeCase actionTypeCase = actionDTO.getInfo().getActionTypeCase();
-            final EntitySettingSpecs workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(actionTypeCase);
+            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionDTO);
+            final EntitySettingSpecs workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(actionType);
             if (workflowOverride == null) {
                 return Optional.empty();
             }
@@ -287,16 +333,19 @@ public class ActionModeCalculator {
      *
      * @param actionDTO The action to analyze to see if it is a Workflow Action
      * @param entitySettingsCache the EntitySettings lookaside for the given action
+     * @param actionState the state (or phase) to check for a defined workflow
      * @return an Optional containing the ActionMode if this is a Workflow Action, or
      * Optional.empty() if this is not a Workflow Action or the type of the ActionDTO is not
      * supported.
      */
     @Nonnull
     public static Optional<SettingProto.Setting> calculateWorkflowSetting(
-            @Nonnull final ActionDTO.Action actionDTO,
-            @Nullable final EntitiesCache entitySettingsCache) {
+        @Nonnull final ActionDTO.Action actionDTO,
+        @Nullable final EntitiesCache entitySettingsCache,
+        @Nonnull final ActionState actionState) {
         try {
             Objects.requireNonNull(actionDTO);
+            Objects.requireNonNull(actionState);
             if (Objects.isNull(entitySettingsCache)) {
                 return Optional.empty();
             }
@@ -304,22 +353,43 @@ public class ActionModeCalculator {
             // find the entity which is the target of this action
             final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDTO);
 
-            // get a map of all the settings (settingName  -> setting) specific to this entity
-            final Map<String, Setting> settingsForActionTarget = entitySettingsCache
-                    .getSettingsForEntity(actionTargetEntityId);
+            // Determine which action type map to use based on the current state of the action
+            final Map<ActionType, EntitySettingSpecs> workflowActionTypeMap;
+            switch (actionState) {
+                case PRE_IN_PROGRESS:
+                    workflowActionTypeMap = PREP_WORKFLOW_ACTION_TYPE_MAP;
+                    break;
+                case IN_PROGRESS:
+                    workflowActionTypeMap = WORKFLOW_ACTION_TYPE_MAP;
+                    break;
+                case POST_IN_PROGRESS:
+                    // POST runs after success or failure
+                    workflowActionTypeMap = POST_WORKFLOW_ACTION_TYPE_MAP;
+                    break;
+                default:
+                    logger.warn("Tried to retrieve workflow setting in an unexpected action "
+                        + "state {}", actionState);
+                    return Optional.empty();
+            }
 
             // Are there any workflow override settings allowed for this action type?
-            EntitySettingSpecs workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(
-                    actionDTO.getInfo().getActionTypeCase());
+            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionDTO);
+            final EntitySettingSpecs workflowOverride = workflowActionTypeMap.get(actionType);
             if (workflowOverride == null) {
                 // workflow overrides are not allowed
                 return Optional.empty();
             }
+
+            // get a map of all the settings (settingName  -> setting) specific to this entity
+            final Map<String, Setting> settingsForActionTarget =
+                entitySettingsCache.getSettingsForEntity(actionTargetEntityId);
+
             // Is there a corresponding setting for this Workflow override for the current entity?
-            // note: the value of the workflowSettingSpec is the OID of the workflow, only used during
-            // execution
-            return Optional.ofNullable(settingsForActionTarget.get(
-                    workflowOverride.getSettingName()));
+            // Note: the value of the workflowSettingSpec is the OID of the workflow, only used during
+            // execution.
+            final Setting setting = settingsForActionTarget.get(
+                workflowOverride.getSettingName());
+            return Optional.ofNullable(setting);
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
             return Optional.empty();

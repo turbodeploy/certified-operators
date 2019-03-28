@@ -337,20 +337,66 @@ public enum EntitySettingSpecs {
 
     /**
      * Automation Policy for the Activate Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a resize action is generated and executed.
+     * Orchestration workflow to invoke when an activate action is generated and executed.
      */
     ActivateActionWorkflow("activateActionWorkflow", "Activate Workflow",
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+                EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
             string(), true),
+
+    /**
+     * Automation Policy for the Activate pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before an activate action is executed.
+     *
+     * NOTE: For action workflows, the first word MUST be the name of the action
+     *       type affected by the workflow policy. The UI relies on this convention.
+     *       So "Activate Pre Workflow" is okay, but "Pre Activate Workflow" is not.
+     */
+    PreActivateActionWorkflow("preActivateActionWorkflow", "Activate Pre Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
+            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Activate post workflow. The value is the name of an
+     * Orchestration workflow to invoke after an activate action is executed (whether successful or not).
+     */
+    PostActivateActionWorkflow("postActivateActionWorkflow", "Activate Post Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
+            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
 
     /**
      * Automation Policy for the Move Workflow. The value is the name of an
      * Orchestration workflow to invoke when a resize action is generated and executed.
      */
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Move Workflow pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a resize action is executed.
+     */
+    PreMoveActionWorkflow("preMoveActionWorkflow", "Move Pre Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Move Workflow post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a resize action is executed (whether successful or not).
+     */
+    PostMoveActionWorkflow("postMoveActionWorkflow", "Move Post Workflow",
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
@@ -368,6 +414,28 @@ public enum EntitySettingSpecs {
             string(), true),
 
     /**
+     * Automation Policy for the Provision pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a provision action is executed.
+     */
+    PreProvisionActionWorkflow("preProvisionActionWorkflow", "Provision Pre Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
+            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Provision post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a provision action is executed (whether successful or not).
+     */
+    PostProvisionActionWorkflow("postProvisionActionWorkflow", "Provision Post Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.DISK_ARRAY, EntityType.PHYSICAL_MACHINE, EntityType.STORAGE,
+            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
      * Automation Policy for the Resize Workflow. The value is the name of an
      * Orchestration workflow to invoke when a resize action is generated and executed.
      */
@@ -378,6 +446,26 @@ public enum EntitySettingSpecs {
             string(), true),
 
     /**
+     * Automation Policy for the Resize pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a resize action is executed.
+     */
+    PreResizeActionWorkflow("preResizeActionWorkflow", "Resize Pre Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Resize post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a resize action is executed (whether successful or not).
+     */
+    PostResizeActionWorkflow("postResizeActionWorkflow", "Resize Post Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        string(), true),
+
+    /**
      * Automation Policy for the Suspend Workflow. The value is the name of an
      * Orchestration workflow to invoke when a suspend action is generated and executed.
      */
@@ -386,6 +474,26 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
             string(), true),
+
+    /**
+     * Automation Policy for the Suspend pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a suspend action is executed.
+     */
+    PreSuspendActionWorkflow("preSuspendActionWorkflow", "Suspend Pre Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Suspend post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a suspend action is executed (whether successful or not).
+     */
+    PostSuspendActionWorkflow("postSuspendActionWorkflow", "Suspend Post Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
 
     /**
      * Response Time Capacity used by Application and Database.
@@ -545,6 +653,19 @@ public enum EntitySettingSpecs {
         SETTING_MAP = Collections.unmodifiableMap(result);
     }
 
+    /**
+     * Create an EntitySettingsSpec, representing a setting attached to an entity or group.
+     *
+     * @param name the name (also called 'uuid') of this setting
+     * @param displayName A human-readable display name for the setting.
+     *                    NOTE: For action workflows, the first word MUST be the name of the action
+     *                        type affected by the workflow policy. The UI relies on this convention.
+     * @param categoryPath the category grouping in which to include this setting
+     * @param tieBreaker used to break ties, choosing the bigger or smaller setting
+     * @param entityTypeScope enumeration of entity types that this setting may apply to
+     * @param dataStructure the type of data structure used to specify the values for this setting
+     * @param allowGlobalDefault whether a global default can be set for this setting
+     */
     EntitySettingSpecs(@Nonnull String name, @Nonnull String displayName,
             @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
             @Nonnull Set<EntityType> entityTypeScope, @Nonnull SettingDataStructure dataStructure,
