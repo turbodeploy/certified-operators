@@ -6,8 +6,10 @@ import static com.vmturbo.api.component.external.api.mapper.GroupMapper.GROUP;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -16,6 +18,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
@@ -234,7 +237,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         final List<String> uuids = supplyChainStatsApiInputDTO.getUuids();
         final List<String> types = supplyChainStatsApiInputDTO.getTypes() != null ?
                 supplyChainStatsApiInputDTO.getTypes() : Lists.newArrayList();
-        // TODO: implement "states" filter - OM-25089
+        final List<EntityState> states = supplyChainStatsApiInputDTO.getStates();
 
         final EnvironmentType environmentType = supplyChainStatsApiInputDTO.getEnvironmentType();
 
@@ -264,7 +267,7 @@ public class SupplyChainsService implements ISupplyChainsService {
             supplyChainFetcher.apiEnvironmentType(environmentType);
         }
         final SupplychainApiDTO supplyChainResponse = supplyChainFetcher.fetch();
-
+        applyStatesFilter(supplyChainResponse, states);
         // count Service Entities with each unique set of filter/value for all the filters
         // analyze the counts
         final List<StatApiDTO> stats = Lists.newArrayList();
@@ -318,6 +321,38 @@ public class SupplyChainsService implements ISupplyChainsService {
 
         // the answer is always a single-element list
         return Lists.newArrayList(snapshot);
+    }
+
+    /**
+     * Filters the given Supply Chain entities with the required states. Entities with other states
+     * will be discarded.
+     *
+     * @param supplychainApiDTO {@link SupplychainApiDTO} object
+     * @param states a list of {@link EntityState}
+     */
+    private static void applyStatesFilter(@Nonnull SupplychainApiDTO supplychainApiDTO,
+                                          @Nullable List<EntityState> states){
+        if(states != null && !states.isEmpty()) {
+            // Since I'm modifying the supplychainApiDTO, I need to use Iterator otherwise
+            // ConcurrentModificationException will be thrown.
+            for (Iterator<Entry<String, SupplychainEntryDTO>>
+                 sc = supplychainApiDTO.getSeMap().entrySet().iterator(); sc.hasNext();) {
+                Entry<String, SupplychainEntryDTO> scEntry = sc.next();
+                for (Iterator<Entry<String, ServiceEntityApiDTO>>
+                     entity = scEntry.getValue().getInstances().entrySet().iterator();
+                     entity.hasNext();) {
+                    Entry<String, ServiceEntityApiDTO> entityDTO = entity.next();
+                    try {
+                        if (!states.contains(EntityState.valueOf(entityDTO.getValue().getState()))) {
+                            entity.remove();
+                        }
+                    } catch (IllegalArgumentException e) {
+                        // The entity's state is not one of EntityState enums.
+                        entity.remove();
+                    }
+                }
+            }
+        }
     }
 
     /**
