@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -13,12 +12,17 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.sshd.client.ClientBuilder;
+import org.apache.sshd.client.ClientFactoryManager;
 import org.apache.sshd.client.SshClient;
-import org.apache.sshd.client.keyverifier.AcceptAllServerKeyVerifier;
+import org.apache.sshd.client.config.hosts.HostConfigEntryResolver;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.client.subsystem.sftp.SftpClient;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
 import org.apache.sshd.client.subsystem.sftp.SftpClientFactory;
+import org.apache.sshd.common.PropertyResolverUtils;
+import org.apache.sshd.common.random.RandomFactory;
+import org.apache.sshd.common.random.SingletonRandomFactory;
 import org.apache.sshd.common.util.security.SecurityUtils;
 
 import sun.misc.IOUtils;
@@ -36,19 +40,8 @@ public class SshUtils {
 
     private static final long SESSION_CONNECT_TIMEOUT_SECS = 10L;
     private static final long AUTH_TIMEOUT_SECS = 15L;
+    private static final long HEARTBEAT_SECS = 30L;
 
-    private static final boolean isPasswordAuthAllowed = getPasswordConfig();
-
-    private static boolean getPasswordConfig() {
-        Properties config = new Properties();
-        try {
-            config.load(SshUtils.class.getResourceAsStream("config.properties"));
-            return Boolean.parseBoolean(config.getProperty("ssh-allow-password-auth"));
-        } catch (IOException e) {
-            logger.warn("Resource config.properties is missing or malformed; continuing with default property values");
-            return false;
-        }
-    }
 
     /**
      * An interface for defining methods to be executed in the context of an SSH session
@@ -70,66 +63,100 @@ public class SshUtils {
                   @Nullable ActionExecutionDTO actionExecution) throws RemoteExecutionException;
     }
 
+    public static class SshRunner implements AutoCloseable {
+        private final ActionScriptProbeAccount accountValues;
+        private final ActionExecutionDTO actionExecutionDTO;
+        private final SshClient client;
+        private final ClientSession session;
+        // We create this once at class initiation, because it can be quite expensive on machines that lack hardware
+        // crypto acceleration.
+        private static RandomFactory randomFactory = new SingletonRandomFactory(SecurityUtils.getRandomFactory());
+
+        public SshRunner(@Nonnull final ActionScriptProbeAccount accountValues, @Nullable final ActionExecutionDTO actionExecutionDTO) throws KeyValidationException, RemoteExecutionException {
+            this.accountValues = accountValues;
+            this.actionExecutionDTO = actionExecutionDTO;
+
+            final String host = accountValues.getNameOrAddress();
+            final String userid = accountValues.getUserid();
+            final int port = Integer.valueOf(accountValues.getPort());
+            final String privateKeyString = accountValues.getPrivateKeyString();
+            KeyPair loginKeyPair;
+            try {
+                loginKeyPair = SshUtils.extractKeyPair(privateKeyString);
+            } catch (GeneralSecurityException | IOException e) {
+                throw new KeyValidationException(String.format("Cannot recover public key from string for action script target %s", accountValues.getNameOrAddress()), e);
+            }
+            // set up our server key to accept either the key specified in the target or any key if none
+            // is given. In latter case, we'll remember it and require it in future connections
+            final AcceptAnyOrGivenServerKeyVerifier serverKeyVerifier = new AcceptAnyOrGivenServerKeyVerifier(accountValues.getHostKey(), host);
+            // previously we used the recommended SshClient.setupDefaultClient() and then set components we wanted to change
+            // afterward. But that method actually does all the default initialization first. That wouldn't
+            // be a big deal except that now we want to avoid the costly default initialization of randomFactory
+            this.client = new ClientBuilder()
+                // there should not be an ssh-config file in the turbo installation, and if there is one
+                // we don't want to process it.
+                .hostConfigEntryResolver(HostConfigEntryResolver.EMPTY)
+                .serverKeyVerifier(serverKeyVerifier)
+                // use our built-once factory value
+                .randomFactory(randomFactory)
+                .build();
+            client.start();
+
+            try {
+                PropertyResolverUtils.updateProperty(client, ClientFactoryManager.HEARTBEAT_INTERVAL, TimeUnit.SECONDS.toMillis(HEARTBEAT_SECS));
+                this.session = client.connect(userid, host, port)
+                    .verify(SESSION_CONNECT_TIMEOUT_SECS, TimeUnit.SECONDS)
+                    .getSession();
+                session.setUsername(userid);
+                session.addPublicKeyIdentity(loginKeyPair);
+                session.auth().verify(AUTH_TIMEOUT_SECS, TimeUnit.SECONDS);
+                logger.debug("session authenticated to " + host);
+            } catch (IOException e) {
+                throw new RemoteExecutionException("IO Exception while using the SSH client "
+                    + host + ": " + e.getMessage(), e);
+            }
+        }
+
+        public <T> T run(RemoteCommand<T> remoteCommand) throws RemoteExecutionException {
+            return remoteCommand.execute(accountValues, session, actionExecutionDTO);
+        }
+
+        public void close() {
+            if (session != null) {
+                try {
+                    session.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close SSH client session", e);
+                }
+            }
+            if (client != null) {
+                try {
+                    client.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close SSH client session", e);
+                }
+            }
+        }
+    }
+
     /**
      * Run code in an SSH session and return a result.
      *
-     * @param accountValues   to use for creating the connection
-     * @param remoteCommand   the command to execute once the connection is established
-     * @param actionExecution the {@link ActionExecutionDTO} defining the action being performed,
-     *                        or null if this is not part an action execution.
-     * @param <T>             a generic return type, allowing this method to return whatever remoteCommand returns
+     * @param <T> a generic return type, allowing this method to return whatever remoteCommand returns
+     * @param accountValues to use for creating the connection
+     * @param actionExecution the action on whose behalf this execution is being performed, or null if none (e.g. commands executed during discovery)
+     * @param remoteCommand the command to execute once the connection is established
      * @return the result of executing the remote command
      * @throws KeyValidationException   if a valid SSH private key cannot be retrieved from accountValues
      * @throws RemoteExecutionException if an IO Exception occurs while executing the remote command
      */
     public static <T> T runInSshSession(@Nonnull final ActionScriptProbeAccount accountValues,
-                                        @Nonnull final RemoteCommand<? extends T> remoteCommand,
-                                        @Nullable final ActionExecutionDTO actionExecution)
+                                        @Nullable final ActionExecutionDTO actionExecution,
+                                        @Nonnull final RemoteCommand<? extends T> remoteCommand)
         throws KeyValidationException, RemoteExecutionException {
 
-        final String host = accountValues.getNameOrAddress();
-        final String userid = accountValues.getUserid();
-        final int port = Integer.valueOf(accountValues.getPort());
-        final String privateKeyString = accountValues.getPrivateKeyString();
-        KeyPair loginKeyPair;
-        String loginPassword;
-        try {
-            // try to use provided key as a private key first
-            loginKeyPair = SshUtils.extractKeyPair(privateKeyString);
-            loginPassword = null;
-        } catch (GeneralSecurityException | IOException e) {
-            if (isPasswordAuthAllowed) {
-                // fall back to using it as a password if that's permitted in this build
-                loginPassword = privateKeyString;
-                loginKeyPair = null;
-            } else {
-                throw new KeyValidationException("Cannot recover public key from string: "
-                    + privateKeyString, e);
-            }
-        }
-
-        try (SshClient client = SshClient.setUpDefaultClient()) {
-            client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
-            client.start();
-
-            try (final ClientSession session = client.connect(userid, host, port)
-                .verify(SESSION_CONNECT_TIMEOUT_SECS, TimeUnit.SECONDS)
-                .getSession()) {
-                session.setUsername(userid);
-                if (loginKeyPair != null) {
-                    session.addPublicKeyIdentity(loginKeyPair);
-                } else {
-                    session.addPasswordIdentity(loginPassword);
-                }
-                session.auth().verify(AUTH_TIMEOUT_SECS, TimeUnit.SECONDS);
-                logger.debug("session authenticated to " + host);
-                return remoteCommand.execute(accountValues, session, actionExecution);
-            } finally {
-                client.stop();
-            }
-        } catch (IOException e) {
-            throw new RemoteExecutionException("IO Exception while using the SSH client "
-                + host + ": " + e.getMessage(), e);
+        try (SshRunner runner = new SshRunner(accountValues, actionExecution)) {
+            return runner.run(remoteCommand);
         }
     }
 
@@ -137,29 +164,24 @@ public class SshUtils {
         throws GeneralSecurityException, IOException {
 
         InputStream privateKeyStream = new ByteArrayInputStream(privateKeyString.getBytes());
-
         return SecurityUtils.loadKeyPairIdentity(null, privateKeyStream, null);
     }
 
     /**
      * Retrieve the content of a text file from the execution server.
      *
-     * @param path            absolute path of the file on the execution server
-     * @param accountValues   {@link ActionScriptProbeAccount} values for the target
-     * @param actionExecution {@link ActionExecutionDTO} defining the currently executing action, or
-     *                        null if this is not part of an action execution.
+     * @param path absolute path of the file on the execution server
+     * @param runner SshRunner with a live session
+     *
      * @return file content as text
      * @throws RemoteExecutionException if there's a problem obtaining the content
      * @throws KeyValidationException   if the key provided in accountValues is not valid
      */
-    public static String getRemoteFileContent(final String path,
-                                              ActionScriptProbeAccount accountValues,
-                                              @Nullable ActionExecutionDTO actionExecution) throws RemoteExecutionException, KeyValidationException {
+    public static String getRemoteFileContent(final String path, @Nonnull SshRunner runner) throws RemoteExecutionException, KeyValidationException {
         RemoteCommand<String> cmd = (a, session, ae) -> {
             try {
                 SftpClient sftp = null;
                 sftp = SftpClientFactory.instance().createSftpClient(session);
-
                 return new String(IOUtils.readFully(sftp.read(path),
                     Integer.MAX_VALUE, // read to end of stream
                     true)); // this arg is ignored when prior is -1 or MAX_VALUE
@@ -168,23 +190,20 @@ public class SshUtils {
             }
 
         };
-        return runInSshSession(accountValues, cmd, actionExecution);
+        return runner.run(cmd);
     }
 
     /**
-     * Perform an lstat on a file that resides on the execution server
+     * Perform an lstat on a file or directory that resides on the execution server
      *
-     * @param path            absolute path of the file on the server
-     * @param accountValues   {@link ActionScriptProbeAccount} values for the target
-     * @param actionExecution {@link ActionExecutionDTO} defining the currently executing action,
-     *                        or null if this is not part of an action execution.
-     *                        * @return
+     * @param path absolute path of the file on the server
+     * @param runner SshRunner with a live session
+
+     * @return file attributes fo remote file
      * @throws RemoteExecutionException if there's a problem obtaining the file attributes
      * @throws KeyValidationException if the key provided in the accountValues is not valid
      * */
-    public static Attributes getRemoteFileAttributes(final String path,
-                                                     ActionScriptProbeAccount accountValues,
-                                                     @Nullable ActionExecutionDTO actionExecution) throws RemoteExecutionException, KeyValidationException {
+    public static Attributes getRemoteFileAttributes(final String path, @Nonnull final SshRunner runner) throws RemoteExecutionException, KeyValidationException {
         RemoteCommand<Attributes> cmd = (a, session, ae) -> {
             SftpClient sftp = null;
             try {
@@ -194,6 +213,6 @@ public class SshUtils {
                 throw new RemoteExecutionException("Failed to obtain file attributes", e);
             }
         };
-        return runInSshSession(accountValues, cmd, actionExecution);
+        return runner.run(cmd);
     }
 }
