@@ -127,7 +127,6 @@ public class RemoteProbeStore implements ProbeStore {
             } else {
                 logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
                 final boolean probeExists = probes.containsKey(probeId);
-                stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
 
                 try {
                     keyValueStore.put(PROBE_KV_STORE_PREFIX + Long.toString(probeId),
@@ -141,6 +140,7 @@ public class RemoteProbeStore implements ProbeStore {
                 // If we passed the compatibility check, it is safe to replace the old registration
                 // information in the store.
                 probeInfos.put(probeId, probeInfo);
+                stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
 
                 if (probeExists) {
                     logger.info("Connected probe " + probeId +

@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
@@ -80,7 +79,7 @@ public class StitchingOperationStore {
                                       @Nonnull ProbeOrdering probeOrdering)
         throws ProbeException {
         setOperationsForProbe(probeId, probeInfo,
-                probeOrdering.getCategoriesForProbeToStitchWith(probeId));
+                probeOrdering.getCategoriesForProbeToStitchWith(probeInfo));
     }
 
     /**

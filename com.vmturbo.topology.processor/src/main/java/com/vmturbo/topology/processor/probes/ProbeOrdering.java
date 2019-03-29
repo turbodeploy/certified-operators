@@ -5,6 +5,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
@@ -21,19 +22,19 @@ public interface ProbeOrdering extends Comparator<ProbeStitchingOperation>{
     /**
      * Return the set of categories that a probe should stitch with.
      *
-     * @param probeId the ID of the probe.
+     * @param probeInfo the {@link ProbeInfo} of the probe.
      * @return Set of Strings with the categories of probe data that the identified probe should
      * stitch with.
      */
-    Set<ProbeCategory> getCategoriesForProbeToStitchWith(@Nonnull Long probeId);
+    Set<ProbeCategory> getCategoriesForProbeToStitchWith(@Nonnull ProbeInfo probeInfo);
 
     /**
      * Return the set of probe types that a probe should stitch with.
      *
-     * @param probeId the ID of the probe.
+     * @param probeInfo the {@link ProbeInfo} of the probe.
      * @return Set of Strings with the types of probe data that the identified probe should
      * stitch with.
      */
-    Set<SDKProbeType> getTypesForProbeToStitchWith(@Nonnull Long probeId);
+    Set<SDKProbeType> getTypesForProbeToStitchWith(@Nonnull ProbeInfo probeInfo);
 
 }

@@ -19,8 +19,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
@@ -290,7 +288,7 @@ public class RemoteProbeStoreTest {
         assertEquals(1, store.getProbeOrdering().compare(storageOp, hyperVisorOp));
         assertEquals(0, store.getProbeOrdering().compare(storageOp, fabricOp));
         Set<ProbeCategory> storageStitchWith =
-                store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbeId);
+                store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbe);
         assertEquals(2, storageStitchWith.size());
         assertTrue(storageStitchWith.contains(ProbeCategory.HYPERVISOR));
     }

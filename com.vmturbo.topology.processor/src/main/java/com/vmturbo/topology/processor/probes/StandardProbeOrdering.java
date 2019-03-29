@@ -42,27 +42,21 @@ public class StandardProbeOrdering implements ProbeOrdering {
     }
 
     @Override
-    public Set<ProbeCategory> getCategoriesForProbeToStitchWith(@Nonnull final Long probeId) {
-        final Optional<ProbeInfo> probeInfo = probeStore.getProbe(probeId);
-        String probeCategory = probeInfo.map(probeInf -> probeInf.getProbeCategory())
-                .orElse(null);
+    public Set<ProbeCategory> getCategoriesForProbeToStitchWith(@Nonnull final ProbeInfo probeInfo) {
+        String probeCategory = probeInfo.getProbeCategory();
         if (probeCategory == null) {
             return Sets.newHashSet();
         }
-        probeCategory = probeInfo.get().getProbeCategory();
         return stitchingDependencyTracker
                 .getProbeCategoriesThatStitchBefore(ProbeCategory.create(probeCategory));
     }
 
     @Override
-    public Set<SDKProbeType> getTypesForProbeToStitchWith(@Nonnull final Long probeId) {
-        final Optional<ProbeInfo> probeInfo = probeStore.getProbe(probeId);
-        String probeType = probeInfo.map(probeInf -> probeInf.getProbeType())
-                .orElse(null);
+    public Set<SDKProbeType> getTypesForProbeToStitchWith(@Nonnull final ProbeInfo probeInfo) {
+        String probeType = probeInfo.getProbeType();
         if (probeType == null) {
             return Sets.newHashSet();
         }
-        probeType = probeInfo.get().getProbeType();
         return stitchingDependencyTracker
                 .getProbeTypesThatStitchBefore(SDKProbeType.create(probeType));
     }
