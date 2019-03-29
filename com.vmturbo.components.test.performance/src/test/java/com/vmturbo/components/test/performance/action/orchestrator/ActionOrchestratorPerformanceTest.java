@@ -95,7 +95,7 @@ public class ActionOrchestratorPerformanceTest {
                 .withConfiguration("groupHost", ComponentUtils.getDockerHostRoute())
                 .withConfiguration("topologyProcessorHost", ComponentUtils.getDockerHostRoute())
                 .withConfiguration("repositoryHost", ComponentUtils.getDockerHostRoute())
-                .withMemLimit(2.5, MetricPrefix.GIGA)
+                .withMemLimit(3.5, MetricPrefix.GIGA)
                 .logsToLogger(logger)))
         .withStubs(ComponentStubHost.newBuilder()
                 .withGrpcServices(new ProbeActionCapabilitiesServiceStub(),
