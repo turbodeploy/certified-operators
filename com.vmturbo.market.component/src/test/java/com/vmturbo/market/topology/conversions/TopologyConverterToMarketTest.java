@@ -476,15 +476,41 @@ public class TopologyConverterToMarketTest {
     @Test
     public void testSkipEntity() {
         TopologyDTO.TopologyEntityDTO container = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setOid(1001L).setEntityType(40).build();
+            .setOid(1001L).setEntityType(40).build();
         TopologyDTO.TopologyEntityDTO virtualApp = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setOid(1002L).setEntityType(26).build();
+            .setOid(1002L).setEntityType(26).build();
         TopologyDTO.TopologyEntityDTO actionManager = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setOid(1003L).setEntityType(22).build();
+            .setOid(1003L).setEntityType(22).build();
+        TopologyDTO.TopologyEntityDTO storage = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(1004L).setEntityType(2).build();
+        TopologyDTO.TopologyEntityDTO unknownStorage = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd);
-        assertEquals(2, converter.convertToMarket(Stream.of(container, virtualApp, actionManager)
+        assertEquals(3, converter.convertToMarket(
+            Stream.of(container, virtualApp, actionManager, storage, unknownStorage)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
                 .size());
+    }
+
+    /**
+     * Shopping lists with UNKNOWN providers are movable false.
+     */
+    @Test
+    public void testShoppingListsNotMovable() {
+        TopologyDTO.TopologyEntityDTO unknownStorage = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
+        TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(10)
+            .setOid(123)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setMovable(true)
+                .setProviderId(1005L)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE))))
+            .build();
+        TraderTO trader = convertToMarketTO(Sets.newHashSet(unknownStorage, entityDTO), REALTIME_TOPOLOGY_INFO).iterator().next();
+        assertFalse(trader.getShoppingLists(0).getMovable());
     }
 
     /**

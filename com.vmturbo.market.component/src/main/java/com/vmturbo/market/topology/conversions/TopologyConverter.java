@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -128,7 +129,7 @@ public class TopologyConverter {
 
     // Store skipped service entities which need to be added back to projected topology and price
     // index messages.
-    private List<TopologyEntityDTO> skippedEntities = new ArrayList<>();
+    private Map<Long, TopologyEntityDTO> skippedEntities = Maps.newHashMap();
 
     // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
     // shoppinglist oid, buyer oid, seller oid and commodity bought
@@ -319,7 +320,7 @@ public class TopologyConverter {
                 logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
                         "entity state = {}", entity.getDisplayName(),
                         EntityType.forNumber(entity.getEntityType()), entity.getEntityState());
-                skippedEntities.add(entity);
+                skippedEntities.put(entity.getOid(), entity);
             } else {
                 entityOidToDto.put(entity.getOid(), entity);
                 if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
@@ -352,8 +353,8 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    public List<TopologyDTO.TopologyEntityDTO> getSkippedEntities() {
-        return Collections.unmodifiableList(skippedEntities);
+    public Collection<TopologyEntityDTO> getSkippedEntities() {
+        return Collections.unmodifiableCollection(skippedEntities.values());
     }
 
     /**
@@ -1425,9 +1426,17 @@ public class TopologyConverter {
             createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
         }
         final long id = shoppingListId++;
-        final boolean isMovable = commBoughtGrouping.hasMovable()
+        // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
+        final boolean isProviderUnknown = provider == null && providerOid != null &&
+            skippedEntities.containsKey(providerOid) &&
+            skippedEntities.get(providerOid).getEntityState() == TopologyDTO.EntityState.UNKNOWN;
+        if (isProviderUnknown) {
+            logger.debug("probiderOid is {}, provider is null, unknown provider for entityType {}",
+                providerOid, entityType);
+        }
+        final boolean isMovable = !isProviderUnknown && (commBoughtGrouping.hasMovable()
             ? commBoughtGrouping.getMovable()
-            : AnalysisUtil.MOVABLE_TYPES.contains(entityType);
+            : AnalysisUtil.MOVABLE_TYPES.contains(entityType));
         // if the buyer of the shopping list is in control state(controllable = false), or if the
         // shopping list has a provider and the provider is in control state (controllable = false)
         // the shopping list should not move
