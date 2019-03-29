@@ -82,6 +82,8 @@ import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -295,7 +297,8 @@ public class MarketsServiceTest {
                     policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
                     policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
-                    uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(), REALTIME_CONTEXT_ID);
+                    uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
+                    entitySeverityRpcServive(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -411,6 +414,10 @@ public class MarketsServiceTest {
 
         public RepositoryServiceBlockingStub repositoryRpcService() {
             return RepositoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        public EntitySeverityServiceBlockingStub entitySeverityRpcServive() {
+            return EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean

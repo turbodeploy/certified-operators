@@ -275,6 +275,7 @@ public class ServiceConfig {
                 websocketConfig.websocketHandler(),
                 actionStatsQueryExecutor(),
                 communicationConfig.topologyProcessor(),
+                communicationConfig.entitySeverityService(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

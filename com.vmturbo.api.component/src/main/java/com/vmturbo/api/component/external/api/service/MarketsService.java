@@ -20,7 +20,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -83,6 +82,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -132,6 +134,7 @@ import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 
 /**
  * Service implementation of Markets.
@@ -180,6 +183,8 @@ public class MarketsService implements IMarketsService {
 
     private final TopologyProcessor topologyProcessor;
 
+    private final EntitySeverityServiceBlockingStub entitySeverity;
+
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -197,6 +202,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final UINotificationChannel uiNotificationChannel,
                           @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                           @Nonnull final TopologyProcessor topologyProcessor,
+                          @Nonnull final EntitySeverityServiceBlockingStub entitySeverity,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -215,6 +221,7 @@ public class MarketsService implements IMarketsService {
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
+        this.entitySeverity = Objects.requireNonNull(entitySeverity);
         this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
@@ -394,8 +401,52 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByMarketUuid(String uuid) throws Exception {
-        logger.debug("Request to get entities by market UUID: {}", uuid);
-        throw ApiUtils.notImplementedInXL();
+        final ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (apiId.isRealtimeMarket()) {
+            throw ApiUtils.notImplementedInXL();
+        } else {
+            OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
+                    .setPlanId(Long.valueOf(uuid))
+                    .build());
+
+            if (!planResponse.hasPlanInstance()) {
+                throw new UnknownObjectException(uuid);
+            }
+
+            // Get the list of unplaced entities from the repository for this plan
+            PlanInstance plan = planResponse.getPlanInstance();
+            final long topologyId = plan.getProjectedTopologyId();
+
+            Iterable<RetrieveTopologyResponse> response = () ->
+                    repositoryRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                            .setTopologyId(topologyId)
+                            .build());
+
+            List<ServiceEntityApiDTO> serviceEntityApiDTOs =  marketMapper.sesDtosFromTopoResponse(response);
+
+            List<Long> entities = new ArrayList<>();
+            for (ServiceEntityApiDTO serviceEntityApiDTO : serviceEntityApiDTOs) {
+                entities.add(Long.valueOf(serviceEntityApiDTO.getUuid()));
+            }
+
+            EntitySeveritiesResponse entitySeveritiesResponse = entitySeverity.getEntitySeverities(MultiEntityRequest
+                        .newBuilder()
+                        .setTopologyContextId(Long.valueOf(uuid))
+                        .addAllEntityIds(entities)
+                        .build());
+
+            HashMap<Long, String> idsToSeverities = new HashMap<>();
+            List<EntitySeverity> entitySeverityList =  entitySeveritiesResponse.getEntitySeverityList();
+            for (EntitySeverity entitySeverity : entitySeverityList) {
+                idsToSeverities.put(entitySeverity.getEntityId(), entitySeverity.getSeverity().toString());
+            }
+
+            for (int i = 0; i < serviceEntityApiDTOs.size(); i++) {
+                serviceEntityApiDTOs.get(i).setSeverity(idsToSeverities.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
+            }
+
+            return serviceEntityApiDTOs;
+        }
     }
 
     // Market UUID is ignored for now, since there is only one Market in XL.

@@ -6,16 +6,23 @@ import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.RU
 import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.STOPPED;
 import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.SUCCEEDED;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Converts {@link PlanInstance} objects to the plan-related API objects - namely
@@ -109,5 +116,17 @@ public class MarketMapper {
             default:
                 throw new IllegalArgumentException("Unexpected plan status: " + status);
         }
+    }
+
+    public List<ServiceEntityApiDTO> sesDtosFromTopoResponse(Iterable<RetrieveTopologyResponse> response) {
+        List<ServiceEntityApiDTO> entitiesList = new ArrayList<>();
+        for (RetrieveTopologyResponse entitiesResponse : response) {
+            List<TopologyEntityDTO> entities = entitiesResponse.getEntitiesList();
+            for (TopologyEntityDTO entity : entities) {
+                ServiceEntityApiDTO dto = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
+                entitiesList.add(dto);
+            }
+        }
+        return entitiesList;
     }
 }
