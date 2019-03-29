@@ -1,4 +1,0 @@
-kubectl delete networkpolicy dmz-zone-access
-kubectl delete networkpolicy default-deny
-kubectl delete networkpolicy internal-zone-access
-kubectl delete networkpolicy secure-zone-access

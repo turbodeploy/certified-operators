@@ -291,12 +291,20 @@ then
   echo "######################################################################"
   echo "                 Helm Chart Installation                              "
   echo "######################################################################"
-   /usr/local/bin/helm init
-   /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
-   if [ "${registry}" == "dockerhub" ]
-   then
-     /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace} --set-string global.tag=${turboVersion} --set-string global.externalIP=${node} 
-   else
-     /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace}    --set-string global.repository=${registry}/turbonomic  --set-string global.tag=${turboVersion} --set-string global.externalIP=${node} --set imageCredentials.password=${dockerPassword} --set imageCredentials.username=${dockerUserName}
-  fi
+  /usr/local/bin/helm init
+  /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
+  /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace} \
+                                                                 --set-string global.tag=${turboVersion} \
+                                                                 --set-string global.externalIP=${node} \
+                                                                 --set vcenter.enabled=true \
+                                                                 --set hyperv.enabled=true \
+                                                                 --set actionscript.enabled=true \
+                                                                 --set netapp.enabled=true \
+                                                                 --set pure.enabled=true \
+                                                                 --set oneview.enabled=true \
+                                                                 --set ucs.enabled=true \
+                                                                 --set hpe3par.enabled=true \
+                                                                 --set vmax.enabled=true \
+                                                                 --set vmm.enabled=true \
+                                                                 --set appdynamics.enabled=true
 fi

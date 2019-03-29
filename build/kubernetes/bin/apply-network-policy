@@ -1,5 +1,0 @@
-kubectl -n turbonomic apply -f ../yaml/network_policy/default_deny_all.yaml 
-kubectl -n turbonomic apply -f ../yaml/network_policy/dmz_zone_access.yaml
-kubectl -n turbonomic apply -f ../yaml/network_policy/internal_zone_access.yaml
-kubectl -n turbonomic apply -f ../yaml/network_policy/secure_zone_access.yaml
-
