@@ -7,7 +7,6 @@
 
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
-/opt/local/bin/yaml.sh /opt/local/etc/pod_config.yaml
 
 # Functions
 usage()
