@@ -50,6 +50,8 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                         .addField(DiscoveryResponse::hasPriceTable,
                                 DiscoveryResponse::getPriceTable,
                                 DiscoveryResponse.Builder::setPriceTable)
+                        .addRepeatedField(DiscoveryResponse::getFlowDTOList,
+                                          DiscoveryResponse.Builder::addAllFlowDTO)
                         .build();
     }
 

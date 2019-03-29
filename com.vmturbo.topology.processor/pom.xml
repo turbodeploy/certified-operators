@@ -281,6 +281,11 @@
             <groupId>javax.persistence</groupId>
             <artifactId>javax.persistence-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.communication.matrix</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.antlr</groupId>

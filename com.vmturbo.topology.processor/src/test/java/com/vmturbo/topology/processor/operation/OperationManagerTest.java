@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.vmturbo.matrix.component.TheMatrix;
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
 import org.junit.Assert;
@@ -166,10 +167,10 @@ public class OperationManagerTest {
         dsl = dbConfig.prepareDatabase();
         entityActionDao = new EntityActionDaoImp(dsl, 100, 300, 360);
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
-                mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
-                discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
-                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,10, 10, 10,
-                5, 1, 1);
+                                                mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
+                                                discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
+                                                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, 10, 10, 10,
+                                                5, 1, 1, TheMatrix.instance());
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 

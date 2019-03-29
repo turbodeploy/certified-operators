@@ -20,6 +20,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.vmturbo.matrix.component.external.MatrixInterface;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -222,6 +223,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      */
     private final int probeDiscoveryPermitWaitTimeoutIntervalMins;
 
+    private final MatrixInterface matrix;
+
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore,
@@ -241,7 +244,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             final long actionTimeoutSeconds,
                             final int maxConcurrentTargetDiscoveriesPerProbeCount,
                             final int probeDiscoveryPermitWaitTimeoutMins,
-                            final int probeDiscoveryPermitWaitTimeoutIntervalMins) {
+                            final int probeDiscoveryPermitWaitTimeoutIntervalMins,
+                            final @Nonnull MatrixInterface matrix) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -271,6 +275,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
+        this.matrix = matrix;
     }
 
     /**
@@ -998,6 +1003,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     }
                     discoveryDumper.dumpDiscovery(targetName, DiscoveryType.FULL, response, new ArrayList<>());
                 }
+                // Flows
+                matrix.update(response.getFlowDTOList());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |

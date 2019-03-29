@@ -13,6 +13,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.matrix.component.TheMatrix;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -216,21 +217,22 @@ public class OperationControllerTest {
         @Bean
         OperationManager operationManager() {
             return new OperationManager(identityProvider(),
-                targetStore(),
-                probeStore(),
-                mockRemoteMediation(),
-                operationListener(),
-                entityRepository(),
-                groupRecorder(),
-                workflowRecorder(),
-                discoveredCloudCostUploader(),
-                discoveredTemplatesUploader(),
-                controllableDao(),
-                derivedTargetParser(),
-                groupScopeResolver(),
-                targetDumpingSettings(),
-                10, 10, 10,
-                    5, 1, 1);
+                                        targetStore(),
+                                        probeStore(),
+                                        mockRemoteMediation(),
+                                        operationListener(),
+                                        entityRepository(),
+                                        groupRecorder(),
+                                        workflowRecorder(),
+                                        discoveredCloudCostUploader(),
+                                        discoveredTemplatesUploader(),
+                                        controllableDao(),
+                                        derivedTargetParser(),
+                                        groupScopeResolver(),
+                                        targetDumpingSettings(),
+                                        10, 10, 10,
+                                        5, 1, 1,
+                                        TheMatrix.instance());
         }
 
         @Bean

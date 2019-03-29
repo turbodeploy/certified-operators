@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.operation;
 
+import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,7 +37,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     ControllableConfig.class,
     WorkflowConfig.class,
     CloudCostConfig.class,
-    ComponentBasedTargetDumpingSettingsConfig.class
+    ComponentBasedTargetDumpingSettingsConfig.class,
+    MatrixConfig.class
 })
 public class OperationConfig {
 
@@ -75,6 +77,9 @@ public class OperationConfig {
 
     @Autowired
     private ComponentBasedTargetDumpingSettingsConfig componentBasedTargetDumpingSettingsConfig;
+
+    @Autowired
+    private MatrixConfig matrixConfig;
 
     @Value("${discoveryTimeoutSeconds}")
     private long discoveryTimeoutSeconds;
@@ -115,7 +120,8 @@ public class OperationConfig {
             actionTimeoutSeconds,
             maxConcurrentTargetDiscoveriesPerProbeCount,
             probeDiscoveryPermitWaitTimeoutMins,
-            probeDiscoveryPermitWaitTimeoutIntervalMins
+            probeDiscoveryPermitWaitTimeoutIntervalMins,
+            matrixConfig.matrixInterface()
         );
     }
 }

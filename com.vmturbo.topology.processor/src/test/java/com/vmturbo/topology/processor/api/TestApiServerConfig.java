@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.vmturbo.matrix.component.TheMatrix;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
@@ -250,11 +251,14 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public OperationManager operationManager() {
 
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
-                remoteMediation(), topologyProcessorNotificationSender(),
-                entityRepository(), groupRecorder(), workflowRecorder(), cloudCostUploadRecorder(),
-                discoveredTemplatesUploader(), controllableDao(), derivedTargetParser(),
-                groupScopeResolver(), targetDumpingSettings(), 1L, 1L, 1L,
-                5, 1, 1);
+                                    remoteMediation(), topologyProcessorNotificationSender(),
+                                    entityRepository(), groupRecorder(), workflowRecorder(),
+                                    cloudCostUploadRecorder(),
+                                    discoveredTemplatesUploader(), controllableDao(),
+                                    derivedTargetParser(),
+                                    groupScopeResolver(), targetDumpingSettings(), 1L, 1L, 1L,
+                                    5, 1, 1,
+                                    TheMatrix.instance());
     }
 
     @Bean
