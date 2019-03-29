@@ -496,7 +496,7 @@ public class TopologyConverterToMarketTest {
      * Shopping lists with UNKNOWN providers are movable false.
      */
     @Test
-    public void testShoppingListsNotMovable() {
+    public void testShoppingListsWithUnknownHostNotMovable() {
         TopologyDTO.TopologyEntityDTO unknownStorage = TopologyDTO.TopologyEntityDTO.newBuilder()
             .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
         TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()

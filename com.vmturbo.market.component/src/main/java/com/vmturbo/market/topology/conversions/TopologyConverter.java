@@ -1427,12 +1427,12 @@ public class TopologyConverter {
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
-        final boolean isProviderUnknown = provider == null && providerOid != null &&
-            skippedEntities.containsKey(providerOid) &&
+        final boolean isProviderUnknown = skippedEntities.containsKey(providerOid) &&
             skippedEntities.get(providerOid).getEntityState() == TopologyDTO.EntityState.UNKNOWN;
         if (isProviderUnknown) {
-            logger.debug("probiderOid is {}, provider is null, unknown provider for entityType {}",
-                providerOid, entityType);
+            logger.debug("probiderOid is {}, unknown \"state\" provider is {}, " +
+                    "unknown \"state\" provider for entityType {}",
+                providerOid, skippedEntities.get(providerOid).getDisplayName(), entityType);
         }
         final boolean isMovable = !isProviderUnknown && (commBoughtGrouping.hasMovable()
             ? commBoughtGrouping.getMovable()
