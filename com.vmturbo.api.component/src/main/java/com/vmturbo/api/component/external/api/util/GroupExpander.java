@@ -1,43 +1,78 @@
 package com.vmturbo.api.component.external.api.util;
 
-import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import static com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
+import org.immutables.value.Value;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 
 /**
- * Process a list of UUIDs to replace {@link Group}s with the
- * {@link ServiceEntityApiDTO}s that belong to the Group (or Cluster, respectively).
- * UUIDs for ServiceEntities are included in the output.
- *
- * There's a special case for the 'uuid' of the live "Market"...this must be the only UUID in
- * the input 'uuidList'; the output result for the live "Market" is the empty list, indicating
- * "All SE's".
+ * A utility object to:
+ * 1) Process UUIDs and replace ones that refer to groups with the members of the groups.
+ * 2) Resolve group membership for UUIDs and OIDs.
  **/
 public class GroupExpander {
+
+    private static final Set<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableSet.of(
+        "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
     private final GroupServiceBlockingStub groupServiceGrpc;
 
     public GroupExpander(@Nonnull GroupServiceBlockingStub groupServiceGrpc) {
         this.groupServiceGrpc = groupServiceGrpc;
+    }
+
+    /**
+     * A utility object to represent a group and its members.
+     *
+     * TODO (roman, Mar 29 2019): Move this functionality to the group components.
+     * Edit the GetMembers call to return the leaf entity IDs, as well as the Group definition.
+     */
+    @Value.Immutable
+    public interface GroupAndMembers {
+        /**
+         * The {@link Group} definition retrieved from the group component.
+         */
+        Group group();
+
+        /**
+         * The members of the group.
+         */
+        Collection<Long> members();
+
+        /**
+         * The entities in the group. In a non-nested group, this will be the same collection
+         * as the {@link GroupAndMembers#members()}. In a nested group, the members will be
+         * the immediate groups inside {@link GroupAndMembers#group()}, and the entities will be the
+         * leaf entities.
+         */
+        Collection<Long> entities();
     }
 
     /**
@@ -57,8 +92,96 @@ public class GroupExpander {
         }
     }
 
-    public boolean isGroup(@Nonnull final String uuid) {
-        return getGroup(uuid).isPresent();
+    /**
+     * Get the group associated with a particular UUID, as well as its members.
+     *
+     * @param uuid The string UUID. This may be the OID of a group, an entity, or a magic string.
+     * @return If the UUID refers to a group, an {@link Optional} containing the
+     *         {@link GroupAndMembers} describing the group and its members. An empty
+     *         {@link Optional} otherwise.
+     */
+    @Nonnull
+    public Optional<GroupAndMembers> getGroupWithMembers(@Nonnull final String uuid) {
+        // These magic UI strings currently have no associated group in XL, so they are not valid.
+        if (uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
+            uuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID)) {
+            return Optional.empty();
+        }
+
+        if (GLOBAL_SCOPE_SUPPLY_CHAIN.contains(uuid)) {
+            return Optional.empty();
+        }
+
+        return getGroup(uuid)
+            .map(this::getMembersForGroup);
+    }
+
+    /**
+     * Given a {@link Group}, get its members. If the {@link Group} is a dynamic group, this
+     * may make a call to the group component.
+     *
+     * Note - it's preferable to use this method for convenience, and to allow for (potential)
+     * caching in the future.
+     *
+     * @param group The {@link Group}
+     * @return  The {@link GroupAndMembers} describing the group and its members.
+     */
+    @Nonnull
+    public GroupAndMembers getMembersForGroup(@Nonnull final Group group) {
+        ImmutableGroupAndMembers.Builder retBuilder = ImmutableGroupAndMembers.builder()
+            .group(group);
+        final List<Long> members = GroupProtoUtil.getStaticMembers(group).orElseGet(() -> {
+            final GetMembersResponse groupMembersResp =
+                groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
+                    .setId(group.getId())
+                    .setExpectPresent(true)
+                    .build());
+            return groupMembersResp.getMembers().getIdsList();
+        });
+
+        // Fill in the expanded entities.
+        final Collection<Long> entities;
+        if (!members.isEmpty()) {
+            if (group.getType() == Type.NESTED_GROUP) {
+                // If expanding a nested group, we want the "leaf" entities.
+                // Right now we only support one level of nesting, so it's a pretty
+                // straightforward call.
+                Set<Long> entitiesSet = new HashSet<>();
+                groupServiceGrpc.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(members)
+                    .build()).forEachRemaining(groupInNestedGroup -> {
+                    if (groupInNestedGroup.getType() == Type.CLUSTER) {
+                        entitiesSet.addAll(GroupProtoUtil.getClusterMembers(groupInNestedGroup));
+                    } else {
+                        throw new IllegalArgumentException("Unhandled nested group type: " +
+                            groupInNestedGroup.getType());
+                    }
+                });
+                entities = entitiesSet;
+            } else {
+                entities = members;
+            }
+        } else {
+            entities = members;
+        }
+
+        retBuilder.members(members);
+        retBuilder.entities(entities);
+        return retBuilder.build();
+    }
+
+    /**
+     * Get multiple groups with their associated members.
+     *
+     * @param getGroupsRequest A request object outlining the criteria to use to get the groups.
+     * @return A stream of {@link GroupAndMembers} describing the groups that matched the request
+     *         and the members of those groups.
+     */
+    public Stream<GroupAndMembers> getGroupsWithMembers(@Nonnull final GetGroupsRequest getGroupsRequest) {
+        final Iterable<Group> retIt = () -> groupServiceGrpc.getGroups(getGroupsRequest);
+        return StreamSupport.stream(retIt.spliterator(), false)
+            // In the future we could support a group API call here.
+            .map(this::getMembersForGroup);
     }
 
     /**
@@ -118,18 +241,13 @@ public class GroupExpander {
             // For subsequent items, if it's group type, we continue the RPC call to Group component.
             // If not, we know it's entity type, and will just add oids to return set.
             if (!isEntity) {
-                // If we know it's group, we can further optimize the codes to do multi olds RPC call.
-                GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(oid)
-                    .setExpectPresent(false)
-                    .build();
-                GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
-
-                if (groupMembersResp.hasMembers()) {
-                    answer.addAll(groupMembersResp.getMembers().getIdsList());
+                Optional<GroupAndMembers> groupAndMembers = getGroupWithMembers(Long.toString(oid));
+                if (groupAndMembers.isPresent()) {
+                    // When expanding, we take the entities (expand all the way).
+                    answer.addAll(groupAndMembers.get().entities());
                 } else {
-                    answer.add(oid);
                     isEntity = true;
+                    answer.add(oid);
                 }
             } else {
                 answer.add(oid);

@@ -59,7 +59,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
@@ -185,7 +184,7 @@ public class TargetsService implements ITargetsService {
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
-    private final EntitySeverityServiceBlockingStub entitySeverityRpc;
+    private final SeverityPopulator severityPopulator;
 
     private final ActionSpecMapper actionSpecMapper;
 
@@ -201,7 +200,7 @@ public class TargetsService implements ITargetsService {
                           @Nullable final LicenseCheckClient licenseCheckClient,
                           @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                          @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpcService,
+                          @Nonnull final SeverityPopulator severityPopulator,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                           final long realtimeTopologyContextId) {
@@ -213,7 +212,7 @@ public class TargetsService implements ITargetsService {
         this.licenseCheckClient = licenseCheckClient;
         this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -1035,7 +1034,7 @@ public class TargetsService implements ITargetsService {
                 .collect(Collectors.toList());
 
             // Severity isn't part of searchEntities response, hence the following line.
-            SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, targetEntities);
+            severityPopulator.populate(realtimeTopologyContextId, targetEntities);
 
         } catch (StatusRuntimeException e) {
             throw new OperationFailedException("Retrieval of target entities failed", e);

@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.CLUSTER;
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.GROUP;
+
+import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
+import static com.vmturbo.components.common.utils.StringConstants.GROUP;
+import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -70,7 +72,7 @@ import com.vmturbo.components.common.utils.StringConstants;
 public class SupplyChainsService implements ISupplyChainsService {
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP, CLUSTER);
+    private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP, CLUSTER, STORAGE_CLUSTER);
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long realtimeTopologyContextId;

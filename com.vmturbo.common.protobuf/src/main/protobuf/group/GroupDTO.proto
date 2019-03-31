@@ -47,6 +47,14 @@ message Group {
         // Temporary groups are not valid targets for policies or setting policies, and are
         // only used for query purposes.
         TEMP_GROUP = 3;
+
+        // A nested group is a group that contains other groups. The most common use case for
+        // nested groups is to create a group of several clusters (e.g. all clusters in a
+        // datacenter).
+        //
+        // Temporary groups are not valid targets for policies or setting policies, and are only
+        // used for query/visibility purposes.
+        NESTED_GROUP = 4;
     }
 
     // The unique numeric identifier of the group.
@@ -73,6 +81,10 @@ message Group {
         // The properties describing a temporary group.
         // This field is only set for groups where Type == TEMP_GROUP.
         TempGroupInfo temp_group = 5;
+
+        // The properties describing the nested group.
+        // This field is only set for groups where Type == NESTED_GROUP.
+        NestedGroupInfo nested_group = 10;
     }
 
     // The ID of the target that discovered the group.
@@ -155,6 +167,55 @@ message ClusterInfo {
 
     // User friendly name. Typically used for discovered clusters.
     optional string display_name = 7;
+}
+
+// The properties of a nested group.
+message NestedGroupInfo {
+    // The name of the group.
+    optional string name = 1;
+
+    // The type of nested group. All members of the group will be of the same type.
+    oneof type {
+        // If set, this is a group of clusters of this type.
+        ClusterInfo.Type cluster = 2;
+
+        // In the future, we may want to support nested groups of other nested groups (e.g. when
+        // parsing VC folders). However, for now we don't do this - and will try to avoid it for
+        // as long as possible!
+    }
+
+    // Describes how groups are selected to be in the group.
+    // The selection criteria only applies to groups that match the type (defined above).
+    // For example, if the type is compute cluster, we will only consider compute clusters
+    // as candidates for selection.
+    oneof selection_criteria {
+        // If set, this is a static nested group. The members are configured at creation time
+        // and do not change.
+        StaticGroupMembers static_group_members = 10;
+
+        // If set, this is a dynamic nested group. The members will be the subset of groups in
+        // the system that match the property filters.
+        GroupPropertyFilterList property_filter_list = 11;
+    }
+}
+
+// A property filter list that can be used to dynamically select a set of groups.
+// This is loosely equivalent to "SearchParameters" in Search.proto, with a lot less functionality
+// because our support for search over groups is much more limited.
+message GroupPropertyFilterList {
+
+    // Since groups are not service entities, we can't apply all types of
+    // property filters to groups. We define a group-specific set of allowed property filters.
+    message GroupPropertyFilter {
+        oneof property_type {
+            .search.PropertyFilter.StringFilter name_filter = 1;
+
+            // In the future we also need to add a "tag" filter,
+            // but we don't currently support tags on groups.
+        }
+    }
+
+    repeated GroupPropertyFilter property_filters = 1;
 }
 
 
@@ -263,11 +324,11 @@ message GetGroupsRequest {
     // Return only groups with the specific origin.
     optional Group.Origin origin_filter = 3;
 
-    // Return only groups of a particular type.
+    // Return only groups of particular types.
     //
     // Note: GetGroupsRequest does not
     // return temporary groups unless explicitly specified here.
-    optional Group.Type type_filter = 4;
+    repeated Group.Type type_filter = 4;
 
     // Apply this filter to any groups returned where Group.Type is CLUSTER.
     optional ClusterFilter cluster_filter = 5;
@@ -295,7 +356,6 @@ message GetMembersRequest {
 }
 
 message GetMembersResponse {
-
     optional Members members = 1;
 
     message Members {
@@ -362,6 +422,23 @@ message CreateTempGroupResponse {
     optional Group group = 1;
 }
 
+message CreateNestedGroupRequest {
+    optional NestedGroupInfo group_info = 1;
+}
+
+message CreateNestedGroupResponse {
+    optional Group group = 1;
+}
+
+message UpdateNestedGroupRequest {
+    optional int64 group_id = 1;
+    optional NestedGroupInfo new_group_info = 2;
+}
+
+message UpdateNestedGroupResponse {
+    optional Group updated_group = 1;
+}
+
 // Request for udpating the cluster headroom template ID of a cluster.
 // The group_id must reference a group that is a cluster.
 message UpdateClusterHeadroomTemplateRequest {
@@ -379,11 +456,7 @@ message GetClusterForEntityRequest {
 }
 
 message GetClusterForEntityResponse {
-
-    optional int64 cluster_id = 1;
-
-    optional ClusterInfo cluster_info = 2;
-
+    optional Group cluster = 1;
 }
 
 // A service responsible for group operations.
@@ -392,6 +465,8 @@ service GroupService {
     rpc CreateGroup(GroupInfo) returns (CreateGroupResponse);
 
     rpc CreateTempGroup(CreateTempGroupRequest) returns (CreateTempGroupResponse);
+
+    rpc CreateNestedGroup(CreateNestedGroupRequest) returns (CreateNestedGroupResponse);
 
     // Get a group
     rpc GetGroup(GroupID) returns (GetGroupResponse);
@@ -404,6 +479,12 @@ service GroupService {
     // Returns INVALID_ARGUMENT if the group is a discovered group (origin == DISCOVERED), since
     // users cannot modify discovered groups.
     rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+
+    // Update a nested group.
+    //
+    // Returns INVALID_ARGUMENT if the group is a discovered group (origin == DISCOVERED), since
+    // users cannot modify discovered groups.
+    rpc UpdateNestedGroup(UpdateNestedGroupRequest) returns (UpdateNestedGroupResponse);
 
     // Update the cluster headroom template ID of a cluster.
     rpc UpdateClusterHeadroomTemplate(UpdateClusterHeadroomTemplateRequest)

@@ -1279,7 +1279,7 @@ public class StatsServiceTest {
         assertThat(clusterStats.getUuid(), is("7"));
         assertThat(clusterStats.getDisplayName(), is(clusterInfo.getDisplayName()));
         assertThat(clusterStats.getStats(), containsInAnyOrder(apiSnapshot));
-        assertThat(clusterStats.getClassName(), is(GroupMapper.CLUSTER));
+        assertThat(clusterStats.getClassName(), is(StringConstants.CLUSTER));
     }
 
     @Test

@@ -16,8 +16,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -25,23 +25,26 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 public class SeverityPopulator {
     private static final Logger logger = LogManager.getLogger();
 
+    private final EntitySeverityServiceBlockingStub severityService;
+
+    public SeverityPopulator(@Nonnull final EntitySeverityServiceBlockingStub severityService) {
+        this.severityService = severityService;
+    }
+
     /**
      * Populate the severity for a single service entity.
      * If the AO has no action information for an entity, its severity will be set to NORMAL.
      * If the ActionOrchestrator is unreachable, severity will not be populated.
      *
-     * @param entitySeverityRpc The entity severity service that will provide severity information
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityDtos The DTOs whose severity should be updated.
      * @return The updated DTOs.
      */
     @Nonnull
-    public static Collection<ServiceEntityApiDTO> populate(
-        @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
-        @Nonnull final long topologyContextId,
+    public Collection<ServiceEntityApiDTO> populate(final long topologyContextId,
         @Nonnull final Collection<ServiceEntityApiDTO> entityDtos) {
         try {
-            final SeverityMap severityMap = new SeverityMap(getSeverities(entitySeverityRpc,
+            final SeverityMap severityMap = new SeverityMap(getSeverities(
                 entityDtos.stream().map(ServiceEntityApiDTO::getUuid).map(Long::parseLong).collect(Collectors.toList()),
                 topologyContextId));
             entityDtos.forEach(entityDto -> entityDto.setSeverity(
@@ -58,15 +61,13 @@ public class SeverityPopulator {
      * find a severity for an entity in the SupplyChain, its Severity will be set to NORMAL.
      * If the ActionOrchestrator is unreachable, the severity will not be populated.
      *
-     * @param entitySeverityRpc The action orchestrator to use to retrieve severities.
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param supplychainApiDTO The supply chain whose entities should be populated.
      * @return The input supply chain with populated severities.
      */
     @Nonnull
-    public static SupplychainApiDTO populate(@Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
-                                             final long topologyContextId,
-                                             @Nonnull final SupplychainApiDTO supplychainApiDTO) {
+    public SupplychainApiDTO populate(final long topologyContextId,
+                                      @Nonnull final SupplychainApiDTO supplychainApiDTO) {
         try {
             final Set<Long> supplyChainEntityIds = supplychainApiDTO.getSeMap().values().stream()
                 .filter(Objects::nonNull)
@@ -74,8 +75,7 @@ public class SeverityPopulator {
                     supplychainEntryDTO.getInstances().keySet().stream().map(Long::parseLong))
                 .collect(Collectors.toSet());
 
-            final SeverityMap severityMap = new SeverityMap(getSeverities(entitySeverityRpc,
-                supplyChainEntityIds, topologyContextId));
+            final SeverityMap severityMap = new SeverityMap(getSeverities(supplyChainEntityIds, topologyContextId));
 
             supplychainApiDTO.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
                 if (supplychainEntryDTO != null) {
@@ -96,17 +96,15 @@ public class SeverityPopulator {
      * TODO: to improve performance, move the calculation to Group component, and cache results.
      * TODO: Created OM-43416 for this change.
      *
-     * @param entitySeverityRpc The action orchestrator to use to retrieve severities.
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityOids        The set of entity OIDs.
      * @return calculated highest severity
      */
     @Nonnull
-    public static Optional<Severity> calculateSeverity(@Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
-                                                       final long topologyContextId,
-                                                       @Nonnull final Set<Long> entityOids) {
+    public Optional<Severity> calculateSeverity(final long topologyContextId,
+                                                @Nonnull final Collection<Long> entityOids) {
         try {
-            List<EntitySeverity> severitiesList = entitySeverityRpc.getEntitySeverities(
+            List<EntitySeverity> severitiesList = severityService.getEntitySeverities(
                     MultiEntityRequest.newBuilder()
                             .setTopologyContextId(topologyContextId)
                             .addAllEntityIds(entityOids)
@@ -130,17 +128,15 @@ public class SeverityPopulator {
      * If the AO has no action information for an entity, its severity will be set to NORMAL.
      * If the ActionOrchestrator is unreachable, the severity will not be populated.
      *
-     * @param entitySeverityRpc The entity severity service to use to retrieve severities.
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityDTOs A map of ids -> corresponding ServiceEntityApiDTO whose severities should be populated.
      * @return The input DTOs.
      */
     @Nonnull
-    public static Map<Long, Optional<ServiceEntityApiDTO>> populate(@Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
-                                                                    final long topologyContextId,
-                                                                    @Nonnull final Map<Long, Optional<ServiceEntityApiDTO>> entityDTOs) {
+    public Map<Long, Optional<ServiceEntityApiDTO>> populate(final long topologyContextId,
+                                                            @Nonnull final Map<Long, Optional<ServiceEntityApiDTO>> entityDTOs) {
         try {
-            final SeverityMap severityMap = new SeverityMap(getSeverities(entitySeverityRpc,
+            final SeverityMap severityMap = new SeverityMap(getSeverities(
                 entityDTOs.keySet(), topologyContextId));
             entityDTOs.forEach((entityId, optionalDTO) ->
                 optionalDTO.ifPresent(dto -> dto.setSeverity(severityMap.getSeverity(entityId))));
@@ -177,11 +173,10 @@ public class SeverityPopulator {
         }
     }
 
-    private static Map<Long, Optional<Severity>> getSeverities(@Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
-                                                               @Nonnull final Collection<Long> entityIds,
+    private Map<Long, Optional<Severity>> getSeverities(@Nonnull final Collection<Long> entityIds,
                                                                final long topologyContextId)
     {
-        List<EntitySeverity> severitiesList = entitySeverityRpc.getEntitySeverities(
+        List<EntitySeverity> severitiesList = severityService.getEntitySeverities(
                 MultiEntityRequest.newBuilder()
                         .setTopologyContextId(topologyContextId)
                         .addAllEntityIds(entityIds)

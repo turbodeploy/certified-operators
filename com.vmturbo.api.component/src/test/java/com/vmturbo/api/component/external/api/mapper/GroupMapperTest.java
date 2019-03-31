@@ -7,7 +7,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,15 +15,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -32,6 +34,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -40,6 +43,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -65,6 +69,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class GroupMapperTest {
@@ -89,7 +94,7 @@ public class GroupMapperTest {
     private UserSessionContext userSessionContext = new UserSessionContext();
 
     private GroupMapper groupMapper =
-        new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander, userSessionContext);
+        new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -238,7 +243,6 @@ public class GroupMapperTest {
     public void testToGroupApiDTOOnlyWithStartingFilter() {
         final String displayName = "group-foo";
         final int groupType = EntityType.PHYSICAL_MACHINE.getNumber();
-        final Boolean isStatic = false;
         final long oid = 123L;
 
         final Group group = Group.newBuilder()
@@ -248,21 +252,28 @@ public class GroupMapperTest {
                 .setName(displayName)
                 .setEntityType(groupType)
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SEARCH_PARAMETERS.setSourceFilterSpecs(buildFilterSpecs(
-                                        "pmsByName", "foo", "foo"
-                        )))))
-
+                    .addSearchParameters(SEARCH_PARAMETERS.setSourceFilterSpecs(buildFilterSpecs(
+                        "pmsByName", "foo", "foo")))))
             .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .members(ImmutableSet.of(1L))
+            .entities(ImmutableSet.of(2L, 3L))
+            .build());
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
 
-        assertEquals(Long.toString(oid), dto.getUuid());
-        assertEquals(displayName, dto.getDisplayName());
-        assertEquals(ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE.getValue(), dto.getGroupType());
-        assertEquals(isStatic, dto.getIsStatic());
-        assertEquals(GroupMapper.GROUP, dto.getClassName());
-        assertEquals("pmsByName", dto.getCriteriaList().get(0).getFilterType());
-        assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
+        assertThat(dto.getUuid(), is(Long.toString(oid)));
+        assertThat(dto.getDisplayName(), is(displayName));
+        assertThat(dto.getGroupType(), is(UIEntityType.PHYSICAL_MACHINE.getValue()));
+        assertFalse(dto.getIsStatic());
+        assertThat(dto.getClassName(), is(StringConstants.GROUP));
+        assertThat(dto.getCriteriaList().get(0).getFilterType(), is("pmsByName"));
+        assertThat(dto.getEnvironmentType(), is(EnvironmentType.ONPREM));
+        assertThat(dto.getMemberUuidList(), containsInAnyOrder("1"));
+        assertThat(dto.getMembersCount(), is(1));
+        assertThat(dto.getEntitiesCount(), is(2));
     }
 
     /**
@@ -289,13 +300,20 @@ public class GroupMapperTest {
                             .addSearchParameters(pmParameters)))
                 .build();
 
+        when(groupExpander.getMembersForGroup(group))
+            .thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build());
+
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
 
         assertEquals(Long.toString(oid), dto.getUuid());
         assertEquals(displayName, dto.getDisplayName());
         assertEquals(ServiceEntityMapper.UIEntityType.VIRTUAL_MACHINE.getValue(), dto.getGroupType());
         assertEquals(isStatic, dto.getIsStatic());
-        assertEquals(GroupMapper.GROUP, dto.getClassName());
+        assertEquals(StringConstants.GROUP, dto.getClassName());
         assertEquals("vmsByName", dto.getCriteriaList().get(0).getFilterType());
         assertEquals(GroupMapper.EQUAL, dto.getCriteriaList().get(0).getExpType());
         assertEquals("VM#2", dto.getCriteriaList().get(0).getExpVal());
@@ -766,9 +784,16 @@ public class GroupMapperTest {
                                 .addStaticMemberOids(10L)))
                 .build();
 
+        when(groupExpander.getMembersForGroup(computeCluster))
+            .thenReturn(ImmutableGroupAndMembers.builder()
+                .group(computeCluster)
+                .members(GroupProtoUtil.getClusterMembers(computeCluster))
+                .entities(GroupProtoUtil.getClusterMembers(computeCluster))
+                .build());
+
         final GroupApiDTO dto = groupMapper.toGroupApiDto(computeCluster);
         assertEquals("7", dto.getUuid());
-        assertEquals(GroupMapper.CLUSTER, dto.getClassName());
+        assertEquals(StringConstants.CLUSTER, dto.getClassName());
         assertEquals(true, dto.getIsStatic());
         assertEquals(1, dto.getMembersCount().intValue());
         assertEquals(1, dto.getEntitiesCount().intValue());
@@ -781,7 +806,7 @@ public class GroupMapperTest {
 
     @Test
     public void testMapStorageCluster() {
-        final Group computeCluster = Group.newBuilder()
+        final Group storageCluster = Group.newBuilder()
                 .setId(7L)
                 .setType(Group.Type.CLUSTER)
                 .setCluster(ClusterInfo.newBuilder()
@@ -791,9 +816,16 @@ public class GroupMapperTest {
                                 .addStaticMemberOids(10L)))
                 .build();
 
-        final GroupApiDTO dto = groupMapper.toGroupApiDto(computeCluster);
+        when(groupExpander.getMembersForGroup(storageCluster))
+            .thenReturn(ImmutableGroupAndMembers.builder()
+                .group(storageCluster)
+                .members(GroupProtoUtil.getClusterMembers(storageCluster))
+                .entities(GroupProtoUtil.getClusterMembers(storageCluster))
+                .build());
+
+        final GroupApiDTO dto = groupMapper.toGroupApiDto(storageCluster);
         assertEquals("7", dto.getUuid());
-        assertEquals(GroupMapper.STORAGE_CLUSTER, dto.getClassName());
+        assertEquals(StringConstants.STORAGE_CLUSTER, dto.getClassName());
         assertEquals(true, dto.getIsStatic());
         assertEquals(1, dto.getMembersCount().intValue());
         assertEquals(1, dto.getEntitiesCount().intValue());
@@ -900,7 +932,7 @@ public class GroupMapperTest {
 
     @Test
     public void testMapTempGroup() {
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Group.newBuilder()
+        final Group group = Group.newBuilder()
             .setType(Group.Type.TEMP_GROUP)
             .setId(8L)
             .setOrigin(Origin.USER)
@@ -909,12 +941,22 @@ public class GroupMapperTest {
                 .setEntityType(10)
                 .setMembers(StaticGroupMembers.newBuilder()
                     .addStaticMemberOids(1L)))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .members(Collections.singleton(1L))
+            // Temp groups will never have different entity count, but we want to check the
+            // entity count gets set from the right field in GroupAndMembers.
+            .entities(ImmutableList.of(1L, 2L))
             .build());
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group);
 
         assertThat(mappedDto.getTemporary(), is(true));
         assertThat(mappedDto.getUuid(), is("8"));
         assertThat(mappedDto.getIsStatic(), is(true));
-        assertThat(mappedDto.getEntitiesCount(), is(1));
+        assertThat(mappedDto.getEntitiesCount(), is(2));
         assertThat(mappedDto.getMembersCount(), is(1));
         assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1"));
         assertThat(mappedDto.getGroupType(), is(VM_TYPE));
@@ -924,16 +966,24 @@ public class GroupMapperTest {
 
     @Test
     public void testMapTempGroupCloud() {
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Group.newBuilder()
-                .setType(Group.Type.TEMP_GROUP)
-                .setId(8L)
-                .setOrigin(Origin.USER)
-                .setTempGroup(TempGroupInfo.newBuilder()
-                        .setName("foo")
-                        .setEntityType(10)
-                        .setMembers(StaticGroupMembers.newBuilder()
-                                .addStaticMemberOids(1L)))
-                .build(), EnvironmentType.CLOUD);
+        final Group group = Group.newBuilder()
+            .setType(Group.Type.TEMP_GROUP)
+            .setId(8L)
+            .setOrigin(Origin.USER)
+            .setTempGroup(TempGroupInfo.newBuilder()
+                .setName("foo")
+                .setEntityType(10)
+                .setMembers(StaticGroupMembers.newBuilder()
+                    .addStaticMemberOids(1L)))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .entities(GroupProtoUtil.getStaticMembers(group).get())
+            .members(GroupProtoUtil.getStaticMembers(group).get())
+            .build());
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.CLOUD);
 
         assertThat(mappedDto.getTemporary(), is(true));
         assertThat(mappedDto.getUuid(), is("8"));
@@ -948,7 +998,7 @@ public class GroupMapperTest {
 
     @Test
     public void testMapTempGroupONPREM() {
-        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Group.newBuilder()
+        final Group group = Group.newBuilder()
                 .setType(Group.Type.TEMP_GROUP)
                 .setId(8L)
                 .setOrigin(Origin.USER)
@@ -957,12 +1007,22 @@ public class GroupMapperTest {
                         .setEntityType(10)
                         .setMembers(StaticGroupMembers.newBuilder()
                                 .addStaticMemberOids(1L)))
-                .build(), EnvironmentType.ONPREM);
+                .build();
+
+        when(groupExpander.getMembersForGroup(group))
+            .thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(Collections.singleton(1L))
+                // Return a different entity set to make sure it gets used for the entity count.
+                .entities(ImmutableSet.of(2L, 3L))
+                .build());
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.ONPREM);
 
         assertThat(mappedDto.getTemporary(), is(true));
         assertThat(mappedDto.getUuid(), is("8"));
         assertThat(mappedDto.getIsStatic(), is(true));
-        assertThat(mappedDto.getEntitiesCount(), is(1));
+        assertThat(mappedDto.getEntitiesCount(), is(2));
         assertThat(mappedDto.getMembersCount(), is(1));
         assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1"));
         assertThat(mappedDto.getGroupType(), is(VM_TYPE));
@@ -984,6 +1044,15 @@ public class GroupMapperTest {
                     .build())
                 .build();
 
+        // We use the groupExpander to get members for both static and dynamic groups.
+        final Set<Long> members = ImmutableSet.of(10L, 20L);
+        when(groupExpander.getMembersForGroup(group))
+            .thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(members)
+                .entities(members)
+                .build());
+
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
         assertEquals("7", dto.getUuid());
         assertEquals(true, dto.getIsStatic());
@@ -1004,31 +1073,17 @@ public class GroupMapperTest {
                          .build())
                     .build())
                 .build();
+        final Set<Long> members = ImmutableSet.of(10L, 20L, 30L);
+        when(groupExpander.getMembersForGroup(group))
+            .thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(members)
+                .entities(members)
+                .build());
 
-        when(groupExpander.expandUuids(ImmutableSet.of(String.valueOf(7L)))).thenReturn(
-            ImmutableSet.of(10L, 20L, 30L));
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
         assertThat(dto.getEntitiesCount(), is(3));
         assertThat(dto.getMemberUuidList(),
                 containsInAnyOrder("10", "20", "30"));
-    }
-
-    /**
-     * Test converting {@link ClusterInfo} to {@link GroupApiDTO}
-     */
-    @Test
-    public void testCreateClusterApiDto() {
-        final String displayName = "group-foo";
-
-        final ClusterInfo clusterInfo = ClusterInfo.newBuilder()
-            .setDisplayName(displayName)
-            .setClusterType(ClusterInfo.Type.COMPUTE)
-            .setMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(1L).build())
-            .build();
-        final GroupApiDTO g = groupMapper.createClusterApiDto(clusterInfo);
-        assertEquals(displayName, g.getDisplayName());
-        assertEquals(GroupMapper.CLUSTER, g.getClassName());
-        assertEquals(1, g.getMembersCount().intValue());
-        assertThat(g.getMemberUuidList(), hasItems("1"));
     }
 }

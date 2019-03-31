@@ -77,7 +77,7 @@ public class ClusterRollupTask {
         try {
             final Iterator<GroupDTO.Group> allClusters = groupRpcService.getGroups(
                 GetGroupsRequest.newBuilder()
-                    .setTypeFilter(Type.CLUSTER)
+                    .addTypeFilter(Type.CLUSTER)
                     .build());
             statsServiceRpc.computeClusterRollup(Stats.ClusterRollupRequest.newBuilder()
                 .addAllClustersToRollup(() -> allClusters)

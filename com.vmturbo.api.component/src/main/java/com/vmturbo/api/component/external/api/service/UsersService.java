@@ -16,10 +16,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.xml.parsers.ParserConfigurationException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +34,10 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
@@ -490,10 +490,13 @@ public class UsersService implements IUsersService {
         // get the groups from the group service and populate the oid -> group map
         Map<Long, GroupApiDTO> apiGroupsByOid = new HashMap<>();
         if (groupOids.size() > 0) {
+            // We don't need the severities here.
+            // We actually (probably) don't need the list of members here either - consider replacing
+            // with some more minimal call.
             List<GroupApiDTO> groupApiDTOS = groupsService.getGroupApiDTOS(
                     GetGroupsRequest.newBuilder()
                             .addAllId(groupOids)
-                            .build());
+                            .build(), false);
             if (groupApiDTOS.size() > 0) {
                 groupApiDTOS.forEach(
                         group -> apiGroupsByOid.put(Long.valueOf(group.getUuid()), group));

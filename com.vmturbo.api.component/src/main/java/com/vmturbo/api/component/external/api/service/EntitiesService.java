@@ -13,9 +13,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.hateoas.Link;
@@ -24,6 +21,9 @@ import org.springframework.hateoas.mvc.ControllerLinkBuilder;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
@@ -66,19 +66,26 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
@@ -87,15 +94,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
-import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -130,7 +128,7 @@ public class EntitiesService implements IEntitiesService {
 
     private final TopologyProcessor topologyProcessor;
 
-    private final EntitySeverityServiceBlockingStub entitySeverityService;
+    private final SeverityPopulator severityPopulator;
 
     private final StatsService statsService;
 
@@ -184,7 +182,7 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final EntityAspectMapper entityAspectMapper,
             @Nonnull final TopologyProcessor topologyProcessor,
-            @Nonnull final EntitySeverityServiceBlockingStub entitySeverityService,
+            @Nonnull final SeverityPopulator severityPopulator,
             @Nonnull final StatsService statsService,
             @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
             @Nonnull final UuidMapper uuidMapper,
@@ -204,7 +202,7 @@ public class EntitiesService implements IEntitiesService {
         this.settingServiceBlockingStub = Objects.requireNonNull(settingServiceBlockingStub);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
-        this.entitySeverityService = Objects.requireNonNull(entitySeverityService);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsService = Objects.requireNonNull(statsService);
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -267,8 +265,7 @@ public class EntitiesService implements IEntitiesService {
         }
 
         // fetch entity severity
-        SeverityPopulator.populate(
-            entitySeverityService, realtimeTopologyContextId, Collections.singletonList(result));
+        severityPopulator.populate(realtimeTopologyContextId, Collections.singletonList(result));
 
         // fetch price index
         fetchAndSetPriceIndex(oid, result);
@@ -521,11 +518,10 @@ public class EntitiesService implements IEntitiesService {
                     groupServiceClient.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
                             .setEntityId(oidToQuery)
                             .build());
-            if (response.hasClusterInfo()) {
-                ClusterInfo cluster = response.getClusterInfo();
+            if (response.hasCluster()) {
                 final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
-                serviceEntityApiDTO.setDisplayName(cluster.getDisplayName());
-                serviceEntityApiDTO.setUuid(Long.toString(response.getClusterId()));
+                serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupName(response.getCluster()));
+                serviceEntityApiDTO.setUuid(Long.toString(response.getCluster().getId()));
                 serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
                 // Insert the clusterRecord before the Entity record.
                 result.add(serviceEntityApiDTO);

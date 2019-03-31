@@ -5,11 +5,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -24,12 +26,15 @@ import org.jooq.impl.DSL;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
@@ -43,7 +48,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter.PropertyTypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
@@ -51,6 +61,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateR
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -130,8 +142,52 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     @Override
+    public void createNestedGroup(final CreateNestedGroupRequest request,
+                                  final StreamObserver<CreateNestedGroupResponse> responseObserver) {
+        if (!request.hasGroupInfo()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("No group info present.").asException());
+            return;
+        }
+
+        final NestedGroupInfo groupInfo = request.getGroupInfo();
+        if (userSessionContext.isUserScoped()) {
+            // verify that all members of the nested groups will fit in the scope.
+            UserScopeUtils.checkAccess(userSessionContext,
+                getNestedGroupMembers(request.getGroupInfo(), true));
+        }
+
+        // If the group has a static selection criteria, verify that all the underlying groups
+        // exist.
+        if (groupInfo.getSelectionCriteriaCase() == SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
+            final Map<Long, Optional<Group>> results =
+                groupStore.getGroups(groupInfo.getStaticGroupMembers().getStaticMemberOidsList());
+            for (Long memberId : groupInfo.getStaticGroupMembers().getStaticMemberOidsList()) {
+                if (!results.getOrDefault(memberId, Optional.empty()).isPresent()) {
+                    responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("Group " + memberId + " does not exist.")
+                        .asException());
+                    return;
+                }
+            }
+        }
+
+        try {
+            final Group group = groupStore.newUserNestedGroup(groupInfo);
+            responseObserver.onNext(CreateNestedGroupResponse.newBuilder()
+                .setGroup(group)
+                .build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException | DuplicateNameException e) {
+            logger.error("Failed to create group: {}", groupInfo, e);
+            responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
+                .asException());
+        }
+    }
+
+    @Override
     public void createTempGroup(final CreateTempGroupRequest request,
-                                final StreamObserver<CreateTempGroupResponse> responseObserver) {
+                                  final StreamObserver<CreateTempGroupResponse> responseObserver) {
         if (!request.hasGroupInfo()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                 .withDescription("No group info present.").asException());
@@ -173,7 +229,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
             if (userSessionContext.isUserScoped() && group.isPresent()) {
                 // verify that the members of the new group would all be in scope
-                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(group.get()));
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(group.get(), true));
             }
 
             GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
@@ -210,7 +266,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     private void checkUserAccessToGroup(Long groupId) {
         if (userSessionContext.isUserScoped()) {
             getGroupWithId(groupId)
-                    .ifPresent(group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group)));
+                    .ifPresent(group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true)));
         }
     }
 
@@ -228,19 +284,24 @@ public class GroupRpcService extends GroupServiceImplBase {
         // access exception if any groups are deemed "out of scope".
         Predicate<Group> userScopeFilter = userSessionContext.isUserScoped()
                 ? requestedIds.isEmpty()
-                    ? group -> userSessionContext.getUserAccessScope().contains(getNormalGroupMembers(group))
-                    : group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group))
+                    ? group -> userSessionContext.getUserAccessScope().contains(getNormalGroupMembers(group, true))
+                    : group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true))
                 : group -> true;
         try {
-            final Stream<Group> groupStream =
-                request.hasTypeFilter() && request.getTypeFilter() == Type.TEMP_GROUP ?
-                    tempGroupCache.getAll().stream() : groupStore.getAll().stream();
-            List<Group> responseGroups = groupStream
+            final boolean requestTempGroups = request.getTypeFilterList().contains(Type.TEMP_GROUP);
+            // Only return temp groups if explicitly requested.
+            final Stream<Group> tempGroupStream = requestTempGroups ?
+                    tempGroupCache.getAll().stream() : Stream.empty();
+            // Return non-temp groups, unless the user ONLY requested temp groups.
+            final Stream<Group> otherGroupStream =
+                requestTempGroups && request.getTypeFilterCount() == 1 ?
+                    Stream.empty() : groupStore.getAll().stream();
+            List<Group> responseGroups = Stream.concat(tempGroupStream, otherGroupStream)
                     .filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
                     .filter(group -> !request.hasOriginFilter() ||
                             group.getOrigin().equals(request.getOriginFilter()))
-                    .filter(group -> !request.hasTypeFilter() ||
-                            group.getType().equals(request.getTypeFilter()))
+                    .filter(group -> request.getTypeFilterList().isEmpty() ||
+                            request.getTypeFilterList().contains(group.getType()))
                     .filter(group -> !request.hasNameFilter() ||
                             GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupDisplayName(group),
                                     request.getNameFilter()))
@@ -256,6 +317,49 @@ public class GroupRpcService extends GroupServiceImplBase {
             logger.error("Failed to query group store for group definitions.", e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getLocalizedMessage())
                     .asException());
+        }
+    }
+
+    @Override
+    public void updateNestedGroup(UpdateNestedGroupRequest request,
+                                  StreamObserver<UpdateNestedGroupResponse> responseObserver) {
+        if (!request.hasGroupId() || !request.hasNewGroupInfo()) {
+            final String errMsg = "Invalid GroupID input for group update: No group ID specified";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            return;
+        }
+
+        logger.info("Updating a group: {}", request);
+
+        if (userSessionContext.isUserScoped()) {
+            // verify the user has access to the group they are trying to modify
+            checkUserAccessToGroup(request.getGroupId());
+            // verify the modified version would fit in scope too
+            UserScopeUtils.checkAccess(userSessionContext, getNestedGroupMembers(request.getNewGroupInfo(), true));
+        }
+
+        try {
+            Group newGroup = groupStore.updateUserNestedGroup(request.getGroupId(), request.getNewGroupInfo());
+            final UpdateNestedGroupResponse res = UpdateNestedGroupResponse.newBuilder()
+                .setUpdatedGroup(newGroup)
+                .build();
+            responseObserver.onNext(res);
+            responseObserver.onCompleted();
+        } catch (ImmutableGroupUpdateException e) {
+            logger.error("Failed to update group {} due to error: {}",
+                request.getGroupId(), e.getLocalizedMessage());
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getLocalizedMessage()).asException());
+        } catch (GroupNotFoundException e) {
+            logger.error("Failed to update group {} because it doesn't exist.",
+                request.getGroupId(), e.getLocalizedMessage());
+            responseObserver.onError(Status.NOT_FOUND
+                .withDescription(e.getLocalizedMessage()).asException());
+        } catch (DataAccessException | DuplicateNameException e) {
+            logger.error("Failed to update group " + request.getGroupId(), e);
+            responseObserver.onError(Status.INTERNAL
+                .withDescription(e.getLocalizedMessage()).asException());
         }
     }
 
@@ -426,10 +530,15 @@ public class GroupRpcService extends GroupServiceImplBase {
         if (optGroupInfo.isPresent()) {
             final Group group = optGroupInfo.get();
             final GetMembersResponse resp;
-            List<Long> members = getNormalGroupMembers(group);
+            List<Long> members = getNormalGroupMembers(group, false);
             // verify the user has access to all of the group members before returning any of them.
             if (userSessionContext.isUserScoped()) {
-                UserScopeUtils.checkAccess(userSessionContext, members);
+                if (group.getType() == Type.NESTED_GROUP) {
+                    // Need to get the expanded members.
+                    UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true));
+                } else {
+                    UserScopeUtils.checkAccess(userSessionContext, members);
+                }
             }
             // return members
             logger.debug("Returning group ({}) with {} members", groupId, members.size());
@@ -455,9 +564,10 @@ public class GroupRpcService extends GroupServiceImplBase {
      * Given a {@link Group} object, return it's list of members.
      *
      * @param group the {@link Group} to check
+     * @param expandNested If true, expand nested groups recursively.
      * @return a list of member oids.
      */
-    private List<Long> getNormalGroupMembers(Group group) {
+    private List<Long> getNormalGroupMembers(Group group, final boolean expandNested) {
         switch (group.getType()) {
             case CLUSTER:
                 return group.getCluster().getMembers().getStaticMemberOidsList();
@@ -465,8 +575,96 @@ public class GroupRpcService extends GroupServiceImplBase {
                 return getNormalGroupMembers(group.getGroup());
             case TEMP_GROUP:
                 return group.getTempGroup().getMembers().getStaticMemberOidsList();
+            case NESTED_GROUP:
+                return getNestedGroupMembers(group.getNestedGroup(), expandNested);
             default:
                 throw new IllegalStateException("Invalid group returned.");
+        }
+    }
+
+    @Nonnull
+    private Predicate<Group> groupPropFilterToPredicate(@Nonnull final GroupPropertyFilter propFilter ) {
+        if (propFilter.getPropertyTypeCase() == PropertyTypeCase.NAME_FILTER) {
+            final StringFilter strFilter = propFilter.getNameFilter();
+            final Pattern pattern = Pattern.compile(strFilter.getStringPropertyRegex(),
+                strFilter.getCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE);
+            final Predicate<Group> thisFilterPredicate = strFilter.getMatch() ?
+                group -> pattern.matcher(GroupProtoUtil.getGroupDisplayName(group)).find() :
+                group -> !pattern.matcher(GroupProtoUtil.getGroupDisplayName(group)).find();
+            return thisFilterPredicate;
+        } else {
+            return group -> true;
+        }
+    }
+
+    /**
+     * Get the members of a nested group.
+     *
+     * @param nestedGroupInfo Description of the nested group.
+     * @param getLeafMembers If true, return the leaf members (i.e. the entities). If false,
+     *                       return the immediate members (i.e. the groups).
+     * @return The list of requested members.
+     */
+                                                        @Nonnull
+    private List<Long> getNestedGroupMembers(@Nonnull final NestedGroupInfo nestedGroupInfo,
+                                                        final boolean getLeafMembers) {
+        switch (nestedGroupInfo.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                final Map<Long, Optional<Group>> groupsById =
+                    groupStore.getGroups(nestedGroupInfo.getStaticGroupMembers().getStaticMemberOidsList());
+                if (getLeafMembers) {
+                    return groupsById.values().stream()
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .filter(group -> {
+                            if (group.getType() != Type.CLUSTER) {
+                                // Right now we only support nested groups of clusters.
+                                logger.warn("Nested group {} has non-cluster member group {} " +
+                                        "(id: {}, type: {}). Ignoring it when expanding members.",
+                                    nestedGroupInfo.getName(), GroupProtoUtil.getGroupName(group),
+                                    group.getId(), group.getType());
+                                return false;
+                            } else {
+                                return true;
+                            }
+                        })
+                        // Right now this call is non-recursive, because we don't support nested groups of
+                        // nested groups. If we do support it in the future we should handle cycles and
+                        // potential stack overflows - probably with an iterative instead of recursive
+                        // approach.
+                        .flatMap(group -> getNormalGroupMembers(group, getLeafMembers).stream())
+                        .collect(Collectors.toList());
+                } else {
+                    // Just return the members.
+                    return groupsById.entrySet().stream()
+                        .filter(entry -> entry.getValue().isPresent())
+                        .map(Entry::getKey)
+                        .collect(Collectors.toList());
+                }
+            case PROPERTY_FILTER_LIST:
+                final Predicate<Group> groupPredicate =
+                    nestedGroupInfo.getPropertyFilterList().getPropertyFiltersList().stream()
+                        .map(this::groupPropFilterToPredicate)
+                        // AND the individual predicates together.
+                        .reduce(Predicate::and)
+                        // If there are no property filters, return all groups (of the proper type).
+                        .orElse(group -> true);
+
+                final Stream<Group> groupStream;
+                if (nestedGroupInfo.getTypeCase() == TypeCase.CLUSTER) {
+                    groupStream = groupStore.getAll().stream()
+                        .filter(group -> group.getType() == Group.Type.CLUSTER)
+                        .filter(cluster -> cluster.getCluster().getClusterType() == nestedGroupInfo.getCluster());
+                } else {
+                    groupStream = Stream.empty();
+                }
+                return groupStream
+                    .filter(groupPredicate)
+                    .map(Group::getId)
+                    .collect(Collectors.toList());
+            default:
+                throw new IllegalArgumentException("Invalid nested group selection criteria: " +
+                    nestedGroupInfo.getSelectionCriteriaCase());
         }
     }
 
@@ -520,8 +718,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         if (clusterId > 0) {
             Optional<Group> group = groupStore.get(clusterId);
             if (group.isPresent() && group.get().hasCluster()){
-                response.setClusterId(clusterId);
-                response.setClusterInfo(group.get().getCluster());
+                response.setCluster(group.get());
             }
         }
         responseObserver.onNext(response.build());

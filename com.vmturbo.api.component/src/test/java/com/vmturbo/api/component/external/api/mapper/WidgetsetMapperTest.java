@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Test conversion between WidgetsetApiDTO (external) and Widgetset (internal protobuf)
@@ -106,7 +107,7 @@ public class WidgetsetMapperTest {
     public void testGroupPostProcessing() {
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
-        groupScope.setClassName(GroupMapper.GROUP);
+        groupScope.setClassName(StringConstants.GROUP);
         final Group group = Group.newBuilder()
             .setId(7)
             .build();
@@ -145,11 +146,11 @@ public class WidgetsetMapperTest {
         // Arrange
         final BaseApiDTO groupScope1 = new BaseApiDTO();
         groupScope1.setUuid("7");
-        groupScope1.setClassName(GroupMapper.GROUP);
+        groupScope1.setClassName(StringConstants.GROUP);
 
         final BaseApiDTO groupScope2 = new BaseApiDTO();
         groupScope2.setUuid("8");
-        groupScope2.setClassName(GroupMapper.GROUP);
+        groupScope2.setClassName(StringConstants.GROUP);
 
         final Group group1 = Group.newBuilder()
             .setId(7)
@@ -194,7 +195,7 @@ public class WidgetsetMapperTest {
         // Arrange
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
-        groupScope.setClassName(GroupMapper.GROUP);
+        groupScope.setClassName(StringConstants.GROUP);
         when(groupServiceBackend.getGroupsError(any()))
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
 
@@ -216,7 +217,7 @@ public class WidgetsetMapperTest {
         // Arrange
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
-        groupScope.setClassName(GroupMapper.CLUSTER);
+        groupScope.setClassName(StringConstants.CLUSTER);
         final Group group = Group.newBuilder()
             .setId(7)
             .build();
@@ -246,7 +247,7 @@ public class WidgetsetMapperTest {
         // Arrange
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
-        groupScope.setClassName(GroupMapper.STORAGE_CLUSTER);
+        groupScope.setClassName(StringConstants.STORAGE_CLUSTER);
         final Group group = Group.newBuilder()
             .setId(7)
             .build();

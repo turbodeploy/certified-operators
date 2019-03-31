@@ -61,6 +61,7 @@ import com.google.gson.Gson;
 
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.service.MarketsServiceTest.PlanServiceMock;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
@@ -72,8 +73,6 @@ import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -123,7 +122,7 @@ public class TargetsServiceTest {
 
     SearchServiceBlockingStub searchServiceRpc;
 
-    EntitySeverityServiceBlockingStub severityGrpcStub;
+    SeverityPopulator severityPopulator;
 
     private MockMvc mockMvc;
 
@@ -146,8 +145,8 @@ public class TargetsServiceTest {
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         searchServiceRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        severityGrpcStub = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
+        severityPopulator = wac.getBean(SeverityPopulator.class);
         registeredTargets = new HashMap<>();
         registeredProbes = new HashMap<>();
         when(topologyProcessor.getProbe(Mockito.anyLong()))
@@ -645,7 +644,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityGrpcStub,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
+            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -669,7 +668,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityGrpcStub,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
+            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -952,7 +951,11 @@ public class TargetsServiceTest {
         @Bean
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
-                Duration.ofSeconds(60), Duration.ofSeconds(1), null, apiComponentTargetListener(),searchServiceRpc(),severityGrpcStub(),actionSpecMapper(),actionRpcService(),REALTIME_CONTEXT_ID);
+                Duration.ofSeconds(60), Duration.ofSeconds(1), null,
+                apiComponentTargetListener(), searchServiceRpc(), severityPopulator(),
+                actionSpecMapper(),
+                actionRpcService(),
+                REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -1003,8 +1006,8 @@ public class TargetsServiceTest {
         }
 
         @Bean
-        public EntitySeverityServiceBlockingStub severityGrpcStub() {
-            return EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        public SeverityPopulator severityPopulator() {
+            return Mockito.mock(SeverityPopulator.class);
         }
 
         @Bean

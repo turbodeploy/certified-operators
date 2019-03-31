@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
@@ -10,13 +11,13 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -46,8 +48,11 @@ import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
+import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -71,12 +76,15 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -136,6 +144,8 @@ public class SearchServiceTest {
     private final String probeType1 = SDKProbeType.AWS.getProbeType();
     private final String probeType2 = SDKProbeType.AZURE.getProbeType();
 
+    private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
+
     @Before
     public void setUp() throws Exception {
         SearchServiceBlockingStub searchGrpcStub =
@@ -152,6 +162,7 @@ public class SearchServiceTest {
                 targetsService,
                 searchGrpcStub,
                 severityGrpcStub,
+                severityPopulator,
                 statsHistoryServiceStub,
                 groupExpander,
                 supplyChainFetcherFactory,
@@ -222,16 +233,16 @@ public class SearchServiceTest {
     public void testGetSearchResults() throws Exception {
 
         getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM, null);
-        Mockito.verify(groupsService, Mockito.times(1)).getGroups();
+        verify(groupsService, Mockito.times(1)).getGroups();
 
         getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null);
-        Mockito.verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
+        verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
         getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null);
-        Mockito.verify(targetsService).getTargets(null);
+        verify(targetsService).getTargets(null);
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null);
-        Mockito.verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
+        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
     }
 
     @Test
@@ -286,9 +297,9 @@ public class SearchServiceTest {
     @Test
     public void testGetSearchGroup() throws Exception {
         getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM, null);
-        Mockito.verify(groupsService).getGroups();
-        Mockito.verify(targetsService, Mockito.never()).getTargets(null);
-        Mockito.verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
+        verify(groupsService).getGroups();
+        verify(targetsService, Mockito.never()).getTargets(null);
+        verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
     }
     /**
      * Test scoped to a cluster;  search result returns 5 SE's, one of which isn't in cluster.
@@ -344,9 +355,9 @@ public class SearchServiceTest {
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null);
 
         // Assert
-        Mockito.verify(groupsService, Mockito.never()).getGroups();
-        Mockito.verify(targetsService, Mockito.never()).getTargets(null);
-        Mockito.verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
+        verify(groupsService, Mockito.never()).getGroups();
+        verify(targetsService, Mockito.never()).getTargets(null);
+        verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
 
         assertThat(results.size(), is(4));
         assertThat(results.stream().map(BaseApiDTO::getUuid).collect(Collectors.toList()),
@@ -370,7 +381,8 @@ public class SearchServiceTest {
         List<String> scopes = Lists.newArrayList(PM_OID);
         List<String> types = Lists.newArrayList("Cluster");
 
-        when(groupsService.getComputeCluster(Long.valueOf(PM_OID))).thenReturn(Optional.of(groupApiDTO));
+        when(groupsService.getClusters(Type.COMPUTE, Collections.singletonList(PM_OID), Collections.emptyList()))
+            .thenReturn(Collections.singletonList(groupApiDTO));
 
         // Act
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
@@ -382,57 +394,43 @@ public class SearchServiceTest {
 
     @Test
     public void testClusterFilters() throws Exception {
-        GroupApiDTO cluster1 = new GroupApiDTO();
-        cluster1.setDisplayName("Cluster1");
-        cluster1.setGroupType("PhysicalMachine");
-        cluster1.setIsStatic(true);
-        cluster1.setLogicalOperator("AND");
-        cluster1.setMemberUuidList(Arrays.asList("1","2"));
-
         // create a SearchParams for members of Cluster1
-        SearchParameters params = SearchParameters.newBuilder()
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                                .setClusterSpecifier(PropertyFilter.newBuilder()
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("Cluster1"))
-                                        .setPropertyName("displayName"))))
-                .build();
-        when(groupsService.getGroupApiDTOS(anyObject())).thenReturn(Arrays.asList(cluster1));
+        final PropertyFilter clusterSpecifier = PropertyFilter.newBuilder()
+            .setStringFilter(StringFilter.newBuilder()
+                .setStringPropertyRegex("Cluster1"))
+            .setPropertyName("displayName")
+            .build();
+        final SearchParameters params = SearchParameters.newBuilder()
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                    .setClusterSpecifier(clusterSpecifier)))
+            .build();
+
+        final GroupAndMembers clusterAndMembers = ImmutableGroupAndMembers.builder()
+            .group(Group.newBuilder()
+                .setType(Group.Type.CLUSTER)
+                .setId(1L)
+                .setCluster(ClusterInfo.newBuilder()
+                    .setName("Cluster1"))
+                .build())
+            .members(ImmutableSet.of(1L, 2L))
+            // Not needed for clusters
+            .entities(Collections.emptyList())
+            .build();
+
+        when(groupExpander.getGroupsWithMembers(any())).thenReturn(Stream.of(clusterAndMembers));
+
         SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
 
         // we should get the members of cluster 1 in the static regex
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
         assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
-    }
 
-    /**
-     * For search by cluster filter, make sure resolveClusterFilters method is invoked.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testSearchFilterByClusters() throws Exception {
-        GroupApiDTO cluster1 = new GroupApiDTO();
-        cluster1.setCriteriaList(Collections.emptyList());
-        final SearchPaginationRequest paginationRequest =
-                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
-        SearchParameters params = SearchParameters.newBuilder()
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                                .setClusterSpecifier(PropertyFilter.newBuilder()
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("Cluster1"))
-                                        .setPropertyName("displayName"))))
-                .build();
-        when(groupMapper.convertToSearchParameters(any(), anyString(), anyString()))
-                .thenReturn(Lists.newArrayList(params));
-        searchService.getMembersBasedOnFilter("", cluster1, paginationRequest);
-        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
-        final SearchEntityOidsRequest request = SearchEntityOidsRequest.newBuilder()
-                .addSearchParameters(resolvedParams)
-                .build();
-        Mockito.verify(searchServiceSpy).searchEntityOids(request);
+        final ArgumentCaptor<GetGroupsRequest> reqCaptor = ArgumentCaptor.forClass(GetGroupsRequest.class);
+        verify(groupExpander).getGroupsWithMembers(reqCaptor.capture());
+        GetGroupsRequest req = reqCaptor.getValue();
+        assertThat(req.getTypeFilterList(), contains(Group.Type.CLUSTER));
+        assertThat(req.getNameFilter().getNameRegex(), is(clusterSpecifier.getStringFilter().getStringPropertyRegex()));
     }
 
     @Test
@@ -510,7 +508,7 @@ public class SearchServiceTest {
         Mockito.when(paginationRequest.getOrderBy())
                 .thenReturn(SearchOrderBy.NAME);
         searchService.getMembersBasedOnFilter("foo", request, paginationRequest);
-        Mockito.verify(paginationRequest).finalPageResponse(resultCaptor.capture());
+        verify(paginationRequest).finalPageResponse(resultCaptor.capture());
 
         final List<Long> resultIds = resultCaptor.getValue()
                 .stream()

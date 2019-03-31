@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,9 +30,11 @@ import com.google.protobuf.TextFormat;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -58,6 +61,8 @@ public class GroupStore implements Diagnosable {
     private static final String GET_LABEL = "get";
 
     private static final String CREATE_LABEL = "create";
+
+    private static final String CREATE_NESTED_LABEL = "create_nested";
 
     private static final String UPDATE_LABEL = "update";
 
@@ -198,6 +203,42 @@ public class GroupStore implements Diagnosable {
     }
 
     /**
+     * Create a new nested group from a {@link NestedGroupInfo} provided by a user of the group component.
+     * Group names are unique, so the name in {@link NestedGroupInfo} should not already be assigned
+     * to another group.
+     *
+     * @param nestedGroupInfo The {@link GroupInfo} defining the group.
+     * @return The {@link Group} describing the newly created group.
+     * @throws DuplicateNameException If a group with the same name already exists.
+     */
+    @Nonnull
+    public Group newUserNestedGroup(@Nonnull final NestedGroupInfo nestedGroupInfo)
+            throws DuplicateNameException {
+        final long oid = identityProvider.next();
+        try {
+            return dslContext.transactionResult(configuration -> {
+                final DSLContext transactionContext = DSL.using(configuration);
+
+                final Group group = Group.newBuilder()
+                    .setId(oid)
+                    .setOrigin(Origin.USER)
+                    .setType(Type.NESTED_GROUP)
+                    .setNestedGroup(nestedGroupInfo)
+                    .build();
+                internalInsert(transactionContext, group);
+                return group;
+            });
+        } catch (DataAccessException e) {
+            GROUP_STORE_ERROR_COUNT.labels(CREATE_NESTED_LABEL).increment();
+            if (e.getCause() instanceof DuplicateNameException) {
+                throw (DuplicateNameException)e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
      * Create a new group from a {@link GroupInfo} provided by a user of the group component.
      * Group names are unique, so the name in {@link GroupInfo} should not already be assigned
      * to another group.
@@ -233,30 +274,18 @@ public class GroupStore implements Diagnosable {
         }
     }
 
-    /**
-     * Update an existing group created via {@link GroupStore#newUserGroup(GroupInfo)}.
-     *
-     * @param id The id of the group to update.
-     * @param newInfo The new {@link GroupInfo} for the group.
-     * @return The updated {@link Group} object.
-     * @throws ImmutableGroupUpdateException If the ID identifies a discovered (i.e. non-user) group.
-     * @throws GroupNotFoundException If a group associated with the ID is not found.
-     * @throws DuplicateNameException If there is already a different group with the same name.
-     */
-    @Nonnull
-    public Group updateUserGroup(final long id,
-                                 @Nonnull final GroupInfo newInfo)
-            throws ImmutableGroupUpdateException, GroupNotFoundException, DuplicateNameException, DataAccessException {
+    private Group internalUpdateUserGroup(final long id, Function<Group, Group> groupUpdateFn)
+            throws ImmutableGroupUpdateException, GroupNotFoundException, DuplicateNameException {
         try {
             return dslContext.transactionResult(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
                 final Group existingGroup = internalGet(transactionDsl, id)
-                        .orElseThrow(() -> new GroupNotFoundException(id));
+                    .orElseThrow(() -> new GroupNotFoundException(id));
                 if (existingGroup.getOrigin().equals(Origin.DISCOVERED)) {
                     throw new ImmutableGroupUpdateException(existingGroup);
                 }
 
-                final Group newGroup = existingGroup.toBuilder().setGroup(newInfo).build();
+                final Group newGroup = groupUpdateFn.apply(existingGroup);
                 return internalUpdate(dslContext, newGroup);
             });
         } catch (DataAccessException e) {
@@ -271,6 +300,38 @@ public class GroupStore implements Diagnosable {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Update an existing nested group created via {@link GroupStore#newUserNestedGroup(NestedGroupInfo)}.
+     *
+     * @param id The id of the group to update.
+     * @param newInfo The new {@link NestedGroupInfo} for the group.
+     * @return The updated {@link Group} object.
+     * @throws ImmutableGroupUpdateException If the ID identifies a discovered (i.e. non-user) group.
+     * @throws GroupNotFoundException If a group associated with the ID is not found.
+     * @throws DuplicateNameException If there is already a different group with the same name.
+     */
+    public Group updateUserNestedGroup(final long id, @Nonnull final NestedGroupInfo newInfo)
+            throws GroupNotFoundException, ImmutableGroupUpdateException, DuplicateNameException {
+        return internalUpdateUserGroup(id, group -> group.toBuilder().setNestedGroup(newInfo).build());
+    }
+
+    /**
+     * Update an existing group created via {@link GroupStore#newUserGroup(GroupInfo)}.
+     *
+     * @param id The id of the group to update.
+     * @param newInfo The new {@link GroupInfo} for the group.
+     * @return The updated {@link Group} object.
+     * @throws ImmutableGroupUpdateException If the ID identifies a discovered (i.e. non-user) group.
+     * @throws GroupNotFoundException If a group associated with the ID is not found.
+     * @throws DuplicateNameException If there is already a different group with the same name.
+     */
+    @Nonnull
+    public Group updateUserGroup(final long id,
+                                 @Nonnull final GroupInfo newInfo)
+            throws ImmutableGroupUpdateException, GroupNotFoundException, DuplicateNameException, DataAccessException {
+        return internalUpdateUserGroup(id, group -> group.toBuilder().setGroup(newInfo).build());
     }
 
     /**
@@ -458,6 +519,8 @@ public class GroupStore implements Diagnosable {
                 return group.getCluster().toByteArray();
             case TEMP_GROUP:
                 return group.getTempGroup().toByteArray();
+            case NESTED_GROUP:
+                return group.getNestedGroup().toByteArray();
             default:
                 throw new IllegalArgumentException("Unsupported group type: " + group.getType());
         }
@@ -643,6 +706,16 @@ public class GroupStore implements Diagnosable {
                     groupBuilder.setTempGroup(tempGroup);
                     logger.warn("Temp group somehow made it into database: {}",
                             TextFormat.printToString(groupBuilder.getTempGroup()));
+                    break;
+                case NESTED_GROUP:
+                    final NestedGroupInfo.Builder nestedGroup =
+                        NestedGroupInfo.parseFrom(grouping.getGroupData()).toBuilder();
+                    if (!StringUtils.equals(nestedGroup.getName(), grouping.getName())) {
+                        logger.error("Inconsistent group name - column: {}, blob: {}. " +
+                            "Keeping column value.", grouping.getName(), nestedGroup.getName());
+                        nestedGroup.setName(grouping.getName());
+                    }
+                    groupBuilder.setNestedGroup(nestedGroup);
                     break;
                 default:
                     return Optional.empty();

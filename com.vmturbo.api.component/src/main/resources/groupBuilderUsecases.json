@@ -114,8 +114,7 @@
 
     "Cluster" : {
         "criteria" : [
-          {"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"},
-          {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "clustersByTag"}
+          {"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"}
         ]
     },
 

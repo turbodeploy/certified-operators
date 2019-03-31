@@ -27,7 +27,6 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.ParamStrings;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 
 
 /**
@@ -91,19 +90,19 @@ public class RepositoryApi {
 
     private final RestTemplate restTemplate;
 
-    private final EntitySeverityServiceBlockingStub entitySeverityRpc;
+    private final SeverityPopulator severityPopulator;
 
     private final long realtimeTopologyContextId;
 
     public RepositoryApi(@Nonnull final String repositoryHost,
                          final int repositoryPort,
                          @Nonnull final RestTemplate restTemplate,
-                         @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpcService,
+                         @Nonnull final SeverityPopulator severityPopulator,
                          final long realtimeTopologyContextId) {
         this.restTemplate = Objects.requireNonNull(restTemplate);
         this.repositoryHost = repositoryHost;
         this.repositoryPort = repositoryPort;
-        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -182,7 +181,7 @@ public class RepositoryApi {
                         .getBody();
             // TODO: We should populate the type in the discoveredBy field before returning the entities
             // To do this, we need to retrieve the probe type associated with that target
-            return SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, entityDtos);
+            return severityPopulator.populate(realtimeTopologyContextId, entityDtos);
         } catch (RestClientException e) {
             logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
             throw new RuntimeException(
@@ -227,7 +226,7 @@ public class RepositoryApi {
             }
             // TODO: We should populate the type in the discoveredBy field before returning the entity
             // To do this, we need to retrieve the probe type associated with that target
-            return SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, results)
+            return severityPopulator.populate(realtimeTopologyContextId, results)
                 .iterator()
                 .next();
         } catch (RestClientException e) {

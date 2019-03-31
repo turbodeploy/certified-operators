@@ -80,8 +80,12 @@ public class SystemLoadSnapshot {
         slice2groups = Maps.newHashMap();
 
         // Getting information for the groups of the system
-        GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder().setTypeFilter(Type.CLUSTER)
-                .setClusterFilter(ClusterFilter.newBuilder().setTypeFilter(ClusterInfo.Type.COMPUTE).build()).build();
+        GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
+            .addTypeFilter(Type.CLUSTER)
+            .setClusterFilter(ClusterFilter.newBuilder()
+                .setTypeFilter(ClusterInfo.Type.COMPUTE)
+                .build())
+            .build();
         Iterator<Group> groupIterator = groupServiceClient.getGroups(groupsRequest);
 
         // Saving host clusters info

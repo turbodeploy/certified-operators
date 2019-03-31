@@ -1005,8 +1005,8 @@ public class StatsService implements IStatsService {
                 }
                 final EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
                 final String uuid = String.valueOf(group.getId());
-                statsDTO.setUuid(String.valueOf(uuid));
-                statsDTO.setClassName(GroupMapper.CLUSTER);
+                statsDTO.setUuid(uuid);
+                statsDTO.setClassName(StringConstants.CLUSTER);
                 statsDTO.setDisplayName(group.getCluster().getDisplayName());
                 statsDTO.setStats(new ArrayList<>());
 

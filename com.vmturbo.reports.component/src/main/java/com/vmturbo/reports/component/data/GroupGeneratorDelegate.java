@@ -118,7 +118,7 @@ public class GroupGeneratorDelegate {
         final Iterable<Group> groups = () -> context
             .getGroupService()
             .getGroups(GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.CLUSTER)
+                .addTypeFilter(Type.CLUSTER)
                 .setClusterFilter(ClusterFilter.newBuilder()
                     .setTypeFilter(type)
                     .build())

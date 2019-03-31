@@ -208,7 +208,7 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterEntities() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.CLUSTER)
+                .addTypeFilter(Type.CLUSTER)
                 .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
@@ -264,7 +264,7 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterSupplyChainMissingEntities() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-            .setTypeFilter(Type.CLUSTER)
+            .addTypeFilter(Type.CLUSTER)
             .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1));
@@ -291,7 +291,7 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterSupplyChainError() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-            .setTypeFilter(Type.CLUSTER)
+            .addTypeFilter(Type.CLUSTER)
             .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1));
@@ -317,7 +317,7 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterSupplyChainFailure() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-            .setTypeFilter(Type.CLUSTER)
+            .addTypeFilter(Type.CLUSTER)
             .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
@@ -376,7 +376,7 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterNoRelatedActionsNoRecord() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.CLUSTER)
+                .addTypeFilter(Type.CLUSTER)
                 .build();
         when(groupServiceMole.getGroups(expectedRequest))
                 .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
@@ -399,7 +399,7 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterRelatedVMs() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.CLUSTER)
+                .addTypeFilter(Type.CLUSTER)
                 .build();
         when(groupServiceMole.getGroups(expectedRequest))
                 .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));

@@ -2,26 +2,28 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
-
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -40,9 +42,11 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -72,14 +76,16 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
@@ -87,18 +93,20 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
@@ -117,10 +125,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  **/
 public class GroupsService implements IGroupsService {
 
-    public static final String GROUPS_FILTER_TYPE = "groupsByName";
 
-    private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
-            "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
+    public static Set<String> NESTED_GROUP_TYPES =
+        ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
 
     private static final String USER_GROUPS = "GROUP-MyGroups";
 
@@ -137,6 +144,8 @@ public class GroupsService implements IGroupsService {
     private final ActionSpecMapper actionSpecMapper;
 
     private final GroupMapper groupMapper;
+
+    private final GroupExpander groupExpander;
 
     private final UuidMapper uuidMapper;
 
@@ -156,7 +165,7 @@ public class GroupsService implements IGroupsService {
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
-    private final EntitySeverityServiceBlockingStub entitySeverityServiceStub;
+    private final SeverityPopulator severityPopulator;
 
     private final TopologyProcessor topologyProcessor;
 
@@ -168,6 +177,7 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final ActionSpecMapper actionSpecMapper,
                   @Nonnull final GroupMapper groupMapper,
+                  @Nonnull final GroupExpander groupExpander,
                   @Nonnull final UuidMapper uuidMapper,
                   @Nonnull final PaginationMapper paginationMapper,
                   @Nonnull final RepositoryApi repositoryApi,
@@ -177,12 +187,13 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceStub,
+                  @Nonnull final SeverityPopulator severityPopulator,
                   @Nonnull final TopologyProcessor topologyProcessor) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.groupMapper = Objects.requireNonNull(groupMapper);
+        this.groupExpander = Objects.requireNonNull(groupExpander);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -192,7 +203,7 @@ public class GroupsService implements IGroupsService {
         this.entityAspectMapper = entityAspectMapper;
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
-        this.entitySeverityServiceStub = Objects.requireNonNull(entitySeverityServiceStub);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
@@ -208,10 +219,10 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<GroupApiDTO> getGroups()  {
-        // Currently, we have only user-created groups.
         return getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.GROUP)
-                .build());
+            .addTypeFilter(Type.GROUP)
+            .addTypeFilter(Type.NESTED_GROUP)
+            .build(), true);
     }
 
 
@@ -233,19 +244,9 @@ public class GroupsService implements IGroupsService {
             return outputDTO;
         }
 
-        final long id = Long.parseLong(uuid);
-
-        // TODO (roman, Aug 3, 2017): It's inconvenient that the UI/API knows
-        // they want a cluster or group, but want to look them up in a common interface.
-        // To deal with the mismatch, we try searching through groups first, and if
-        // the group is not found we look through clusters.
-        // In the future it makes sense to have a single interface to search all "collections"
-        // of entities.
-        final GetGroupResponse groupRes = groupServiceRpc.getGroup(GroupID.newBuilder()
-                .setId(id)
-                .build());
-        if (groupRes.hasGroup()) {
-            return groupMapper.toGroupApiDto(groupRes.getGroup());
+        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
+        if (groupAndMembers.isPresent()) {
+            return groupMapper.toGroupApiDto(groupAndMembers.get(), EnvironmentType.ONPREM);
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -296,7 +297,9 @@ public class GroupsService implements IGroupsService {
                 actionSpecMapper,
                 paginationMapper,
                 realtimeTopologyContextId,
-                getMemberIds(uuid),
+                groupExpander.getGroupWithMembers(uuid)
+                    .map(GroupAndMembers::entities)
+                    .map(Sets::newHashSet),
                 inputDto,
                 paginationRequest);
     }
@@ -486,11 +489,20 @@ public class GroupsService implements IGroupsService {
         if (Boolean.TRUE.equals(inputDTO.getTemporary())) {
             final TempGroupInfo tempGroupInfo = groupMapper.toTempGroupProto(inputDTO);
             final CreateTempGroupResponse response = groupServiceRpc.createTempGroup(
-                    CreateTempGroupRequest.newBuilder()
-                        .setGroupInfo(tempGroupInfo)
-                        .build());
+                CreateTempGroupRequest.newBuilder()
+                    .setGroupInfo(tempGroupInfo)
+                    .build());
             final EnvironmentType environmentType = inputDTO.getEnvironmentType() != null
-                    ? inputDTO.getEnvironmentType() : EnvironmentType.ONPREM;
+                ? inputDTO.getEnvironmentType() : EnvironmentType.ONPREM;
+            return groupMapper.toGroupApiDto(response.getGroup(), environmentType);
+        } else if (NESTED_GROUP_TYPES.contains(inputDTO.getGroupType())) {
+            final NestedGroupInfo groupInfo = groupMapper.toNestedGroupInfo(inputDTO);
+            final CreateNestedGroupResponse response = groupServiceRpc.createNestedGroup(
+                CreateNestedGroupRequest.newBuilder()
+                    .setGroupInfo(groupInfo)
+                    .build());
+            final EnvironmentType environmentType = inputDTO.getEnvironmentType() != null
+                ? inputDTO.getEnvironmentType() : EnvironmentType.ONPREM;
             return groupMapper.toGroupApiDto(response.getGroup(), environmentType);
         } else {
             final GroupInfo request = groupMapper.toGroupInfo(inputDTO);
@@ -503,7 +515,6 @@ public class GroupsService implements IGroupsService {
     @Override
     public GroupApiDTO editGroup(@Nonnull String uuid, @Nonnull GroupApiDTO inputDTO)
             throws UnknownObjectException, OperationFailedException {
-        final GroupInfo info = groupMapper.toGroupInfo(inputDTO);
 
         final GetGroupResponse groupResponse =
                 groupServiceRpc.getGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
@@ -513,11 +524,26 @@ public class GroupsService implements IGroupsService {
                     String.format("Group with UUID %s does not exist", uuid));
         }
 
-        UpdateGroupResponse response = groupServiceRpc.updateGroup(UpdateGroupRequest.newBuilder()
-            .setId(Long.parseLong(uuid))
-            .setNewInfo(info)
-            .build());
-        return groupMapper.toGroupApiDto(response.getUpdatedGroup());
+        if (groupResponse.getGroup().getType() == Type.NESTED_GROUP) {
+            try {
+                final NestedGroupInfo info = groupMapper.toNestedGroupInfo(inputDTO);
+                final UpdateNestedGroupResponse response =
+                    groupServiceRpc.updateNestedGroup(UpdateNestedGroupRequest.newBuilder()
+                        .setGroupId(Long.parseLong(uuid))
+                        .setNewGroupInfo(info)
+                        .build());
+                return groupMapper.toGroupApiDto(response.getUpdatedGroup());
+            } catch (InvalidOperationException e) {
+                throw new OperationFailedException(e);
+            }
+        } else {
+            final GroupInfo info = groupMapper.toGroupInfo(inputDTO);
+            UpdateGroupResponse response = groupServiceRpc.updateGroup(UpdateGroupRequest.newBuilder()
+                .setId(Long.parseLong(uuid))
+                .setNewInfo(info)
+                .build());
+            return groupMapper.toGroupApiDto(response.getUpdatedGroup());
+        }
     }
 
     @Override
@@ -649,50 +675,75 @@ public class GroupsService implements IGroupsService {
     @Override
     public List<?> getMembersByGroupUuid(String uuid) throws UnknownObjectException {
         if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-            return getClusters(ClusterInfo.Type.COMPUTE);
+            return getClusters(ClusterInfo.Type.COMPUTE, Collections.emptyList(), Collections.emptyList())
+                .stream()
+                // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+                // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+                .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
+                .collect(Collectors.toList());
         } else if (STORAGE_CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-            return getClusters(ClusterInfo.Type.STORAGE);
+            return getClusters(ClusterInfo.Type.STORAGE, Collections.emptyList(), Collections.emptyList())
+                .stream()
+                // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+                // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+                .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
+                .collect(Collectors.toList());
         } else if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
-            return getGroupApiDTOSwithSeverities(GetGroupsRequest.newBuilder()
-                    .setTypeFilter(Group.Type.GROUP)
+            return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                    .addTypeFilter(Group.Type.GROUP)
+                    .addTypeFilter(Group.Type.NESTED_GROUP)
                     .setOriginFilter(Origin.USER)
-                    .build());
+                    .build(), true);
         } else { // Get members of the group with the uuid (oid)
-            final Collection<Long> memberIds = getMemberIds(uuid).orElseThrow(() ->
+            final GroupAndMembers groupAndMembers = groupExpander.getGroupWithMembers(uuid)
+                .orElseThrow(() ->
                     new IllegalArgumentException("Can't get members in invalid group: " + uuid));
-            logger.info("Number of members for group {} is {}", uuid, memberIds.size());
+            logger.info("Number of members for group {} is {}", uuid, groupAndMembers.members().size());
 
-            // Special handling for the empty member list, because passing empty to
-            // repositoryApi returns all entities.
-            if (memberIds.isEmpty()) {
-                return Collections.emptyList();
+            if (groupAndMembers.group().getType() == Type.NESTED_GROUP) {
+                return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                    .addAllId(groupAndMembers.members())
+                    .build(), true);
             } else {
-                // Get entities of group members from the repository component
-                final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                    repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
-                        Sets.newHashSet(memberIds)).build());
+                // Special handling for the empty member list, because passing empty to
+                // repositoryApi returns all entities.
+                if (groupAndMembers.members().isEmpty()) {
+                    return Collections.emptyList();
+                } else {
+                    // Get entities of group members from the repository component
+                    final Map<Long, Optional<ServiceEntityApiDTO>> entities =
+                        repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
+                            Sets.newHashSet(groupAndMembers.members())).build());
 
-                final List<ServiceEntityApiDTO> results = new ArrayList<>();
-
-                entities.forEach((oid, se) -> {
-                    if (se.isPresent()) {
-                        results.add(se.get());
-                    } else {
-                        logger.warn("Cannot find entity with oid " + oid);
+                    final AtomicLong missingEntities = new AtomicLong(0);
+                    final List<ServiceEntityApiDTO> results = entities.values().stream()
+                        .filter(optEntity -> {
+                            if (!optEntity.isPresent()) {
+                                missingEntities.incrementAndGet();
+                                return false;
+                            } else {
+                                return true;
+                            }
+                        })
+                        .map(Optional::get)
+                        .collect(Collectors.toList());
+                    if (missingEntities.get() > 0) {
+                        logger.warn("{} group members from group {} not found in repository.",
+                            missingEntities.get(), uuid);
                     }
-                });
-                return results;
+                    return results;
+                }
             }
         }
     }
 
     private List<GroupApiDTO> getClusters(ClusterInfo.Type clusterType) {
         final List<GroupApiDTO> groupOfClusters = getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.CLUSTER)
+                .addTypeFilter(Type.CLUSTER)
                 .setClusterFilter(ClusterFilter.newBuilder()
                         .setTypeFilter(clusterType)
                         .build())
-                .build());
+                .build(), true);
         // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
         // with classname "Group" This line can be removed when bug OM-30381 is fixed.
         groupOfClusters.forEach(cluster -> cluster.setClassName("Group"));
@@ -720,50 +771,6 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Get the ID's of entities that are members of a group or cluster.
-     *
-     * @param groupUuid The UUID of the group or cluster.
-     * @return An optional containing the ID's of the entities in the group/cluster.
-     *         An empty optional if the group UUID is not valid (e.g. "Market").
-     * @throws UnknownObjectException if the UUID is valid, but group with the UUID exists.
-     */
-    @VisibleForTesting
-    Optional<Set<Long>> getMemberIds(@Nonnull final String groupUuid)
-            throws UnknownObjectException {
-        Set<Long> memberIds = null;
-
-        // These magic UI strings currently have no associated group in XL, so they are not valid.
-        if (groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
-                groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID)) {
-            return Optional.empty();
-        }
-
-        // If the uuid is not for the global, get the group membership from Group component.
-        if (!GLOBAL_SCOPE_SUPPLY_CHAIN.contains(groupUuid)) {
-            final long id = Long.parseLong(groupUuid);
-            // TODO (roman, Aug 3, 2017): It's inconvenient that the UI/API knows
-            // they want a cluster or group, but want to look them up in a common interface.
-            // To deal with the mismatch, we try searching for group members first, and if
-            // the group is not found we look for cluster members.
-            // In the future it makes sense to have a single interface to search all "collections"
-            // of entities.
-            try {
-                GetMembersResponse groupResp = groupServiceRpc.getMembers(GetMembersRequest.newBuilder()
-                        .setId(id)
-                        .build());
-                memberIds = Sets.newHashSet(groupResp.getMembers().getIdsList());
-            } catch (StatusRuntimeException e) {
-                if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                    throw new UnknownObjectException("Can't find group " + groupUuid);
-                } else {
-                    throw e;
-                }
-            }
-        }
-        return Optional.ofNullable(memberIds);
-    }
-
-    /**
      * Fetch groups based on a list of {@link FilterApiDTO} criteria.
      *
      * If the list of criteria is empty, return all groups
@@ -773,52 +780,38 @@ public class GroupsService implements IGroupsService {
      */
     List<GroupApiDTO> getGroupsByFilter(List<FilterApiDTO> filterList) {
         return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
-            .setTypeFilter(Type.GROUP)
-            .build());
+            .addTypeFilter(Type.GROUP)
+            .addTypeFilter(Type.NESTED_GROUP)
+            .build(), true);
     }
 
     /**
-     * Call the Group Component to look up groups based on an {@link GetGroupsRequest}.
+     * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
+     * them to the associated {@link GroupApiDTO} format.
      *
-     * The request may, optionally, specify a name-matching regex. If none is supplied,
-     * then all GroupApiDTOs are returned.
-     *
-     * @param groupsRequest a request to specify, optionally, a name-matching regex
-     * @return a list of {@link GroupApiDTO}s satisfying the given request
+     * @param groupsRequest The request.
+     * @param populateSeverity Whether or not to populate the severity in the response. Populating
+     *                         severity requires another relatively expensive RPC call, so use this
+     *                         only when necessary.
+     * @return The list of {@link GroupApiDTO} objects.
      */
-    public List<GroupApiDTO> getGroupApiDTOS(GetGroupsRequest groupsRequest) {
-        Iterable<Group> groups = () -> groupServiceRpc.getGroups(groupsRequest);
-        return StreamSupport.stream(groups.spliterator(), false)
-                .filter(group -> !isHiddenGroup(group))
-                .map(groupMapper::toGroupApiDto)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Similar to {@link #getGroupApiDTOS}, but adds group severity information to the results.
-     *
-     * Since getting severity information involves additional RPC calls, it's advised to stick to
-     * {@link #getGroupApiDTOS} unless youj know you need the additional severity information.
-     *
-     * @param getGroupsRequest a request to specify, optionally, a name-matching regex
-     * @return a list of {@link GroupApiDTO}s, with severities, satisfying the given request
-     */
-    public List<GroupApiDTO> getGroupApiDTOSwithSeverities(GetGroupsRequest getGroupsRequest) {
-        List<GroupApiDTO> groups = getGroupApiDTOS(getGroupsRequest);
-        // populate the severity field on the groups that were retrieved.
-        for (GroupApiDTO group : groups) {
-            if (StringUtils.isEmpty(group.getSeverity()) && group.getMembersCount() > 0) {
-                // calculate the severity for this group.
-                // unfortunately, the GroupApiDTO object encodes members as string uuids rather than
-                // longs, so we will need to convert them here.
-                Set<Long> memberOids = group.getMemberUuidList().stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toSet());
-                SeverityPopulator.calculateSeverity(entitySeverityServiceStub, realtimeTopologyContextId, memberOids)
-                    .ifPresent(severity -> group.setSeverity(severity.name()));
-            }
-        }
-        return groups;
+    @Nonnull
+    public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
+                                             final boolean populateSeverity) {
+        final Stream<GroupAndMembers> groupsWithMembers =
+            groupExpander.getGroupsWithMembers(groupsRequest);
+        final List<GroupApiDTO> retList = groupsWithMembers
+            .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
+            .map(groupAndMembers -> {
+                final GroupApiDTO apiDTO = groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM);
+                if (populateSeverity && groupAndMembers.entities().size() > 0) {
+                    severityPopulator.calculateSeverity(realtimeTopologyContextId, groupAndMembers.entities())
+                            .ifPresent(severity -> apiDTO.setSeverity(severity.name()));
+                }
+                return apiDTO;
+            })
+            .collect(Collectors.toList());
+        return retList;
     }
 
     /**
@@ -837,7 +830,7 @@ public class GroupsService implements IGroupsService {
 
         GetGroupsRequest.Builder requestBuilder = GetGroupsRequest.newBuilder();
         for (FilterApiDTO filter : filterList ) {
-            if (filter.getFilterType().equals(GROUPS_FILTER_TYPE)) {
+            if (GroupMapper.GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType())) {
                 requestBuilder.setNameFilter(GroupDTO.NameFilter.newBuilder()
                         .setNameRegex(filter.getExpVal())
                         .setNegateMatch(!filter.getExpType().equals("EQ"))
@@ -847,51 +840,114 @@ public class GroupsService implements IGroupsService {
         return requestBuilder;
     }
 
-
     /**
-     * Fetch a List of all the Clusters of type COMPUTE, i.e. containing HOSTs
+     * Return the clusters inside a list of scopes, assumed to be groups of clusters.
      *
-     * @return a list of all known COMPUTE clusters, i.e. containing HOSTs (PMs)
+     * @param clusterType The type of clusters to return.
+     * @param scopes The scopes - assumed to be groups of clusters.
+     * @param filterList The filters to apply to the returned clusters.
+     * @return The {@link GroupApiDTO}s returning the clusters matching the criteria inside the
+     *         provided scopes.
      */
-    List<GroupApiDTO> getComputeClusters(List<FilterApiDTO> filterList) {
-        return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
-                .setTypeFilter(Type.CLUSTER)
-                .setClusterFilter(ClusterFilter.newBuilder()
-                        .setTypeFilter(ClusterInfo.Type.COMPUTE)
-                        .build())
-                .build());
+    @Nonnull
+    private List<GroupApiDTO> getClustersInGroups(
+            @Nonnull ClusterInfo.Type clusterType,
+            @Nonnull final List<String> scopes,
+            @Nonnull final List<FilterApiDTO> filterList) {
+        final GetGroupsRequest.Builder reqBuilder = getGroupsRequestForFilters(filterList);
+        scopes.stream()
+            .map(groupExpander::getGroupWithMembers)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .filter(groupAndMembers -> {
+                final Group group = groupAndMembers.group();
+                return group.getType() == Type.NESTED_GROUP &&
+                    group.getNestedGroup().getTypeCase() == TypeCase.CLUSTER &&
+                    group.getNestedGroup().getCluster() == clusterType;
+            })
+            .forEach(clusterAndMembers -> clusterAndMembers.members().forEach(reqBuilder::addId));
+        return getGroupApiDTOS(reqBuilder.build(), true);
     }
 
     /**
-     * Fetch the computer cluster the entity belongs to.
-     * @param entityId the entity ID.
-     * @return {@link GroupApiDTO} has the computer cluster information if found.
+     * Return the clusters containing the provided scopes, assumed to be entities.
+     *
+     * @param clusterType The type of clusters to return.
+     * @param scopes The scopes - assumed to be entities.
+     * @return The {@link GroupApiDTO}s returning the clusters of the provided entities.
      */
-    Optional<GroupApiDTO> getComputeCluster(long entityId) {
-        final GetClusterForEntityResponse response =
-                groupServiceRpc.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
+    @Nonnull
+    private List<GroupApiDTO> getClustersOfEntities(
+            @Nonnull ClusterInfo.Type clusterType,
+            @Nullable final List<String> scopes) {
+        // As of today (Feb 2019), the scopes object could only have one id (PM oid).
+        // If there is PM oid, we want to retrieve the Cluster that the PM belonged to.
+        // TODO (Gary, Feb 4, 2019), add a new gRPC service for multiple PM oids when needed.
+        final Map<Long, Group> clustersById = scopes.stream()
+            .map(uuid -> Long.parseLong(uuid))
+            .map(entityId -> {
+                final GetClusterForEntityResponse response =
+                    groupServiceRpc.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
                         .setEntityId(entityId)
                         .build());
-        if (response.hasClusterInfo()) {
-            final GroupApiDTO groupApiDTO = groupMapper.createClusterApiDto(response.getClusterInfo());
-            groupApiDTO.setUuid(Long.toString(response.getClusterId()));
-            return Optional.of(groupApiDTO);
-        }
-        return Optional.empty();
+                if (response.hasCluster()) {
+                    return response.getCluster();
+                } else {
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            // Filter according to the provided cluster type.
+            .filter(cluster -> cluster.getCluster().getClusterType() == clusterType)
+            // Collect to a map to get rid of duplicate clusters (i.e. if scopes specify two entities
+            // in the same cluster.
+            .collect(Collectors.toMap(Group::getId, Function.identity(), (c1, c2) -> c1));
+
+        return clustersById.values().stream()
+            .map(groupExpander::getMembersForGroup)
+            .map(clusterAndMembers -> {
+                final GroupApiDTO apiDTO = groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM);
+                severityPopulator.calculateSeverity(realtimeTopologyContextId,
+                        clusterAndMembers.entities())
+                    .ifPresent(severity -> apiDTO.setSeverity(severity.name()));
+                return apiDTO;
+            })
+            .collect(Collectors.toList());
     }
 
     /**
-     * Fetch a List of all the Clusters of type STORAGE
+     * Get {@link GroupApiDTO} describing clusters in the system that match certain criteria.
      *
-     * @return a list of all known STORAGE clusters
+     * @param clusterType The type of the cluster.
+     * @param scopes The scopes to look for clusters in. Could be entities (in which case we look
+     *               for the clusters of the entities) or groups-of-clusters (in which case we
+     *               look for clusters in the group).
+     * @param filterList The list of filters to apply to the clusters.
+     * @return
      */
-    List<GroupApiDTO> getStorageClusters(List<FilterApiDTO> filterList) {
-        return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
-                .setTypeFilter(Type.CLUSTER)
+    @Nonnull
+    List<GroupApiDTO> getClusters(@Nonnull ClusterInfo.Type clusterType,
+                                  @Nullable final List<String> scopes,
+                                  @Nonnull final List<FilterApiDTO> filterList) {
+        // If we're looking for clusters with a scope there are two possibilities:
+        //   - The scope is a group of clusters, in which case we want the clusters in the group.
+        //   - The scope is a list of entities, in which case we want the clusters the entities are in.
+        // We assume it's either-or - i.e. either all scopes are groups, or all scopes are entities.
+        if (UuidMapper.hasLimitedScope(scopes)) {
+            if (scopes.stream().anyMatch(uuid -> uuidMapper.fromUuid(uuid).isGroup())) {
+                return getClustersInGroups(clusterType, scopes, filterList);
+            } else {
+                // Note - for now (March 29 2019) we don't have cases where we need to apply the
+                // filter list. But in the future we may need to.
+                return getClustersOfEntities(clusterType, scopes);
+            }
+        } else {
+            return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
+                .addTypeFilter(Type.CLUSTER)
                 .setClusterFilter(ClusterFilter.newBuilder()
-                        .setTypeFilter(ClusterInfo.Type.STORAGE)
-                        .build())
-                .build());
+                    .setTypeFilter(clusterType))
+                .build(), true);
+        }
     }
 
     /**
@@ -908,22 +964,20 @@ public class GroupsService implements IGroupsService {
      * Get all members of a given group uuid and return in the form of TopologyEntityDTO.
      */
     private List<TopologyEntityDTO> getGroupMembers(@Nonnull String uuid) throws UnknownObjectException {
-        final GetGroupResponse groupRes = groupServiceRpc.getGroup(GroupID.newBuilder()
-                .setId(Long.parseLong(uuid))
-                .build());
-        if (!groupRes.hasGroup()) {
-            throw new UnknownObjectException("Group not found: " + uuid);
-        }
-
-        final Collection<Long> memberIds = getMemberIds(uuid).orElseThrow(() ->
-                new IllegalArgumentException("Can't get members in invalid group: " + uuid));
-
-        // Get group members as TopologyEntityDTOs from the repository component
-        final SearchTopologyEntityDTOsResponse response =
+        final GroupAndMembers groupAndMembers = groupExpander.getGroupWithMembers(uuid)
+            .orElseThrow(() -> new UnknownObjectException("Group not found: " + uuid));
+        if (groupAndMembers.group().getType() == Type.NESTED_GROUP) {
+            // The members of a nested group (e.g. group of clusters) don't have TopologyEntityDTO
+            // representations.
+            return Collections.emptyList();
+        } else {
+            // Get group members as TopologyEntityDTOs from the repository component
+            final SearchTopologyEntityDTOsResponse response =
                 searchServiceBlockingStub.searchTopologyEntityDTOs(
-                        SearchTopologyEntityDTOsRequest.newBuilder()
-                                .addAllEntityOid(memberIds)
-                                .build());
-        return response.getTopologyEntityDtosList();
+                    SearchTopologyEntityDTOsRequest.newBuilder()
+                        .addAllEntityOid(groupAndMembers.members())
+                        .build());
+            return response.getTopologyEntityDtosList();
+        }
     }
 }

@@ -94,6 +94,15 @@ class DiscoveredGroupInterpreter {
         this.propertyFilterConverter = converter;
     }
 
+    private boolean validGroup(@Nonnull final CommonDTO.GroupDTO group) {
+        try {
+            GroupProtoUtil.extractName(group);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     /**
      * Attempt to interpret a list of {@link CommonDTO.GroupDTO}s. Returns one
      * {@link InterpretedGroup} for every input {@link CommonDTO.GroupDTO}.
@@ -105,16 +114,17 @@ class DiscoveredGroupInterpreter {
     @Nonnull
     List<InterpretedGroup> interpretSdkGroupList(@Nonnull final List<CommonDTO.GroupDTO> dtoList,
                                                  final long targetId) {
+        final List<CommonDTO.GroupDTO> legalDtoList = dtoList.stream()
+            .filter(this::validGroup)
+            .collect(Collectors.toList());
         final GroupInterpretationContext context =
-            new GroupInterpretationContext(targetId, dtoList);
-        dtoList.stream()
-            .filter(group -> group.hasDisplayName() && group.hasGroupName())
-            .forEach(group -> {
-                // We check to see if we need to interpret this particular group, because the
-                // interpretation of a previous group that contains this one may have already triggered
-                // the interpretation of this one. Re-interpreting it would be wasteful.
-                context.computeInterpretedGroup(group.getGroupName(), () -> interpretGroup(group, context));
-            });
+            new GroupInterpretationContext(targetId, legalDtoList);
+        legalDtoList.forEach(group -> {
+            // We check to see if we need to interpret this particular group, because the
+            // interpretation of a previous group that contains this one may have already triggered
+            // the interpretation of this one. Re-interpreting it would be wasteful.
+            context.computeInterpretedGroup(GroupProtoUtil.extractName(group), () -> interpretGroup(group, context));
+        });
         return new ArrayList<>(context.interpretedGroups());
     }
 
@@ -272,9 +282,9 @@ class DiscoveredGroupInterpreter {
              * }
              */
             final Map<String, Long> idMap = idMapOpt.get();
-            if (idMap.containsKey(groupDTO.getGroupName())) {
+            if (idMap.containsKey(GroupProtoUtil.extractName(groupDTO))) {
                 logger.debug("Skipping group {} as it is represented by entity already",
-                        groupDTO::getGroupName);
+                        GroupProtoUtil.extractName(groupDTO));
                 return Optional.empty();
             }
             final StaticGroupMembers.Builder staticMemberBldr =
@@ -308,9 +318,7 @@ class DiscoveredGroupInterpreter {
                                         + ". Not adding to the group/cluster members list for groupName: {}, " +
                                         " groupDisplayName: {}.",
                                     entity.get().getEntityType(), groupDTO.getEntityType(), discoveredEntityId,
-                                    groupDTO.hasGroupName() ?
-                                        groupDTO.getGroupName() :
-                                        groupDTO.getConstraintInfo().getConstraintName(),
+                                    GroupProtoUtil.extractName(groupDTO),
                                     groupDTO.getDisplayName());
                             }
                         }
@@ -337,7 +345,7 @@ class DiscoveredGroupInterpreter {
             if (missingMemberCount.get() > 0) {
                 Metrics.MISSING_MEMBER_COUNT.increment((double)missingMemberCount.get());
                 logger.warn("{} members could not be mapped to OIDs when processing group {} (uuid: {})",
-                    missingMemberCount.get(), groupDTO.getDisplayName(), groupDTO.getGroupName());
+                    missingMemberCount.get(), groupDTO.getDisplayName(), GroupProtoUtil.extractName(groupDTO));
             }
             return Optional.of(staticMemberBldr.build());
         }
@@ -385,7 +393,7 @@ class DiscoveredGroupInterpreter {
         // We push the "parent" group instead of the member group, because it makes the code
         // simpler. The only reason the pushing exists is for cycle detection, and if the member
         // group has a nested group we'll push the "member" group when we try to expand.
-        context.pushVisitedGroup(groupDto.getGroupName());
+        context.pushVisitedGroup(GroupProtoUtil.extractName(groupDto));
         try {
             // If there is an error (cycle, or exceeding max depth), return empty without even
             // trying to resolve the member group.
@@ -412,16 +420,16 @@ class DiscoveredGroupInterpreter {
                     Metrics.ERROR_COUNT.labels("entity_type_mismatch").increment();
                     logger.error("Group {} (uuid: {}, entity type: {}) has child group " +
                             "{} (uuid: {}) with a different entity type: {}. Removing child group.",
-                        groupDto.getDisplayName(), groupDto.getGroupName(), groupDto.getEntityType(),
-                        childGroup.getDisplayName(), childGroup.getGroupName(), childGroup.getEntityType());
+                        groupDto.getDisplayName(), GroupProtoUtil.extractName(groupDto), groupDto.getEntityType(),
+                        childGroup.getDisplayName(), GroupProtoUtil.extractName(childGroup), childGroup.getEntityType());
                     return Optional.empty();
                 } else {
                     if (childGroup.getMembersCase() != MembersCase.MEMBER_LIST) {
                         Metrics.ERROR_COUNT.labels("non_static_child").increment();
                         logger.warn("Group {} (uuid: {}) has non-static child group {} (uuid: {}). " +
                                 "Not currently supported.",
-                            groupDto.getDisplayName(), groupDto.getGroupName(),
-                            childGroup.getDisplayName(), childGroup.getGroupName());
+                            groupDto.getDisplayName(), GroupProtoUtil.extractName(groupDto),
+                            childGroup.getDisplayName(), GroupProtoUtil.extractName(childGroup));
                     }
                     return Optional.of(interpretedGroup.getStaticMembers());
                 }
@@ -594,8 +602,7 @@ class DiscoveredGroupInterpreter {
                                    @Nonnull final List<GroupDTO> dtoList) {
             this.targetId = targetId;
             this.groupsByUuid = Collections.unmodifiableMap(dtoList.stream()
-                .filter(GroupDTO::hasGroupName)
-                .collect(Collectors.toMap(GroupDTO::getGroupName, Function.identity())));
+                .collect(Collectors.toMap(GroupProtoUtil::extractName, Function.identity())));
             this.interpretedGroupByUuid = new HashMap<>(this.groupsByUuid.size());
         }
 

@@ -1,6 +1,8 @@
 package com.vmturbo.common.protobuf;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -15,6 +17,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -46,9 +51,17 @@ public class GroupProtoUtil {
      * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
      */
     public static void checkEntityType(@Nonnull final GroupOrBuilder group) {
-        Preconditions.checkArgument(group.getType().equals(Type.CLUSTER) ||
+        if (group.getType() == Type.NESTED_GROUP) {
+            // Nested groups don't have an explicitly-specified type. We currently support
+            // just one type of nested group - a group of clusters - in which case we can infer
+            // the entity type from the type of clusters in the group.
+            Preconditions.checkArgument(group.getNestedGroup().getTypeCase() ==
+                TypeCase.CLUSTER);
+        } else {
+            Preconditions.checkArgument(group.getType().equals(Type.CLUSTER) ||
                 group.getTempGroup().hasEntityType() ||
                 group.getGroup().hasEntityType());
+        }
     }
 
     /**
@@ -70,10 +83,26 @@ public class GroupProtoUtil {
                     case STORAGE:
                         return EntityType.STORAGE_VALUE;
                     default:
-                        throw new IllegalArgumentException("Unknown cluster type: " + group.getType());
+                        throw new IllegalArgumentException("Unknown cluster type: " +
+                            group.getCluster().getClusterType());
                 }
             case TEMP_GROUP:
                 return group.getTempGroup().getEntityType();
+            case NESTED_GROUP:
+                if (group.getNestedGroup().getTypeCase() == TypeCase.CLUSTER) {
+                    switch (group.getNestedGroup().getCluster()) {
+                        case COMPUTE:
+                            return EntityType.PHYSICAL_MACHINE_VALUE;
+                        case STORAGE:
+                            return EntityType.STORAGE_VALUE;
+                        default:
+                            throw new IllegalArgumentException("Unknown nested cluster type: " +
+                                group.getNestedGroup().getCluster());
+                    }
+                } else {
+                    throw new IllegalArgumentException("Unknown nested group type: " +
+                        group.getNestedGroup().getTypeCase());
+                }
             default:
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());
         }
@@ -102,6 +131,10 @@ public class GroupProtoUtil {
             case TEMP_GROUP:
                 Preconditions.checkArgument(group.hasTempGroup() && group.getTempGroup().hasName());
                 name = group.getTempGroup().getName();
+                break;
+            case NESTED_GROUP:
+                Preconditions.checkArgument(group.hasNestedGroup() && group.getNestedGroup().hasName());
+                name = group.getNestedGroup().getName();
                 break;
             default:
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());
@@ -135,6 +168,10 @@ public class GroupProtoUtil {
             case TEMP_GROUP:
                 Preconditions.checkArgument(group.hasTempGroup());
                 name = group.getTempGroup().getName();
+                break;
+            case NESTED_GROUP:
+                Preconditions.checkArgument(group.hasNestedGroup() && group.getNestedGroup().hasName());
+                name = group.getNestedGroup().getName();
                 break;
             default:
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());
@@ -261,6 +298,40 @@ public class GroupProtoUtil {
 
         return !filter.hasTypeFilter() ||
             group.getCluster().getClusterType().equals(filter.getTypeFilter());
+    }
+
+    /**
+     * If the group is a static group, get the list of members. This method is useful when we have
+     * a {@link Group} outside the group component and want its members, but want to avoid an extra
+     * RPC call.
+     *
+     * @param group The {@link Group} object.
+     * @return If the group is a static group (of any type), return an {@link Optional} containing
+     *         the static members. If the group is a dynamic group, return an empty optional.
+     */
+    public static Optional<List<Long>> getStaticMembers(@Nonnull final Group group) {
+        List<Long> retGroup = null;
+        switch (group.getType()) {
+            case GROUP:
+                if (group.getGroup().getSelectionCriteriaCase() == GroupInfo.SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
+                    retGroup = group.getGroup().getStaticGroupMembers().getStaticMemberOidsList();
+                }
+                break;
+            case CLUSTER:
+                retGroup = group.getCluster().getMembers().getStaticMemberOidsList();
+                break;
+            case TEMP_GROUP:
+                retGroup = group.getTempGroup().getMembers().getStaticMemberOidsList();
+                break;
+            case NESTED_GROUP:
+                if (group.getNestedGroup().getSelectionCriteriaCase() == NestedGroupInfo.SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
+                    retGroup = group.getNestedGroup().getStaticGroupMembers().getStaticMemberOidsList();
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unhandled group type: " + group.getType());
+        }
+        return Optional.ofNullable(retGroup);
     }
 
     /**

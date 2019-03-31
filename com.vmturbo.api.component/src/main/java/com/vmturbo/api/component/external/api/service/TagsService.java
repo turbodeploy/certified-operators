@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -60,6 +61,13 @@ public class TagsService implements ITagsService {
             @Nullable final List<String> scopes,
             @Nullable final String entityType,
             @Nullable final EnvironmentType envType) throws Exception {
+
+        // We don't currently support tags on nested group types (e.g. clusters), so short-circuit
+        // here.
+        if (GroupsService.NESTED_GROUP_TYPES.contains(entityType)) {
+            return Collections.emptyList();
+        }
+
         // get relevant service ids using the group service membership endpoint
         final SearchTagsRequest.Builder requestBuilder = SearchTagsRequest.newBuilder();
         if (scopes != null && !scopes.isEmpty()) {

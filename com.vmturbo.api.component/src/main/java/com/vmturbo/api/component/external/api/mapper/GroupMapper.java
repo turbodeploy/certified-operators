@@ -20,6 +20,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -29,6 +30,7 @@ import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -36,13 +38,20 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter.PropertyTypeCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfoOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
@@ -53,6 +62,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
@@ -61,6 +71,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * Maps groups between their API DTO representation and their protobuf representation.
@@ -68,17 +79,23 @@ import com.vmturbo.components.common.ClassicEnumMapper;
 public class GroupMapper {
     private static final Logger logger = LogManager.getLogger();
 
-    public static final String GROUP = "Group";
-    public static final String CLUSTER = "Cluster";
-    public static final String STORAGE_CLUSTER = "StorageCluster";
-
     /**
      * The API "class types" (as returned by {@link BaseApiDTO#getClassName()}
      * which indicate that the {@link BaseApiDTO} in question is a group.
      */
-    public static final Set<String> GROUP_CLASSES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER);
+    public static final Set<String> GROUP_CLASSES = ImmutableSet.of(StringConstants.GROUP,
+        StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
 
     public static final String OID = "oid";
+
+    public static final String GROUPS_FILTER_TYPE = "groupsByName";
+
+    public static final String CLUSTERS_FILTER_TYPE = "clustersByName";
+
+    public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
+
+    public static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
+        GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE, STORAGE_CLUSTERS_FILTER_TYPE);
 
     // For normal criteria, user just need to provide a string (like a display name). But for
     // some criteria, UI allow user to choose from list of available options (like tags, state and
@@ -154,13 +171,14 @@ public class GroupMapper {
                     return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
                 });
         filterTypesToProcessors.put(
-                CLUSTER,
+                StringConstants.CLUSTER,
                 context -> {
                     ClusterMembershipFilter clusterFilter =
                             SearchMapper.clusterFilter(
                                 SearchMapper.nameFilter(
                                     context.getFilter().getExpVal(),
-                                    context.getFilter().getExpType().equals(EQUAL)));
+                                    context.getFilter().getExpType().equals(EQUAL),
+                                    context.getFilter().getCaseSensitive()));
                     return Collections.singletonList(SearchMapper.searchFilterCluster(clusterFilter));
                 });
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
@@ -181,16 +199,12 @@ public class GroupMapper {
 
     private final GroupExpander groupExpander;
 
-    private final UserSessionContext userSessionContext;
-
     public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                       @Nonnull final GroupExpander groupExpander,
-                       @Nonnull final UserSessionContext userSessionContext) {
+                       @Nonnull final GroupExpander groupExpander) {
         this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
     }
 
     /**
@@ -305,43 +319,43 @@ public class GroupMapper {
         return requestBuilder.build();
     }
 
+    public NestedGroupInfo toNestedGroupInfo(@Nonnull final GroupApiDTO groupDto) throws InvalidOperationException {
+        NestedGroupInfo.Builder nestedGroupBuilder = NestedGroupInfo.newBuilder()
+            .setName(groupDto.getDisplayName());
+        if (StringUtils.equals(groupDto.getGroupType(), StringConstants.CLUSTER)) {
+            nestedGroupBuilder.setCluster(Type.COMPUTE);
+        } else if (StringUtils.equals(groupDto.getGroupType(), StringConstants.STORAGE_CLUSTER)) {
+            nestedGroupBuilder.setCluster(Type.STORAGE);
+        } else {
+            throw new InvalidOperationException("Nested groups of type: " +
+                groupDto.getGroupType() + " not supported.");
+        }
+
+        if (groupDto.getIsStatic()) {
+            nestedGroupBuilder.setStaticGroupMembers(
+                StaticGroupMembers.newBuilder().addAllStaticMemberOids(
+                    groupDto.getMemberUuidList().stream().map(Long::parseLong).collect(Collectors.toList())));
+        } else {
+            final GroupPropertyFilterList groupPropFilters =
+                apiFiltersToGroupPropFilters(nestedGroupBuilder, groupDto.getCriteriaList());
+            nestedGroupBuilder.setPropertyFilterList(groupPropFilters);
+        }
+        return nestedGroupBuilder.build();
+    }
+
     @Nonnull
     private GroupApiDTO createGroupApiDto(@Nonnull final Group group) {
         GroupInfo groupInfo = group.getGroup();
         final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setClassName(GROUP);
-        outputDTO.setEntitiesCount(0);
+        outputDTO.setClassName(StringConstants.GROUP);
+        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(group)));
 
         switch (groupInfo.getSelectionCriteriaCase()) {
             case STATIC_GROUP_MEMBERS:
                 outputDTO.setIsStatic(true);
-                // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
-                // a group because the UI needs that information in some screens.
-                outputDTO.setActiveEntitiesCount(groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
-                outputDTO.setEntitiesCount(
-                    groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
-                // Right now in XL we don't support group-of-groups, so entities count is always
-                // the same as members count.
-                outputDTO.setMembersCount(
-                        groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
-                outputDTO.setMemberUuidList(
-                        groupInfo.getStaticGroupMembers().getStaticMemberOidsList().stream()
-                                .map(Object::toString)
-                                .collect(Collectors.toList()));
                 break;
             case SEARCH_PARAMETERS_COLLECTION:
-                List<String> groupMembers =
-                    groupExpander.expandUuids(ImmutableSet.of(String.valueOf(group.getId())))
-                                    .stream()
-                                    .map(member -> Long.toString(member))
-                                    .collect(Collectors.toList());
                 outputDTO.setIsStatic(false);
-                outputDTO.setMemberUuidList(groupMembers);
-                // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
-                // a group because the UI needs that information in some screens.
-                outputDTO.setActiveEntitiesCount(groupMembers.size());
-                outputDTO.setEntitiesCount(groupMembers.size());
-                outputDTO.setMembersCount(groupMembers.size());
                 outputDTO.setCriteriaList(convertToFilterApis(groupInfo));
                 break;
             default:
@@ -353,40 +367,62 @@ public class GroupMapper {
     }
 
     @Nonnull
-    public GroupApiDTO createClusterApiDto(@Nonnull final ClusterInfo clusterInfo) {
+    private GroupApiDTO createClusterApiDto(@Nonnull final Group cluster) {
         final GroupApiDTO outputDTO = new GroupApiDTO();
+        final ClusterInfo clusterInfo = cluster.getCluster();
         if (clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE) {
-            outputDTO.setClassName(CLUSTER);
+            outputDTO.setClassName(StringConstants.CLUSTER);
         } else if (clusterInfo.getClusterType() == ClusterInfo.Type.STORAGE) {
-            outputDTO.setClassName(STORAGE_CLUSTER);
+            outputDTO.setClassName(StringConstants.STORAGE_CLUSTER);
         } else {
             logger.error("Unexpected cluster type: {}. Defaulting to \"CLUSTER\" (compute)",
                 clusterInfo.getClusterType());
-            outputDTO.setClassName(CLUSTER);
+            outputDTO.setClassName(StringConstants.CLUSTER);
         }
-        // Not clear if there should be a difference between these.
-        outputDTO.setEntitiesCount(clusterInfo.getMembers().getStaticMemberOidsCount());
-        outputDTO.setMembersCount(clusterInfo.getMembers().getStaticMemberOidsCount());
         outputDTO.setIsStatic(true);
-        outputDTO.setMemberUuidList(clusterInfo.getMembers().getStaticMemberOidsList().stream()
-            .map(Object::toString)
-            .collect(Collectors.toList()));
-        outputDTO.setDisplayName(clusterInfo.getDisplayName());
+        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(cluster)));
         return outputDTO;
     }
 
     @Nonnull
-    private GroupApiDTO createTempGroupApiDTO(@Nonnull final TempGroupInfo tempGroupInfo) {
+    private GroupApiDTO createNestedGroupApiDTO(@Nonnull final Group nestedGroup) {
+        Preconditions.checkArgument(nestedGroup.hasNestedGroup());
         final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setClassName(GROUP);
-        // Not clear if there should be a difference between these.
-        outputDTO.setEntitiesCount(tempGroupInfo.getMembers().getStaticMemberOidsCount());
-        outputDTO.setMembersCount(tempGroupInfo.getMembers().getStaticMemberOidsCount());
+        outputDTO.setClassName(StringConstants.GROUP);
+
+        switch (nestedGroup.getNestedGroup().getTypeCase()) {
+            case CLUSTER:
+                if (nestedGroup.getNestedGroup().getCluster() == ClusterInfo.Type.COMPUTE) {
+                    outputDTO.setGroupType(StringConstants.CLUSTER);
+                } else if (nestedGroup.getNestedGroup().getCluster() == ClusterInfo.Type.STORAGE) {
+                    outputDTO.setGroupType(StringConstants.STORAGE_CLUSTER);
+                }
+                break;
+            default:
+                // In the future we will probably also need to support:
+                //    - Nested discovered groups (e.g. VC folders)
+                //    - Groups of resource groups.
+                logger.error("Unhandled nested group type: {}", nestedGroup.getNestedGroup().getTypeCase());
+                throw new IllegalArgumentException("Unhandled nested group type: " + nestedGroup.getNestedGroup().getTypeCase());
+        }
+
+        outputDTO.setIsStatic(nestedGroup.getNestedGroup().getSelectionCriteriaCase() ==
+            SelectionCriteriaCase.STATIC_GROUP_MEMBERS);
+        if (nestedGroup.getNestedGroup().getSelectionCriteriaCase() == SelectionCriteriaCase.PROPERTY_FILTER_LIST) {
+            outputDTO.setCriteriaList(groupPropFiltersToApiFilters(nestedGroup.getNestedGroup()));
+        }
+
+        return outputDTO;
+    }
+
+    @Nonnull
+    private GroupApiDTO createTempGroupApiDTO(@Nonnull final Group tempGroup) {
+        Preconditions.checkArgument(tempGroup.hasTempGroup());
+        final GroupApiDTO outputDTO = new GroupApiDTO();
+        outputDTO.setClassName(StringConstants.GROUP);
         outputDTO.setIsStatic(true);
-        outputDTO.setMemberUuidList(tempGroupInfo.getMembers().getStaticMemberOidsList().stream()
-                .map(Object::toString)
-                .collect(Collectors.toList()));
         outputDTO.setTemporary(true);
+        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(tempGroup)));
         return outputDTO;
     }
 
@@ -398,10 +434,60 @@ public class GroupMapper {
      * @return  The {@link GroupApiDTO} object
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Group group) {
-        return toGroupApiDto(group, EnvironmentType.ONPREM);
+        return toGroupApiDto(groupExpander.getMembersForGroup(group), EnvironmentType.ONPREM);
     }
 
     /**
+     * Converts from {@link GroupAndMembers} to {@link GroupApiDTO}.
+     *
+     * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
+     *                        describing the XL group and its members.
+     * @param environmentType The environment type of the group.
+     * @return The {@link GroupApiDTO} object.
+     */
+    @Nonnull
+    public GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
+                                     @Nonnull final EnvironmentType environmentType) {
+        final GroupApiDTO outputDTO;
+        final Group group = groupAndMembers.group();
+        switch (group.getType()) {
+            case GROUP:
+                outputDTO = createGroupApiDto(groupAndMembers.group());
+                break;
+            case CLUSTER:
+                outputDTO = createClusterApiDto(groupAndMembers.group());
+                break;
+            case TEMP_GROUP:
+                outputDTO = createTempGroupApiDTO(groupAndMembers.group());
+                break;
+            case NESTED_GROUP:
+                outputDTO = createNestedGroupApiDTO(groupAndMembers.group());
+                break;
+            default:
+                throw new IllegalArgumentException("Unrecognized group type: " + group.getType());
+        }
+
+        outputDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(group));
+        outputDTO.setUuid(Long.toString(group.getId()));
+
+        outputDTO.setMembersCount(groupAndMembers.members().size());
+        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
+            .map(oid -> Long.toString(oid))
+            .collect(Collectors.toList()));
+        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
+        // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
+        // a group because the UI needs that information in some screens.
+        outputDTO.setActiveEntitiesCount(groupAndMembers.entities().size());
+
+        // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
+        //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
+        //     #getEntityInformation() to determine environmentType
+        outputDTO.setEnvironmentType(environmentType);
+
+        return outputDTO;
+    }
+
+                                     /**
      * Converts from {@link Group} to {@link GroupApiDTO}.
      *
      * @param group The {@link Group} object
@@ -410,31 +496,92 @@ public class GroupMapper {
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Group group,
                                      @Nonnull EnvironmentType environmentType) {
-        final GroupApiDTO outputDTO;
-        switch (group.getType()) {
-            case GROUP:
-                outputDTO = createGroupApiDto(group);
-                break;
-            case CLUSTER:
-                outputDTO = createClusterApiDto(group.getCluster());
-                break;
-            case TEMP_GROUP:
-                outputDTO = createTempGroupApiDTO(group.getTempGroup());
-                break;
-            default:
-                throw new IllegalArgumentException("Unrecognized group type: " + group.getType());
+        return toGroupApiDto(groupExpander.getMembersForGroup(group), environmentType);
+    }
+
+    /**
+     * Convert a list of {@link FilterApiDTO}s meant to be applied to groups (to create a
+     * nested group) to a {@link GroupPropertyFilterList} used inside XL.
+     *
+     * @param groupInfo The {@link NestedGroupInfoOrBuilder} describing the nested group.
+     *                  Used to narrow down which criteria actually apply.
+     * @param criteria The list of {@link FilterApiDTO}s to apply.
+     * @return The {@link GroupPropertyFilterList}.
+     */
+    @Nonnull
+    private GroupPropertyFilterList apiFiltersToGroupPropFilters(
+            @Nonnull final NestedGroupInfoOrBuilder groupInfo,
+            @Nullable List<FilterApiDTO> criteria) {
+        if (CollectionUtils.isEmpty(criteria)) {
+            return GroupPropertyFilterList.getDefaultInstance();
         }
 
-        outputDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(group));
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(group)));
-        outputDTO.setUuid(Long.toString(group.getId()));
+        GroupPropertyFilterList.Builder filterListBldr = GroupPropertyFilterList.newBuilder();
+        criteria.stream()
+            .filter(filter -> GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType()))
+            .filter(filter -> {
+                if (groupInfo.getTypeCase() == TypeCase.CLUSTER) {
+                    switch (groupInfo.getCluster()) {
+                        case COMPUTE:
+                            return filter.getFilterType().equals(CLUSTERS_FILTER_TYPE);
+                        case STORAGE:
+                            return filter.getFilterType().equals(STORAGE_CLUSTERS_FILTER_TYPE);
+                        default:
+                            return false;
+                    }
+                }
+                return false;
+            })
+            .map(nameFilter -> {
+                GroupPropertyFilter propertyFilter = GroupPropertyFilter.newBuilder()
+                    .setNameFilter(SearchMapper.stringFilter(
+                        nameFilter.getExpVal(), nameFilter.getExpType().equals(EQUAL), nameFilter.getCaseSensitive()))
+                    .build();
+                return propertyFilter;
+            })
+            .forEach(filterListBldr::addPropertyFilters);
+        return filterListBldr.build();
+    }
 
-        // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
-        //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
-        //     #getEntityInformation() to determine environmentType
-        outputDTO.setEnvironmentType(environmentType);
-
-        return outputDTO;
+    /**
+     * Convert the list of group property filters (used for dynamic nested groups) into the
+     * API/UI-compatible list of {@link FilterApiDTO}s.
+     *
+     * @param groupInfo The {@link NestedGroupInfo} of the nested group.
+     * @return The list of {@link FilterApiDTO} objects.
+     */
+    @Nonnull
+    private List<FilterApiDTO> groupPropFiltersToApiFilters(
+            @Nonnull final NestedGroupInfo groupInfo) {
+        Preconditions.checkArgument(groupInfo.getSelectionCriteriaCase() ==
+            SelectionCriteriaCase.PROPERTY_FILTER_LIST);
+        return groupInfo.getPropertyFilterList().getPropertyFiltersList().stream()
+            .map(propFilter -> {
+                if (propFilter.getPropertyTypeCase() == PropertyTypeCase.NAME_FILTER) {
+                    if (groupInfo.getTypeCase() == TypeCase.CLUSTER) {
+                        final StringFilter nameFilter = propFilter.getNameFilter();
+                        FilterApiDTO filterApiDTO = new FilterApiDTO();
+                        filterApiDTO.setExpVal(nameFilter.getStringPropertyRegex());
+                        filterApiDTO.setExpType(nameFilter.getMatch() ? EQUAL : NOT_EQUAL);
+                        filterApiDTO.setCaseSensitive(nameFilter.getCaseSensitive());
+                        switch (groupInfo.getCluster()) {
+                            case COMPUTE:
+                                filterApiDTO.setFilterType(CLUSTERS_FILTER_TYPE);
+                                break;
+                            case STORAGE:
+                                filterApiDTO.setFilterType(STORAGE_CLUSTERS_FILTER_TYPE);
+                                break;
+                            default:
+                                // Error.
+                                return null;
+                        }
+                        return filterApiDTO;
+                    }
+                }
+                return null;
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -626,7 +773,7 @@ public class GroupMapper {
                 case "*":
                     // string comparison
                     listFilter.setStringFilter(SearchMapper.stringFilter(filter.getExpVal(),
-                        filter.getExpType().equals(EQUAL)));
+                        filter.getExpType().equals(EQUAL), filter.getCaseSensitive()));
                     break;
                 case "#":
                     // numeric comparison
@@ -716,7 +863,7 @@ public class GroupMapper {
             case "*":
                 // string comparison
                 currentFieldPropertyFilter = SearchMapper.stringPropertyFilter(lastField,
-                        filter.getExpVal(), filter.getExpType().equals(EQUAL));
+                        filter.getExpVal(), filter.getExpType().equals(EQUAL), filter.getCaseSensitive());
                 break;
             case "#":
                 // numeric comparison

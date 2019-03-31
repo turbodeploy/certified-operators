@@ -472,10 +472,11 @@ public class Analysis {
 
     protected Set<TopologyEntityDTO> getEntityDTOsInCluster(ClusterInfo.Type clusterInfo) {
         Set<TopologyEntityDTO> entityDTOs = new HashSet<>();
-        groupServiceClient.getGroups(GetGroupsRequest.newBuilder().setTypeFilter(Type.CLUSTER)
-                .setClusterFilter(ClusterFilter.newBuilder()
-                        .setTypeFilter(clusterInfo).build())
-                .build())
+        groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            .addTypeFilter(Type.CLUSTER)
+            .setClusterFilter(ClusterFilter.newBuilder()
+                    .setTypeFilter(clusterInfo).build())
+            .build())
         .forEachRemaining(grp -> {
             for (long i : grp.getCluster().getMembers().getStaticMemberOidsList()) {
                 if (topologyDTOs.containsKey(i)) {

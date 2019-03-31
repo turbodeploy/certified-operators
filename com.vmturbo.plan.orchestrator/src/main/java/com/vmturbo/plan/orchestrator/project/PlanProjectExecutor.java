@@ -168,7 +168,7 @@ public class PlanProjectExecutor {
         // get all cluster group IDs from the topology
         groupRpcService.getGroups(
                 GroupDTO.GetGroupsRequest.newBuilder()
-                        .setTypeFilter(GroupDTO.Group.Type.CLUSTER)
+                        .addTypeFilter(GroupDTO.Group.Type.CLUSTER)
                         .setClusterFilter(ClusterFilter.newBuilder()
                                 .setTypeFilter(ClusterInfo.Type.COMPUTE)
                                 .build())

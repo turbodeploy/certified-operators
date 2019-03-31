@@ -78,7 +78,7 @@ public class SearchMapper {
      * @return a property filter
      */
     public static PropertyFilter stringPropertyFilter(String propName, String value) {
-        return stringPropertyFilter(propName, value, true);
+        return stringPropertyFilter(propName, value, true, false);
     }
 
     /**
@@ -93,10 +93,13 @@ public class SearchMapper {
      * @return a property filter
      */
     @Nonnull
-    public static PropertyFilter stringPropertyFilter(String propName, String value, boolean match) {
+    public static PropertyFilter stringPropertyFilter(@Nonnull final String propName,
+                                                      @Nonnull final String value,
+                                                      final boolean match,
+                                                      final boolean caseSensitive) {
         return PropertyFilter.newBuilder()
             .setPropertyName(propName)
-            .setStringFilter(stringFilter(value, match))
+            .setStringFilter(stringFilter(value, match, caseSensitive))
             .build();
     }
 
@@ -111,7 +114,8 @@ public class SearchMapper {
      */
     @Nonnull
     public static StringFilter stringFilter(@Nonnull final String regex,
-                                            final boolean match) {
+                                            final boolean match,
+                                            final boolean caseSensitive) {
         // It's generally harmless to double-up on the "^" prefix or the "$" suffix, but we avoid
         // doing so for clarity.
         //
@@ -123,11 +127,7 @@ public class SearchMapper {
         return StringFilter.newBuilder()
             .setStringPropertyRegex(prefix + regex + suffix)
             .setMatch(match)
-            // Always do a case-insensitive search when looking for strings.
-            // Note - we may want to switch to a smart-case search, where the search
-            // is case-sensitive if the regex contains an uppercase letter, and
-            // case-insensitive otherwise.
-            .setCaseSensitive(false)
+            .setCaseSensitive(caseSensitive)
             .build();
     }
 
@@ -237,7 +237,7 @@ public class SearchMapper {
      * @return a property filter
      */
     public static PropertyFilter nameFilter(String displayName) {
-        return nameFilter(displayName, true);
+        return nameFilter(displayName, true, false);
     }
 
     /**
@@ -247,8 +247,10 @@ public class SearchMapper {
      *              when the match fails.
      * @return a property filter
      */
-    public static PropertyFilter nameFilter(String displayName, boolean match) {
-        return stringPropertyFilter(DISPLAY_NAME_PROPERTY, displayName, match);
+    public static PropertyFilter nameFilter(@Nonnull final String displayName,
+                                            final boolean match,
+                                            final boolean caseSensitive) {
+        return stringPropertyFilter(DISPLAY_NAME_PROPERTY, displayName, match, caseSensitive);
     }
 
     /**
@@ -260,7 +262,7 @@ public class SearchMapper {
      */
     @Nonnull
     public static PropertyFilter stateFilter(@Nonnull String state, boolean match) {
-        return stringPropertyFilter(STATE_PROPERTY, state, match);
+        return stringPropertyFilter(STATE_PROPERTY, state, match, false);
     }
 
     /**

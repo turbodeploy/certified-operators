@@ -539,7 +539,7 @@ public class GroupRpcServiceTest {
                 mock(StreamObserver.class);
 
         groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                .setTypeFilter(Type.TEMP_GROUP)
+                .addTypeFilter(Type.TEMP_GROUP)
                 .build(), mockObserver);
 
         verify(temporaryGroupCache).getAll();

@@ -20,6 +20,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -202,7 +203,7 @@ public class CommunicationConfig {
     public RepositoryApi repositoryApi() {
         return new RepositoryApi(repositoryClientConfig.getRepositoryHost(),
                 repositoryClientConfig.getRepositoryPort(), serviceRestTemplate(),
-                entitySeverityService(), getRealtimeTopologyContextId());
+                severityPopulator(), getRealtimeTopologyContextId());
     }
 
     @Bean
@@ -369,6 +370,11 @@ public class CommunicationConfig {
     @Bean
     public GroupExpander groupExpander() {
         return new GroupExpander(groupRpcService());
+    }
+
+    @Bean
+    public SeverityPopulator severityPopulator() {
+        return new SeverityPopulator(entitySeverityService());
     }
 
     @Bean

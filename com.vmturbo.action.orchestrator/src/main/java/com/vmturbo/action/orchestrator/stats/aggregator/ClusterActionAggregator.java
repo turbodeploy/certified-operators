@@ -82,7 +82,7 @@ public class ClusterActionAggregator extends ActionAggregator {
         try (DataMetricTimer timer = Metrics.CLUSTER_AGGREGATOR_INIT_TIME.startTimer()) {
             final Multimap<Long, Long> entitiesInCluster = HashMultimap.create();
             groupService.getGroups(GetGroupsRequest.newBuilder()
-                    .setTypeFilter(Type.CLUSTER)
+                    .addTypeFilter(Type.CLUSTER)
                     .build())
                     .forEachRemaining(group -> {
                         GroupProtoUtil.getClusterMembers(group).forEach(memberId -> {

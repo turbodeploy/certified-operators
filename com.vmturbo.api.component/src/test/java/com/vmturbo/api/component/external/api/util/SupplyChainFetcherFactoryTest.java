@@ -7,6 +7,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -26,13 +28,17 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.springframework.web.client.RestTemplate;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
@@ -63,29 +69,23 @@ public class SupplyChainFetcherFactoryTest {
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    private final EntitySeverityServiceMole severityServiceBackend =
+        Mockito.spy(new EntitySeverityServiceMole());
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
-    private final EntitySeverityServiceMole severityServiceBackend =
-        Mockito.spy(new EntitySeverityServiceMole());
+
     private final SupplyChainServiceMole supplyChainServiceBackend =
         Mockito.spy(new SupplyChainServiceMole());
-    private RepositoryApiMock repositoryApiBackend;
-    private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
+
+    private RepositoryApi repositoryApiBackend = mock(RepositoryApi.class);
+    private GroupExpander groupExpander = mock(GroupExpander.class);
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(severityServiceBackend,
-            supplyChainServiceBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(supplyChainServiceBackend, severityServiceBackend);
 
     @Before
     public void setup() throws IOException {
-
-        // set up the mockseverity RPC
-        EntitySeverityServiceBlockingStub entitySeverityRpc =
-                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        repositoryApiBackend =
-                Mockito.spy(new RepositoryApiMock(entitySeverityRpc));
-
 
         // set up the ActionsService under test
         supplyChainFetcherFactory = new SupplyChainFetcherFactory(grpcServer.getChannel(), grpcServer.getChannel(),
@@ -223,9 +223,19 @@ public class SupplyChainFetcherFactoryTest {
                     .addAllEntitySeverity(Collections.singletonList(newSeverity(5L, Severity.MAJOR)))
                     .build());
 
-        repositoryApiBackend.putServiceEnity(1L, VM, Severity.CRITICAL);
-        repositoryApiBackend.putServiceEnity(2L, VM, null);
-        repositoryApiBackend.putServiceEnity(5L, PM, Severity.MAJOR);
+        doAnswer(invocation -> {
+            ServiceEntitiesRequest req = invocation.getArgumentAt(0, ServiceEntitiesRequest.class);
+            final Map<Long, Optional<ServiceEntityApiDTO>> retMap = new HashMap<>();
+            if (req.getEntityIds().equals(ImmutableSet.of(1L, 2L))) {
+                retMap.put(1L, Optional.of(createServiceEntityApiDTO(1L, VM, Severity.CRITICAL)));
+                retMap.put(2L, Optional.of(createServiceEntityApiDTO(2L, VM, null)));
+            } else if (req.getEntityIds().equals(ImmutableSet.of(5L))) {
+                retMap.put(5L, Optional.of(createServiceEntityApiDTO(5L, PM, Severity.MAJOR)));
+            } else {
+                return Collections.emptyMap();
+            }
+            return retMap;
+        }).when(repositoryApiBackend).getServiceEntitiesById(any());
 
         // act
         final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
@@ -268,35 +278,6 @@ public class SupplyChainFetcherFactoryTest {
             .stream()
             .mapToInt(Integer::intValue)
             .sum();
-    }
-
-    public static class RepositoryApiMock extends RepositoryApi {
-
-        private static String MOCK_HOSTNAME = "mock-repository";
-        private static int MOCK_PORT = 0;
-        private static long MOCK_REALTIME_CONTEXT_ID = 123;
-
-        private Map<Long, ServiceEntityApiDTO> seMap = new HashMap<>();
-
-        public RepositoryApiMock(EntitySeverityServiceBlockingStub entitySeverityRpc) {
-            super(MOCK_HOSTNAME, MOCK_PORT, Mockito.mock(RestTemplate.class),
-                    entitySeverityRpc,
-                    MOCK_REALTIME_CONTEXT_ID);
-        }
-
-        public void putServiceEnity(long oid, String entityType, Severity severity) {
-            seMap.put(oid, createServiceEntityApiDTO(oid, entityType, severity));
-        }
-
-        @Override
-        public @Nonnull Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(
-                @Nonnull final ServiceEntitiesRequest serviceEntitiesRequest) {
-            return serviceEntitiesRequest.getEntityIds().stream()
-                    .collect(Collectors.toMap(oid -> oid,
-                            oid -> seMap.containsKey(oid) ? Optional.of(seMap.get(oid)) :
-                                    Optional.empty()
-                    ));
-        }
     }
 
     private static ServiceEntityApiDTO createServiceEntityApiDTO(long id, String entityType,

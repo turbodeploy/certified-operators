@@ -22,8 +22,8 @@ import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -212,7 +212,7 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 mapperConfig.entityAspectMapper(),
                 communicationConfig.topologyProcessor(),
-                communicationConfig.entitySeverityService(),
+                communicationConfig.severityPopulator(),
                 statsService(),
                 actionStatsQueryExecutor(),
                 mapperConfig.uuidMapper(),
@@ -229,6 +229,7 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 mapperConfig.actionSpecMapper(),
                 mapperConfig.groupMapper(),
+                communicationConfig.groupExpander(),
                 mapperConfig.uuidMapper(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.repositoryApi(),
@@ -238,7 +239,7 @@ public class ServiceConfig {
                 mapperConfig.entityAspectMapper(),
                 communicationConfig.searchServiceBlockingStub(),
                 actionStatsQueryExecutor(),
-                communicationConfig.entitySeverityService(),
+                communicationConfig.severityPopulator(),
                 communicationConfig.topologyProcessor());
     }
 
@@ -371,6 +372,7 @@ public class ServiceConfig {
                 targetService(),
                 communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.entitySeverityService(),
+                communicationConfig.severityPopulator(),
                 communicationConfig.historyRpcService(),
                 communicationConfig.groupExpander(),
                 communicationConfig.supplyChainFetcher(),
@@ -461,7 +463,7 @@ public class ServiceConfig {
                 licenseCheckClientConfig.licenseCheckClient(),
                 communicationConfig.apiComponentTargetListener(),
                 communicationConfig.searchServiceBlockingStub(),
-                communicationConfig.entitySeverityService(),
+                communicationConfig.severityPopulator(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.actionsRpcService(),
                 communicationConfig.getRealtimeTopologyContextId());

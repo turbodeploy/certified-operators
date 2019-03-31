@@ -42,7 +42,7 @@ public class SearchMapperTest {
 
     @Test
     public void testNameFilterWithMatch() {
-        PropertyFilter fooSearch = SearchMapper.nameFilter(FOO, false);
+        PropertyFilter fooSearch = SearchMapper.nameFilter(FOO, false, false);
         assertEquals("displayName", fooSearch.getPropertyName());
         assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
         assertFalse(fooSearch.getStringFilter().getMatch());
@@ -66,7 +66,7 @@ public class SearchMapperTest {
     @Test
     public void testStringFilterNoDoublePrefix() {
         assertThat(
-            SearchMapper.stringFilter("^val", true).getStringPropertyRegex(),
+            SearchMapper.stringFilter("^val", true, false).getStringPropertyRegex(),
             // No extra "^" prefix.
             is("^val$"));
     }
@@ -74,7 +74,7 @@ public class SearchMapperTest {
     @Test
     public void testStringFilterNoDoubleSuffix() {
         assertThat(
-            SearchMapper.stringFilter("val$", true).getStringPropertyRegex(),
+            SearchMapper.stringFilter("val$", true, false).getStringPropertyRegex(),
             // No extra "$" suffix.
             is("^val$"));
     }

@@ -1,10 +1,10 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.ACCOUNT_OID;
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.CLUSTER;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STORAGE_CLUSTER;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.TAGS;
+import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
+import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,15 +27,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
@@ -81,6 +81,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -131,6 +132,8 @@ public class SearchService implements ISearchService {
 
     private final EntitySeverityServiceBlockingStub entitySeverityRpc;
 
+    private final SeverityPopulator severityPopulator;
+
     private final StatsHistoryServiceBlockingStub statsHistoryServiceRpc;
 
     private final GroupMapper groupMapper;
@@ -142,8 +145,6 @@ public class SearchService implements ISearchService {
     private final GroupUseCaseParser groupUseCaseParser;
 
     private final UuidMapper uuidMapper;
-
-    private final String REPO_OID_KEY_NAME = "oid";
 
     private final long realtimeContextId;
 
@@ -162,7 +163,8 @@ public class SearchService implements ISearchService {
                   @Nonnull final GroupsService groupsService,
                   @Nonnull final TargetsService targetsService,
                   @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpcService,
+                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
+                  @Nonnull final SeverityPopulator severityPopulator,
                   @Nonnull final StatsHistoryServiceBlockingStub statsHistoryServiceRpc,
                   @Nonnull GroupExpander groupExpander,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
@@ -181,7 +183,8 @@ public class SearchService implements ISearchService {
         this.groupsService = Objects.requireNonNull(groupsService);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
+        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpc);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsHistoryServiceRpc = Objects.requireNonNull(statsHistoryServiceRpc);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -257,25 +260,17 @@ public class SearchService implements ISearchService {
                 .collect(Collectors.toList()));
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
-            if (types.contains(GroupMapper.GROUP)) {
+            if (types.contains(StringConstants.GROUP)) {
                 final Collection<GroupApiDTO> groups = groupsService.getGroups();
-                result = populateSeverity(groups);
+                result = Lists.newArrayList(groups);
             } else if (types.contains(CLUSTER)) {
-                // As of today (Feb 2019), the scopes object could only have one id (PM oid).
-                // If there is PM oid, we want to retrieve the Cluster that the PM belonged to.
-                // TODO (Gary, Feb 4, 2019), add a new gRPC service for multiple PM oids when needed.
-                final Collection<GroupApiDTO> groups = CollectionUtils.isEmpty(scopes) ?
-                        groupsService.getComputeClusters(Collections.emptyList()) :
-                        scopes.stream()
-                                .map(scope -> groupsService.getComputeCluster(Long.valueOf(scope)))
-                                .filter(Optional::isPresent)
-                                .map(Optional::get)
-                                .collect(Collectors.toList());
-                result = populateSeverity(groups);
-            } else if (types.contains(GroupMapper.STORAGE_CLUSTER)) {
-                final Collection<GroupApiDTO> groups = groupsService.getStorageClusters(
-                    Lists.newArrayList());
-                result = populateSeverity(groups);
+                final Collection<GroupApiDTO> groups =
+                    groupsService.getClusters(ClusterInfo.Type.COMPUTE, scopes, Collections.emptyList());
+                result = Lists.newArrayList(groups);
+            } else if (types.contains(STORAGE_CLUSTER)) {
+                final Collection<GroupApiDTO> groups =
+                    groupsService.getClusters(ClusterInfo.Type.STORAGE, scopes, Collections.emptyList());
+                result = Lists.newArrayList(groups);
             } else if (types.contains(MarketMapper.MARKET)) {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 result = Lists.newArrayList(markets);
@@ -384,21 +379,6 @@ public class SearchService implements ISearchService {
         }
     }
 
-    // Populate severity for group DTO.
-    private List<BaseApiDTO> populateSeverity(@Nonnull final Collection<GroupApiDTO> groups) {
-        return groups
-                .stream()
-                .filter(group -> group.getSeverity() == null)
-                .map(group -> {
-                    final Set<Long> expandedOids = groupExpander.expandUuid(group.getUuid());
-                    SeverityPopulator
-                            .calculateSeverity(entitySeverityRpc, realtimeContextId, expandedOids)
-                            .ifPresent(severity -> group.setSeverity(severity.name()));
-                    return group;
-                })
-                .collect(Collectors.toList());
-    }
-
     private static ExecutorService executor = Executors.newFixedThreadPool(3);
 
     private List<BaseApiDTO> searchAll() throws Exception {
@@ -429,15 +409,17 @@ public class SearchService implements ISearchService {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // what sort of search is this
         final List<? extends BaseApiDTO> result;
-        if (GroupMapper.GROUP.equals(inputDTO.getClassName())) {
+        if (StringConstants.GROUP.equals(inputDTO.getClassName())) {
             // this is a search for a group
-            result = populateSeverity(groupsService.getGroupsByFilter(inputDTO.getCriteriaList()));
+            result = groupsService.getGroupsByFilter(inputDTO.getCriteriaList());
         } else if (CLUSTER.equals(inputDTO.getClassName())) {
             // this is a search for a compute Cluster
-            result = populateSeverity(groupsService.getComputeClusters(inputDTO.getCriteriaList()));
+            result = groupsService.getClusters(ClusterInfo.Type.COMPUTE, inputDTO.getScope(),
+                inputDTO.getCriteriaList());
         } else if (STORAGE_CLUSTER.equals(inputDTO.getClassName())) {
             // this is a search for a storage Cluster
-            result = populateSeverity(groupsService.getStorageClusters(inputDTO.getCriteriaList()));
+            result = groupsService.getClusters(ClusterInfo.Type.STORAGE, inputDTO.getScope(),
+                inputDTO.getCriteriaList());
         } else {
             return searchEntitiesByParameters(inputDTO, query, paginationRequest);
         }
@@ -505,7 +487,7 @@ public class SearchService implements ISearchService {
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
                 .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
                 .collect(Collectors.toList());
-            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
+            severityPopulator.populate(realtimeContextId, entities);
             return buildPaginationResponse(entities,
                     response.getPaginationResponse(), paginationRequest);
         }
@@ -639,7 +621,7 @@ public class SearchService implements ISearchService {
                 .filter(serviceEntityMap::containsKey)
                 .map(serviceEntityMap::get)
                 .collect(Collectors.toList());
-        SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
+        severityPopulator.populate(realtimeContextId, entities);
         // set discoveredBy
         entities.forEach(entity -> entity.setDiscoveredBy(SearchMapper.createDiscoveredBy(
                 entity.getDiscoveredBy().getUuid(), targetIdToProbeType)));
@@ -743,20 +725,18 @@ public class SearchService implements ISearchService {
                 .getStringFilter();
         logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
         // find matching groups and members using the group service
-        List<GroupApiDTO> groups = groupsService.getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                .setNameFilter(NameFilter.newBuilder()
-                        .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
-                        .setNegateMatch(!clusterSpecifierFilter.getMatch()))
-                .setTypeFilter(Type.CLUSTER)
-                .build());
 
         // build the replacement filter - a regex against /^oid1$|^oid2$|.../
         StringJoiner sj = new StringJoiner("$|^","^","$");
-        groups.stream()
-                .map(GroupApiDTO::getMemberUuidList)
-                .flatMap(List::stream)
-                .distinct()
-                .forEach(sj::add);
+        groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setNameFilter(NameFilter.newBuilder()
+                        .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
+                        .setNegateMatch(!clusterSpecifierFilter.getMatch()))
+                .addTypeFilter(Type.CLUSTER)
+                .build())
+            .flatMap(groupAndMembers -> groupAndMembers.members().stream())
+            .distinct()
+            .forEach(oid -> sj.add(Long.toString(oid)));
         return SearchFilter.newBuilder()
             .setPropertyFilter(SearchMapper.stringPropertyFilter("oid", sj.toString()))
             .build();

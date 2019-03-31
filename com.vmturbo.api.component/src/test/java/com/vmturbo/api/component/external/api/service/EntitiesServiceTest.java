@@ -30,6 +30,7 @@ import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -97,9 +98,7 @@ public class EntitiesServiceTest {
     private TargetInfo targetInfo;
     private ProbeInfo probeInfo;
 
-    // mocked gRPC services
-    private final EntitySeverityServiceMole entitySeverityService =
-            spy(new EntitySeverityServiceMole());
+    private final SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
     private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
     private final SearchServiceMole searchService = spy(new SearchServiceMole());
     private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
@@ -108,8 +107,7 @@ public class EntitiesServiceTest {
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(
-            entitySeverityService, actionsService, searchService, groupService, historyService);
+        GrpcTestServer.newServer(actionsService, searchService, groupService, historyService);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
@@ -203,7 +201,7 @@ public class EntitiesServiceTest {
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(EntityAspectMapper.class),
                 topologyProcessor,
-                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                severityPopulator,
                 mock(StatsService.class),
                 mock(ActionStatsQueryExecutor.class),
                 mock(UuidMapper.class),
