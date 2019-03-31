@@ -118,14 +118,20 @@ public class MarketMapper {
         }
     }
 
-    public List<ServiceEntityApiDTO> sesDtosFromTopoResponse(Iterable<RetrieveTopologyResponse> response) {
+    public List<ServiceEntityApiDTO> seDtosFromTopoResponseStream(Iterable<RetrieveTopologyResponse> response) {
         List<ServiceEntityApiDTO> entitiesList = new ArrayList<>();
         for (RetrieveTopologyResponse entitiesResponse : response) {
             List<TopologyEntityDTO> entities = entitiesResponse.getEntitiesList();
-            for (TopologyEntityDTO entity : entities) {
-                ServiceEntityApiDTO dto = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
-                entitiesList.add(dto);
-            }
+            entitiesList.addAll(seDtosFromTopoResponse(entities));
+        }
+        return entitiesList;
+    }
+
+    public List<ServiceEntityApiDTO> seDtosFromTopoResponse(List<TopologyEntityDTO> topologyEntityDTOS) {
+        List<ServiceEntityApiDTO> entitiesList = new ArrayList<>();
+        for (TopologyEntityDTO entity : topologyEntityDTOS) {
+            ServiceEntityApiDTO dto = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
+            entitiesList.add(dto);
         }
         return entitiesList;
     }

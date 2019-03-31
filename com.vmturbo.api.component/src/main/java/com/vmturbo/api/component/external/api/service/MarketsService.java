@@ -121,6 +121,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -401,9 +402,17 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByMarketUuid(String uuid) throws Exception {
+        List<ServiceEntityApiDTO> serviceEntityApiDTOs = null;
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
-            throw ApiUtils.notImplementedInXL();
+            RetrieveTopologyEntitiesResponse response =
+                    repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .setTopologyType(TopologyType.SOURCE)
+                            .build());
+
+            List<TopologyEntityDTO> entitiesList = response.getEntitiesList();
+            serviceEntityApiDTOs = marketMapper.seDtosFromTopoResponse(entitiesList);
         } else {
             OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
@@ -422,31 +431,32 @@ public class MarketsService implements IMarketsService {
                             .setTopologyId(topologyId)
                             .build());
 
-            List<ServiceEntityApiDTO> serviceEntityApiDTOs =  marketMapper.sesDtosFromTopoResponse(response);
-
-            List<Long> entities = new ArrayList<>();
-            for (ServiceEntityApiDTO serviceEntityApiDTO : serviceEntityApiDTOs) {
-                entities.add(Long.valueOf(serviceEntityApiDTO.getUuid()));
-            }
-
-            EntitySeveritiesResponse entitySeveritiesResponse = entitySeverity.getEntitySeverities(MultiEntityRequest
-                        .newBuilder()
-                        .setTopologyContextId(Long.valueOf(uuid))
-                        .addAllEntityIds(entities)
-                        .build());
-
-            HashMap<Long, String> idsToSeverities = new HashMap<>();
-            List<EntitySeverity> entitySeverityList =  entitySeveritiesResponse.getEntitySeverityList();
-            for (EntitySeverity entitySeverity : entitySeverityList) {
-                idsToSeverities.put(entitySeverity.getEntityId(), entitySeverity.getSeverity().toString());
-            }
-
-            for (int i = 0; i < serviceEntityApiDTOs.size(); i++) {
-                serviceEntityApiDTOs.get(i).setSeverity(idsToSeverities.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
-            }
-
-            return serviceEntityApiDTOs;
+            serviceEntityApiDTOs = marketMapper.seDtosFromTopoResponseStream(response);
         }
+
+        List<Long> entities = new ArrayList<>();
+        for (ServiceEntityApiDTO serviceEntityApiDTO : serviceEntityApiDTOs) {
+            entities.add(Long.valueOf(serviceEntityApiDTO.getUuid()));
+        }
+
+        EntitySeveritiesResponse entitySeveritiesResponse = entitySeverity.getEntitySeverities(MultiEntityRequest
+                .newBuilder()
+                .setTopologyContextId(apiId.isRealtimeMarket() ? realtimeTopologyContextId : Long.valueOf(uuid))
+                .addAllEntityIds(entities)
+                .build());
+
+        HashMap<Long, String> idsToSeverities = new HashMap<>();
+        List<EntitySeverity> entitySeverityList =  entitySeveritiesResponse.getEntitySeverityList();
+        for (EntitySeverity entitySeverity : entitySeverityList) {
+            idsToSeverities.put(entitySeverity.getEntityId(), entitySeverity.getSeverity().toString());
+        }
+
+        for (int i = 0; i < serviceEntityApiDTOs.size(); i++) {
+            serviceEntityApiDTOs.get(i).setSeverity(idsToSeverities.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
+        }
+
+        return serviceEntityApiDTOs;
+
     }
 
     // Market UUID is ignored for now, since there is only one Market in XL.
