@@ -1,11 +1,14 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -26,6 +29,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
@@ -59,7 +63,9 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.enums.RelationType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -94,6 +100,14 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -648,7 +662,63 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<ConstraintApiDTO> getConstraintsByEntityUuid(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+
+        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
+                .topologyContextId(realtimeTopologyContextId)
+                .addSeedUuids(Lists.newArrayList(uuid))
+                .includeHealthSummary(false)
+                .entityDetailType(EntityDetailType.entity)
+                .fetch();
+
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().entrySet().stream()
+                .map(Entry::getValue)
+                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
+                .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
+
+        Optional<String> myEntityType = getEntityType(uuid, supplyChain);
+        // Get the consumers of this entity.
+        final Set<String> consumerOids = new HashSet<>();
+        if (myEntityType.isPresent()) {
+            SupplychainEntryDTO supplychainEntryDTO = supplyChain.getSeMap().get(myEntityType.get());
+            if (supplychainEntryDTO != null) {
+                Set<String> consumerTypes = supplychainEntryDTO.getConnectedConsumerTypes();
+                if (consumerTypes != null){
+                    consumerOids.addAll(consumerTypes.stream()
+                            .map(type -> supplyChain.getSeMap().get(type))
+                            .filter(Objects::nonNull)
+                            .map(dto -> dto.getInstances())
+                            .filter(Objects::nonNull)
+                            .flatMap(serviceEntityApiMap -> serviceEntityApiMap.keySet().stream())
+                            .collect(Collectors.toSet()));
+                }
+            }
+        }
+
+        // Now query repo to get the TopologyEntityDTO for the current entity and its consumers.
+        List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>();
+        List<String> oidsToQuery = new ArrayList<>();
+        oidsToQuery.addAll(consumerOids);
+        oidsToQuery.add(uuid);
+
+        // The constraints are embedded in the commodities. We have to fetch the TopologyEntityDTO
+        // to get the commodities info.
+        Map<Long, TopologyEntityDTO> entityDtos =
+                getTopologyEntityDTOs(oidsToQuery).stream()
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        // We don't have to query the providers as we already have the provider info inside
+        // the commoditiesBought object.
+        // We don't support fully parity with classic. We just populate the ConstraintType(CommodityDTO.Type)
+        // and the ConstraintKey(CommodityDTO.Key)
+        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
+                Collections.singletonList(entityDtos.get(Long.valueOf(uuid))),
+                serviceEntityMap, RelationType.bought));
+        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
+                consumerOids.stream()
+                        .map(consumerOid -> entityDtos.get(Long.valueOf(consumerOid)))
+                        .collect(Collectors.toList()),
+                serviceEntityMap, RelationType.sold));
+        return constraintApiDtos;
     }
 
     @Override
@@ -659,18 +729,32 @@ public class EntitiesService implements IEntitiesService {
     /**
      * Get TopologyEntityDTO based on provided oid.
      */
-    private TopologyEntityDTO getTopologyEntityDTO(@Nonnull String uuid) throws UnknownObjectException {
+    private List<TopologyEntityDTO> getTopologyEntityDTOs(@Nonnull List<String> uuids)
+            throws UnknownObjectException {
+
         List<TopologyEntityDTO> entities = searchServiceRpc.searchTopologyEntityDTOs(
                 SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addEntityOid(Long.valueOf(uuid))
+                        .addAllEntityOid(uuids.stream()
+                                .map(Long::valueOf)
+                                .collect(Collectors.toList()))
                         .build()).getTopologyEntityDtosList();
-        if (entities.size() > 1) {
-            throw new UnknownObjectException("Found " + entities.size() + " entities of same id: " + uuid);
+        return entities;
+    }
+
+    /**
+     * Get TopologyEntityDTO based on provided oid.
+     */
+    private TopologyEntityDTO getTopologyEntityDTO(@Nonnull String uuid) throws UnknownObjectException {
+        List<TopologyEntityDTO> entityDtos =
+                getTopologyEntityDTOs(Collections.singletonList(uuid));
+
+        if (entityDtos.size() > 1) {
+            throw new UnknownObjectException("Found " + entityDtos.size() + " entities of same id: " + uuid);
         }
-        if (entities.size() == 0) {
+        if (entityDtos.size() == 0) {
             throw new UnknownObjectException("Entity: " + uuid + " not found");
         }
-        return entities.get(0);
+        return entityDtos.get(0);
     }
 
     private static Link generateLinkTo(@Nonnull Object invocationValue, @Nonnull String relation) {
@@ -711,6 +795,21 @@ public class EntitiesService implements IEntitiesService {
                 })
                 .collect(Collectors.toList())
         );
+    }
+
+    /**
+     *  Get the type of the entity from the given supply chain.
+     * @param uuid Oid of the entity.
+     * @param supplyChain SupplyChain of the entity.
+     * @return
+     */
+    private Optional<String> getEntityType(String uuid, SupplychainApiDTO supplyChain) {
+        for (Entry<String, SupplychainEntryDTO> entry : supplyChain.getSeMap().entrySet()) {
+                if (entry.getValue().getInstances().keySet().contains(uuid)) {
+                    return Optional.of(entry.getKey());
+                }
+        }
+        return Optional.empty();
     }
 }
 

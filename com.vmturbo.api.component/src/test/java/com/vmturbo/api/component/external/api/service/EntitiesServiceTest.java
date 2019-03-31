@@ -103,6 +103,8 @@ public class EntitiesServiceTest {
     private final SearchServiceMole searchService = spy(new SearchServiceMole());
     private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory =
+            mock(SupplyChainFetcherFactory.class);
 
     // gRPC servers
     @Rule
@@ -195,7 +197,7 @@ public class EntitiesServiceTest {
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionSpecMapper,
                 CONTEXT_ID,
-                mock(SupplyChainFetcherFactory.class),
+                supplyChainFetcherFactory,
                 new PaginationMapper(),
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
@@ -551,5 +553,4 @@ public class EntitiesServiceTest {
         Assert.assertNull(result.getNewEntity());
         Assert.assertNull(result.getCurrentEntity());
     }
-
 }

@@ -52,6 +52,15 @@ public class ClassicEnumMapper {
         return powerState;
     }
 
+    public static String getCommodityString(@Nonnull final CommodityType classicCommodityTypeName){
+        String commodityString = COMMODITY_TYPE_MAPPINGS.inverse().get(classicCommodityTypeName);
+        if (commodityString == null) {
+            throw new IllegalArgumentException("No mapping for commodityType "
+                    + classicCommodityTypeName);
+        }
+        return commodityString;
+    }
+
     /**
      * Mappings between entityType enum values in SDK DTO's to strings that are stored
      * in Classic OpsManager topology files.
