@@ -698,6 +698,46 @@ public class TopologyConverter {
     }
 
     /**
+     * Create CommoditiesBoughtFromProvider for TopologyEntityDTO.
+     *
+     * @param sl ShoppingListTO of the projectedTraderTO
+     * @param commList List of CommodityBoughtDTO
+     * @return CommoditiesBoughtFromProvider
+     */
+    private CommoditiesBoughtFromProvider createCommoditiesBoughtFromProvider(
+        EconomyDTOs.ShoppingListTO sl, List<TopologyDTO.CommodityBoughtDTO> commList) {
+        final CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProviderBuilder =
+            TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
+                .addAllCommodityBought(commList);
+        // if can not find the ShoppingListInfo, that means Market generate some wrong shopping
+        // list.
+        ShoppingListInfo slInfo = shoppingListOidToInfos.get(sl.getOid());
+        if (slInfo == null) {
+            throw new IllegalStateException("Market returned invalid shopping list for : " + sl);
+        }
+        Long supplier;
+        if (sl.hasSupplier()) {
+            supplier = sl.getSupplier();
+        } else {
+            // If Market still can not find a placement, we should set providerId to the original
+            // providerOid of this sl.
+            supplier = slInfo.sellerId;
+        }
+        if (supplier != null) {
+            // If the supplier is a market tier, then get the tier TopologyEntityDTO and
+            // make that the supplier
+            if (cloudTc.isMarketTier(supplier)) {
+                supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+            }
+            commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
+        }
+        slInfo.getSellerEntityType()
+            .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+        slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
+        return commoditiesBoughtFromProviderBuilder.build();
+    }
+
+    /**
      * Convert a {@link EconomyDTOs.TraderTO} to a set of {@link TopologyDTO.TopologyEntityDTO}.
      * Usually one trader will return one topologyEntityDTO. But there are some exceptions.
      * For ex. in the case of cloud VMs, one trader will give back a list of TopologyEntityDTOs
@@ -754,29 +794,7 @@ public class TopologyConverter {
                     commBoughtTOtoCommBoughtDTO(commBought, originalEntity).ifPresent(commList::add);
                 }
             }
-            final CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProviderBuilder =
-                TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
-                    .addAllCommodityBought(commList);
-            // if Market still can not find a placement, we should not set provider Id.
-            if (sl.hasSupplier()) {
-                Long supplier = sl.getSupplier();
-                // If the supplier is a market tier, then get the tier TopologyEntityDTO and
-                // make that the supplier
-                if (cloudTc.isMarketTier(sl.getSupplier())) {
-                    supplier = cloudTc.getMarketTier(sl.getSupplier()).getTier().getOid();
-                }
-                commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
-            }
-            // if can not find the ShoppingListInfo, that means Market generate some wrong shopping
-            // list.
-            ShoppingListInfo slInfo = shoppingListOidToInfos.get(sl.getOid());
-            if (slInfo == null) {
-                throw new IllegalStateException("Market returned invalid shopping list for : " + sl);
-            }
-            slInfo.getSellerEntityType()
-                    .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
-            slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
-            topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProviderBuilder.build());
+            topoDTOCommonBoughtGrouping.add(createCommoditiesBoughtFromProvider(sl, commList));
         }
 
         TopologyDTO.EntityState entityState = TopologyDTO.EntityState.POWERED_ON;
@@ -881,6 +899,22 @@ public class TopologyConverter {
     }
 
     /**
+     * Get topologyEntityDTO with the given oid.
+     * First look for it in entityOidToDto, then in skippedEntities.
+     * null is returned if we can't find it.
+     *
+     * @param oid The oid of the entity.
+     * @return topologyEntityDTO
+     */
+    private TopologyEntityDTO getTopologyEntityDTO(Long oid) {
+        if (entityOidToDto.containsKey(oid)) {
+            return entityOidToDto.get(oid);
+        } else {
+            return skippedEntities.get(oid);
+        }
+    }
+
+    /**
      * Create entities for resources of topologyEntityDTO.
      * For ex. If a Cloud VM has a volume, then we create the projected version of the volume here.
      *
@@ -897,8 +931,15 @@ public class TopologyConverter {
                 TopologyEntityDTO originalVolume = entityOidToDto.get(commBoughtGrouping.getVolumeId());
                 if (originalVolume != null && originalVolume.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                     // Get the storage/storage tier the VM consumes from
-                    TopologyEntityDTO storageOrStorageTier = entityOidToDto.get(commBoughtGrouping.getProviderId());
-
+                    TopologyEntityDTO storageOrStorageTier;
+                    if (commBoughtGrouping.hasProviderId()) {
+                        storageOrStorageTier = getTopologyEntityDTO(commBoughtGrouping.getProviderId());
+                    } else {
+                        logger.error("commBoughtGrouping of projected entity {} has volume Id {} " +
+                            "but no associated storage or storageTier",
+                            topologyEntityDTO.getDisplayName(), commBoughtGrouping.getVolumeId());
+                        continue;
+                    }
                     // Build a volume which is connected to the same Storage or StorageTier
                     // (which is the provider for this commBoughtGrouping), and connected to
                     // the same AZ as the VM if the zone exists
