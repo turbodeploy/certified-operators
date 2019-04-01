@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -108,7 +109,13 @@ public class PlanTestConfig {
     @Bean
     public PlanServiceImplBase planServer() throws IOException {
         return new PlanRpcService(planDao(),
-                analysisClient(), planNotificationSender(), startAnalysisThreadPool());
+                analysisClient(), planNotificationSender(), startAnalysisThreadPool(), userSessionContext());
+    }
+
+    @Bean
+    public UserSessionContext userSessionContext() {
+        UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
+        return userSessionContext;
     }
 
     public static final RepositoryOperationResponse OK = RepositoryOperationResponse.newBuilder()
@@ -171,7 +178,8 @@ public class PlanTestConfig {
     public PlanDao planDao() {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
-                        actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(), 6));
+                        actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
+                        userSessionContext(),6));
     }
 
     @Bean

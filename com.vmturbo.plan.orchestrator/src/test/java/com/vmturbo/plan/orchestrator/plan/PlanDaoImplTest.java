@@ -21,19 +21,29 @@ import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
+import org.apache.commons.collections4.CollectionUtils;
 import org.jooq.DSLContext;
 import org.jooq.Result;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -79,6 +89,12 @@ public class PlanDaoImplTest {
         dsl = dbConfig.dsl();
     }
 
+    @After
+    public void teardown() {
+        // clear the security context
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
     @Test
     public void testQueueNextPlanInstance() throws Exception {
         deleteAllPlanInstances();
@@ -95,6 +111,102 @@ public class PlanDaoImplTest {
         assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
 
         assertEquals(id1, inst.get().getPlanId());
+    }
+
+    @Test
+    public void testCreatedByUser() throws Exception {
+        deleteAllPlanInstances();
+
+        // put a user into the spring security context.
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "creator", "pass", "10.10.10.10",
+                        "11111", "token", ImmutableList.of("NotAdmin"), null),
+                "creator", CollectionUtils.emptyCollection());
+        // put the test auth info into the spring security context
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        PlanInstance planInstance = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
+                .setTopologyId(1L)
+                .build());
+
+        // should have the created by user set.
+        assertEquals("11111", planInstance.getCreatedByUser());
+    }
+
+    @Test
+    public void testCreatedByUnknownUser() throws Exception {
+        deleteAllPlanInstances();
+        PlanInstance planInstance = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
+                .setTopologyId(1L)
+                .build());
+
+        // will not have a created by user set
+        assertFalse(planInstance.hasCreatedByUser());
+    }
+
+    @Test
+    public void testCreatedBySystem() throws Exception {
+        deleteAllPlanInstances();
+
+        // verify that a plan project plan created without a user in the calling context will be
+        // attributed to SYSTEM.
+        PlanInstance planInstance = planDao.createPlanInstance(Scenario.getDefaultInstance(),
+                PlanProjectType.INITAL_PLACEMENT);
+
+        // should have the created by user set to SYSTEM.
+        assertEquals(AuditLogUtils.SYSTEM, planInstance.getCreatedByUser());
+    }
+    @Test
+    public void testDeleteByCreator() throws Exception {
+        deleteAllPlanInstances();
+
+        // put a user into the spring security context.
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                        "11111", "token", ImmutableList.of("ADMIN"), null),
+                "admin000", CollectionUtils.emptyCollection());
+        // put the test auth info into the spring security context
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        PlanInstance createdPlan = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
+                .setTopologyId(1L)
+                .build());
+
+        // verify the plan can be deleted by the creator
+        PlanInstance deletedPlan = planDao.deletePlan(createdPlan.getPlanId());
+
+        assertEquals(createdPlan.getPlanId(), deletedPlan.getPlanId());
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    @Test(expected = UserAccessException.class)
+    public void testDeleteFailsWithNonCreator() throws Exception {
+        deleteAllPlanInstances();
+
+        // put a user into the spring security context.
+        Authentication creator = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                        "11111", "token", ImmutableList.of("ADMIN"), null),
+                "admin000", CollectionUtils.emptyCollection());
+        SecurityContextHolder.getContext().setAuthentication(creator);
+
+        PlanInstance beautifulPlan = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
+                .setTopologyId(1L)
+                .build());
+
+        // switch users and try deleting the plan
+        Authentication angryMob = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                        "22222", "token", ImmutableList.of("ADMIN"), null),
+                "admin000", CollectionUtils.emptyCollection());
+        SecurityContextHolder.getContext().setAuthentication(angryMob);
+
+        // verify the plan can't be deleted by the angry mob -- should throw an exception
+        try {
+            planDao.deletePlan(beautifulPlan.getPlanId());
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(null);
+        }
     }
 
     /**

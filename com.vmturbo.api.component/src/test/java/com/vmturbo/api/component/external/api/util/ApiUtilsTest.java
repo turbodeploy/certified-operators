@@ -55,6 +55,9 @@ public class ApiUtilsTest {
 
         // verify the JWTCallCredential has the same JWT token as before
         assertThat(returnJwtCallCredential, samePropertyValuesAs(jwtCallCredential));
+
+        // clear the security context
+        SecurityContextHolder.getContext().setAuthentication(null);
     }
 
     @Test

@@ -185,7 +185,8 @@ public class CommunicationConfig {
 
     @Bean
     public PlanServiceBlockingStub planRpcService() {
-        return PlanServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+        return PlanServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean

@@ -71,6 +71,10 @@ message GetSupplyChainRequest {
     // Only include entities in a particular environment type in the supply chain.
     // If not set, return all entities regardless of environment type.
     optional .common.EnvironmentType environment_type = 4;
+
+    // If true, the user's scoping restrictions will be enforced, and the resulting supply chain
+    // be filtered according to the user's entity access scope.
+    optional bool enforce_user_scope = 5 [default = true];
 }
 
 // The response to a "GetSupplyChain" request.

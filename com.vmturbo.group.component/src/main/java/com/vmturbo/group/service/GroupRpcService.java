@@ -226,12 +226,14 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         try {
             Optional<Group> group = getGroupWithId(gid.getId());
-
+            // Patrick - removing this check, as it's preventing retrieval of data for plans. We will
+            // re-enable this with OM-44360
+            /*
             if (userSessionContext.isUserScoped() && group.isPresent()) {
                 // verify that the members of the new group would all be in scope
                 UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(group.get(), true));
             }
-
+            */
             GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
             group.ifPresent(builder::setGroup);
             responseObserver.onNext(builder.build());
@@ -532,7 +534,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             final GetMembersResponse resp;
             List<Long> members = getNormalGroupMembers(group, false);
             // verify the user has access to all of the group members before returning any of them.
-            if (userSessionContext.isUserScoped()) {
+            if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
                 if (group.getType() == Type.NESTED_GROUP) {
                     // Need to get the expanded members.
                     UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true));

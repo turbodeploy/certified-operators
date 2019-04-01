@@ -6,11 +6,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableList;
 
 import org.flywaydb.core.Flyway;
 import org.junit.After;
@@ -26,9 +30,12 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableList;
 import io.grpc.Status.Code;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.DeleteScenarioResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
@@ -66,6 +73,14 @@ public class ScenarioRpcServiceTest {
 
     private ScenarioDao scenarioDao;
 
+    private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
+
+    private GroupServiceBlockingStub groupServiceClient;
+
+    private GrpcTestServer groupGrpcServer;
+
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -91,11 +106,18 @@ public class ScenarioRpcServiceTest {
     }
 
     private void prepareGrpc() throws Exception {
+        // test grpc server for the group service -- it's separate to avoid a circular dependency
+        groupGrpcServer = GrpcTestServer.newServer(groupServiceMole);
+        groupGrpcServer.start();
+        groupServiceClient = GroupServiceGrpc.newBlockingStub(groupGrpcServer.getChannel());
+
         scenarioDao = new ScenarioDao(dbConfig.dsl());
-        scenarioRpcService = new ScenarioRpcService(scenarioDao, new IdentityInitializer(0));
+        scenarioRpcService = new ScenarioRpcService(scenarioDao, new IdentityInitializer(0),
+                userSessionContext, groupServiceClient);
         grpcServer = GrpcTestServer.newServer(scenarioRpcService);
         grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
     }
 
     @After
@@ -300,4 +322,5 @@ public class ScenarioRpcServiceTest {
             .forEach(scenario -> assertTrue(scenarioDao.getScenario(scenario.getId()).isPresent()));
 
     }
+
 }

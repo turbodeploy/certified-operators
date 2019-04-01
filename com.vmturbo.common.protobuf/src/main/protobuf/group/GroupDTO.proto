@@ -353,6 +353,15 @@ message GetMembersRequest {
     // If true, return an error if the ID does not refer to a group.
     // If false, the ID may or may not refer to a group.
     optional bool expect_present = 2 [default = true];
+
+    // If true, the user's scoping restrictions will be enforced. This means a PERMISSION_DENIED
+    // may be returned if not all of the group members are in the user's entity access scope. We do
+    // not want scoping enforced when retrieving group members in the context of plan results, for
+    // example, but we do want scoping enforced in most other cases.
+    // Note that the default setting of "false" is not what we want long term, and is only set this
+    // way because some of the plan requests don't have enough information in them to selectively
+    // set this flag. This should be addressed as part of OM-44360.
+    optional bool enforce_user_scope = 3 [default = false];
 }
 
 message GetMembersResponse {

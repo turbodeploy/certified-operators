@@ -16,6 +16,7 @@ import java.util.List;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -27,7 +28,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import io.jsonwebtoken.lang.Collections;
 
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.userscope.UserScopeMoles.UserScopeServiceMole
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.identity.OidSet;
 
 /**
  *
@@ -62,6 +63,12 @@ public class UserSessionContextTest {
         SecurityContextHolder.getContext().setAuthentication(null);
         userScopeServiceClient = UserScopeServiceGrpc.newBlockingStub(mockServer.getChannel());
         userSessionContext = new UserSessionContext(userScopeServiceClient, clock);
+    }
+
+    @After
+    public void teardown() {
+        // clear the security context
+        SecurityContextHolder.getContext().setAuthentication(null);
     }
 
     @Test

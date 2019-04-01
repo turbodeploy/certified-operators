@@ -434,6 +434,10 @@ message PlanInstance {
     // The type of the plan project that this plan belongs to.
     optional PlanProjectType project_type = 12 [default = USER];
 
+    // the user id that created the plan, if triggered by a human user. Will be set to "SYSTEM" if
+    // the plan was created by the system.
+    optional string created_by_user = 20;
+
     enum PlanStatus {
         // Plan is ready to be executed, but has not been
         // triggered.

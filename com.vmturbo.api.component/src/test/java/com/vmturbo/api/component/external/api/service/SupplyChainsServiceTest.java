@@ -21,6 +21,12 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,11 +35,9 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainsService.FilterSet;
@@ -48,7 +52,9 @@ import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
@@ -175,6 +181,88 @@ public class SupplyChainsServiceTest {
 
         verify(supplyChainFetcherOperationBuilderMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
         verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(uuids);
+    }
+
+    @Test
+    public void testGetSupplyChainByUuidsCreatorMatch() throws Exception {
+
+        final long planId = 123456789;
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setPlanId(planId)
+                        .setCreatedByUser("1")
+                        .setStatus(PlanStatus.READY)).build();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        // put a non-admin user into the security context
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                        "1", "token", ImmutableList.of("NOT_ADMIN"), null),
+                "admin000",
+                CollectionUtils.emptyCollection());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        // we should get access to the plan supply chain since we are the creator id
+        service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
+                null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(planId);
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    @Test(expected = UserAccessException.class)
+    public void testGetSupplyChainByUuidsCreatorNotMatch() throws Exception {
+
+        final long planId = 123456789;
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setPlanId(planId)
+                        .setCreatedByUser("1")
+                        .setStatus(PlanStatus.READY)).build();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        // put a non-admin user into the security context
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                        "11111", "token", ImmutableList.of("NOT_ADMIN"), null),
+                "admin000",
+                CollectionUtils.emptyCollection());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        // we should get denied access to the plan supply chain
+        service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
+                null, null, null, null, false);
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    @Test
+    public void testGetSupplyChainByUuidsAdmin() throws Exception {
+
+        // verify that an admin can access a plan that someone else created
+        final long planId = 123456789;
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setPlanId(planId)
+                        .setCreatedByUser("2")
+                        .setStatus(PlanStatus.READY)).build();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                        "1", "token", ImmutableList.of("Administrator"), null),
+                "admin000",
+                CollectionUtils.emptyCollection());
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        // we should get access to the plan supply chain since we are an admin
+        service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
+                null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(planId);
+        SecurityContextHolder.getContext().setAuthentication(null);
     }
 
     @Test

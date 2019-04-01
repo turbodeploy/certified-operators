@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
 
 import com.google.common.collect.ImmutableList;
@@ -45,6 +44,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -73,6 +73,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -370,9 +371,10 @@ public class MarketsService implements IMarketsService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        // if the user is restricted by a scope, then add an oid filter to the request.
+        // for realtime markets, if the user is restricted by a scope, then add an oid filter to the
+        // request. For plans, there is no filtering.
         EntityAccessScope userScope = userSessionContext.getUserAccessScope();
-        Optional<Set<Long>> includedOids = userScope.containsAll()
+        Optional<Set<Long>> includedOids = (!apiId.isRealtimeMarket() || userScope.containsAll())
                 ? Optional.empty()
                 : Optional.of(userScope.getScopeGroupMembers().toSet());
 
@@ -741,11 +743,6 @@ public class MarketsService implements IMarketsService {
             return statsService.getStatsByUuidsQuery(statScopesApiInputDTO, paginationRequest);
         }
 
-        // as of now, scoped users can't access plans in classic, so we'll throw an access denied here
-        if (userSessionContext.isUserScoped()) {
-            throw new AccessDeniedException("Cannot access market stats.");
-        }
-
         // Short-circuit if there are no input scopes.
         // At the time of this writing we always expect SOME kind of restriction on the entities.
         if (CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
@@ -764,6 +761,11 @@ public class MarketsService implements IMarketsService {
         }
 
         final PlanInstance planInstance = planInstanceOptional.getPlanInstance() ;
+        // verify the user can access the plan
+        if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+            throw new UserAccessException("User does not have access to plan.");
+        }
+
         final PlanTopologyStatsRequest planStatsRequest = statsMapper.toPlanTopologyStatsRequest(
                 planInstance, statScopesApiInputDTO, paginationRequest);
 
@@ -810,8 +812,13 @@ public class MarketsService implements IMarketsService {
         // of the group and get stats for them. If the plan was scoped to a different group
         // we won't return anything (since the requested entities won't be found in the repository).
         if (CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
+            ApiId apiId = uuidMapper.fromUuid(marketUuid);
+            // if this is for a plan market, we will not check user scope.
+            boolean enforceUserScope = ! apiId.isPlan();
+
             final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
                     .setId(Long.parseLong(groupUuid))
+                    .setEnforceUserScope(enforceUserScope)
                     .setExpectPresent(false)
                     .build();
 

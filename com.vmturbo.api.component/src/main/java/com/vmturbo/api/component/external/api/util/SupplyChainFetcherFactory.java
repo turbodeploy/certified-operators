@@ -134,7 +134,8 @@ public class SupplyChainFetcherFactory {
                         entityTypes,
                         environmentType,
                         supplyChainRpcService,
-                        groupExpander).fetch();
+                        groupExpander,
+                        enforceUserScope).fetch();
             } catch (InterruptedException|ExecutionException|TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
@@ -186,9 +187,10 @@ public class SupplyChainFetcherFactory {
         @Nonnull
         public SupplychainApiDTO fetch() throws OperationFailedException, InterruptedException {
             try {
-                final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId, seedUuids, entityTypes,
-                    environmentType, entityDetailType, includeHealthSummary,
-                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander).fetch();
+                final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId,
+                    seedUuids, entityTypes, environmentType, entityDetailType, includeHealthSummary,
+                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
+                    enforceUserScope).fetch();
                 return dto;
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -217,6 +219,8 @@ public class SupplyChainFetcherFactory {
         protected final Set<String> seedUuids = Sets.newHashSet();
 
         protected final Set<String> entityTypes = Sets.newHashSet();
+
+        protected boolean enforceUserScope = true;
 
         protected Optional<EnvironmentTypeEnum.EnvironmentType> environmentType = Optional.empty();
 
@@ -307,6 +311,21 @@ public class SupplyChainFetcherFactory {
             return (B)this;
         }
 
+        /**
+         * Whether the results should be confined to the user access scope or not. If true (default)
+         * and the requesting user has an access scope assigned, hen the supply chain will only
+         * contain entities that are part of the user's entity access scope. If false, then all
+         * entities in the supply chain will be returned.
+         *
+         * @param enforceUserScope
+         * @return
+         */
+        @Nonnull
+        public B enforceUserScope(final boolean enforceUserScope) {
+            this.enforceUserScope = enforceUserScope;
+            return (B)this;
+        }
+
     }
 
     /**
@@ -330,18 +349,23 @@ public class SupplyChainFetcherFactory {
 
         private final GroupExpander groupExpander;
 
+        protected final boolean enforceUserScope;
+
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
                                    @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
                                    @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
-                                   @Nonnull GroupExpander groupExpander) {
+                                   @Nonnull GroupExpander groupExpander,
+                                   final boolean enforceUserScope) {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
             this.environmentType = environmentType;
             this.supplyChainRpcService = supplyChainRpcService;
             this.groupExpander = groupExpander;
+            this.enforceUserScope = enforceUserScope;
+
         }
 
         public abstract T processSupplyChain(final List<SupplyChainNode> supplyChainNodes);
@@ -412,6 +436,8 @@ public class SupplyChainFetcherFactory {
 
             environmentType.ifPresent(requestBuilder::setEnvironmentType);
 
+            requestBuilder.setEnforceUserScope(enforceUserScope);
+
             GetSupplyChainRequest request = requestBuilder.build();
 
             final GetSupplyChainResponse response = supplyChainRpcService.getSupplyChain(request);
@@ -455,9 +481,10 @@ public class SupplyChainFetcherFactory {
                                        @Nullable final Set<String> entityTypes,
                                        @Nonnull final Optional<EnvironmentType> environmentType,
                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
-                                       @Nonnull final GroupExpander groupExpander) {
-            super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
-                    groupExpander);
+                                       @Nonnull final GroupExpander groupExpander,
+                                       final boolean enforceUserScope) {
+            super(topologyContextId, seedUuids, entityTypes,
+                    environmentType, supplyChainRpcService, groupExpander, enforceUserScope);
         }
 
         @Nonnull
@@ -501,9 +528,10 @@ public class SupplyChainFetcherFactory {
                                          @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                          @Nonnull final EntitySeverityServiceBlockingStub severityRpcService,
                                          @Nonnull final RepositoryApi repositoryApi,
-                                         @Nonnull final GroupExpander groupExpander) {
+                                         @Nonnull final GroupExpander groupExpander,
+                                         final boolean enforceUserScope) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
-                    groupExpander);
+                    groupExpander, enforceUserScope);
             this.entityDetailType = entityDetailType;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);

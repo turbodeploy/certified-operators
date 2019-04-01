@@ -19,6 +19,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
@@ -51,7 +53,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ReservationConfig.class,
         PlanOrchestratorDiagnosticsConfig.class,
         PlanDeletionSchedulerConfig.class,
-        CpuCapacityConfig.class})
+        CpuCapacityConfig.class,
+        SpringSecurityConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -94,6 +97,12 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @Autowired
     private CpuCapacityConfig cpuCapacityConfig;
 
+    /**
+     * JWT token verification and decoding.
+     */
+    @Autowired
+    private SpringSecurityConfig securityConfig;
+
     @PostConstruct
     private void setup() {
         LOGGER.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
@@ -122,15 +131,17 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
         // Monitor for server metrics with prometheus.
         final MonitoringServerInterceptor monitoringInterceptor =
             MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+        // gRPC JWT token interceptor
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
 
         return Optional.of(builder
-            .addService(ServerInterceptors.intercept(scenarioConfig.scenarioService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(planConfig.planService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(scenarioConfig.scenarioService(), jwtInterceptor, monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(planConfig.planService(), jwtInterceptor, monitoringInterceptor))
             .addService(ServerInterceptors.intercept(templatesConfig.templatesService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(templatesConfig.templateSpecService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(templatesConfig.discoveredTemplateDeploymentProfileService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(deploymentProfileConfig.deploymentProfileRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(planProjectConfig.planProjectService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(planProjectConfig.planProjectService(), jwtInterceptor, monitoringInterceptor))
             .addService(ServerInterceptors.intercept(reservationConfig.reservationRpcService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(cpuCapacityConfig.cpuCapacityService(), monitoringInterceptor))
             .build());

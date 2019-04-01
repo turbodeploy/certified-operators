@@ -1,9 +1,11 @@
 package com.vmturbo.auth.api.authorization.jwt;
 
+import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.ROLE_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 
 import java.security.PublicKey;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,6 +29,7 @@ import io.jsonwebtoken.Jwts;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
@@ -102,6 +105,8 @@ public class JwtServerInterceptor implements ServerInterceptor {
             ctx = Context.current()
                     .withValue(SecurityConstant.USER_ID_CTX_KEY, claims.getSubject())
                     .withValue(SecurityConstant.USER_UUID_KEY, claims.get(UUID_CLAIM, String.class))
+                    .withValue(SecurityConstant.USER_ROLES_KEY,
+                            (List<String>) claims.getOrDefault(ROLE_CLAIM, Collections.EMPTY_LIST))
                     .withValue(SecurityConstant.USER_IP_ADDRESS_KEY, claims.get(IP_ADDRESS_CLAIM, String.class))
                     .withValue(SecurityConstant.USER_SCOPE_GROUPS_KEY,
                             (List<Long>) claims.getOrDefault(IAuthorizationVerifier.SCOPE_CLAIM,
@@ -129,6 +134,8 @@ public class JwtServerInterceptor implements ServerInterceptor {
             private void translateException(Throwable t) {
                 final Status returnStatus;
                 if (t instanceof UserAccessScopeException) {
+                    returnStatus = Status.PERMISSION_DENIED;
+                } else if (t instanceof UserAccessException) {
                     returnStatus = Status.PERMISSION_DENIED;
                 } else if (t instanceof AuthorizationException) {
                     returnStatus = Status.UNAUTHENTICATED;

@@ -139,7 +139,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         if (request.getStartingEntityOidCount() > 0) {
             getMultiSourceSupplyChain(request.getStartingEntityOidList(),
                     request.getEntityTypesToIncludeList(), contextId, envType,
-                    responseObserver);
+                    request.getEnforceUserScope(), responseObserver);
         } else {
             getGlobalSupplyChain(request.getEntityTypesToIncludeList(), envType,
                     contextId, responseObserver);
@@ -258,12 +258,15 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      *                                 to be returned to entityTypes in this list
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
+     * @param envType
+     * @param enforceUserScope whether or not user scope rules should be enforced
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
                                            @Nonnull final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
                                            @Nonnull final Optional<UIEnvironmentType> envType,
+                                           final boolean enforceUserScope,
                                            @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
 
@@ -279,7 +282,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             }
             final String startingVertexEntityType = startingVertexEntityTypeOpt.get();
             final SingleSourceSupplyChain singleSourceSupplyChain = getSingleSourceSupplyChain(oid,
-                contextId, envType, Collections.emptySet(), getExclusionEntityTypes(startingVertexEntityType));
+                contextId, envType, enforceUserScope, Collections.emptySet(), getExclusionEntityTypes(startingVertexEntityType));
 
             // remove BusinessAccount from supply chain nodes, since we don't want to show it
             if (RepoEntityType.BUSINESS_ACCOUNT.getValue().equals(startingVertexEntityType)) {
@@ -291,7 +294,8 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
 
             // handle the special case for cloud if zone is returned in supply chain
             getAndAddSupplyChainFromZone(singleSourceSupplyChain, supplyChainMerger,
-                startingVertexEntityType, contextId, envType, zoneSupplyChainComplete, zoneSupplyChainOnlyRegion);
+                startingVertexEntityType, contextId, envType, enforceUserScope,
+                    zoneSupplyChainComplete, zoneSupplyChainOnlyRegion);
         }
 
         final MergedSupplyChain supplyChain = supplyChainMerger.merge();
@@ -319,6 +323,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
                     @Nonnull String startingVertexEntityType,
                     @Nonnull Optional<Long> contextId,
                     @Nonnull Optional<UIEnvironmentType> envType,
+                    final boolean enforceUserScope,
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainComplete,
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion) {
         // collect all the availability zones' ids returned by the supply chain
@@ -334,7 +339,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             // inclusionEntityTypes to be empty
             zoneIds.stream()
                 .map(zoneId -> zoneSupplyChainComplete.computeIfAbsent(zoneId,
-                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType,
+                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType, enforceUserScope,
                         Collections.emptySet(),
                         getExclusionEntityTypes(RepoEntityType.AVAILABILITY_ZONE.getValue()))))
                 .forEach(supplyChainMerger::addSingleSourceSupplyChain);
@@ -346,7 +351,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             // to be ["AvailabilityZone", "Region"] to improve performance
             zoneIds.stream()
                 .map(zoneId -> zoneSupplyChainOnlyRegion.computeIfAbsent(zoneId,
-                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType,
+                    k -> getSingleSourceSupplyChain(zoneId, contextId, envType, enforceUserScope,
                         Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
                         getExclusionEntityTypes(RepoEntityType.AVAILABILITY_ZONE.getValue()))))
                 .forEach(supplyChainMerger::addSingleSourceSupplyChain);
@@ -387,6 +392,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     private SingleSourceSupplyChain getSingleSourceSupplyChain(@Nonnull final Long startingVertexOid,
                                      @Nonnull final Optional<Long> contextId,
                                      @Nonnull final Optional<UIEnvironmentType> envType,
+                                     final boolean enforceUserScope,
                                      @Nonnull final Set<Integer> inclusionEntityTypes,
                                      @Nonnull final Set<Integer> exclusionEntityTypes) {
         logger.debug("Getting a supply chain starting from {} in topology {}",
@@ -396,7 +402,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             Either<Throwable, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
                 contextId, envType, startingVertexOid.toString(),
-                    Optional.of(userSessionContext.getUserAccessScope()),
+                    enforceUserScope ? Optional.of(userSessionContext.getUserAccessScope()) : Optional.empty(),
                     inclusionEntityTypes, exclusionEntityTypes);
 
             Match(supplyChain).of(

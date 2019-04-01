@@ -16,6 +16,8 @@ import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -45,7 +47,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
-        GroupClientConfig.class})
+        GroupClientConfig.class, UserSessionConfig.class})
 public class PlanConfig {
 
     /**
@@ -81,6 +83,9 @@ public class PlanConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
+    @Autowired
+    private UserSessionConfig userSessionConfig;
+
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
@@ -88,6 +93,7 @@ public class PlanConfig {
                 actionsRpcService(),
                 statsRpcService(),
                 groupClientConfig.groupChannel(),
+                userSessionConfig.userSessionContext(),
                 planTimeOutHours);
     }
 
@@ -96,7 +102,8 @@ public class PlanConfig {
         return new PlanRpcService(planDao(),
                 analysisService(),
                 planNotificationSender(),
-                startAnalysisThreadPool());
+                startAnalysisThreadPool(),
+                userSessionConfig.userSessionContext());
     }
 
     @Bean

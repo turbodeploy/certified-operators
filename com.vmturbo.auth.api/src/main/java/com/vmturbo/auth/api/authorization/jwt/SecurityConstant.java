@@ -27,6 +27,11 @@ public class SecurityConstant {
     public static final Context.Key<String> USER_UUID_KEY = Context.key("userUuid");
 
     /**
+     * key for user's roles
+     */
+    public static final Context.Key<List<String>> USER_ROLES_KEY = Context.key("userRoles");
+
+    /**
      * key for user's scope groups
      */
     public static final Context.Key<List<Long>> USER_SCOPE_GROUPS_KEY = Context.key("userScopeGroups");

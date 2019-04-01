@@ -446,11 +446,13 @@ public class StatsService implements IStatsService {
                     return Collections.emptyList();
                 }
 
-                // if the user is scoped, we need to check if the user has access to the resulting
-                // entity set.
-                UserScopeUtils.checkAccess(userSessionContext, entityStatOids);
                 // check if this is a plan
                 isPlanRequest = getRequestedPlanInstance(uuid).isPresent();
+                // if the user is scoped and this is not a plan, we need to check if the user has
+                // access to the resulting entity set.
+                if (!isPlanRequest) {
+                    UserScopeUtils.checkAccess(userSessionContext, entityStatOids);
+                }
             }
 
             final StatRequestParsedResultTuple requestStatsParsedResultPair = parseStats(inputDto);
@@ -1098,9 +1100,10 @@ public class StatsService implements IStatsService {
             } else {
                 expandedUuids = groupExpander.expandUuids(seedUuids);
             }
-            // if the user is scoped, we need to double-check that the user has access to all of these
-            // entities
-            UserScopeUtils.checkAccess(userSessionContext, expandedUuids);
+            // if the user is scoped, we will filter the entities according to their scope
+            if (userSessionContext.isUserScoped()) {
+                return userSessionContext.getUserAccessScope().filter(expandedUuids);
+            }
         }
         return expandedUuids;
     }

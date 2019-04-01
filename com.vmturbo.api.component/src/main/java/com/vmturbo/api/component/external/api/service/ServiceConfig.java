@@ -353,7 +353,8 @@ public class ServiceConfig {
     @Bean
     public ScenarioServiceBlockingStub scenarioServiceClient() {
         return ScenarioServiceGrpc.newBlockingStub(
-                communicationConfig.planOrchestratorChannel());
+                communicationConfig.planOrchestratorChannel())
+                .withInterceptors(communicationConfig.jwtClientInterceptor());
     }
 
     @Bean

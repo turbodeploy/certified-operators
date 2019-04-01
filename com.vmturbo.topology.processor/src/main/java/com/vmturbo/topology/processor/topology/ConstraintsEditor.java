@@ -87,8 +87,6 @@ public class ConstraintsEditor {
                                 }
                             });
                 }
-            } else {
-                logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
             }
         });
 

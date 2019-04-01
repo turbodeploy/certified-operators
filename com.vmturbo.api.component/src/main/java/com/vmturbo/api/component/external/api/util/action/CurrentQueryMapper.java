@@ -256,7 +256,7 @@ class CurrentQueryMapper {
             for (final ApiId scope : query.scopes()) {
                 if (scope.isRealtimeMarket() || scope.isPlan()) {
                     scopeBuilder.setTopologyContextId(scope.oid());
-                    if (userScope.containsAll()) {
+                    if (userScope.containsAll() || scope.isPlan()) {
                         final GlobalScope.Builder globalScopeBuilder = GlobalScope.newBuilder();
                         query.getEnvironmentType().ifPresent(globalScopeBuilder::setEnvironmentType);
                         globalScopeBuilder.addAllEntityType(relatedEntityTypes);

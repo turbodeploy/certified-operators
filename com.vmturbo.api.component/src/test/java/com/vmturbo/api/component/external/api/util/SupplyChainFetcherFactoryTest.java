@@ -165,6 +165,7 @@ public class SupplyChainFetcherFactoryTest {
                 .build();
         when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
                 .addEntityTypesToInclude(VM)
+                .setEnforceUserScope(true)
                 .build()))
             .thenReturn(GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()

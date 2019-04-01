@@ -34,8 +34,14 @@ import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.authorization.UserContextUtils;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
@@ -54,9 +60,11 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
+import com.vmturbo.plan.orchestrator.scenario.ScenarioScopeAccessChecker;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
@@ -98,6 +106,10 @@ public class PlanDaoImpl implements PlanDao {
 
     private final int planTimeOutHours;
 
+    private final UserSessionContext userSessionContext;
+
+    private final ScenarioScopeAccessChecker scenarioScopeAccessChecker;
+
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
@@ -115,13 +127,17 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
                        @Nonnull final StatsHistoryServiceBlockingStub statsClient,
                        @Nonnull final Channel groupChannel,
+                       @Nonnull final UserSessionContext userSessionContext,
                        final int planTimeOutHours) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
         this.statsClient = Objects.requireNonNull(statsClient);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+        this.userSessionContext = userSessionContext;
         this.planTimeOutHours = planTimeOutHours;
+        scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
+                GroupServiceGrpc.newBlockingStub(groupChannel));
     }
 
     @Override
@@ -135,7 +151,20 @@ public class PlanDaoImpl implements PlanDao {
     @Override
     public PlanDTO.PlanInstance createPlanInstance(@Nonnull CreatePlanRequest planRequest)
             throws IntegrityException {
+
         final PlanDTO.PlanInstance.Builder builder = PlanDTO.PlanInstance.newBuilder();
+
+        // set the created by user, if one is found. Note that unlike the other createPlanInstance
+        // method, we aren't defaulting to SYSTEM here if a user is not found. This is because the
+        // system-created plans will go through the other createPlanInstance(...) method. If this
+        // method does become used for system plans, then we may need to add the SYSTEM user clause
+        // here too.
+        Optional<String> userId = UserContextUtils.getCurrentUserId();
+        if (userId.isPresent()) {
+            logger.debug("Setting plan creator to user id {}", userId.get());
+            builder.setCreatedByUser(userId.get());
+        }
+
         if (planRequest.hasTopologyId()) {
             builder.setTopologyId(planRequest.getTopologyId());
         }
@@ -163,12 +192,20 @@ public class PlanDaoImpl implements PlanDao {
     public PlanDTO.PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
                                                    @Nonnull final PlanProjectType planProjectType)
             throws IntegrityException {
-        final PlanDTO.PlanInstance planInstance = PlanDTO.PlanInstance.newBuilder()
+
+        final PlanDTO.PlanInstance.Builder planInstanceBuilder = PlanDTO.PlanInstance.newBuilder()
                 .setScenario(scenario)
                 .setPlanId(IdentityGenerator.next())
                 .setStatus(PlanStatus.READY)
-                .setProjectType(planProjectType)
-                .build();
+                .setProjectType(planProjectType);
+
+        // we'll set the createdByUser to either the user from the calling context, or SYSTEM if
+        // a user is not found.
+        Optional<String> userId = UserContextUtils.getCurrentUserId();
+        planInstanceBuilder.setCreatedByUser(userId.orElse(AuditLogUtils.SYSTEM));
+        logger.debug("Setting plan creator to user id {}", planInstanceBuilder.getCreatedByUser());
+
+        final PlanDTO.PlanInstance planInstance = planInstanceBuilder.build();
         checkPlanConsistency(planInstance);
 
         final LocalDateTime curTime = LocalDateTime.now();
@@ -228,6 +265,10 @@ public class PlanDaoImpl implements PlanDao {
         // Delete projected topology from PlanOrchestrator, ActionOrchestrator,
         // Repository and History/Stats
         PlanDTO.PlanInstance plan = getPlanInstance(id).orElseThrow(() -> noSuchObjectException(id));
+        if (!PlanUtils.canCurrentUserAccessPlan(plan)) {
+            // throw an access error if the current user should not be able to delete the plan.
+            throw new UserAccessException("User does not have access to plan.");
+        }
         // First delete all the plan related data in other components. Then
         // delete the data in plan db. This ordering is to ensure that we don't leave
         // orphan/dangling plan data in the other components. There can still be

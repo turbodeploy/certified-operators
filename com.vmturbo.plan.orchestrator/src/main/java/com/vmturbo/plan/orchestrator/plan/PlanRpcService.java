@@ -1,8 +1,10 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
@@ -15,6 +17,10 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.authorization.UserContextUtils;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -28,6 +34,7 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 
 /**
  * Plan gRPC service implementation.
@@ -44,14 +51,18 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final ExecutorService analysisExecutor;
 
+    private final UserSessionContext userSessionContext;
+
     public PlanRpcService(@Nonnull final PlanDao planDao,
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
-                          @Nonnull final ExecutorService analysisExecutor) {
+                          @Nonnull final ExecutorService analysisExecutor,
+                          @Nonnull final UserSessionContext userSessionContext) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
         this.analysisExecutor = analysisExecutor;
+        this.userSessionContext = userSessionContext;
     }
 
     @Override
@@ -115,7 +126,6 @@ public class PlanRpcService extends PlanServiceImplBase {
         }
     }
 
-
     @Override
     public void runPlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
         logger.debug("Triggering a plan {}", () -> request.toString());
@@ -161,6 +171,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         Preconditions.checkArgument(planInstance.getStatus().equals(PlanStatus.QUEUED));
         final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
         builder.setPlanId(planInstance.getPlanId());
+
         if (planInstance.hasTopologyId()) {
             builder.setTopologyId(planInstance.getTopologyId());
         }
@@ -199,6 +210,11 @@ public class PlanRpcService extends PlanServiceImplBase {
                         .asException());
                 return;
             }
+            // ensure the user can access the plan
+            if (! PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+                throw new UserAccessException("User cannot access requested plan.");
+            }
+
             // update the previous scenario to reflect the given scenario
             planDao.updatePlanScenario(planSpec.getPlanId(),
                     planSpec.getScenarioId());
@@ -214,6 +230,9 @@ public class PlanRpcService extends PlanServiceImplBase {
                                 .setStatus(PlanStatus.READY)
                                 .setStartTime(System.currentTimeMillis())
                                 .setEndTime(0);
+                        // the user who is running the new plan will become the creator of the plan.
+                        UserContextUtils.getCurrentUserId()
+                                .ifPresent(planInstanceBuilder::setCreatedByUser);
                     });
             responseObserver.onNext(updatedPlanInstance);
             responseObserver.onCompleted();
@@ -236,6 +255,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         planDao.getAllPlanInstances().stream()
             // When listing plans, return only USER-created plans.
             .filter(planInstance -> planInstance.getProjectType() == PlanProjectType.USER)
+            .filter(PlanUtils::canCurrentUserAccessPlan) // filter plans for non-admin users
             .forEach(responseObserver::onNext);
         responseObserver.onCompleted();
     }

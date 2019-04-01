@@ -25,7 +25,6 @@ import javax.annotation.Nullable;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,6 +36,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -54,6 +54,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -126,12 +127,18 @@ public class SupplyChainsService implements ISupplyChainsService {
         //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.
         Optional<PlanInstance> possiblePlan = getPlanIfRequestIsPlan(uuids);
         if (possiblePlan.isPresent()) {
-            // if the user is scoped, throw AXDenied, to be consistent with classic.
-            if (userSessionContext.isUserScoped()) {
-                throw new AccessDeniedException("Not authorized to vew plan data.");
-            }
-            fetcherBuilder.topologyContextId(Long.valueOf(uuids.iterator().next()));
             PlanInstance plan = possiblePlan.get();
+            // if we have a user id in the context, we may prevent access to the plan supply chain
+            // if the user is either not an admin user or does not own the plan
+            if (!PlanUtils.canCurrentUserAccessPlan(plan)) {
+                throw new UserAccessException("User does not have access to plan.");
+            } else {
+                // turn off the access scope filter on the supply chain -- a user can see all entities
+                // in a plan they have access to.
+                fetcherBuilder.enforceUserScope(false);
+            }
+
+            fetcherBuilder.topologyContextId(Long.valueOf(uuids.iterator().next()));
             if (isPlanScoped(plan)) {
                 Set<Long> planSeedOids = getSeedIdsForPlan(possiblePlan.get());
                 for (Long oid : planSeedOids) {

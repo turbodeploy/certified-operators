@@ -83,6 +83,19 @@ public class AuthorizationException extends Exception {
     }
 
     /**
+     * Represents an exception occurring when a user does not have privilege to access a resource.
+     */
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public static class UserAccessException extends RuntimeException {
+        public UserAccessException(String message) {
+            super(message);
+        }
+        public UserAccessException(String message, Throwable t) {
+            super(message, t);
+        }
+    }
+
+    /**
      * Represents an exception occurring when a user does not have "scope" access to a resource.
      */
     @ResponseStatus(HttpStatus.FORBIDDEN)
