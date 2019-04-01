@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -10,9 +11,15 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.IopsItemNames;
+import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * This class is used to calculate the IOPS capacity of a Logical Pool, Storage Controller, or
@@ -60,6 +67,15 @@ public class DiskCapacityCalculator {
 
     private final ImmutableMap<IopsItemNames, Double> diskTypeMap;
 
+    private static final ImmutableBiMap<IopsItemNames, EntitySettingSpecs> iopsItemNamesToIopsSettingsSpecs =
+                    new ImmutableBiMap.Builder<IopsItemNames, EntitySettingSpecs>()
+                        .put(IopsItemNames.NUM_SSD, EntitySettingSpecs.DiskCapacitySsd)
+                        .put(IopsItemNames.NUM_7200_DISKS, EntitySettingSpecs.DiskCapacity7200)
+                        .put(IopsItemNames.NUM_10K_DISKS, EntitySettingSpecs.DiskCapacity10k)
+                        .put(IopsItemNames.NUM_15K_DISKS, EntitySettingSpecs.DiskCapacity15k)
+                        .put(IopsItemNames.NUM_VSERIES_DISKS, EntitySettingSpecs.DiskCapacityVSeries)
+                        .build();
+
     public DiskCapacityCalculator(final double diskIopsCapacitySsd,
                                   final double diskIopsCapacity7200Rpm,
                                   final double diskIopsCapacity10kRpm,
@@ -99,16 +115,32 @@ public class DiskCapacityCalculator {
      * that may be set.
      *
      * @param diskProperty the string to parse for information. For an example, see above.
+     * @param settingsCollection helper to fetch settings from.
+     * @param entity for which iops capacity is to be calculated.
      * @return the calculated capacity, which may be 0 or more
      */
-    public double calculateCapacity(@Nonnull final String diskProperty) {
+    public double calculateCapacity(@Nonnull final String diskProperty,
+                    @Nonnull EntitySettingsCollection settingsCollection,
+                    @Nonnull TopologyEntity entity) {
         final Map<IopsItemNames, Integer> diskSettingsCounts = parseIopsItemData(diskProperty);
         final double flagFactor = parseFlagFactor(diskProperty);
 
         final double baseCapacity = diskSettingsCounts.entrySet().stream()
             .filter(entry -> entry.getValue() > 0)
-            .mapToDouble(entry ->
-                diskTypeMap.get(entry.getKey()) * entry.getValue().doubleValue()
+            .mapToDouble(entry -> {
+                double iopsValue = diskTypeMap.get(entry.getKey());
+                // Fetch iops related settings as set from UI for Disk Array.
+                if (entity.getEntityType() == EntityType.DISK_ARRAY_VALUE
+                        && iopsItemNamesToIopsSettingsSpecs.containsKey(entry.getKey())) {
+                    Optional<Setting> iopsValueOptional = settingsCollection.getEntitySetting(entity.getOid(),
+                            iopsItemNamesToIopsSettingsSpecs.get(entry.getKey()));
+                    if (iopsValueOptional.isPresent()
+                            && iopsValueOptional.get().hasNumericSettingValue()) {
+                        iopsValue = iopsValueOptional.get().getNumericSettingValue().getValue();
+                    }
+                }
+                return iopsValue * entry.getValue().doubleValue();
+            }
             ).sum();
 
         return baseCapacity * flagFactor;

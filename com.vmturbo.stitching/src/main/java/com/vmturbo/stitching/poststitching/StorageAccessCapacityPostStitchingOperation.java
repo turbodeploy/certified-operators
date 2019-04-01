@@ -5,7 +5,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -20,8 +19,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskArrayData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeIopsData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskArrayData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LogicalPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageControllerData;
@@ -106,7 +105,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
             } else if (hasCommoditiesUnset(entity)) {
                 final double calculatedCapacity = shouldCalculateFromHostedEntities(entity)
                         ? calculateCapacityFromHostedEntities(entity)
-                        : calculateCapacityFromDisks(entity);
+                        : calculateCapacityFromDisks(entity, settingsCollection);
 
                 if (calculatedCapacity > 0) {
                     queueSingleUpdate(calculatedCapacity, entity, resultBuilder);
@@ -188,10 +187,12 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
      * number of disks there are of each type and what capacity each type has.
      *
      * @param entity Entity to examine
+     * @param settingsCollection helper to fetch settings from.
      * @return the calculated capacity, or 0 if there is not enough information to determine.
      *         Since the capacity should never be 0, it serves as an error flag.
      */
-    private double calculateCapacityFromDisks(@Nonnull final TopologyEntity entity) {
+    private double calculateCapacityFromDisks(@Nonnull final TopologyEntity entity,
+                    EntitySettingsCollection settingsCollection) {
         String disksKey = DISK_COUNTS_KEY_BY_ENTITY_TYPE.get(entity.getEntityType());
         if (disksKey == null) {
             return 0;
@@ -203,7 +204,8 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
             return 0;
         }
 
-        return diskCapacityCalculator.calculateCapacity(diskProperty);
+        return diskCapacityCalculator.calculateCapacity(diskProperty,
+                        settingsCollection, entity);
     }
 
     /**

@@ -580,6 +580,50 @@ public enum EntitySettingSpecs {
                     true),
 
     /**
+     * Setting to represent Disk IOPS Capacity for SSD.
+     * This is used to calculate IOPS capacity for Disk Array.
+     */
+    DiskCapacitySsd("diskCapacitySsd", "SSD Disk IOPS Capacity",
+                    Collections.emptyList(), SettingTiebreaker.SMALLER,
+                    EnumSet.of(EntityType.DISK_ARRAY),
+                    new NumericSettingDataType(20f, 1000000, 50000), true),
+
+    /**
+     * Setting to represent Disk IOPS Capacity for 7.2k rpm disk drive.
+     * This is used to calculate IOPS capacity for Disk Array.
+     */
+    DiskCapacity7200("diskCapacity7200", "7.2k Disk IOPS Capacity",
+                    Collections.emptyList(), SettingTiebreaker.SMALLER,
+                    EnumSet.of(EntityType.DISK_ARRAY),
+                    new NumericSettingDataType(20f, 1000000, 800), true),
+
+    /**
+     * Setting to represent Disk IOPS Capacity for 10k rpm disk drive.
+     * This is used to calculate IOPS capacity for Disk Array.
+     */
+    DiskCapacity10k("diskCapacity10k", "10k Disk IOPS Capacity",
+                    Collections.emptyList(), SettingTiebreaker.SMALLER,
+                    EnumSet.of(EntityType.DISK_ARRAY),
+                    new NumericSettingDataType(20f, 1000000, 1200), true),
+
+    /**
+     * Setting to represent Disk IOPS Capacity for 15k rpm disk drive.
+     * This is used to calculate IOPS capacity for Disk Array.
+     */
+    DiskCapacity15k("diskCapacity15k", "15k Disk IOPS Capacity",
+                    Collections.emptyList(), SettingTiebreaker.SMALLER,
+                    EnumSet.of(EntityType.DISK_ARRAY),
+                    new NumericSettingDataType(20f, 1000000, 1600), true),
+
+    /**
+     * Setting to represent Disk IOPS Capacity for VSeries system.
+     */
+    DiskCapacityVSeries("diskCapacityVSeries", "VSeries LUN IOPS Capacity",
+                    Collections.emptyList(), SettingTiebreaker.SMALLER,
+                    EnumSet.of(EntityType.DISK_ARRAY),
+                    new NumericSettingDataType(20f, 1000000, 5000), true),
+
+    /**
      * This Action Script action is added as a temporary work-around for a bug in the UI.
      * The UI processes workflows as part of the 'actionScript' case - so at least one
      * 'actionScript' must be included, and it must include all EntityTypes that workflows

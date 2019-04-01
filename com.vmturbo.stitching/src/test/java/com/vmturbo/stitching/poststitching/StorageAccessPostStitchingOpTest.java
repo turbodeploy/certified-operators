@@ -63,7 +63,7 @@ public class StorageAccessPostStitchingOpTest {
 
         when(settingsMock.getEntitySetting(any(), any())).thenReturn(Optional.empty());
         when(settingsMock.getEntityUserSetting(any(), any())).thenReturn(Optional.empty());
-        when(diskCapacityCalculator.calculateCapacity(any())).thenReturn(0.0);
+        when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn(0.0);
 
         resultBuilder = new UnitTestResultBuilder();
     }
@@ -84,7 +84,7 @@ public class StorageAccessPostStitchingOpTest {
             .thenReturn(Optional.of(makeNumericSetting(GOOD_VALUE)));
         when(settingsMock.getEntitySetting(any(), eq(EntitySettingSpecs.IOPSCapacity)))
             .thenReturn(Optional.of(makeNumericSetting(GOOD_VALUE)));
-        when(diskCapacityCalculator.calculateCapacity(any())).thenReturn((double)BAD_VALUE_2);
+        when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn((double)BAD_VALUE_2);
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
@@ -104,7 +104,7 @@ public class StorageAccessPostStitchingOpTest {
             .thenReturn(Optional.empty());
         when(settingsMock.getEntitySetting(any(), eq(EntitySettingSpecs.IOPSCapacity)))
             .thenReturn(Optional.of(makeNumericSetting(BAD_VALUE_1)));
-        when(diskCapacityCalculator.calculateCapacity(any())).thenReturn((double)BAD_VALUE_2);
+        when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn((double)BAD_VALUE_2);
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
@@ -123,7 +123,7 @@ public class StorageAccessPostStitchingOpTest {
 
         when(settingsMock.getEntitySetting(any(), any()))
             .thenReturn(Optional.of(makeNumericSetting(BAD_VALUE_1)));
-        when(diskCapacityCalculator.calculateCapacity(any())).thenReturn((double)GOOD_VALUE);
+        when(diskCapacityCalculator.calculateCapacity(any(), any(), any())).thenReturn((double)GOOD_VALUE);
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
