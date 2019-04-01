@@ -27,6 +27,10 @@ import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 
+
+// Temporarily ignoring these tests until we have configured regular automated integration testing builds.
+// In the meantime, these tests can be run manually via intellij
+@Ignore
 public class ActionScriptExecutorTest extends ActionScriptTestBase {
     private static Logger logger =LogManager.getLogger(ActionScriptTestBase.class);
 
