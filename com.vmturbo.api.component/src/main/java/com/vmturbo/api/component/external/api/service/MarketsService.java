@@ -20,6 +20,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -433,7 +434,11 @@ public class MarketsService implements IMarketsService {
                             .setTopologyId(topologyId)
                             .build());
 
-            serviceEntityApiDTOs = marketMapper.seDtosFromTopoResponseStream(response);
+            List<TopologyEntityDTO> entities = new ArrayList<>();
+            for (RetrieveTopologyResponse entitiesResponse : response) {
+                entities.addAll(entitiesResponse.getEntitiesList());
+            }
+            serviceEntityApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities);
         }
 
         List<Long> entities = new ArrayList<>();
@@ -861,34 +866,60 @@ public class MarketsService implements IMarketsService {
             return Collections.emptyList();
         }
 
+        // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
+        List<ServiceEntityApiDTO> unplacedApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, unplacedDTOs);
+
+        logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
+        return unplacedApiDTOs;
+    }
+
+    /**
+     * Create a list of ServiceEntityApiDTO objects from a collection of TopologyEntityDTOs.
+     *
+     * @param plan plan instance object
+     * @param entityDTOs The collection of TopologyEntityDTOs to be converted into ServiceEntityApiDTO
+     *
+     * @return A list of ServiceEntityApiDTO objects representing with information on where it is placed/unplaced.
+     */
+    List<ServiceEntityApiDTO> populatePlacedOnUnplacedOnForEntitiesForPlan(PlanInstance plan, List<TopologyEntityDTO> entityDTOs) {
+        // if no unplaced entities, return an empty collection
+        if (entityDTOs.size() == 0) {
+            return Collections.emptyList();
+        }
+
         // get the set of unique supplier ids. It's not guaranteed that there are any suppliers for
         // any of these commodities, so we need to be prepared for the possibility of an empty set.
-        Set<Long> providerOids = unplacedDTOs.stream()
+        Set<Long> providerOids = entityDTOs.stream()
                 .flatMap(entity -> entity.getCommoditiesBoughtFromProvidersList().stream())
                 .filter(CommoditiesBoughtFromProvider::hasProviderId) // a provider is not guaranteed
                 .filter(comm -> comm.getProviderId() > 0)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
 
-        // fetch the provider dto's using the list of supplier id's so we can use their display names
-        Map<Long,TopologyEntityDTO> providers = (providerOids.size() == 0)
-                ? Collections.emptyMap()
-                : repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                        .addAllEntityOids(providerOids)
-                        .setTopologyContextId(plan.getPlanId())
-                        .setTopologyId(plan.getProjectedTopologyId())
-                        .setTopologyType(TopologyType.PROJECTED)
-                        .build())
+        final Map<Long, TopologyEntityDTO> providers = new HashMap<>(providerOids.size());
+        entityDTOs.forEach(entity -> {
+            if (providerOids.contains(entity.getOid())) {
+                providers.put(entity.getOid(), entity);
+            }
+        });
+
+        // If not all providers are present in the entityDTOs list
+        if (providers.size() < providerOids.size()) {
+            final Set<Long> missingProviders = Sets.difference(providerOids, providers.keySet());
+            // Retrieve missing providers and put them in the providers map
+            repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addAllEntityOids(missingProviders)
+                    .setTopologyContextId(plan.getPlanId())
+                    .setTopologyId(plan.getProjectedTopologyId())
+                    .setTopologyType(TopologyType.PROJECTED)
+                    .build())
                     .getEntitiesList().stream()
-                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+                    .forEach(dto -> providers.put(dto.getOid(), dto));
+        }
 
         // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
-        List<ServiceEntityApiDTO> unplacedApiDTOs = createServiceEntityApiDTOs(unplacedDTOs, providers);
-
-        logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
-        return unplacedApiDTOs;
+        return createServiceEntityApiDTOs(entityDTOs, providers);
     }
-
     /**
      * Create a list of ServiceEntityApiDTO objects from a collection of unplaced TopologyEntityDTOs.
      *
