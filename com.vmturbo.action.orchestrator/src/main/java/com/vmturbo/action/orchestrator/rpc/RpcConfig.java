@@ -8,24 +8,29 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
 
 @Configuration
-@Import({ActionStoreConfig.class,
+@Import({ActionOrchestratorGlobalConfig.class,
+    ActionStoreConfig.class,
     ActionExecutionConfig.class,
     ActionStatsConfig.class})
 public class RpcConfig {
+
+    @Autowired
+    private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
 
     @Autowired
     private ActionStoreConfig actionStoreConfig;
@@ -54,14 +59,15 @@ public class RpcConfig {
     @Bean
     public ActionsRpcService actionRpcService() {
         return new ActionsRpcService(
-                actionStoreConfig.actionStorehouse(),
-                actionExecutor,
-                actionTargetSelector,
-                actionTranslator,
-                actionPaginatorFactory(),
-                workflowConfig.workflowStore(),
-                actionStatsConfig.historicalActionStatReader(),
-                actionStatsConfig.currentActionStatReader());
+            actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+            actionStoreConfig.actionStorehouse(),
+            actionExecutor,
+            actionTargetSelector,
+            actionTranslator,
+            actionPaginatorFactory(),
+            workflowConfig.workflowStore(),
+            actionStatsConfig.historicalActionStatReader(),
+            actionStatsConfig.currentActionStatReader());
     }
 
     @Bean

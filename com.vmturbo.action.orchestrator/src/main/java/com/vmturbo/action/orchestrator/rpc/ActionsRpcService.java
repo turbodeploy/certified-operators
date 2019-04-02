@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -139,6 +140,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final CurrentActionStatReader currentActionStatReader;
 
+    private final Clock clock;
+
     /**
      * Create a new ActionsRpcService.
      *
@@ -149,7 +152,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param paginatorFactory     For paginating views of actions
      * @param workflowStore        the store for all the known {@link WorkflowDTO.Workflow} items
      */
-    public ActionsRpcService(@Nonnull final ActionStorehouse actionStorehouse,
+    public ActionsRpcService(@Nonnull final Clock clock,
+                             @Nonnull final ActionStorehouse actionStorehouse,
                              @Nonnull final ActionExecutor actionExecutor,
                              @Nonnull final ActionTargetSelector actionTargetSelector,
                              @Nonnull final ActionTranslator actionTranslator,
@@ -157,6 +161,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                              @Nonnull final WorkflowStore workflowStore,
                              @Nonnull final HistoricalActionStatReader historicalActionStatReader,
                              @Nonnull final CurrentActionStatReader currentActionStatReader) {
+        this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
@@ -382,7 +387,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                             TimeUtil.localDateTimeToMilli(action
                                     .getRecommendationTime()
                                     .toLocalDate()
-                                    .atStartOfDay()))); // Group by start of the Day
+                                    .atStartOfDay(), clock))); // Group by start of the Day
             observeActionCountsByDate(actionsByDate, response);
         } else {
             contextNotFoundError(response, request.getTopologyContextId());

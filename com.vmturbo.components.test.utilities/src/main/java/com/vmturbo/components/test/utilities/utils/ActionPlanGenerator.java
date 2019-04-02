@@ -17,6 +17,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -33,7 +35,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -157,10 +162,16 @@ public class ActionPlanGenerator {
                                ActionTypeCount...actionCounts) {
         final ActionPlan.Builder planBuilder = ActionPlan.newBuilder()
             .setId(IdentityGenerator.next())
-            .setTopologyId(topologyId)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(topologyContextId)
+                        .setTopologyId(topologyId)
+                        .setCreationTime(System.currentTimeMillis())
+                        .setTopologyType(topologyContextId == ComponentUtils.REALTIME_TOPOLOGY_CONTEXT ?
+                            TopologyType.REALTIME : TopologyType.PLAN))))
             .setAnalysisStartTimestamp(System.currentTimeMillis())
-            .setAnalysisCompleteTimestamp(System.currentTimeMillis())
-            .setTopologyContextId(topologyContextId);
+            .setAnalysisCompleteTimestamp(System.currentTimeMillis());
         final Chooser chooser = new Chooser(topologyEntities, random);
 
         for (ActionTypeCount actionTypeCount : actionCounts) {

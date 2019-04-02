@@ -24,7 +24,6 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 
 /**
  * Handles the websocket connections with clients using the
@@ -248,28 +247,10 @@ public class MarketNotificationSender extends
         projectedTopologySender.sendMessage(segment);
     }
 
-    /**
-     * Creates the payload.
-     *
-     * @param oid The OID.
-     * @param piNow The current Price Index.
-     * @param piProjected The projected Price Index.
-     * @return The price index message payload.
-     */
-    @Nonnull
-    private PriceIndexMessagePayload createPayload(final long oid, final float piNow,
-            final float piProjected) {
-        return PriceIndexMessagePayload.newBuilder()
-                .setOid(oid)
-                .setPriceindexCurrent(piNow)
-                .setPriceindexProjected(piProjected)
-                .build();
-    }
-
     @Override
     protected String describeMessage(
             @Nonnull ActionPlan actionPlan) {
         return ActionPlan.class.getSimpleName() + "[" +
-                actionPlan.getTopologyId() + "]";
+                actionPlan.getInfo() + "]";
     }
 }

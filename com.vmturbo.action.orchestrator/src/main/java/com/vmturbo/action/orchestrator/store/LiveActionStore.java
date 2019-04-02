@@ -46,11 +46,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -273,14 +272,16 @@ public class LiveActionStore implements ActionStore {
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
 
-        if (actionPlan.hasActionPlanType() && actionPlan.getActionPlanType() == ActionPlanType.BUY_RI) {
+        if (actionPlan.getInfo().hasBuyRi()) {
             return populateBuyRIActions(actionPlan);
         }
+
+        final TopologyInfo sourceTopologyInfo =
+            actionPlan.getInfo().getMarket().getSourceTopologyInfo();
 
         // This call requires some computation and an RPC call, so do it outside of the
         // action lock.
         Collection<ActionDTO.Action> actionsWithSupportLevel = actionsWithSupportLevel(actionPlan);
-
         // RecommendationTracker to accelerate lookups of recommendations.
         RecommendationTracker recommendations = new RecommendationTracker();
 
@@ -353,7 +354,7 @@ public class LiveActionStore implements ActionStore {
                     newActionCounts);
 
             entitySettingsCache.update(entitiesToRetrieve,
-                    actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
+                sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId());
 
             // Clear READY or QUEUED actions that were not re-recommended. If they were
             // re-recommended, they would have been removed from the RecommendationTracker
@@ -375,7 +376,7 @@ public class LiveActionStore implements ActionStore {
             // sense to use the last snapshot's time instead of the current snapshot's time.
             // Not doing it for now because of the extra complexity - and it's not clear if anyone
             // cares if the counts are off by ~10 minutes.
-            actionsStatistician.recordActionStats(actionPlan.getTopologyId(),
+            actionsStatistician.recordActionStats(sourceTopologyInfo,
                     // Only record user-visible actions.
                     Stream.concat(completedSinceLastPopulate.stream(), actions.values().stream())
                             .filter(VISIBILITY_PREDICATE));

@@ -69,8 +69,8 @@ public class ActionPlanGeneratorTest {
         assertEquals(1, plan.getActionCount());
 
         // The action generated should be a move.
-        assertEquals(1, plan.getTopologyId());
-        assertEquals(2, plan.getTopologyContextId());
+        assertEquals(1, plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId());
+        assertEquals(2, plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId());
         assertEquals(ActionTypeCase.MOVE, plan.getAction(0).getInfo().getActionTypeCase());
     }
 

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -133,8 +134,8 @@ public class ActionCountsMapperTest {
         LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
         LocalDateTime now = LocalDateTime.now();
 
-        map.put(TimeUtil.localDateTimeToMilli(yesterday), list);
-        map.put(TimeUtil.localDateTimeToMilli(now), list); // different date
+        map.put(TimeUtil.localDateTimeToMilli(yesterday, Clock.systemUTC()), list);
+        map.put(TimeUtil.localDateTimeToMilli(now, Clock.systemUTC()), list); // different date
         final List<StatSnapshotApiDTO> retList = ActionCountsMapper.countsByStateAndModeGroupByDateToApi(map);
 
         Assert.assertEquals(2, retList.size());

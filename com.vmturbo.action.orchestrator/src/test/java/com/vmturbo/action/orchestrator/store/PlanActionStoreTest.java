@@ -43,6 +43,10 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -316,8 +320,12 @@ public class PlanActionStoreTest {
 
         return ActionPlan.newBuilder()
             .setId(planId)
-            .setTopologyId(IdentityGenerator.next())
-            .setTopologyContextId(topologyContextId)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(IdentityGenerator.next())
+                        .setTopologyContextId(topologyContextId)
+                        .setTopologyType(TopologyType.PLAN))))
             .addAllAction(Objects.requireNonNull(actions))
             .build();
     }

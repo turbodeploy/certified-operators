@@ -45,11 +45,10 @@ public class MarketActionListener implements ActionsListener {
         }
 
         if (actionPlanAssessor.isActionPlanExpired(orderedActions)) {
-            logger.warn("Dropping action plan {} for topology {} and topologyContext {} " +
+            logger.warn("Dropping action plan {} (info: {}) " +
                     "with {} actions (analysis start [{}] completion [{}])",
                 orderedActions.getId(),
-                orderedActions.getTopologyId(),
-                orderedActions.getTopologyContextId(),
+                orderedActions.getInfo(),
                 orderedActions.getActionCount(),
                 localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
                 localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()));
@@ -58,13 +57,12 @@ public class MarketActionListener implements ActionsListener {
 
         // Populate the store with the new recommendations and refresh the cache.
         final ActionStore actionStore = actionStorehouse.storeActions(orderedActions);
-        logger.info("Received {} actions in action plan {} for topology {} and context {}" +
+        logger.info("Received {} actions in action plan {} (info: {})" +
                 " (analysis start [{}] completion [{}])" +
                 " (store population: {}).",
             orderedActions.getActionCount(),
             orderedActions.getId(),
-            orderedActions.getTopologyId(),
-            orderedActions.getTopologyContextId(),
+            orderedActions.getInfo(),
             localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
             localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()),
             actionStore.size());

@@ -10,13 +10,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -96,6 +97,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionQueryRpcTest {
@@ -130,12 +132,14 @@ public class ActionQueryRpcTest {
     private final long actionPlanId = 2;
     private final long topologyContextId = 3;
 
-    private ActionsRpcService actionsRpcService = new ActionsRpcService(
+    private final Clock clock = new MutableFixedClock(1_000_000);
+
+    private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslator, paginatorFactory,
             workflowStore, historicalStatReader, liveStatReader);
 
-    private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
+    private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector,
             actionTranslatorWithFailedTranslation, paginatorFactory,
             workflowStore, historicalStatReader, liveStatReader);
@@ -782,16 +786,16 @@ public class ActionQueryRpcTest {
                                 .setTopologyContextId(topologyContextId)
                                 .setFilter(ActionQueryFilter.newBuilder()
                                     .setVisible(true)
-                                    .setStartDate(TimeUtil.localDateTimeToMilli(date))
-                                    .setEndDate(TimeUtil.localDateTimeToMilli(date)))
+                                    .setStartDate(TimeUtil.localDateTimeToMilli(date, clock))
+                                    .setEndDate(TimeUtil.localDateTimeToMilli(date, clock)))
                                 .build());
         final Map<Long, List<StateAndModeCount>> countsByDate = response.getActionCountsByDateList().stream()
                 .collect(Collectors.toMap(ActionCountsByDateEntry::getDate, ActionCountsByDateEntry::getCountsByStateAndModeList));
 
         assertThat(countsByDate.keySet(),
             // Start of day.
-            is(Collections.singleton(TimeUtil.localDateTimeToMilli(startOfDay))));
-        assertThat(countsByDate.get(TimeUtil.localDateTimeToMilli(startOfDay)), containsInAnyOrder(
+            is(Collections.singleton(TimeUtil.localDateTimeToMilli(startOfDay, clock))));
+        assertThat(countsByDate.get(TimeUtil.localDateTimeToMilli(startOfDay, clock)), containsInAnyOrder(
             StateAndModeCount.newBuilder()
                 .setState(ActionState.QUEUED)
                 .setMode(ActionMode.MANUAL)

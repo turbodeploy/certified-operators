@@ -238,7 +238,7 @@ public class SqlEntityCostStore implements EntityCostStore {
         final Map<Long, Map<Long, EntityCost>> records = new HashMap<>();
         entityCostRecords.forEach(entityRecord -> {
             Map<Long, EntityCost> costsForTimestamp = records
-                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(entityRecord.value2()), k -> new HashMap<>());
+                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(entityRecord.value2(), clock), k -> new HashMap<>());
             //TODO: optimize to avoid building EntityCost
             final EntityCost newCost = toEntityCostDTO(new RecordWrapper(entityRecord));
             costsForTimestamp.compute(newCost.getAssociatedEntityId(),

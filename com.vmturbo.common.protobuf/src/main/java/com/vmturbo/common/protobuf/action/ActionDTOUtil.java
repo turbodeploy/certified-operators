@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -26,6 +25,8 @@ import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -33,9 +34,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -74,6 +73,55 @@ public class ActionDTOUtil {
     private ActionDTOUtil() {}
 
     /**
+     * Get the topology context ID of a particular {@link ActionPlanInfo}.
+     *
+     * @param actionPlan The action plan.
+     * @return The topology context ID.
+     */
+    public static long getActionPlanContextId(@Nonnull final ActionPlanInfo actionPlan) {
+        switch (actionPlan.getTypeInfoCase()) {
+            case MARKET:
+                if (actionPlan.getMarket().getSourceTopologyInfo().hasTopologyContextId()) {
+                    return actionPlan.getMarket().getSourceTopologyInfo().getTopologyContextId();
+                } else {
+                    throw new IllegalArgumentException("Market plan info has no context id: " +
+                        actionPlan.getMarket());
+                }
+            case BUY_RI:
+                if (actionPlan.getBuyRi().hasTopologyContextId()) {
+                    return actionPlan.getBuyRi().getTopologyContextId();
+                } else {
+                    throw new IllegalArgumentException("Buy RI plan info has no context id: " +
+                        actionPlan.getBuyRi());
+                }
+            default:
+                throw new IllegalArgumentException("Invalid/unset action plan: " +
+                    actionPlan.getTypeInfoCase());
+        }
+    }
+
+    /**
+     * Given an action plan, return the {@link ActionPlanType} for the plan. This isn't stored
+     * directly in the plan because it's derived from the type of type-specific info the plan
+     * contains.
+     *
+     * @param actionPlanInfo The {@link ActionPlanInfo} for the plan.
+     * @return The {@link ActionPlanType} of the action plan.
+     */
+    @Nonnull
+    public static ActionPlanType getActionPlanType(@Nonnull final ActionPlanInfo  actionPlanInfo) {
+        switch (actionPlanInfo.getTypeInfoCase()) {
+            case MARKET:
+                return ActionPlanType.MARKET;
+            case BUY_RI:
+                return ActionPlanType.BUY_RI;
+            default:
+                throw new IllegalArgumentException("Invalid/unset action plan: " +
+                    actionPlanInfo.getTypeInfoCase());
+        }
+    }
+
+                                                   /**
      * Get the ID of the entity to the severity of which this action's importance
      * applies. This will be one of the entities involved in the action.
      *

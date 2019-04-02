@@ -1,12 +1,10 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -18,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
@@ -26,6 +23,7 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionE
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -94,13 +92,9 @@ public class ActionStorehouse {
      */
     @Nonnull
     public ActionStore storeActions(@Nonnull final ActionPlan actionPlan) {
-        if (!actionPlan.hasTopologyContextId()) {
-            throw new IllegalArgumentException("Cannot store actions in action plan " + actionPlan.getId() +
-                " because it has no context ID.");
-        }
+        final long topologyContextId = ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo());
 
         measureActionPlan(actionPlan);
-        long topologyContextId = actionPlan.getTopologyContextId();
         ActionStore store = storehouse.computeIfAbsent(topologyContextId,
                 k -> actionStoreFactory.newStore(topologyContextId));
 
@@ -288,7 +282,7 @@ public class ActionStorehouse {
      * @param actionPlan An action plan to be measured.
      */
     private void measureActionPlan(@Nonnull final ActionPlan actionPlan) {
-        final long contextId = actionPlan.getTopologyContextId();
+        final long contextId = ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo());
         final Map<ActionTypeCase, Long> actionCounts = actionPlan.getActionList().stream()
             .collect(Collectors.groupingBy(a -> a.getInfo().getActionTypeCase(), Collectors.counting()));
         logger.info("Processing action plan for context {} with the following actions: {}",

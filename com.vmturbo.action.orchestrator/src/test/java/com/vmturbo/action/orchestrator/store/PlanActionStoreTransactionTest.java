@@ -1,5 +1,10 @@
 package com.vmturbo.action.orchestrator.store;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
@@ -20,11 +25,10 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 
 /**
  * Test transaction failures with the {@link PlanActionStore}.
@@ -40,8 +44,12 @@ public class PlanActionStoreTransactionTest {
     private final long topologyContextId = 3;
     private final ActionPlan actionPlan = ActionPlan.newBuilder()
         .setId(initialPlanId)
-        .setTopologyId(2)
-        .setTopologyContextId(topologyContextId)
+        .setInfo(ActionPlanInfo.newBuilder()
+            .setMarket(MarketActionPlanInfo.newBuilder()
+                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                    .setTopologyId(2)
+                    .setTopologyContextId(topologyContextId)
+                    .setTopologyType(TopologyType.REALTIME))))
         .addAllAction(recommendations)
         .build();
     private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);

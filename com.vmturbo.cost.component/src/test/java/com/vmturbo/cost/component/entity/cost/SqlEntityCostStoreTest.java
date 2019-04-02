@@ -89,7 +89,7 @@ public class SqlEntityCostStoreTest {
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
      * epoch millis starts in 1969.
      */
-    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
+    private MutableFixedClock clock = new MutableFixedClock(1_000_000_000);
 
     @Before
     public void setup() throws Exception {
@@ -121,7 +121,6 @@ public class SqlEntityCostStoreTest {
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
     }
 
-    @Ignore
     @Test
     public void testGetCostWithEntityCostFilter() throws DbException, InvalidEntityCostsException {
         // get by date

@@ -10,12 +10,12 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 
 /**
  * A small helper class to assess action plans to decide if they should be processed or dropped.
  */
 public class ActionPlanAssessor {
-    private final long liveTopologyContextId;
 
     private final Clock clock;
 
@@ -26,17 +26,14 @@ public class ActionPlanAssessor {
      *
      * @param clock The clock to use to generate the current time. Used to determine the age of
      *              an action plan.
-     * @param realtimeTopologyContextId The canonical live topologyContextId.
      * @param maxLiveActionPlanAgeSeconds The maximum age of an action plan in seconds. Action plans older than
      *                                    this maximum should be dropped.
      */
     public ActionPlanAssessor(@Nonnull final Clock clock,
-                              final long realtimeTopologyContextId,
                               final long maxLiveActionPlanAgeSeconds) {
         Preconditions.checkArgument(maxLiveActionPlanAgeSeconds >= 0);
 
         this.clock = Objects.requireNonNull(clock);
-        this.liveTopologyContextId = realtimeTopologyContextId;
         this.maxLiveActionPlanAgeSeconds = maxLiveActionPlanAgeSeconds;
     }
 
@@ -68,6 +65,7 @@ public class ActionPlanAssessor {
      * @return True if the action plan is due to a live analysis, false if it is not.
      */
     private boolean isLiveActionPlan(@Nonnull final ActionPlan orderedActions) {
-        return orderedActions.getTopologyContextId() ==  liveTopologyContextId;
+        return orderedActions.getInfo().hasMarket() &&
+            orderedActions.getInfo().getMarket().getSourceTopologyInfo().getTopologyType() == TopologyType.REALTIME;
     }
 }

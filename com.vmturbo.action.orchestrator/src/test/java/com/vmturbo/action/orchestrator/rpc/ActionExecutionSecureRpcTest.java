@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,6 +38,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
@@ -66,11 +68,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
+import com.vmturbo.components.api.test.MutableFixedClock;
 
 /**
  * Integration tests for secure action execution RPC.
@@ -121,8 +127,12 @@ public class ActionExecutionSecureRpcTest {
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
 
     private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+
+    private final Clock clock = new MutableFixedClock(1_000_000);
+
     private final ActionsRpcService actionsRpcService =
-        new ActionsRpcService(actionStorehouse,
+        new ActionsRpcService(clock,
+            actionStorehouse,
             actionExecutor,
             actionTargetSelector,
             actionTranslator,
@@ -153,10 +163,14 @@ public class ActionExecutionSecureRpcTest {
     }
     private static ActionPlan actionPlan(ActionDTO.Action recommendation) {
         return ActionPlan.newBuilder()
-                .setId(ACTION_PLAN_ID)
-                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                .addAction(recommendation)
-                .build();
+            .setId(ACTION_PLAN_ID)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID))))
+            .addAction(recommendation)
+            .build();
     }
 
     @AfterClass

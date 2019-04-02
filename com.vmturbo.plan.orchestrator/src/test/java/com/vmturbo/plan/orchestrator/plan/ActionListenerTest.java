@@ -11,11 +11,13 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
  * Unit test to cover cases, initiated from action orchestrator.
@@ -52,7 +54,13 @@ public class ActionListenerTest {
     public void testUpdateExistingPlan() throws Exception {
         planDao.updatePlanInstance(planId, builder -> builder.setStatus(PlanStatus.RUNNING_ANALYSIS));
         final ActionsUpdated actionsUpdated =
-                ActionsUpdated.newBuilder().setActionPlanId(ACTION_PLAN_ID).setTopologyContextId(planId).build();
+            ActionsUpdated.newBuilder()
+                .setActionPlanId(ACTION_PLAN_ID)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                    .setMarket(MarketActionPlanInfo.newBuilder()
+                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                            .setTopologyContextId(planId))))
+                .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
         Assert.assertEquals(ACTION_PLAN_ID, instance.getActionPlanId());
@@ -67,9 +75,12 @@ public class ActionListenerTest {
     @Test
     public void testUpdateNotExistingPlan() throws Exception {
         final ActionsUpdated actionsUpdated = ActionsUpdated.newBuilder()
-                .setActionPlanId(ACTION_PLAN_ID)
-                .setTopologyContextId(planId + 1)
-                .build();
+            .setActionPlanId(ACTION_PLAN_ID)
+            .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(planId + 1))))
+            .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
         Assert.assertFalse(instance.hasActionPlanId());
@@ -87,8 +98,13 @@ public class ActionListenerTest {
                 .setStatsAvailable(true)
                 .setProjectedTopologyId(PROJ_TOPO_ID));
 
-        final ActionsUpdated actionsUpdated =
-                ActionsUpdated.newBuilder().setActionPlanId(ACTION_PLAN_ID).setTopologyContextId(planId).build();
+        final ActionsUpdated actionsUpdated = ActionsUpdated.newBuilder()
+            .setActionPlanId(ACTION_PLAN_ID)
+            .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(planId))))
+            .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
         Assert.assertEquals(ACTION_PLAN_ID, instance.getActionPlanId());

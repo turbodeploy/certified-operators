@@ -8,20 +8,22 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO;
-import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.ActionStateWhitelist.ActionState;
-
-import com.vmturbo.ml.datastore.influx.InfluxActionsWriter;
-import com.vmturbo.ml.datastore.influx.InfluxMetricsWriter;
-import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory;
-import com.vmturbo.ml.datastore.influx.MetricsStoreWhitelist;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore.ActionStateWhitelist.ActionState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.TimeUtil;
+import com.vmturbo.ml.datastore.influx.InfluxActionsWriter;
+import com.vmturbo.ml.datastore.influx.InfluxMetricsWriter;
+import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory;
 import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory.InfluxUnavailableException;
+import com.vmturbo.ml.datastore.influx.MetricsStoreWhitelist;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -78,12 +80,18 @@ public class ActionMetricsListener implements com.vmturbo.action.orchestrator.ap
     @Override
     public void onActionsReceived(@Nonnull final ActionDTO.ActionPlan actionPlan) {
         final Map<String, Long> actionsStatistics = new HashMap<>();
-        final long topologyContextId = actionPlan.getTopologyContextId();
+        if (ActionDTOUtil.getActionPlanType(actionPlan.getInfo()) != ActionPlanType.MARKET) {
+            // We only care about actions.
+            return;
+        }
+
+        final TopologyInfo topologyInfo = actionPlan.getInfo().getMarket().getSourceTopologyInfo();
+        final long topologyContextId = topologyInfo.getTopologyContextId();
         // process just realtime actions
         if (topologyContextId != REALTIME_CONTEXT_ID) {
             return;
         }
-        final long topologyId = actionPlan.getTopologyId();
+        final long topologyId = topologyInfo.getTopologyId();
 
         long totalDataPointsWritten = 0;
         try {

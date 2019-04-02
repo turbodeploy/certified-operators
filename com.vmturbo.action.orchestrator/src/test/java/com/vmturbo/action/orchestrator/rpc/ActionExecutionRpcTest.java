@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -55,13 +56,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -107,8 +112,11 @@ public class ActionExecutionRpcTest {
     private static final long TOPOLOGY_CONTEXT_ID = 3;
     private static final long ACTION_ID = 9999;
 
+    private final Clock clock = new MutableFixedClock(1_000_000);
+
     private final ActionsRpcService actionsRpcService =
-        new ActionsRpcService(actionStorehouse,
+        new ActionsRpcService(clock,
+            actionStorehouse,
             actionExecutor,
             actionTargetSelector,
             actionTranslator,
@@ -347,14 +355,15 @@ public class ActionExecutionRpcTest {
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, actionModeCalculator);
         final ActionsRpcService actionsRpcService =
-                new ActionsRpcService(actionStorehouse,
-                        actionExecutor,
-                        actionTargetSelector,
-                        actionTranslator,
-                        paginatorFactory,
-                        workflowStore,
-                        statReader,
-                        liveStatReader);
+                new ActionsRpcService(clock,
+                    actionStorehouse,
+                    actionExecutor,
+                    actionTargetSelector,
+                    actionTranslator,
+                    paginatorFactory,
+                    workflowStore,
+                    statReader,
+                    liveStatReader);
         GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
@@ -381,7 +390,10 @@ public class ActionExecutionRpcTest {
     private static ActionPlan actionPlan(ActionDTO.Action recommendation) {
         return ActionPlan.newBuilder()
             .setId(ACTION_PLAN_ID)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID))))
             .addAction(recommendation)
             .build();
     }

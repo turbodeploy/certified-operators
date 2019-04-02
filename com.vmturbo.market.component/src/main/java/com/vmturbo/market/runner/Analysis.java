@@ -28,6 +28,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -375,10 +377,11 @@ public class Analysis {
             // Create the action plan
             logger.info(logPrefix + "Creating action plan");
             final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
-                    .setId(IdentityGenerator.next())
-                    .setTopologyId(topologyInfo.getTopologyId())
-                    .setTopologyContextId(topologyInfo.getTopologyContextId())
-                    .setAnalysisStartTimestamp(startTime.toEpochMilli());
+                .setId(IdentityGenerator.next())
+                .setInfo(ActionPlanInfo.newBuilder()
+                    .setMarket(MarketActionPlanInfo.newBuilder()
+                        .setSourceTopologyInfo(topologyInfo)))
+                .setAnalysisStartTimestamp(startTime.toEpochMilli());
             results.getActionsList().stream()
                     .map(action -> converter.interpretAction(action, projectedEntities,
                             this.originalCloudTopology, projectedEntityCosts,

@@ -28,7 +28,6 @@ import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
@@ -36,8 +35,11 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionExcep
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
  * Tests for {@link ActionStorehouse}.
@@ -62,8 +64,11 @@ public class ActionStorehouseTest {
         .build();
     private final ActionPlan actionPlan = ActionPlan.newBuilder()
         .setId(1234L)
-        .setTopologyId(5678L)
-        .setTopologyContextId(topologyContextId)
+        .setInfo(ActionPlanInfo.newBuilder()
+            .setMarket(MarketActionPlanInfo.newBuilder()
+                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                    .setTopologyId(5678L)
+                    .setTopologyContextId(topologyContextId))))
         .addAction(moveAction)
         .build();
 
@@ -91,7 +96,10 @@ public class ActionStorehouseTest {
     public void testStoreActionsWithNoContextId() throws Exception {
         ActionPlan noContextPlan = ActionPlan.newBuilder()
             .setId(1234L)
-            .setTopologyId(5678L)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(5678L))))
             .addAction(moveAction)
             .build();
 
@@ -189,8 +197,11 @@ public class ActionStorehouseTest {
             .build();
         final ActionPlan otherActionPlan = ActionPlan.newBuilder()
             .setId(11234L)
-            .setTopologyId(15678L)
-            .setTopologyContextId(0xDECADE)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(15678L)
+                        .setTopologyContextId(0xDECADE))))
             .addAction(otherMoveAction)
             .build();
 

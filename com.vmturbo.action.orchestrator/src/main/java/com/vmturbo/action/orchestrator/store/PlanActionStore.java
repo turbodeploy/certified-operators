@@ -138,6 +138,12 @@ public class PlanActionStore implements ActionStore {
      */
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
+        if (actionPlan.getInfo().hasBuyRi()) {
+            // Add support for storing RI actions when we have RI purchasing plans.
+            logger.error("Plan action store cannot support a buy RI action plan (id: {})",
+                actionPlan.getId());
+            return false;
+        }
         return replaceAllActions(actionPlan.getActionList(),
             Optional.of(actionPlanData(actionPlan, LocalDateTime.now())));
     }
@@ -459,8 +465,8 @@ public class PlanActionStore implements ActionStore {
 
         return new com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan(
             actionPlan.getId(),
-            actionPlan.getTopologyId(),
-            actionPlan.getTopologyContextId(),
+            actionPlan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId(),
+            actionPlan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId(),
             recommendationTime
         );
     }

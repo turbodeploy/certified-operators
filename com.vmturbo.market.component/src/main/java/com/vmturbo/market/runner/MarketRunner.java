@@ -15,6 +15,8 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -138,12 +140,15 @@ public class MarketRunner {
 
     private ActionPlan getEmptyActionPlan(TopologyDTO.TopologyInfo topologyInfo) {
         return ActionPlan.newBuilder()
-                    .setId(IdentityGenerator.next())
-                    .setTopologyId(topologyInfo.getTopologyId())
-                    .setTopologyContextId(topologyInfo.getTopologyContextId())
-                    .setAnalysisStartTimestamp(System.currentTimeMillis())
-                    .setAnalysisCompleteTimestamp(System.currentTimeMillis())
-                    .build();
+            .setId(IdentityGenerator.next())
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(topologyInfo)))
+            .setDeprecatedTopologyId(topologyInfo.getTopologyId())
+            .setDeprecatedTopologyContextId(topologyInfo.getTopologyContextId())
+            .setAnalysisStartTimestamp(System.currentTimeMillis())
+            .setAnalysisCompleteTimestamp(System.currentTimeMillis())
+            .build();
     }
 
     /**

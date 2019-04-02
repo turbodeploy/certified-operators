@@ -38,6 +38,6 @@ public class ReservedInstanceActionsSender extends
     protected String describeMessage(
             @Nonnull ActionPlan actionPlan) {
         return ActionPlan.class.getSimpleName() + "[" +
-                actionPlan.getTopologyId() + "]";
+                actionPlan.getInfo() + "]";
     }
 }

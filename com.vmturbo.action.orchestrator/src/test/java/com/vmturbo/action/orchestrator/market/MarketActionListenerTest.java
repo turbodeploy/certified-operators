@@ -23,6 +23,9 @@ import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
  * Test for the {@link MarketActionListener}.
@@ -54,7 +57,11 @@ public class MarketActionListenerTest {
                 mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
-            .setTopologyContextId(realtimeTopologyContextId)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyContextId(realtimeTopologyContextId))))
             .build();
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
 
@@ -71,7 +78,11 @@ public class MarketActionListenerTest {
                 mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
-            .setTopologyContextId(realtimeTopologyContextId)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyContextId(realtimeTopologyContextId))))
             .build();
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
 
@@ -88,7 +99,11 @@ public class MarketActionListenerTest {
             mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
-            .setTopologyContextId(realtimeTopologyContextId)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyId(123)
+                        .setTopologyContextId(realtimeTopologyContextId))))
             .build();
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(true);
 

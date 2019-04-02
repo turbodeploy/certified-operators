@@ -262,7 +262,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
         final Map<Long, Map<Long, Cost.AccountExpenses>> records = new HashMap<>();
         accountExpensesRecords.forEach(expense -> {
             final Map<Long, AccountExpenses> costsForTimestamp = records
-                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(expense.value2()), k -> new HashMap<>());
+                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(expense.value2(), clock), k -> new HashMap<>());
             //TODO: optimize to avoid building newExpense
             final AccountExpenses newExpense = toDTO(new RecordWrapper(expense));
             costsForTimestamp.compute(newExpense.getAssociatedAccountId(),

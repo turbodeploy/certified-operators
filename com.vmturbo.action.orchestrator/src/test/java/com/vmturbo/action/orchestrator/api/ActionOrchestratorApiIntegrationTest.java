@@ -24,10 +24,13 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 
@@ -105,9 +108,14 @@ public class ActionOrchestratorApiIntegrationTest {
         final ActionsListener listener = Mockito.mock(ActionsListener.class);
         actionOrchestrator.addActionsListener(listener);
 
+        final ActionDTO.ActionPlanInfo actionPlanInfo = ActionPlanInfo.newBuilder()
+            .setMarket(MarketActionPlanInfo.newBuilder()
+                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                    .setTopologyId(1)))
+            .build();
         final ActionDTO.ActionPlan actionPlan = ActionDTO.ActionPlan.newBuilder()
             .setId(0L)
-            .setTopologyId(0L)
+            .setInfo(actionPlanInfo)
             .addAction(ActionOrchestratorTestUtils.createMoveRecommendation(1L))
             .build();
         notificationSender.notifyActionsUpdated(actionPlan);
@@ -116,7 +124,7 @@ public class ActionOrchestratorApiIntegrationTest {
 
         final ActionsUpdated actionsUpdated = actionsUpdatedCaptor.getValue();
         Assert.assertEquals(actionPlan.getId(), actionsUpdated.getActionPlanId());
-        Assert.assertEquals(actionPlan.getTopologyContextId(), actionsUpdated.getTopologyContextId());
+        Assert.assertEquals(actionPlan.getInfo(), actionsUpdated.getActionPlanInfo());
     }
 
     @Test

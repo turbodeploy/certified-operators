@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -18,10 +19,10 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 
 public class ActionDeletionRpcTest {
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
@@ -43,8 +45,10 @@ public class ActionDeletionRpcTest {
 
     private final long topologyContextId = 3;
 
+    private final Clock clock = new MutableFixedClock(1_000_000);
+
     private ActionsRpcService actionsRpcService =
-        new ActionsRpcService(actionStorehouse,
+        new ActionsRpcService(clock, actionStorehouse,
             mock(ActionExecutor.class),
             mock(ActionTargetSelector.class),
             mock(ActionTranslator.class),

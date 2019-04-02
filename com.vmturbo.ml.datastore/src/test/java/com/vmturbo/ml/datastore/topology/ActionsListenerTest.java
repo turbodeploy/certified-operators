@@ -1,24 +1,27 @@
 package com.vmturbo.ml.datastore.topology;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO;
-import com.vmturbo.common.protobuf.ml.datastore.MLDatastore;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.ml.datastore.influx.*;
-import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory.InfluxUnavailableException;
-import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.HashMap;
-
-import static org.mockito.Matchers.anyMap;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.*;
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO;
+import com.vmturbo.common.protobuf.ml.datastore.MLDatastore;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.ml.datastore.influx.InfluxActionsWriter;
+import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory;
+import com.vmturbo.ml.datastore.influx.InfluxMetricsWriterFactory.InfluxUnavailableException;
+import com.vmturbo.ml.datastore.influx.MetricsStoreWhitelist;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ActionsListenerTest {
 
@@ -81,11 +84,16 @@ public class ActionsListenerTest {
             .build();
 
     private final ActionDTO.ActionPlan actionPlan = ActionDTO.ActionPlan.newBuilder()
-            .addAction(move)
-            .addAction(deactivate)
-            .setTopologyContextId(777777)
-            .setId(111L)
-            .build();
+        .addAction(move)
+        .addAction(deactivate)
+        .setInfo(ActionPlanInfo.newBuilder()
+            .setMarket(MarketActionPlanInfo.newBuilder()
+                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                    .setTopologyId(1)
+                    .setTopologyContextId(777777)
+                    .setTopologyType(TopologyType.REALTIME))))
+        .setId(111L)
+        .build();
 
     @Before
     @SuppressWarnings("unchecked")

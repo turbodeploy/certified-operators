@@ -56,7 +56,6 @@ public class MarketConfig {
     @Bean
     public ActionPlanAssessor actionPlanAssessor() {
         return new ActionPlanAssessor(Clock.systemUTC(),
-            actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
             maxLiveActionPlanAgeSeconds);
     }
 

@@ -41,12 +41,11 @@ public class ActionOrchestratorNotificationSender extends
             throws CommunicationException, InterruptedException {
 
         final ActionOrchestratorNotification serverMessage =
-                createNewMessage()
-                        .setActionsUpdated(ActionsUpdated.newBuilder()
-                            .setActionPlanId(actionPlan.getId())
-                            .setTopologyId(actionPlan.getTopologyId())
-                            .setTopologyContextId(actionPlan.getTopologyContextId()))
-                        .build();
+            createNewMessage()
+                .setActionsUpdated(ActionsUpdated.newBuilder()
+                    .setActionPlanId(actionPlan.getId())
+                    .setActionPlanInfo(actionPlan.getInfo()))
+                .build();
         sendMessage(sender, serverMessage);
     }
 

@@ -62,6 +62,8 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -158,8 +160,12 @@ public class LiveActionsStatisticianTest {
         doReturn(aggregatedRecordsByMgmtUnit.values().stream()).when(aggregator)
                 .createRecords(upsertedSubgroup, upsertedActionGroup);
 
-        final long topologyId = 1;
-        statistician.recordActionStats(topologyId, Stream.of(action1, action2, action3));
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyId(1)
+            .setCreationTime(clock.millis())
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
+        statistician.recordActionStats(topologyInfo, Stream.of(action1, action2, action3));
 
         // Verify that the statistician interacts with the aggregator in the right order.
         final InOrder inOrder = Mockito.inOrder(aggregator);
@@ -208,8 +214,12 @@ public class LiveActionsStatisticianTest {
 
         doThrow(new RuntimeException("foo")).when(aggregator).start();
 
-        final long topologyId = 1;
-        statistician.recordActionStats(topologyId, Stream.of(action1));
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyId(1)
+            .setCreationTime(clock.millis())
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
+        statistician.recordActionStats(topologyInfo, Stream.of(action1));
 
         verify(aggregator, times(0)).processAction(any());
 
@@ -243,8 +253,12 @@ public class LiveActionsStatisticianTest {
 
         doThrow(new RuntimeException("foo")).when(aggregator).processAction(any());
 
-        final long topologyId = 1;
-        statistician.recordActionStats(topologyId, Stream.of(action1));
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyId(1)
+            .setCreationTime(clock.millis())
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
+        statistician.recordActionStats(topologyInfo, Stream.of(action1));
 
         // Started properly
         verify(aggregator).start();

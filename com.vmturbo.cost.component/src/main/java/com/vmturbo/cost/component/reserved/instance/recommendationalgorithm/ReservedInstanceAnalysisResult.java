@@ -6,16 +6,11 @@ import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,9 +20,8 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore.BuyReservedInstanceInfo;
@@ -198,13 +192,14 @@ public class ReservedInstanceAnalysisResult {
         }
 
         return ActionPlan.newBuilder()
-                .setId(IdentityGenerator.next())
-                .setTopologyContextId(manifest.getTopologyContextId())
-                .setAnalysisStartTimestamp(manifest.getAnalysisStartTime())
-                .setAnalysisCompleteTimestamp(manifest.getAnalysisCompletionTime())
-                .setActionPlanType(ActionPlanType.BUY_RI)
-                .addAllAction(actions)
-                .build();
+            .setId(IdentityGenerator.next())
+            .setAnalysisStartTimestamp(manifest.getAnalysisStartTime())
+            .setAnalysisCompleteTimestamp(manifest.getAnalysisCompletionTime())
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                    .setTopologyContextId(manifest.getTopologyContextId())))
+            .addAllAction(actions)
+            .build();
     }
 
     /**

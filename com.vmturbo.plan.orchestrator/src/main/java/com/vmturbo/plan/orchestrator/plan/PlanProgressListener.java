@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
@@ -41,16 +42,17 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     @Override
     public void onActionsReceived(@Nonnull final ActionPlan actionPlan) {
         onActionsUpdated(ActionsUpdated.newBuilder()
-                .setActionPlanId(actionPlan.getId())
-                .setTopologyContextId(actionPlan.getTopologyContextId())
-                .setTopologyId(actionPlan.getTopologyId())
-                .build());
+            .setActionPlanId(actionPlan.getId())
+            .setActionPlanInfo(actionPlan.getInfo())
+            .build());
     }
 
     @Override
     public void onActionsUpdated(@Nonnull final ActionsUpdated actionsUpdated) {
         // The context of the action plan is the plan that the actions apply to.
-        final long planId = actionsUpdated.getTopologyContextId();
+        final TopologyInfo sourceTopologyInfo = actionsUpdated.getActionPlanInfo()
+            .getMarket().getSourceTopologyInfo();
+        final long planId = sourceTopologyInfo.getTopologyContextId();
         logger.debug("Received action plan with {} for plan {}", actionsUpdated.getActionPlanId(), planId);
         if (planId != realtimeTopologyContextId) {
             try {
@@ -62,7 +64,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                                 "plan " + actionsUpdated.getActionPlanId(), e);
             } catch (NoSuchObjectException e) {
                 logger.warn("Could not find plan by topology context id {}",
-                        actionsUpdated.getTopologyContextId(), e);
+                        planId, e);
             }
         } else {
             logger.debug("Dropping real-time action plan notification.");

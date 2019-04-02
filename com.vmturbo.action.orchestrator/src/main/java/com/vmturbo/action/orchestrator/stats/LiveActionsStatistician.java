@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.stats;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,6 +43,8 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -111,20 +114,25 @@ public class LiveActionsStatistician {
      * @param actionStream A stream of actions representing a snapshot of actions in a
      *        {@link LiveActionStore} at a particular point in time.
      */
-    public void recordActionStats(final long topologyId,
+    public void recordActionStats(@Nonnull final TopologyInfo topologyInfo,
                                   @Nonnull final Stream<ActionView> actionStream) {
+        if (topologyInfo.getTopologyType() != TopologyType.REALTIME) {
+            throw new IllegalArgumentException("Attempting to insert non-realtime topology info " +
+                "stats into the actions statistician: " + topologyInfo);
+        }
+
         try {
-            internalRecordActionStats(topologyId, actionStream);
+            internalRecordActionStats(topologyInfo, actionStream);
         } catch (RuntimeException e) {
             logger.error("Failed to record action stats due to error!", e);
         }
     }
 
-    private void internalRecordActionStats(final long topologyId,
+    private void internalRecordActionStats(final TopologyInfo sourceTopologyInfo,
                                 @Nonnull final Stream<ActionView> actionStream) {
-        // TODO (roman, Nov 15 2018): We should use the creation time of the topology as the
-        // snapshot time, so that it's in sync with the other information about the topology.
-        final LocalDateTime topologyCreationTime = LocalDateTime.now(clock);
+        final LocalDateTime topologyCreationTime = LocalDateTime.ofInstant(
+            Instant.ofEpochMilli(sourceTopologyInfo.getCreationTime()),
+            clock.getZone());
 
         // We snapshot the actions so that subsequent changes to state don't affect the
         // current snapshot.
@@ -133,7 +141,7 @@ public class LiveActionsStatistician {
                 ImmutableLiveActionsSnapshot.builder()
                     .actionSnapshotTime(LocalDateTime.now(clock))
                     .topologyCreationTime(topologyCreationTime)
-                    .topologyId(topologyId);
+                    .topologyId(sourceTopologyInfo.getTopologyId());
         //
         // We translate the actions, because we need to record actions "as the user sees them". The
         // user always sees translated actions, so if any changes occur during translation - for
@@ -308,7 +316,7 @@ public class LiveActionsStatistician {
     }
 
     /**
-     * A snapshot of all actions passed to {@link LiveActionsStatistician#recordActionStats(long, Stream)}.
+     * A snapshot of all actions passed to {@link LiveActionsStatistician#recordActionStats(TopologyInfo, Stream)}.
      */
     @Value.Immutable
     interface LiveActionsSnapshot {
@@ -317,6 +325,7 @@ public class LiveActionsStatistician {
         List<SingleActionSnapshot> actions();
 
         long topologyId();
+
         LocalDateTime actionSnapshotTime();
 
         /**

@@ -3,6 +3,8 @@ package action;
 
 option java_package = "com.vmturbo.common.protobuf.action";
 
+import "action/ActionDTO.proto";
+
 // Sent as an update when an action is in progress.
 message ActionProgress {
     // The ID of the action whose status is described by this message.
@@ -38,10 +40,12 @@ message ActionsUpdated {
     // The ID of the action plan that was consumed.
     optional int64 action_plan_id = 1;
 
-    // The ID of the topology the action plan was generated for.
-    optional int64 topology_id = 2;
+    // Information about the generated action plan.
+    optional ActionPlanInfo action_plan_info = 2;
 
+    // Deprecated in favour of the context ID inside ActionPlanInfo.
+    //
     // The ID of the topology context. Used to differentiate, for example, between real and plan contexts.
     // If not set, it is an error.
-    optional int64 topology_context_id = 3;
+    optional int64 __deprecated__topology_context_id = 3 [deprecated = true];
 }
