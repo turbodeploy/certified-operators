@@ -1,12 +1,15 @@
 package com.vmturbo.group.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
@@ -27,10 +30,14 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.group.common.DuplicateNameException;
@@ -47,9 +54,13 @@ public class PolicyRpcServiceTest {
 
     private PolicyRpcService policyRpcService;
 
+    private UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
+
+    private GroupRpcService groupRpcService = Mockito.mock(GroupRpcService.class);
+
     @Before
     public void setUp() throws Exception {
-        policyRpcService = new PolicyRpcService(policyStore);
+        policyRpcService = new PolicyRpcService(policyStore, groupRpcService, userSessionContext);
     }
 
     @Test
@@ -251,6 +262,78 @@ public class PolicyRpcServiceTest {
                 .anyDescription());
     }
 
+    @Test(expected = UserAccessException.class)
+    public void testEditPolicyCantAccessExisting() {
+        // verify that a scoped user trying to edit an existing policy they can't access will fail
+
+        // this user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        final long id = 1234L;
+        final Optional<Policy> existingPolicy = Optional.of(Policy.newBuilder()
+                .setId(id)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setAtMostN(AtMostNPolicy.newBuilder()
+                                .setConsumerGroupId(2)
+                                .setProviderGroupId(2)))
+                .build());
+
+        when(policyStore.get(id)).thenReturn(existingPolicy);
+
+        final PolicyDTO.PolicyInfo updatedPolicyInfo = PolicyDTO.PolicyInfo.newBuilder()
+                .setName("Test Policy")
+                .setAtMostN(AtMostNPolicy.newBuilder()
+                        .setConsumerGroupId(1)
+                        .setProviderGroupId(1))
+                .build();
+        final PolicyDTO.PolicyEditRequest editRequest = PolicyDTO.PolicyEditRequest.newBuilder()
+                .setPolicyId(id)
+                .setNewPolicyInfo(updatedPolicyInfo)
+                .build();
+
+        final StreamObserver<PolicyDTO.PolicyEditResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyEditResponse>)Mockito.mock(StreamObserver.class);
+        policyRpcService.editPolicy(editRequest, mockObserver);
+    }
+
+    @Test(expected = UserAccessException.class)
+    public void testEditPolicyChangesOutOfScope() {
+        // verify that a scoped user can't edit a policy to include groups out of scope
+
+        // this user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        final long id = 1234L;
+        final Optional<Policy> existingPolicy = Optional.of(Policy.newBuilder()
+                .setId(id)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setAtMostN(AtMostNPolicy.newBuilder()
+                                .setConsumerGroupId(1)
+                                .setProviderGroupId(1)))
+                .build());
+
+        when(policyStore.get(id)).thenReturn(existingPolicy);
+
+        final PolicyDTO.PolicyInfo updatedPolicyInfo = PolicyDTO.PolicyInfo.newBuilder()
+                .setName("Test Policy")
+                .setAtMostN(AtMostNPolicy.newBuilder()
+                        .setConsumerGroupId(2)
+                        .setProviderGroupId(2))
+                .build();
+        final PolicyDTO.PolicyEditRequest editRequest = PolicyDTO.PolicyEditRequest.newBuilder()
+                .setPolicyId(id)
+                .setNewPolicyInfo(updatedPolicyInfo)
+                .build();
+
+        final StreamObserver<PolicyDTO.PolicyEditResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyEditResponse>)Mockito.mock(StreamObserver.class);
+        policyRpcService.editPolicy(editRequest, mockObserver);
+    }
+
     @Test
     public void testDeleteEmptyReq() {
         final PolicyDeleteRequest deleteRequest = PolicyDeleteRequest.newBuilder()
@@ -420,5 +503,170 @@ public class PolicyRpcServiceTest {
         verify(mockObserver, times(testPolicies.size())).onNext(any(PolicyDTO.PolicyResponse.class));
         verify(mockObserver).onCompleted();
         verify(mockObserver, never()).onError(any());
+    }
+
+    @Test
+    public void testGetPolicyForScopedUser() throws Exception {
+        // user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        final long policyIdInScope = 1;
+        final PolicyDTO.Policy policyInScope = PolicyDTO.Policy.newBuilder()
+                .setId(policyIdInScope)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setAtMostN(AtMostNPolicy.newBuilder()
+                                .setConsumerGroupId(1)
+                                .setProviderGroupId(1)))
+                .build();
+
+        given(policyStore.get(policyIdInScope)).willReturn(Optional.of(policyInScope));
+
+        final PolicyDTO.PolicyRequest policyInScopeRequest = PolicyDTO.PolicyRequest.newBuilder()
+                .setPolicyId(policyIdInScope)
+                .build();
+
+        final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyResponse>)Mockito.mock(StreamObserver.class);
+
+        policyRpcService.getPolicy(policyInScopeRequest, mockObserver);
+        verify(mockObserver, times(1)).onNext(any());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test(expected = UserAccessException.class)
+    public void testGetPolicyForScopedUserFail() throws Exception {
+
+        // user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        final long policyIdNotInScope = 2;
+        final PolicyDTO.Policy policyNotInScope = PolicyDTO.Policy.newBuilder()
+                .setId(policyIdNotInScope)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setAtMostN(AtMostNPolicy.newBuilder()
+                                .setConsumerGroupId(2)
+                                .setProviderGroupId(2)))
+                .build();
+        given(policyStore.get(policyIdNotInScope)).willReturn(Optional.of(policyNotInScope));
+
+        final PolicyDTO.PolicyRequest policyInScopeRequest = PolicyDTO.PolicyRequest.newBuilder()
+                .setPolicyId(policyIdNotInScope)
+                .build();
+
+        final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyResponse>)Mockito.mock(StreamObserver.class);
+
+        // this should trigger an exception
+        policyRpcService.getPolicy(policyInScopeRequest, mockObserver);
+        verify(mockObserver).onError(any());
+    }
+
+    @Test
+    public void testGetAllPoliciesForScopedUser() {
+        final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.getDefaultInstance();
+        final Collection<PolicyDTO.Policy> testPolicies = ImmutableList.of(
+                Policy.newBuilder().setId(1L)
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                                .setAtMostN(AtMostNPolicy.newBuilder()
+                                        .setConsumerGroupId(1)
+                                        .setProviderGroupId(1)))
+                        .build(),
+                Policy.newBuilder().setId(2L) // unaccessible
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                                .setAtMostN(AtMostNPolicy.newBuilder()
+                                        .setConsumerGroupId(1)
+                                        .setProviderGroupId(2)))
+                        .build(),
+                Policy.newBuilder().setId(3L) // unaccessible
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                                .setAtMostN(AtMostNPolicy.newBuilder()
+                                        .setConsumerGroupId(2)
+                                        .setProviderGroupId(2)))
+                        .build()
+        );
+
+        final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyResponse>)Mockito.mock(StreamObserver.class);
+
+        when(policyStore.getAll()).thenReturn(testPolicies);
+        // user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        policyRpcService.getAllPolicies(request, mockObserver);
+        // verify we have one result and it's for policy 1
+        final ArgumentCaptor<PolicyResponse> policyCaptor = ArgumentCaptor.forClass(PolicyResponse.class);
+        verify(mockObserver, times(1)).onNext(policyCaptor.capture());
+        assertEquals(1L, policyCaptor.getValue().getPolicy().getId());
+        verify(mockObserver).onCompleted();
+        verify(mockObserver, never()).onError(any());
+
+        // verify the cache is working by checking that the groupRpcService is only called once per group id
+        verify(groupRpcService, times(1)).userHasAccessToGroup(1L);
+        verify(groupRpcService, times(1)).userHasAccessToGroup(2L);
+    }
+
+    @Test
+    public void testCreateByScopedUser() throws DuplicateNameException {
+        // this user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        // verify that creating a policy for group 1 succeeds
+        final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
+                .setName("Test Input Policy")
+                .setAtMostN(AtMostNPolicy.newBuilder()
+                        .setConsumerGroupId(1)
+                        .setProviderGroupId(1))
+                .build();
+        final PolicyDTO.PolicyCreateRequest createReq = PolicyDTO.PolicyCreateRequest.newBuilder()
+                .setPolicyInfo(inputPolicy)
+                .build();
+        final StreamObserver<PolicyDTO.PolicyCreateResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyCreateResponse>)Mockito.mock(StreamObserver.class);
+
+        final Policy createdPolicy = Policy.newBuilder()
+                .setId(1L)
+                .setPolicyInfo(inputPolicy)
+                .build();
+
+        when(policyStore.newUserPolicy(inputPolicy)).thenReturn(createdPolicy);
+
+        policyRpcService.createPolicy(createReq, mockObserver);
+
+        verify(policyStore).newUserPolicy(inputPolicy);
+        verify(mockObserver).onNext(PolicyDTO.PolicyCreateResponse.newBuilder()
+                .setPolicy(createdPolicy)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test(expected =  UserAccessException.class)
+    public void testCreateByScopedUserFail() {
+        // this user has access to group 1 but not group 2
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGroup(2L)).thenReturn(false);
+
+        // verify that creating a policy for group 2 will fail
+        final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
+                .setName("Test Input Policy")
+                .setAtMostN(AtMostNPolicy.newBuilder()
+                        .setConsumerGroupId(2)
+                        .setProviderGroupId(2))
+                .build();
+        final PolicyDTO.PolicyCreateRequest createReq = PolicyDTO.PolicyCreateRequest.newBuilder()
+                .setPolicyInfo(inputPolicy)
+                .build();
+        final StreamObserver<PolicyDTO.PolicyCreateResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyCreateResponse>)Mockito.mock(StreamObserver.class);
+
+        policyRpcService.createPolicy(createReq, mockObserver);
     }
 }

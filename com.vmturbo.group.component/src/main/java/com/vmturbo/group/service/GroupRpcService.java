@@ -28,6 +28,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -266,9 +267,41 @@ public class GroupRpcService extends GroupServiceImplBase {
      *
      */
     private void checkUserAccessToGroup(Long groupId) {
-        if (userSessionContext.isUserScoped()) {
-            getGroupWithId(groupId)
-                    .ifPresent(group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true)));
+        if (! userHasAccessToGroup(groupId)) {
+            throw new UserAccessScopeException("User does not have access to group "+ groupId);
+        }
+    }
+
+    /**
+     * Check if the user has access to the group identified by Id. A user has access to the group by
+     * default, but if the user is a "scoped" user, they will only have access to the group if all
+     * members of the group are in the user's scope, or if the group itself is explicitly in the user's
+     * scope groups. (in the case of a group that no longer exists)
+     *
+     * TODO: move this to a helper class that could be shared by PolicyRpcService and GroupRpcService.
+     * This would mean moving getGroupById() and getNormalGroupMembers() as well though.
+     *
+     * @param groupId the group id to check access for
+     * @return true, if the user definitely has access to the group. false, if not.
+     */
+    public boolean userHasAccessToGroup(long groupId) {
+        if (! userSessionContext.isUserScoped()) {
+            return true;
+        }
+        // if the user scope groups contains the group id directly, we don't even need to expand the
+        // group.
+        EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+        if (entityAccessScope.getScopeGroupIds().contains(groupId)) {
+            return true;
+        }
+        Optional<Group> optionalGroup = getGroupWithId(groupId);
+        if (optionalGroup.isPresent()) {
+            // check membership
+            return entityAccessScope.contains(getNormalGroupMembers(optionalGroup.get(), true));
+        } else {
+            // the group does not exist any more - we'll return false to be safe, although it is
+            // possible that the user had access when the group did exist.
+            return false;
         }
     }
 
@@ -295,10 +328,13 @@ public class GroupRpcService extends GroupServiceImplBase {
             final Stream<Group> tempGroupStream = requestTempGroups ?
                     tempGroupCache.getAll().stream() : Stream.empty();
             // Return non-temp groups, unless the user ONLY requested temp groups.
+            // TODO: if specific group ids were requested, consider getting a stream of only those
+            // groups from the group store rather than all, if the number of groups gets very large.
             final Stream<Group> otherGroupStream =
                 requestTempGroups && request.getTypeFilterCount() == 1 ?
                     Stream.empty() : groupStore.getAll().stream();
             List<Group> responseGroups = Stream.concat(tempGroupStream, otherGroupStream)
+
                     .filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
                     .filter(group -> !request.hasOriginFilter() ||
                             group.getOrigin().equals(request.getOriginFilter()))

@@ -62,7 +62,8 @@ public class RpcConfig {
 
     @Bean
     public PolicyRpcService policyService() {
-        return new PolicyRpcService(policyConfig.policyStore());
+        return new PolicyRpcService(policyConfig.policyStore(), groupService(),
+                userSessionConfig.userSessionContext());
     }
 
     @Bean

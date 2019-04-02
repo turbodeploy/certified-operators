@@ -46,7 +46,7 @@ public class PolicyMapper {
      * @param policyProto The Policy protobuf to convert.
      * @param groupsByID a map from group oid to the group with that oid.
      *     May only contain only the relevant groups.
-     * @return The converted policy.
+     * @return The converted policy
      */
     public PolicyApiDTO policyToApiDto(final PolicyDTO.Policy policyProto,
                                        final Map<Long, Group> groupsByID) {

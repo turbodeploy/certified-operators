@@ -405,8 +405,8 @@ public class ServiceConfig {
 
     @Bean
     public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
-        return SettingPolicyServiceGrpc.newBlockingStub(
-                communicationConfig.groupChannel());
+        return SettingPolicyServiceGrpc.newBlockingStub(communicationConfig.groupChannel())
+                .withInterceptors(communicationConfig.jwtClientInterceptor());
     }
 
     @Bean

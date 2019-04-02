@@ -515,7 +515,8 @@ public class EntitiesService implements IEntitiesService {
         // If the entity is of type STORAGE, get its oid. Else find the oid of the Host the entity is
         // connected to. For entities below the host such as DC, Chassis etc, the oidToQuery will be
         // set to 0.
-        if (serviceEntityMap.get(entityOid).getClassName().equals(UIEntityType.STORAGE.getValue())) {
+        if (serviceEntityMap.containsKey(entityOid)
+                && serviceEntityMap.get(entityOid).getClassName().equals(UIEntityType.STORAGE.getValue())) {
             oidToQuery = entityOid;
         }  else if (!NON_CLUSTER_ENTITY_TYPES.contains(serviceEntityMap.get(entityOid).getClassName())) {
             for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {

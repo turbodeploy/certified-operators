@@ -175,7 +175,8 @@ public class CommunicationConfig {
 
     @Bean
     public PolicyServiceBlockingStub policyRpcService() {
-        return PolicyServiceGrpc.newBlockingStub(groupChannel());
+        return PolicyServiceGrpc.newBlockingStub(groupChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean

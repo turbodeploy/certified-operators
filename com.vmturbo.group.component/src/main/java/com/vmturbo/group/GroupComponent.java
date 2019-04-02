@@ -97,7 +97,7 @@ public class GroupComponent extends BaseVmtComponent {
                 new JwtServerInterceptor(securityConfig.apiAuthKVStore());
 
         return Optional.of(builder
-            .addService(ServerInterceptors.intercept(rpcConfig.policyService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(rpcConfig.policyService(), jwtInterceptor, monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.groupService(), jwtInterceptor, monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.settingService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.settingPolicyService(), monitoringInterceptor))
