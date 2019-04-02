@@ -74,7 +74,6 @@ message EntityAccessScopeRequest {
 
      if "include infrastructure entities" is set to false, infrastructure entities will be
      excluded from the calculation.
-     TODO: This is not supported yet.
     */
     optional bool include_infrastructure_entities = 2 [default=true];
 

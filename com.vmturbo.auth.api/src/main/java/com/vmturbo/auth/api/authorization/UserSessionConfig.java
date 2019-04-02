@@ -29,7 +29,7 @@ public class UserSessionConfig {
 
     // number of seconds a fresh cache entry is considered valid before it needs to be synced with
     // the server.
-    @Value("${sessionScopeCacheExpirationSecs:5}")
+    @Value("${sessionScopeCacheExpirationSecs:30}")
     private int sessionScopeCacheExpirationSecs;
 
     // number of seconds between invocations of the cleanup command. defaults to 5 mins.

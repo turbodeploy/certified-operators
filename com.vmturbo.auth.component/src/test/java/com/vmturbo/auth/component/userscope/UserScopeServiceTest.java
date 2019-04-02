@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  *
@@ -65,6 +66,20 @@ public class UserScopeServiceTest {
                 .addAllMemberOids(TEST_SUPPLY_CHAIN_OIDS)
                 .build()))
         .build();
+
+    private static final SupplyChain TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN = SupplyChain.newBuilder()
+            .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                    .setEntityType(EntityType.APPLICATION.name())
+                    .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
+                            .addMemberOids(10L)
+                            .build()))
+            .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE.name())
+                    .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
+                            .addMemberOids(11L)
+                            .build()))
+            .build();
+
 
     private GroupServiceMole groupService = spy(new GroupServiceMole());
 
@@ -105,6 +120,14 @@ public class UserScopeServiceTest {
             .setSupplyChain(TEST_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
                 .addStartingEntityOid(memberId)
+                .build());
+
+        // if asked for a "shared" user, return a subset.
+        doReturn(GetSupplyChainResponse.newBuilder()
+            .setSupplyChain(TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN)
+            .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
+                .addStartingEntityOid(memberId)
+                .addAllEntityTypesToInclude(UserScopeService.SHARED_USER_ENTITY_TYPES)
                 .build());
 
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());
@@ -159,8 +182,6 @@ public class UserScopeServiceTest {
         Assert.assertTrue(seedOids.hasArray());
         Assert.assertThat(seedOids.getArray().getOidsList(),
                 Matchers.containsInAnyOrder(2L));
-
-
     }
 
     // test that an empty group list results in an unrestricted access scope.
@@ -237,6 +258,39 @@ public class UserScopeServiceTest {
         EntityAccessScopeResponse response = responseCaptor.getValue();
 
         verifyScopedAccess(response.getEntityAccessScopeContents());
+    }
+
+    // test using a JWT for a "shared"scoped user.
+    @Test
+    public void testGetCurrentUserEntityAccessScopeMembersShared() {
+        // set an scoped user in the context
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        new AuthUserDTO(null,
+                                "scopedUser",
+                                "password",
+                                "10.10.10.10",
+                                "11111",
+                                "token",
+                                ImmutableList.of("SHARED_OBSERVER"),
+                                Arrays.asList(1L)),
+                        "",
+                        Collections.emptySet()));
+
+        StreamObserver<EntityAccessScopeResponse> responseObserver = Mockito.mock(StreamObserver.class);
+        userScopeService.getCurrentUserEntityAccessScopeMembers(
+                CurrentUserEntityAccessScopeRequest.getDefaultInstance(),
+                responseObserver);
+
+        ArgumentCaptor<EntityAccessScopeResponse> responseCaptor = ArgumentCaptor.forClass(EntityAccessScopeResponse.class);
+        Mockito.verify(responseObserver).onNext(responseCaptor.capture());
+
+        EntityAccessScopeResponse response = responseCaptor.getValue();
+        // verify the accessible oids list is our supply chain
+        OidSetDTO accessibleOids = response.getEntityAccessScopeContents().getAccessibleOids();
+        Assert.assertTrue(accessibleOids.hasArray());
+        Assert.assertThat(accessibleOids.getArray().getOidsList(),
+                Matchers.containsInAnyOrder(10L, 11L));
     }
 
     // test the "get current user access scope" when no local session exists.

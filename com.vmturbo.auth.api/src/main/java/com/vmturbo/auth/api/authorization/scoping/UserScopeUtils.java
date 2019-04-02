@@ -4,10 +4,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
@@ -23,6 +28,9 @@ import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
  * Static utility methods for finding user scope info from the current security / grpc context
  */
 public class UserScopeUtils {
+    private static Logger logger = LogManager.getLogger();
+
+    private static Set<String> SHARED_ROLES = ImmutableSet.of("SHARED_OBSERVER", "SHARED_ADVISOR");
 
     public static boolean isUserScoped() {
         // first check if there is a security context user
@@ -35,10 +43,48 @@ public class UserScopeUtils {
         return (CollectionUtils.isNotEmpty(grpcContextScopeGroups));
     }
 
+    /**
+     * Is the current user in a "shared role"? ("Shared Observer", "Shared Advisor"). This will be
+     * based on the user's role.
+     *
+     * @return
+     */
+    public static boolean isUserShared() {
+        // first check if there is a security context user
+        List<String> roles;
+        Optional<AuthUserDTO> user = getAuthUser();
+        if (user.isPresent()) {
+            roles = user.get().getRoles();
+        } else {
+            // check grpc context
+            roles = SecurityConstant.USER_ROLES_KEY.get();
+        }
+
+        if (CollectionUtils.isEmpty(roles) {
+            // no roles found -- assuming not shared.
+            // TODO: Once we have a reliable "system useras part of OM-44445.
+            logger.debug("No roles found in calling context -- assuming user is not shared");
+            return false;
+        }
+        logger.debug("Found roles {} in calling context", roles);
+        // multiple user roles are not expected until we address the "Custom User Roles" epic.
+        // for now, if we see multiple roles being passed-in, throw a security exception.
+        if (roles.size() > 1) {
+            throw new SecurityException("Invalid user session information.");
+        })
+        for (String role : roles) {
+            if (SHARED_ROLES.contains(role)) {
+                logger.debug("User is 'shared' because it has role {}", role);
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     private static Optional<AuthUserDTO> getAuthUser() {
         return SAMLUserUtils.getAuthUserDTO();
     }
-
 
     public static List<Long> getUserScopeGroups() {
         // first check if there is a security context user

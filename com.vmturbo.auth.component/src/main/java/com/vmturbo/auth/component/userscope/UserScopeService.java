@@ -14,11 +14,14 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -35,6 +38,8 @@ import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.AllOids;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.NoOids;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.OidArray;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceImplBase;
+import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -105,6 +110,13 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             .build()
             .register();
 
+    // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
+    // ScopedUserUtil.java.
+    public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
+            ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.inverse().get(EntityType.APPLICATION),
+            ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.inverse().get(EntityType.VIRTUAL_MACHINE));
+
+
     private final GroupServiceBlockingStub groupServiceStub;
 
     private final SupplyChainServiceBlockingStub supplyChainServiceStub;
@@ -147,6 +159,7 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         List<Long> scopeGroups = UserScopeUtils.getUserScopeGroups();
 
         internalGetEntityAccessScopeMembers(scopeGroups,
+                UserScopeUtils.isUserShared(),
                 request.hasCurrentScopeHash() ? Optional.of(request.getCurrentScopeHash()) : Optional.empty(),
                 responseObserver);
     }
@@ -156,11 +169,12 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
                                             final StreamObserver<EntityAccessScopeResponse> responseObserver) {
 
         internalGetEntityAccessScopeMembers(request.getGroupIdList(),
+                request.hasIncludeInfrastructureEntities() ? (!request.getIncludeInfrastructureEntities()) : false,
                 request.hasCurrentScopeHash() ? Optional.of(request.getCurrentScopeHash()) : Optional.empty(),
                 responseObserver);
     }
 
-    private void internalGetEntityAccessScopeMembers(List<Long> scopeGroupOids, Optional<Integer> currentHash,
+    private void internalGetEntityAccessScopeMembers(List<Long> scopeGroupOids, boolean excludeInfrastructureEntities, Optional<Integer> currentHash,
                                                      final StreamObserver<EntityAccessScopeResponse> responseObserver) {
         // set up the response builder
         EntityAccessScopeResponse.Builder responseBuilder = EntityAccessScopeResponse.newBuilder();
@@ -189,12 +203,13 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             return;
         }
 
+        // first, check if the data is already cached.
         EntityAccessScopeContents contents;
         if (cacheEnabled) {
             // get the response from cache
             int prevSize = accessScopeContentsForGroups.size();
             contents = accessScopeContentsForGroups.computeIfAbsent(scopeGroupOids,
-                    this::calculateScope).contents;
+                    oids -> calculateScope(oids, excludeInfrastructureEntities)).contents;
             // if the cache size has changed, update the metrics
             if (accessScopeContentsForGroups.size() != prevSize) {
                 updateCacheMetrics();
@@ -202,11 +217,12 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         } else {
             // always calculate the scope if the cache is disabled.
             logger.debug("UserScopeService cache is disabled.");
-            contents = calculateScope(scopeGroupOids).contents;
+            contents = calculateScope(scopeGroupOids, excludeInfrastructureEntities).contents;
         }
 
         // if the request included a cached hash, compare them -- if they are the same, send
-        // back a "data unchanged" response w/updated expiration time
+        // back a "data unchanged" response w/updated expiration time. This will avoid retransmission
+        // of the whole data set in a scenario where the receiver already has it in memory.
         if (currentHash.isPresent()) {
             if (currentHash.get() == contents.getHash()) {
                 logger.debug("Requester scope contents hash is still good -- sending confirmation.");
@@ -228,7 +244,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
      * @param scopeGroupOids the groups to calculate the supply chain scope for.
      * @return a {@link AccessScopeDataCacheEntry} object containing the scope data.
      */
-    private synchronized AccessScopeDataCacheEntry calculateScope(List<Long> scopeGroupOids) {
+    private synchronized AccessScopeDataCacheEntry calculateScope(List<Long> scopeGroupOids,
+                                                                  boolean excludeInfrastructureEntities) {
         // double check if the cache entry exists in case the current thread was blocking on entry
         // into this function and the previous caller populated the cache in the meantime.
         AccessScopeDataCacheEntry doubleCheckEntry = accessScopeContentsForGroups.get(scopeGroupOids);
@@ -265,10 +282,15 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
                 Duration.between(startTime, groupFetchTime).toMillis());
 
         // now, use the set of entities to make a supply chain request.
-        // TODO: add entity type filter for shared users
-        final GetSupplyChainRequest supplyChainRequest = GetSupplyChainRequest.newBuilder()
-                .addAllStartingEntityOid(scopeGroupEntityOids)
-                .build();
+        final GetSupplyChainRequest.Builder supplyChainRequestBuilder = GetSupplyChainRequest.newBuilder()
+                .addAllStartingEntityOid(scopeGroupEntityOids);
+
+        // for "shared" users, we should only include specific entity types.
+        if (excludeInfrastructureEntities) {
+            logger.debug("Adding filter for shared entity types: {}", SHARED_USER_ENTITY_TYPES);
+            supplyChainRequestBuilder.addAllEntityTypesToInclude(SHARED_USER_ENTITY_TYPES);
+        }
+        final GetSupplyChainRequest supplyChainRequest = supplyChainRequestBuilder.build();
 
         Set<Long> accessibleEntities = new HashSet<>();
         // this is a streaming response
