@@ -275,7 +275,7 @@ public class SearchDTOEntityDtoConverterTest {
         ServiceEntityRepoDTO serviceEntityRepoDTO = new ServiceEntityRepoDTO();
         serviceEntityRepoDTO.setDisplayName(name);
         serviceEntityRepoDTO.setEntityType("PhysicalMachine");
-        serviceEntityRepoDTO.setState("SUSPENDED");
+        serviceEntityRepoDTO.setState("SUSPEND");
         serviceEntityRepoDTO.setOid(Long.toString(oid));
 
         Search.Entity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
