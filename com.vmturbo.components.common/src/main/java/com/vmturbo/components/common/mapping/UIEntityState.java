@@ -25,7 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 public enum UIEntityState {
     ACTIVE("ACTIVE"),
     IDLE("IDLE"),
-    SUSPENDED("SUSPEND"),//Suspend is being used to be consistent with the same values returned in classic
+    SUSPENDED("SUSPENDED"),
     MAINTENANCE("MAINTENANCE"),
     FAILOVER("FAILOVER"),
 

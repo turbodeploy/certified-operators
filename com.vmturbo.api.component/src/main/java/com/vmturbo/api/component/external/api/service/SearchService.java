@@ -64,6 +64,7 @@ import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -103,7 +104,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -758,10 +758,10 @@ public class SearchService implements ISearchService {
         switch (criteriaKey) {
             case STATE:
                 // options should be all possible states
-                Arrays.stream(UIEntityState.values())
+                Arrays.stream(EntityState.values())
                     .forEach(option -> {
                         final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
-                        optionApiDTO.setValue(option.getValue());
+                        optionApiDTO.setValue(option.name());
                         optionApiDTOs.add(optionApiDTO);
                     });
                 break;
