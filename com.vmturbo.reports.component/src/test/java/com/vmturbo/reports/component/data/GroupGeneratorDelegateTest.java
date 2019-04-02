@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.After;
 import org.junit.Before;
@@ -18,9 +19,10 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import javaslang.Tuple;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
@@ -29,7 +31,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.reports.component.data.ReportDataUtils.Results;
+import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -44,16 +46,14 @@ public class GroupGeneratorDelegateTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, supplyChainServiceMole);
     private ReportDBDataWriter reportDBDataWriter = mock(ReportDBDataWriter.class);
-    private Results results = mock(Results.class);
-    private Results newResults = mock(Results.class);
+    private EntitiesTableGeneratedId results = mock(EntitiesTableGeneratedId.class);
+    private EntitiesTableGeneratedId newResults = mock(EntitiesTableGeneratedId.class);
 
     @Before
     public void init() throws Exception {
         groupGeneratorDelegate = new GroupGeneratorDelegate();
         context = mock(ReportsDataContext.class);
-        Mockito.when(groupServiceMole.getGroup(GroupID.newBuilder()
-            .setId(123L)
-            .build()))
+        Mockito.when(groupServiceMole.getGroup(any()))
             .thenReturn(GetGroupResponse.newBuilder()
                 .setGroup(Group.newBuilder()
                     .setType(Group.Type.CLUSTER))
@@ -70,7 +70,8 @@ public class GroupGeneratorDelegateTest {
         when(context.getGroupService()).thenReturn(GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         when(context.getReportDataWriter()).thenReturn(reportDBDataWriter);
-        when(reportDBDataWriter.insertGroups(anyList(), any())).thenReturn(results);
+        when(reportDBDataWriter.insertGroupIntoEntitiesTable(anyList(), any())).thenReturn(results);
+        when(reportDBDataWriter.insertGroup(any(), any())).thenReturn(Tuple.of(results, Optional.of("1")));
         // context.getReportDataWriter().insertEntityAssns
         when(reportDBDataWriter.insertEntityAssns(results)).thenReturn(newResults);
 
@@ -85,36 +86,48 @@ public class GroupGeneratorDelegateTest {
     }
 
     @Test
+    public void testInsertVMClusterRelationships() throws DbException {
+        groupGeneratorDelegate.insertVMClusterRelationships(context);
+        verify(context).getGroupService();
+        verify(results).getGroupToPK();
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter,times(2)).cleanUpEntity_Assns(anyList());
+        verify(reportDBDataWriter).insertEntityAssns(any());
+        verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
+        verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
+    }
+
+    @Test
     public void testInsertVMGroupRelationships() throws DbException {
-        groupGeneratorDelegate.insertVMGroupRelationships(context);
-        verify(context).getGroupService();
+        groupGeneratorDelegate.insertVMGroupRelationships(context, 1L);
+        verify(context, times(2)).getGroupService();
         verify(results).getGroupToPK();
-        verify(context, times(6)).getReportDataWriter();
-        verify(reportDBDataWriter).cleanUpEntity_Assns(anyList());
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter, times(2)).cleanUpEntity_Assns(anyList());
         verify(reportDBDataWriter).insertEntityAssns(any());
         verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
         verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
     }
 
     @Test
-    public void testInsertPMGroupRelationships() throws DbException {
-        groupGeneratorDelegate.insertPMGroupRelationships(context);
+    public void testInsertPMClusterRelationships() throws DbException {
+        groupGeneratorDelegate.insertPMClusterRelationships(context);
         verify(context).getGroupService();
         verify(results).getGroupToPK();
-        verify(context, times(6)).getReportDataWriter();
-        verify(reportDBDataWriter).cleanUpEntity_Assns(anyList());
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter, times(2)).cleanUpEntity_Assns(anyList());
         verify(reportDBDataWriter).insertEntityAssns(any());
         verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
         verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
     }
 
     @Test
-    public void testInsertSTGroupRelationships() throws DbException {
-        groupGeneratorDelegate.insertStorageGroupRelationships(context);
+    public void testInsertSTClusterRelationships() throws DbException {
+        groupGeneratorDelegate.insertStorageClusterRelationships(context);
         verify(context).getGroupService();
         verify(results).getGroupToPK();
-        verify(context, times(6)).getReportDataWriter();
-        verify(reportDBDataWriter).cleanUpEntity_Assns(anyList());
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter , times(2)).cleanUpEntity_Assns(anyList());
         verify(reportDBDataWriter).insertEntityAssns(any());
         verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
         verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());

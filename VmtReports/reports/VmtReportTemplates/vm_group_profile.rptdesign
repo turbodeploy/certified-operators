@@ -323,7 +323,7 @@ natural join
 		'VirtualMachine' as class_name,
 		property_type,
 		property_subtype,
-		avg_value,
+		ROUND(avg_value/capacity, 3) as avg_value,
 		year(snapshot_time) as year_number,
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -332,7 +332,7 @@ natural join
 		vm_stats_by_hour
 	where 
 		date(snapshot_time) = date_sub(date(now()), interval 1 day)
-		and property_subtype = 'utilization'
+		and property_subtype = 'used'
 	) as rows
 group by 
   property_type, hour_number
@@ -1874,12 +1874,12 @@ natural join
 		uuid,
 		property_type,
 		property_subtype,
-		avg_value 
+		ROUND(avg_value/capacity, 3) as avg_value
 	from 
 		vm_stats_by_day
 	where 
 		snapshot_time = date_sub(date(now()), interval 1 day)
-		and property_subtype = 'utilization'
+		and property_subtype = 'used'
 	) as rows]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
@@ -2258,7 +2258,7 @@ natural join
 		vm_stats_by_day
 	where 
 		snapshot_time = date_sub(date(now()), interval 1 day)
-		and property_subtype = 'utilization'
+		and property_subtype = 'used'
 		and property_type in ('VMem', 'VStorage', 'VCPU')
 	) as rows 
 group by 
@@ -2904,12 +2904,12 @@ from
 	(select member_uuid as uuid from vm_group_members where group_uuid = ?) as groups
 natural join
 	(select 
-		uuid, property_type, avg_value, min_value, max_value 
+		uuid, property_type, ROUND(avg_value/capacity, 3) as avg_value, ROUND(min_value/capacity, 3) as min_value, ROUND(max_value/capacity, 3) as max_value
 	from vm_stats_by_day
 	where 
 		snapshot_time = date_sub(date(now()), interval 1 day)
 		and property_type in ('VMem', 'VStorage', 'VCPU')
-		and property_subtype = 'utilization'
+		and property_subtype = 'used'
 	) as rows 
 group by 
 	property_type]]></xml-property>

@@ -50,6 +50,12 @@ import com.vmturbo.reports.component.data.pm.PM_group_monthly_individual_cluster
 import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid;
 import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid_30_days;
 import com.vmturbo.reports.component.data.vm.Daily_vm_rightsizing_advice_grid;
+import com.vmturbo.reports.component.data.vm.VM_group_30_days_vm_top_bottom_capacity_grid;
+import com.vmturbo.reports.component.data.vm.VM_group_daily_over_under_prov_grid_30_days;
+import com.vmturbo.reports.component.data.vm.VM_group_individual_monthly_summary;
+import com.vmturbo.reports.component.data.vm.VM_group_profile;
+import com.vmturbo.reports.component.data.vm.VM_group_profile_physical_resources;
+import com.vmturbo.reports.component.data.vm.VM_group_rightsizing_advice_grid;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.entities.EntitiesDaoImpl;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
@@ -95,6 +101,8 @@ public class ReportingConfig {
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    private final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
 
     /**
      * Time when scheduled reports should be generated.
@@ -217,25 +225,33 @@ public class ReportingConfig {
     public ReportsDataGenerator reportsDataGenerator() {
         return new ReportsDataGenerator(new ReportsDataContext(groupRpcService(),
             reportDataWriter(), repositoryChannel(), actionsRpcService(), realtimeTopologyContextId)
-            , getReportMap());
+            , getStandardReportMap());
     }
 
-    private Map<Integer, ReportTemplate> getReportMap() {
-        final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
-        return ImmutableMap.<Integer, ReportTemplate>builder().
+    private Map<Long, ReportTemplate> getStandardReportMap() {
+        return ImmutableMap.<Long, ReportTemplate>builder().
             // VM related reports
-                put(150, new Daily_vm_rightsizing_advice_grid(delegate)).
-                put(184, new Daily_vm_over_under_prov_grid_30_days(delegate)).
-                put(148, new Daily_vm_over_under_prov_grid(delegate)).
+                put(150L, new Daily_vm_rightsizing_advice_grid(delegate)).
+                put(184L, new Daily_vm_over_under_prov_grid_30_days(delegate)).
+                put(148L, new Daily_vm_over_under_prov_grid(delegate)).
 
             // PM related reports
-                put(146, new Monthly_cluster_summary(delegate)).
+                put(146L, new Monthly_cluster_summary(delegate)).
 
-                put(147, new Monthly_summary(delegate)).
-                put(14, new PM_group_monthly_individual_cluster_summary(delegate)).
+                put(147L, new Monthly_summary(delegate)).
+                put(14L, new PM_group_monthly_individual_cluster_summary(delegate)).
 
             // both VM and PM
-                put(170, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate))
+                put(170L, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate)).
+
+            // on demand reprot
+                put(5L, new VM_group_profile(delegate)).
+                put(9L, new VM_group_profile_physical_resources(delegate)).
+                put(10L, new VM_group_individual_monthly_summary(delegate)).
+                put(11L, new VM_group_daily_over_under_prov_grid_30_days(delegate)).
+                put(12L, new VM_group_30_days_vm_top_bottom_capacity_grid(delegate)).
+                put(17L, new VM_group_rightsizing_advice_grid(delegate))
+
             .build();
     }
 }

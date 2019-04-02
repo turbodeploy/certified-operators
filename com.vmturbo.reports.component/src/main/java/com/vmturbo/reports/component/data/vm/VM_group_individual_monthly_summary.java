@@ -1,30 +1,26 @@
-package com.vmturbo.reports.component.data.pm;
+package com.vmturbo.reports.component.data.vm;
 
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
+import com.vmturbo.reports.component.data.GroupsGenerator;
 import com.vmturbo.reports.component.data.ReportTemplate;
 import com.vmturbo.reports.component.data.ReportsDataContext;
-import com.vmturbo.reports.component.data.GroupsGenerator;
 import com.vmturbo.sql.utils.DbException;
 
-/**
- * Insert report data to vmtdb for Monthly_cluster_summary template .
- */
-public class Monthly_cluster_summary extends GroupsGenerator implements ReportTemplate {
-
-    public Monthly_cluster_summary(@Nonnull final GroupGeneratorDelegate groupGeneratorDelegate) {
-        super(groupGeneratorDelegate);
+public class VM_group_individual_monthly_summary extends GroupsGenerator implements ReportTemplate {
+    public VM_group_individual_monthly_summary(@Nonnull final GroupGeneratorDelegate delegate) {
+        super(delegate);
     }
 
     @Override
     public Optional<String> generateData(@Nonnull final ReportsDataContext context,
                                          @Nonnull Optional<Long> selectedGroup) throws DbException {
-        super.insertPMGroups(context);
-        // TODO insert other missing data
+        if (selectedGroup.isPresent()) {
+            return super.insertVMGroup(context, selectedGroup.get());
+        }
         return Optional.empty();
     }
-
 }

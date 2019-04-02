@@ -1,3 +1,9 @@
+/*
+Following entries are required by most OpsMgr reports.
+For the utilThreshold_xx, we currently insert the same default values as in OpsMgr 6.3.
+OM-44203 is opened to retrieve these values from policy settings UI.
+*/
+
 LOCK TABLES `entities` WRITE;
 INSERT INTO `entities` (`name`, `display_name`, `uuid`, `creation_class`, `created_at`)
 VALUES

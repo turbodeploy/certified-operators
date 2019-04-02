@@ -1,11 +1,13 @@
 package com.vmturbo.reports.component.data.pm;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
 import com.vmturbo.reports.component.data.ReportTemplate;
 import com.vmturbo.reports.component.data.ReportsDataContext;
-import com.vmturbo.reports.component.data.vm.GroupsGenerator;
+import com.vmturbo.reports.component.data.GroupsGenerator;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -18,10 +20,11 @@ public class PM_group_monthly_individual_cluster_summary extends GroupsGenerator
     }
 
     @Override
-    public boolean generateData(@Nonnull final ReportsDataContext context) throws DbException {
+    public Optional<String> generateData(@Nonnull final ReportsDataContext context,
+                                         @Nonnull Optional<Long> selectedGroup) throws DbException {
         super.insertPMGroups(context);
         // TODO insert other missing data
-        return true;
+        return Optional.empty();
     }
 
 }

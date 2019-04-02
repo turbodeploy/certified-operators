@@ -120,6 +120,8 @@
 
         <immutables.version>2.7.3</immutables.version>
         <roaringbitmap.version>[0.7,)</roaringbitmap.version>
+        <!-- java slang -->
+        <javaslang.version>2.0.5</javaslang.version>
     </properties>
 
     <prerequisites>

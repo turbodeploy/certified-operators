@@ -11,12 +11,12 @@ import java.util.concurrent.Executor;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.collect.ImmutableList;
-
 import org.apache.commons.mail.EmailException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
@@ -120,14 +120,18 @@ public class ReportsGenerator {
         final ReportInstanceRecord reportInstance =
                         reportInstanceDao.createInstanceRecord(reportType, templateId.getId(), format);
         final Map<String, String> reportAttributes = prepareReportAttributes(request.getParametersMap());
-        final ReportRequest report =
-                new ReportRequest(template.getTemplateFile(), format, reportAttributes);
         final File file = new File(outputDirectory, Long.toString(reportInstance.getId()));
         executor.execute(() -> {
-            if (reportsDataGenerator.generateByTemplateId(templateId.getId())) {
-                generateReportInternal(report, file, reportInstance,
-                    request.getSubscribersEmailsList());
-            }
+            final Optional<String> id = reportsDataGenerator.generateDataByRequest(request);
+            // only some reports require updating report attributes, e.g. on-demand report.
+            id.ifPresent(generatedGroupId -> {
+                reportAttributes.put(ReportingConstants.ITEM_UUID_PROPERTY, String.valueOf(generatedGroupId));
+                populateDisplayName(reportAttributes, generatedGroupId);
+            });
+
+            final ReportRequest report =
+                new ReportRequest(template.getTemplateFile(), format, reportAttributes);
+            generateReportInternal(report, file, reportInstance, request.getSubscribersEmailsList());
         });
 
         final Reporting.ReportInstanceId.Builder resultBuilder = Reporting.ReportInstanceId.newBuilder();
@@ -142,20 +146,29 @@ public class ReportsGenerator {
         final Map<String, String> result = new HashMap<>();
         result.putAll(parametersMap);
         final String oidString = parametersMap.get(ReportingConstants.ITEM_UUID_PROPERTY);
-        if (oidString != null) {
-            final Long oid = Long.valueOf(oidString);
-            final Optional<String> objectName = entitiesDao.getEntityName(oid);
-            if (objectName.isPresent()) {
-                result.put("selected_item_name", objectName.get());
-            } else {
-                logger.warn("Could not find entity name for oid {}", oid);
-            }
-        }
+        populateDisplayName(result, oidString);
         // Some reports require this group to retrieve child elements. We still do not support this
         // in XL but this fake group will prevent report from being failed.
         // TODO
         result.put("vm_group_name", "fake_vm_group");
         return result;
+    }
+
+    private void populateDisplayName(@Nonnull final Map<String, String> result,
+                                     @Nonnull final String oidString) {
+        try {
+            if (oidString != null) {
+                final Long oid = Long.valueOf(oidString);
+                final Optional<String> objectName = entitiesDao.getEntityName(oid);
+                if (objectName.isPresent()) {
+                    result.put("selected_item_name", objectName.get());
+                } else {
+                    logger.warn("Could not find entity name for oid {}", oid);
+                }
+            }
+        } catch (DbException e) {
+           logger.error("Failed to get entity name for oid: {}", oidString);
+        }
     }
 
     /**

@@ -251,18 +251,18 @@ from
 			  display_name,
 			  producer_uuid,
 			  property_type,
-			  avg_value as utilization,
+			  ROUND(avg_value/capacity, 3) as utilization,
 			  capacity,
-			  round(avg_value*capacity) as used_capacity,
-			  round((1.0-avg_value)*capacity) as available_capacity,
-			  round( (if(min_value>1,1,min_value)) * capacity) as min_used_capacity,
-			  round( (if(max_value>1,1,max_value)) * capacity) as max_used_capacity,			  date(snapshot_time) as recorded_on
+			  round(avg_value) as used_capacity,
+			  round((1.0-ROUND(avg_value/capacity, 3))*capacity) as available_capacity,
+			  round( (if(ROUND(min_value/capacity, 3)>1,1,ROUND(min_value/capacity, 3))) * capacity) as min_used_capacity,
+			  round( (if(ROUND(max_value/capacity, 3)>1,1,ROUND(max_value/capacity, 3))) * capacity) as max_used_capacity,			  date(snapshot_time) as recorded_on
 			from
 			  vm_stats_by_day, vm_group_members
 			where
 			  vm_stats_by_day.uuid = member_uuid
 			  and group_uuid= ?
-			  and property_subtype = 'utilization'
+			  and property_subtype = 'used'
 			  and capacity > 0.00
 		) as vm_capacity_by_day
 	where
@@ -674,19 +674,19 @@ from
 			  display_name,
 			  producer_uuid,
 			  property_type,
-			  avg_value as utilization,
+			  ROUND(avg_value/capacity, 3) as utilization,
 			  capacity,
-			  round(avg_value*capacity) as used_capacity,
-			  round((1.0-avg_value)*capacity) as available_capacity,
-			  round( (if(min_value>1,1,min_value)) * capacity) as min_used_capacity,
-			  round( (if(max_value>1,1,max_value)) * capacity) as max_used_capacity,
+			  round(avg_value) as used_capacity,
+			  round((1.0-ROUND(avg_value/capacity, 3))*capacity) as available_capacity,
+			  round( (if(ROUND(min_value/capacity, 3)>1,1,ROUND(min_value/capacity, 3))) * capacity) as min_used_capacity,
+			  round( (if(ROUND(max_value/capacity, 3)>1,1,ROUND(max_value/capacity, 3))) * capacity) as max_used_capacity,
 			  date(snapshot_time) as recorded_on
 			from
 			  vm_stats_by_day, vm_group_members
 			where
 			  vm_stats_by_day.uuid = member_uuid
 			  and group_uuid= ?
-			  and property_subtype = 'utilization'
+			  and property_subtype = 'used'
 			  and capacity > 0.00
 		) as vm_capacity_by_day
 	where
@@ -1106,19 +1106,19 @@ from
 			  display_name,
 			  producer_uuid,
 			  property_type,
-			  avg_value as utilization,
+			  ROUND(avg_value/capacity, 3) as utilization,
 			  capacity,
-			  round(avg_value*capacity) as used_capacity,
-			  round((1.0-avg_value)*capacity) as available_capacity,
-			  round( (if(min_value>1,1,min_value)) * capacity) as min_used_capacity,
-			  round( (if(max_value>1,1,max_value)) * capacity) as max_used_capacity,
+			  round(avg_value) as used_capacity,
+			  round((1.0-ROUND(avg_value/capacity, 3))*capacity) as available_capacity,
+			  round( (if(ROUND(min_value/capacity, 3)>1,1,ROUND(min_value/capacity, 3))) * capacity) as min_used_capacity,
+			  round( (if(ROUND(max_value/capacity, 3)>1,1,ROUND(max_value/capacity, 3))) * capacity) as max_used_capacity,
 			  date(snapshot_time) as recorded_on
 			from
 			  vm_stats_by_day, vm_group_members
 			where
 			  vm_stats_by_day.uuid = member_uuid
 			  and group_uuid= ?
-			  and property_subtype = 'utilization'
+			  and property_subtype = 'used'
 			  and capacity > 0.00
 		) as vm_capacity_by_day
 	where
@@ -1136,19 +1136,19 @@ from
 			  vm_stats_by_day.uuid as uuid,
 			  producer_uuid,
 			  property_type,
-			  avg_value as utilization,
+			  ROUND(avg_value/capacity, 3) as utilization,
 			  capacity,
-			  round(avg_value*capacity) as used_capacity,
-			  round((1.0-avg_value)*capacity) as available_capacity,
-			  round( (if(min_value>1,1,min_value)) * capacity) as min_used_capacity,
-			  round( (if(max_value>1,1,max_value)) * capacity) as max_used_capacity,
+			  round(avg_value) as used_capacity,
+			  round((1.0-ROUND(avg_value/capacity, 3))*capacity) as available_capacity,
+			  round( (if(ROUND(min_value/capacity, 3)>1,1,ROUND(min_value/capacity, 3))) * capacity) as min_used_capacity,
+			  round( (if(ROUND(max_value/capacity, 3)>1,1,ROUND(max_value/capacity, 3))) * capacity) as max_used_capacity,
 			  date(snapshot_time) as recorded_on
 			from
 			  vm_stats_by_day, vm_group_members
 			where
 			  vm_stats_by_day.uuid = member_uuid
 			  and group_uuid= ?
-			  and property_subtype = 'utilization'
+			  and property_subtype = 'used'
 			  and capacity > 0.00
 		) as vm_capacity_by_day
 	where
@@ -1558,19 +1558,19 @@ from
 			  display_name,
 			  producer_uuid,
 			  property_type,
-			  avg_value as utilization,
+			  ROUND(avg_value/capacity, 3) as utilization,
 			  capacity,
-			  round(avg_value*capacity) as used_capacity,
-			  round((1.0-avg_value)*capacity) as available_capacity,
-			  round( (if(min_value>1,1,min_value)) * capacity) as min_used_capacity,
-			  round( (if(max_value>1,1,max_value)) * capacity) as max_used_capacity,
+			  round(avg_value) as used_capacity,
+			  round((1.0-ROUND(avg_value/capacity, 3))*capacity) as available_capacity,
+			  round( (if(ROUND(min_value/capacity, 3)>1,1,ROUND(min_value/capacity, 3))) * capacity) as min_used_capacity,
+			  round( (if(ROUND(max_value/capacity, 3)>1,1,ROUND(max_value/capacity, 3))) * capacity) as max_used_capacity,
 			  date(snapshot_time) as recorded_on
 			from
 			  vm_stats_by_day, vm_group_members
 			where
 			  vm_stats_by_day.uuid = member_uuid
 			  and group_uuid= ?
-			  and property_subtype = 'utilization'
+			  and property_subtype = 'used'
 			  and capacity > 0.00
 		) as vm_capacity_by_day
 	where
@@ -1588,19 +1588,19 @@ from
 			  vm_stats_by_day.uuid as uuid,
 			  producer_uuid,
 			  property_type,
-			  avg_value as utilization,
+			  ROUND(avg_value/capacity, 3) as utilization,
 			  capacity,
-			  round(avg_value*capacity) as used_capacity,
-			  round((1.0-avg_value)*capacity) as available_capacity,
-			  round( (if(min_value>1,1,min_value)) * capacity) as min_used_capacity,
-			  round( (if(max_value>1,1,max_value)) * capacity) as max_used_capacity,
+			  round(avg_value) as used_capacity,
+			  round((1.0-ROUND(avg_value/capacity, 3))*capacity) as available_capacity,
+			  round( (if(ROUND(min_value/capacity, 3)>1,1,ROUND(min_value/capacity, 3))) * capacity) as min_used_capacity,
+			  round( (if(ROUND(max_value/capacity, 3)>1,1,ROUND(max_value/capacity, 3))) * capacity) as max_used_capacity,
 			  date(snapshot_time) as recorded_on
 			from
 			  vm_stats_by_day, vm_group_members
 			where
 			  vm_stats_by_day.uuid = member_uuid
 			  and group_uuid= ?
-			  and property_subtype = 'utilization'
+			  and property_subtype = 'used'
 			  and capacity > 0.00
 		) as vm_capacity_by_day
 	where

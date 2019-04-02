@@ -1,6 +1,6 @@
 package com.vmturbo.reports.component;
 
-import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -114,7 +114,7 @@ public class ReportingServiceReportGenerationTest {
                         outputDir, threadPool, notificationSender, mock(MailManager.class), reportsDataGenerator);
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
                         outputDir, reportsGenerator, mock(Scheduler.class));
-        when(reportsDataGenerator.generateByTemplateId(anyInt())).thenReturn(true);
+        when(reportsDataGenerator.generateDataByRequest(any())).thenReturn(Optional.empty());
     }
 
     @After
@@ -236,7 +236,7 @@ public class ReportingServiceReportGenerationTest {
     public void verifyReportDataGeneratorCalled() throws InterruptedException {
         reportingServer.generateReport(request, observer);
         threadPool.awaitTermination(10, TimeUnit.SECONDS);
-        verify(reportsDataGenerator).generateByTemplateId(anyInt());
+        verify(reportsDataGenerator).generateDataByRequest(any());
     }
 
     /**

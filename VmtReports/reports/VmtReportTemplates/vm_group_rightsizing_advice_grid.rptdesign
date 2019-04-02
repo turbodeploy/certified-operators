@@ -163,11 +163,11 @@
       ,AVG(vcpu) AS avg_max_vcpu
       ,AVG(vmem) AS avg_max_vmem
   FROM (SELECT uuid
-              ,MAX(IF(property_type = 'VCPU', max_value, NULL)) AS vcpu
-              ,MAX(IF(property_type = 'VMem', max_value, NULL)) AS vmem
+              ,MAX(IF(property_type = 'VCPU', ROUND(max_value/capacity, 3), NULL)) AS vcpu
+              ,MAX(IF(property_type = 'VMem', ROUND(max_value/capacity, 3), NULL)) AS vmem
           FROM vm_stats_by_day
          WHERE property_type in ('VCPU', 'VMem')
-           AND property_subtype = 'utilization'
+           AND property_subtype = 'used'
            AND snapshot_time = SUBDATE(DATE(now()), 1)
          GROUP BY uuid
        ) vsd
@@ -499,15 +499,15 @@ from
 		snapshot_time,
 		uuid,
 		property_type,
-		property_subtype,
+		REPLACE(property_subtype, "used", "utilization") as property_subtype,
 		max(capacity) as capacity,
-		avg(avg_value) as avg_value,
-		max(max_value) as max_value, 
-		min(min_value) as min_value
+		avg(ROUND(avg_value/capacity, 3)) as avg_value,
+		max(ROUND(max_value/capacity, 3)) as max_value, 
+		min(ROUND(min_value/capacity, 3)) as min_value
 	from 
 		vm_stats_by_day
 	where 
-		property_subtype = 'utilization'
+		property_subtype = 'used'
 		and property_type in ('VCPU','VMem')
 		and snapshot_time between 
 			date_sub(date(now()), interval ? day) and date_sub(date(now()), interval 1 day)

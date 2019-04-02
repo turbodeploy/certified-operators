@@ -4,16 +4,23 @@ import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.Sets;
+
+import javaslang.Tuple2;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -25,6 +32,37 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  */
 public class ReportDataUtils {
 
+
+    @Nonnull
+    public static Set<Long> expandOids(@Nonnull final Set<Long> oidSet,
+                                @Nonnull GroupServiceBlockingStub groupServiceGrpc) {
+        Set<Long> answer = Sets.newHashSet();
+
+        boolean isEntity = false;
+        for (final Long oid : oidSet) {
+            // Assume it's group type at the beginning
+            // For subsequent items, if it's group type, we continue the RPC call to Group component.
+            // If not, we know it's entity type, and will just add oids to return set.
+            if (!isEntity) {
+                // If we know it's group, we can further optimize the codes to do multi olds RPC call.
+                GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                    .setId(oid)
+                    .setExpectPresent(false)
+                    .build();
+                GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
+
+                if (groupMembersResp.hasMembers()) {
+                    answer.addAll(groupMembersResp.getMembers().getIdsList());
+                } else {
+                    answer.add(oid);
+                    isEntity = true;
+                }
+            } else {
+                answer.add(oid);
+            }
+        }
+        return answer;
+    }
     /**
      * Convert from {@link ActionSpec} to {@link RightSizingInfo}
      *
@@ -145,13 +183,37 @@ public class ReportDataUtils {
         }
     }
 
-    // wrapper class to return default VM group PK and VM groups' PK
-    static class Results {
+    // wrapper class to return default VM group (PK, UUID) and VM groups' (PK, UUID)
+    static class GroupResults {
+        private Map<Group, Tuple2<Long, String>> groupToPK;
+        private Tuple2<Long, String> defaultGroupPK;
+
+        public GroupResults(@Nonnull Tuple2<Long, String> defaultVmGroupPK,
+                       @Nonnull Map<Group, Tuple2<Long, String>> groupToPK) {
+            this.groupToPK = groupToPK;
+            this.defaultGroupPK = defaultVmGroupPK;
+        }
+
+        public Map<Group, Tuple2<Long, String>> getGroupToPK() {
+            return groupToPK;
+        }
+
+        public Tuple2<Long, String> getDefaultGroupPK() {
+            return defaultGroupPK;
+        }
+    }
+
+    /**
+     * Store auto incremented ids for newly generated groups in entities table.
+     */
+    static class EntitiesTableGeneratedId {
+        // Group -> new generated group id in entities table.
         private Map<Group, Long> groupToPK;
+        // default group, e.g. all VM on-premise
         private Long defaultGroupPK;
 
-        public Results(@Nonnull Long defaultVmGroupPK,
-                       @Nonnull Map<Group, Long> groupToPK) {
+        public EntitiesTableGeneratedId(@Nonnull final Long defaultVmGroupPK,
+                                        @Nonnull final Map<Group, Long> groupToPK) {
             this.groupToPK = groupToPK;
             this.defaultGroupPK = defaultVmGroupPK;
         }

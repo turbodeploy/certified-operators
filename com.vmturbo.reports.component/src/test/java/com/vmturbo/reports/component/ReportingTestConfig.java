@@ -28,13 +28,6 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.google.common.collect.ImmutableMap;
 
-import io.grpc.Channel;
-
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -43,13 +36,11 @@ import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
-import com.vmturbo.reporting.api.protobuf.ReportingREST.ReportingServiceController;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
-import com.vmturbo.reports.component.data.ReportDBDataWriter;
 import com.vmturbo.reports.component.data.ReportTemplate;
 import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.reports.component.data.ReportsDataGenerator;
@@ -140,11 +131,11 @@ public class ReportingTestConfig {
                 mailManager(), new ReportsDataGenerator(mock(ReportsDataContext.class), getReportMap()));
     }
 
-    private Map<Integer, ReportTemplate> getReportMap(){
+    private Map<Long, ReportTemplate> getReportMap(){
         final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
-        return ImmutableMap.of(150, new Daily_vm_rightsizing_advice_grid(delegate),
-            184, new Daily_vm_over_under_prov_grid_30_days(delegate),
-            146, new Monthly_cluster_summary(delegate));
+        return ImmutableMap.of(150L, new Daily_vm_rightsizing_advice_grid(delegate),
+            184L, new Daily_vm_over_under_prov_grid_30_days(delegate),
+            146L, new Monthly_cluster_summary(delegate));
     }
 
     @Bean

@@ -14,26 +14,24 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
 import com.vmturbo.reports.component.data.GroupsGenerator;
 import com.vmturbo.reports.component.data.ReportTemplate;
-import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
 import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.sql.utils.DbException;
 
-/**
- * Insert report data to vmtdb for Daily_vm_rightsizing_advice_grid template .
- */
-public class Daily_vm_rightsizing_advice_grid extends GroupsGenerator implements ReportTemplate {
-
-    public Daily_vm_rightsizing_advice_grid(@Nonnull final GroupGeneratorDelegate groupGeneratorDelegate) {
-        super(groupGeneratorDelegate);
+public class VM_group_rightsizing_advice_grid extends GroupsGenerator implements ReportTemplate {
+    public VM_group_rightsizing_advice_grid(@Nonnull final GroupGeneratorDelegate delegate) {
+        super(delegate);
     }
 
     @Override
     public Optional<String> generateData(@Nonnull final ReportsDataContext context,
                                          @Nonnull Optional<Long> selectedGroup) throws DbException {
-        super.insertVMGroups(context);
-        populateRightSize(context);
+        if (selectedGroup.isPresent()) {
+            populateRightSize(context);
+            return super.insertVMGroup(context, selectedGroup.get());
+        }
         return Optional.empty();
     }
 

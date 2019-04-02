@@ -44,13 +44,13 @@ public class EntitiesDaoImpl implements EntitiesDao {
             records = dsl.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 return context.selectFrom(ENTITIES)
-                        .where(ENTITIES.ID.eq(oid))
+                        .where(ENTITIES.UUID.eq(String.valueOf(oid)))
                         .fetch()
                         .into(EntitiesRecord.class);
             });
         } catch (DataAccessException e) {
             throw new DbException("Error fetching entity with oid " + oid, e);
         }
-        return records.isEmpty() ? Optional.empty() : Optional.of(records.get(0).getName());
+        return records.isEmpty() ? Optional.empty() : Optional.of(records.get(0).getDisplayName());
     }
 }

@@ -14,13 +14,18 @@ import static com.vmturbo.reports.component.data.ReportDBDataWriter.VMS;
 import static org.jooq.impl.DSL.using;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
 import org.jooq.Result;
@@ -37,16 +42,26 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import javaslang.Tuple2;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Builder;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.EntityAssnsMembersEntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.EntityAssnsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.EntityAttrsRecord;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reports.component.ReportingTestConfig;
 import com.vmturbo.reports.component.data.ReportDataUtils.MetaGroup;
-import com.vmturbo.reports.component.data.ReportDataUtils.Results;
+import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -64,6 +79,13 @@ public class ReportDBDataWriterTest {
     private ReportingTestConfig reportingConfig;
     private ReportingServiceGrpc.ReportingServiceBlockingStub reportingService;
     private DSLContext dslContext;
+    private Random randomBoolean = new Random();
+
+    public static final SearchParameters.Builder SEARCH_PARAMETERS = SearchParameters.newBuilder()
+        .setStartingFilter(PropertyFilter.newBuilder()
+            .setPropertyName("entityType").setStringFilter(StringFilter
+                .newBuilder()
+                .setStringPropertyRegex("VirtualMachine")));
 
     @Before
     public void init() throws Exception {
@@ -84,7 +106,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertGroupsForVMs() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
         assertNotNull(results.getDefaultGroupPK());
         assertEquals(1, results.getGroupToPK().size());
         Result<EntitiesRecord> resultGroup = dslContext.selectFrom(ENTITIES)
@@ -98,23 +120,66 @@ public class ReportDBDataWriterTest {
     }
 
     @Test
+    public void testInsertGroupForVMs() throws DbException {
+        final Group group = getGroup(DISPLAY_NAME, NAME);
+        Tuple2<EntitiesTableGeneratedId, Optional<String>> results = reportDBDataWriter.insertGroup(group, MetaGroup.VMs);
+        assertNotNull(results._1.getDefaultGroupPK());
+        assertEquals(1, results._1.getGroupToPK().size());
+        Result<EntitiesRecord> resultGroup = dslContext.selectFrom(ENTITIES)
+            .where(ENTITIES.CREATION_CLASS.eq(GROUP)).fetch();
+        assertEquals(1, resultGroup.size());
+        assertEquals(DISPLAY_NAME, resultGroup.getValues(ENTITIES.DISPLAY_NAME).get(0));
+        Result<EntitiesRecord> resultStaticGroup = dslContext.selectFrom(ENTITIES)
+            .where(ENTITIES.CREATION_CLASS.eq(STATIC_META_GROUP)).fetch();
+        assertEquals(1, resultStaticGroup.size());
+        assertEquals(VMS, resultStaticGroup.getValues(ENTITIES.DISPLAY_NAME).get(0));
+        assertTrue(results._2.isPresent());
+    }
+
+    @Test
     public void testInsertGroupsForVMsAndPMs() throws DbException {
         final Group group1 = getGroup(DISPLAY_NAME, NAME);
-        Results resultsVMs = reportDBDataWriter.insertGroups(ImmutableList.of(group1), MetaGroup.VMs);
-        Results resultsPMs = reportDBDataWriter.insertGroups(ImmutableList.of(group1), MetaGroup.PMs);
+        EntitiesTableGeneratedId resultsVMs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.VMs);
+        EntitiesTableGeneratedId resultsPMs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.PMs);
         verifyDBResults(resultsVMs, resultsPMs);
     }
 
     @Test
     public void testInsertGroupsForPMsAndVMs() throws DbException {
         final Group group1 = getGroup(DISPLAY_NAME, NAME);
-        Results resultsPMs = reportDBDataWriter.insertGroups(ImmutableList.of(group1), MetaGroup.PMs);
-        Results resultsVMs = reportDBDataWriter.insertGroups(ImmutableList.of(group1), MetaGroup.VMs);
+        EntitiesTableGeneratedId resultsPMs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.PMs);
+        EntitiesTableGeneratedId resultsVMs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.VMs);
         verifyDBResults(resultsVMs, resultsPMs);
     }
 
+    @Test
+    public void testInsertGroupsForPMsVMsAndSTs() throws DbException {
+        final Group group1 = getGroup(DISPLAY_NAME, NAME);
+        EntitiesTableGeneratedId resultsVMs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.VMs);
+        EntitiesTableGeneratedId resultsPMs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.PMs);
+        EntitiesTableGeneratedId resultsSTs = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group1), MetaGroup.Storages);
+        System.out.println("test");
+        verifyDBResults(ImmutableSet.of(resultsVMs, resultsPMs, resultsSTs));
+    }
 
-    public void verifyDBResults(final Results resultsVMs, final Results resultsPMs) {
+    private void verifyDBResults(final ImmutableSet<EntitiesTableGeneratedId> results) {
+        results.forEach(result -> {
+                assertNotNull(result.getDefaultGroupPK());
+                assertEquals(1, result.getGroupToPK().size());
+            }
+        );
+        Result<EntitiesRecord> resultGroup = dslContext.selectFrom(ENTITIES)
+            .where(ENTITIES.CREATION_CLASS.eq(GROUP)).fetch();
+
+        assertEquals(results.size(), resultGroup.size());
+        assertEquals(results.stream().map(x -> DISPLAY_NAME).collect(Collectors.toList()), resultGroup.getValues(ENTITIES.DISPLAY_NAME));
+
+        Result<EntitiesRecord> resultStaticGroup = dslContext.selectFrom(ENTITIES)
+            .where(ENTITIES.CREATION_CLASS.eq(STATIC_META_GROUP)).fetch();
+        assertEquals(results.size(), resultStaticGroup.size());
+    }
+
+    public void verifyDBResults(final EntitiesTableGeneratedId resultsVMs, final EntitiesTableGeneratedId resultsPMs) {
         // verify VMs
         assertNotNull(resultsVMs.getDefaultGroupPK());
         assertEquals(1, resultsVMs.getGroupToPK().size());
@@ -136,18 +201,33 @@ public class ReportDBDataWriterTest {
     }
 
     public Group getGroup(final String displayName, final String name) {
-        return Group.newBuilder()
+
+        Builder builder =  Group.newBuilder()
+            .setId(1L);
+            //.setType(randomBoolean.nextBoolean() ? Type.CLUSTER: Type.GROUP) // test both Cluster and Group
+
+        return randomBoolean.nextBoolean() ?
+            builder.setType(Type.CLUSTER)
             .setCluster(ClusterInfo.newBuilder()
                 .setName(name)
                 .setDisplayName(displayName)
                 .build())
+            .build() :
+            builder.setType(Type.GROUP)
+            .setGroup(GroupInfo.newBuilder()
+                .setName(displayName)
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                    .addSearchParameters(SEARCH_PARAMETERS.setSourceFilterSpecs(buildFilterSpecs(
+                        "vmsByName", "foo", "foo")))))
             .build();
+
     }
 
     @Test
     public void testInsertGroupsForPMs() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.PMs);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.PMs);
         assertNotNull(results.getDefaultGroupPK());
         assertEquals(1, results.getGroupToPK().size());
         Result<EntitiesRecord> resultGroup = dslContext.selectFrom(ENTITIES)
@@ -163,7 +243,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertGroupsForStorages() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.Storages);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.Storages);
         assertNotNull(results.getDefaultGroupPK());
         assertEquals(1, results.getGroupToPK().size());
         Result<EntitiesRecord> resultGroup = dslContext.selectFrom(ENTITIES)
@@ -179,7 +259,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertEntityAssns() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
         reportDBDataWriter.insertEntityAssnsBatch(ImmutableList.of(results.getDefaultGroupPK()));
         Result<EntityAssnsRecord> resultGroup = dslContext.selectFrom(ENTITY_ASSNS)
             .where(ENTITY_ASSNS.ENTITY_ENTITY_ID.eq(results.getDefaultGroupPK())).fetch();
@@ -190,7 +270,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testCleanUpEntity_Assns() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
         List resultList = results.getGroupToPK().values().stream().collect(Collectors.toList());
         resultList.add(results.getDefaultGroupPK());
         reportDBDataWriter.insertEntityAssnsBatch(resultList);
@@ -206,7 +286,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertEntityAttrs() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
         Long id = results.getGroupToPK().get(group);
         reportDBDataWriter.insertEntityAttrs(ImmutableList.of(id), VIRTUAL_MACHINE);
         Result<EntityAttrsRecord> resultGroup = dslContext.selectFrom(ENTITY_ATTRS)
@@ -217,7 +297,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertEntity_Assns() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
         Long id = results.getGroupToPK().get(group);
         reportDBDataWriter.insertEntityAssns(results);
         Result<EntityAssnsRecord> resultGroup = dslContext.selectFrom(ENTITY_ASSNS)
@@ -228,9 +308,9 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertEntityAssnsMembersEntities() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        final Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        final EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
       //  Long id = results.getGroupToPK().get(group);
-        Results newResults = reportDBDataWriter.insertEntityAssns(results);
+        EntitiesTableGeneratedId newResults = reportDBDataWriter.insertEntityAssns(results);
         // just make up members (pk) that exists in entities table,
         final ImmutableSet<Long> entityIds = ImmutableSet.<Long>builder()
             .addAll(results.getGroupToPK().values())
@@ -259,7 +339,7 @@ public class ReportDBDataWriterTest {
     @Test
     public void testInsertRightSizeActions() throws DbException {
         final Group group = getGroup(DISPLAY_NAME, NAME);
-        final Results results = reportDBDataWriter.insertGroups(ImmutableList.of(group), MetaGroup.VMs);
+        final EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
         reportDBDataWriter.insertRightSizeActions(Collections.singletonList(TestHelper
             .resizeActionSpec(results.getDefaultGroupPK())));
         Result<EntityAttrsRecord> resultGroup = dslContext.selectFrom(ENTITY_ATTRS)
@@ -314,4 +394,12 @@ public class ReportDBDataWriterTest {
         assertEquals(1, resultAttrs.size());
 
     }
+
+    private SearchParameters.FilterSpecs buildFilterSpecs(@Nonnull String filterType,
+                                                          @Nonnull String expType, @Nonnull String expValue) {
+        return SearchParameters.FilterSpecs.newBuilder().setFilterType(filterType)
+            .setExpressionType(expType).setExpressionValue(expValue).build();
+    }
+
+
 }

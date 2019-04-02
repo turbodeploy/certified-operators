@@ -1,8 +1,11 @@
 package com.vmturbo.reports.component.data.vm;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
+import com.vmturbo.reports.component.data.GroupsGenerator;
 import com.vmturbo.reports.component.data.ReportTemplate;
 import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.sql.utils.DbException;
@@ -17,9 +20,10 @@ public class Daily_vm_over_under_prov_grid_30_days extends GroupsGenerator imple
     }
 
     @Override
-    public boolean generateData(@Nonnull final ReportsDataContext context) throws DbException {
+    public Optional<String> generateData(@Nonnull final ReportsDataContext context,
+                                         @Nonnull Optional<Long> selectedGroup) throws DbException {
         super.insertVMGroups(context);
         // TODO currently only stats under vm_groups table will show up
-        return true;
+        return Optional.empty();
     }
 }

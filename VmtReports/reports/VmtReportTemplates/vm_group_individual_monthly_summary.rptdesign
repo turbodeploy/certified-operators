@@ -336,17 +336,17 @@ order by display_name ASC]]></xml-property>
             </list-property>
             <xml-property name="queryText"><![CDATA[select 
 property_type, property_subtype, commodity_key,
-capacity, avg_value
+capacity, ROUND(avg_value/capacity, 3) as avg_value
 from 
 vm_stats_by_hour 
 where 
 (uuid = ?) 
 and (property_type='VStorage')
-and property_subtype='utilization'
+and property_subtype='used'
 and snapshot_time = 
     (select max(snapshot_time) from vm_stats_by_hour 
         where (property_type='VStorage' 
-        and property_subtype='utilization'
+        and property_subtype='used'
         and uuid = ?) 
     )
 order by substring(commodity_key from instr(commodity_key,'_')+1) ASC]]></xml-property>
@@ -413,22 +413,22 @@ order by substring(commodity_key from instr(commodity_key,'_')+1) ASC]]></xml-pr
     capacity
     from vm_stats_by_day 
     where property_type='VMem' 
-    and property_subtype='utilization'
+    and property_subtype='used'
     and uuid = ?
     and snapshot_time = 
         (select max(snapshot_time) from vm_stats_by_day 
             where property_type='VMem' 
-            and property_subtype='utilization'
+            and property_subtype='used'
             and uuid = ?
         )
     limit 1
 ) as capacity,  
-avg(avg_value) as avg_value
+avg(ROUND(avg_value/capacity, 3)) as avg_value
 from 
     vm_stats_by_day 
 where 
     property_type='VMem' 
-    and property_subtype='utilization'
+    and property_subtype='used'
     and uuid = ?
     and snapshot_time > date_sub(date(now()), interval 1 month)]]></xml-property>
         </oda-data-set>
@@ -532,7 +532,7 @@ where
     capacity
     from vm_stats_by_day 
     where property_type='VCPU' 
-    and property_subtype='utilization'
+    and property_subtype='used'
     and uuid = ?
     and snapshot_time = 
         (select max(snapshot_time) from vm_stats_by_day 
@@ -543,24 +543,24 @@ where
 ) as capacity,  
 (
     select 
-    max_value
+    ROUND(max_value/capacity, 3) as max_value
     from vm_stats_by_day 
     where property_type = 'numVCPUs'
     and uuid = ?
     and snapshot_time = 
         (select max(snapshot_time) from vm_stats_by_day 
             where property_type='VCPU' 
-            and property_subtype='utilization'
+            and property_subtype='used'
             and uuid = ?
         )
     limit 1
 ) as num_cpus, 
-avg(avg_value) as avg_value
+avg(ROUND(avg_value/capacity, 3)) as avg_value
 from 
     vm_stats_by_day 
 where 
     property_type='VCPU' 
-    and property_subtype='utilization'
+    and property_subtype='used'
     and uuid = ?
     and date(snapshot_time) > date_sub(date(now()), interval 1 month)
 ]]></xml-property>
@@ -624,7 +624,7 @@ FROM (
             vm_stats_by_hour
         WHERE 
             property_type='VStorage'
-            and property_subtype='utilization'
+            and property_subtype='used'
             AND commodity_key IS NOT NULL
         ) AS vm_stats_by_hour
     NATURAL JOIN
@@ -771,12 +771,12 @@ select
     substring(commodity_key from instr(commodity_key,'_')+1) as drive,
     max(avg_value) as max_util
 from 
-    (select uuid, commodity_key, avg_value
+    (select uuid, commodity_key, ROUND(avg_value/capacity, 3) as avg_value
     from 
     vm_stats_by_day
     where 
         (property_type='VStorage')
-        and property_subtype='utilization'
+        and property_subtype='used'
         and commodity_key is not null
         and snapshot_time > date_sub(date(now()), interval 1 month)
         and substring(commodity_key from instr(commodity_key,'_')+1) = ?

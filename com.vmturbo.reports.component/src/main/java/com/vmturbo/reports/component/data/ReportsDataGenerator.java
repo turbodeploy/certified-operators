@@ -2,6 +2,7 @@ package com.vmturbo.reports.component.data;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -11,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.reporting.api.ReportingConstants;
+import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -19,37 +22,46 @@ import com.vmturbo.sql.utils.DbException;
 public class ReportsDataGenerator {
     private final Logger logger = LogManager.getLogger();
     private final ReportsDataContext context;
-    private final Map<Integer, ReportTemplate> reportMap;
+    private final Map<Long, ReportTemplate> reportMap;
+
 
     public ReportsDataGenerator(@Nonnull final ReportsDataContext context,
-                                @Nonnull final Map<Integer, ReportTemplate> reportMap) {
+                                @Nonnull final Map<Long, ReportTemplate> standardReportMap
+                                ) {
         this.context = Objects.requireNonNull(context);
-        this.reportMap = Objects.requireNonNull(reportMap);
+        this.reportMap = Objects.requireNonNull(standardReportMap);
     }
 
     /**
-     * Generate data based on report template id.
+     * Generate data based on report request.
      *
-     * @param id report template id.
-     * @return true if the data generation is successfully.
+     * @param request report generation request.
+     * @return newly generated group id from entities table.
      */
-    public boolean generateByTemplateId(final int id) {
+    public Optional<String> generateDataByRequest(final GenerateReportRequest request) {
+        final long id = request.getTemplate().getId();
         if (reportMap.containsKey(id)) {
+            final Optional<Long> selectedUuid = (request.getParametersMap() != null &&
+                request.getParametersMap().containsKey(ReportingConstants.ITEM_UUID_PROPERTY)) ?
+                Optional.ofNullable(Long.valueOf(request.getParametersMap()
+                    .get(ReportingConstants.ITEM_UUID_PROPERTY))) : Optional.empty();
             final ReportTemplate reportTemplate = reportMap.get(id);
             try (DataMetricTimer timer = Metrics.REPORT_DATA_GENERATION_DURATION_CALCULATION
                 .labels(reportTemplate.getClass().getSimpleName()).startTimer()) {
-                reportTemplate.generateData(context);
+                logger.info("Start generating report data for template with id: {}", id);
+                final Optional<String> groupIdOptional = reportTemplate.generateData(context, selectedUuid);
+                logger.info("Generated report data for template with id: {}", id);
+                return groupIdOptional;
             } catch (DbException e) {
                 logger.error("Failed to generate report data for template id: " + id);
                 Metrics.REPORT_DATA_GENERATION_ERROR_COUNTS_SUMMARY
                     .labels(reportTemplate.getClass().getSimpleName())
                     .increment();
-                return false;
+                return Optional.empty();
             }
-            logger.info("Generated report data for template with id: " + id);
         }
-        logger.info("The template id (" + id + ") is not defined skip data generation.");
-        return true;
+        logger.info("The template id ({}) is not defined skip data generation.", id);
+        return Optional.empty();
     }
 
     private static class Metrics {
