@@ -60,7 +60,7 @@ public class UserScopeUtils {
             roles = SecurityConstant.USER_ROLES_KEY.get();
         }
 
-        if (CollectionUtils.isEmpty(roles) {
+        if (CollectionUtils.isEmpty(roles)) {
             // no roles found -- assuming not shared.
             // TODO: Once we have a reliable "system useras part of OM-44445.
             logger.debug("No roles found in calling context -- assuming user is not shared");
@@ -71,7 +71,7 @@ public class UserScopeUtils {
         // for now, if we see multiple roles being passed-in, throw a security exception.
         if (roles.size() > 1) {
             throw new SecurityException("Invalid user session information.");
-        })
+        }
         for (String role : roles) {
             if (SHARED_ROLES.contains(role)) {
                 logger.debug("User is 'shared' because it has role {}", role);
