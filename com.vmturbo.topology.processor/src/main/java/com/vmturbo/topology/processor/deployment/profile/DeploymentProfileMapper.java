@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.deployment.profile;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -57,13 +58,25 @@ public class DeploymentProfileMapper {
             return;
         }
         Map<String, Long> targetEntityMap = targetEntityMapOpt.get();
+        // check if the scope id exists in EntityStore, and log an error if not
+        final Predicate<String> scopeInEntityStore = scopeId -> {
+            if (targetEntityMap.containsKey(scopeId)) {
+                return true;
+            }
+            logger.error("Scope entity: " + scopeId + " not found in EntityStore for " +
+                "deployment profile: " + builder.getName() + " from target: " + targetId);
+            return false;
+        };
+
         builder.addScopes(Scope.newBuilder()
             .addAllIds(relatedScopeIds.stream()
+                .filter(scopeInEntityStore)
                 .map(targetEntityMap::get)
                 .collect(Collectors.toList()))
             .setScopeAccessType(ScopeAccessType.And));
         builder.addScopes(Scope.newBuilder()
             .addAllIds(accessibleScopeIds.stream()
+                .filter(scopeInEntityStore)
                 .map(targetEntityMap::get)
                 .collect(Collectors.toList()))
             .setScopeAccessType(ScopeAccessType.Or));
