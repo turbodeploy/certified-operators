@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -20,11 +21,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
+import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore.BuyReservedInstanceInfo;
 
 /**
  * The results of the reserved instance recommendation algorithms: a set of recommended actions, plus
@@ -33,6 +39,9 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 public class ReservedInstanceAnalysisResult {
 
     private static final Logger logger = LogManager.getLogger();
+
+    // Buy RI store
+    private final BuyReservedInstanceStore buyRiStore;
 
     /**
      * This class describes the context of the recommended actions, to aid in understanding the
@@ -112,7 +121,8 @@ public class ReservedInstanceAnalysisResult {
                           long topologyId,
                           long analysisStartTime,
                           long analysisCompletionTime,
-                          int contextsAnalyzed) {
+                          int contextsAnalyzed,
+                          @Nonnull BuyReservedInstanceStore buyRiStore) {
 
         Objects.requireNonNull(analysisScope);
         Objects.requireNonNull(purchaseConstraints);
@@ -120,6 +130,7 @@ public class ReservedInstanceAnalysisResult {
         this.manifest = new Manifest(analysisStartTime, analysisCompletionTime, analysisScope,
                 purchaseConstraints, topologyId, contextsAnalyzed);
         this.recommendations = ImmutableList.copyOf(recommendations);
+        this.buyRiStore = buyRiStore;
     }
 
     @Nonnull
@@ -194,5 +205,17 @@ public class ReservedInstanceAnalysisResult {
                 .setActionPlanType(ActionPlanType.BUY_RI)
                 .addAllAction(actions)
                 .build();
+    }
+
+    /**
+     * Creates RI Bought from the RI recommendations.
+     */
+    public void persistResults() {
+        // We create BuyReservedInstanceInfos from the recommendations and then persist them in the store.
+        Set<BuyReservedInstanceInfo> buyRiInfos = Sets.newHashSet();
+        for (ReservedInstanceAnalysisRecommendation recommendation : recommendations) {
+            buyRiInfos.add(recommendation.createBuyRiInfo(manifest.getTopologyContextId()));
+        }
+        buyRiStore.udpateBuyReservedInstances(buyRiInfos);
     }
 }

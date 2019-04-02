@@ -1,9 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
-import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.StringJoiner;
 
 import javax.annotation.Nonnull;
@@ -18,12 +16,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingClass;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredPaymentOption;
+import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore.BuyReservedInstanceInfo;
+import com.vmturbo.cost.component.reserved.instance.ImmutableBuyReservedInstanceInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -109,6 +114,11 @@ public class ReservedInstanceAnalysisRecommendation {
     // How many active hours were used in the calculations, hours where usage was not zero.
     private final int activeHours;
 
+    // Not final because we will set it only when calling createBuyRiInfo
+    private ReservedInstanceBoughtInfo riBoughtInfo;
+
+    private final ReservedInstanceSpec riSpec;
+
     public ReservedInstanceAnalysisRecommendation(@Nonnull String logTag,
                                                   @Nonnull String actionGoal,
                                                   @Nonnull ReservedInstanceRegionalContext context,
@@ -122,7 +132,8 @@ public class ReservedInstanceAnalysisRecommendation {
                                                   int numberOfHours,
                                                   int activeHours,
                                                   int riNormalizedCouponsCoupons,
-                                                  float riNormalizedCouponsUsed) {
+                                                  float riNormalizedCouponsUsed,
+                                                  @Nonnull ReservedInstanceSpec riSpec) {
         this.logTag = Objects.requireNonNull(logTag);
         this.actionGoal = Objects.requireNonNull(actionGoal);
         this.context = Objects.requireNonNull(context);
@@ -137,6 +148,7 @@ public class ReservedInstanceAnalysisRecommendation {
         this.activeHours = activeHours;
         this.riNormalizedCoupons = riNormalizedCouponsCoupons;
         this.riNormalizedCouponsUsed = riNormalizedCouponsUsed;
+        this.riSpec = Objects.requireNonNull(riSpec);
     }
 
     /**
@@ -285,6 +297,10 @@ public class ReservedInstanceAnalysisRecommendation {
         return activeHours;
     }
 
+    public ReservedInstanceSpec getRiSpec() {
+        return riSpec;
+    }
+
     /**
      *  Create Action object from the RI Recommendation.
      *
@@ -325,5 +341,29 @@ public class ReservedInstanceAnalysisRecommendation {
                         .build();
 
         return action;
+    }
+
+    // Creates the RI Bought object from the buy RI recommendation
+    public BuyReservedInstanceInfo createBuyRiInfo(long topologyContextId) {
+        if (riBoughtInfo == null) {
+            // TODO: Set the costs once it is ready
+            ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder()
+                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(0f).build())
+                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build())
+                    .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(0f).build());
+            // TODO: The numberOfCoupons needs to be = (number of instances bought * number of
+            // coupons per instance). Check if riNormalizedCoupons is returning that.
+            ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
+                    .setNumberOfCoupons(riNormalizedCoupons);
+            ReservedInstanceBoughtInfo.Builder riBoughtInfoBuilder = ReservedInstanceBoughtInfo.newBuilder()
+                    .setBusinessAccountId(context.getMasterAccount())
+                    .setNumBought(getCount())
+                    .setReservedInstanceSpec(getRiSpec().getId())
+                    .setReservedInstanceBoughtCost(riBoughtCost)
+                    .setReservedInstanceBoughtCoupons(riBoughtCoupons);
+            riBoughtInfo = riBoughtInfoBuilder.build();
+        }
+        return ImmutableBuyReservedInstanceInfo.builder()
+                .riBoughtInfo(riBoughtInfo).riSpec(riSpec).topologyContextId(topologyContextId).build();
     }
 }

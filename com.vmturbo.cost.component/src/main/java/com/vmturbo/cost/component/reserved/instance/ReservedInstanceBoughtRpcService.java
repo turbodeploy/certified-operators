@@ -54,12 +54,13 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
                     ? Optional.of(request.getRegionFilter())
                     : Optional.empty();
-            final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
+            final Optional<AvailabilityZoneFilter> azFilter = request.hasAvailabilityZoneFilter()
                     ? Optional.of(request.getAvailabilityZoneFilter())
                     : Optional.empty();
-            final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
+            final Optional<AccountFilter> accountFilter = request.hasAccountFilter()
                     ? Optional.of(request.getAccountFilter())
                     : Optional.empty();
+
             final ReservedInstanceBoughtFilter filter =
                     createReservedInstanceBoughtFilter(regionFilter, azFilter, accountFilter);
             final List<ReservedInstanceBought> reservedInstanceBoughts =

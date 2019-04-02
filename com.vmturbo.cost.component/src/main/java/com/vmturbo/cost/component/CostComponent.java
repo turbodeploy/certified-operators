@@ -57,6 +57,9 @@ public class CostComponent extends BaseVmtComponent {
     private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
+    private BuyRIAnalysisConfig buyRIAnalysisConfig;
+
+    @Autowired
     private CostConfig costConfig;
 
     @Autowired
@@ -105,7 +108,8 @@ public class CostComponent extends BaseVmtComponent {
                 .addService(ServerInterceptors.intercept(
                         reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(), monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(costServiceConfig.riAndExpenseUploadRpcService(), monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(costServiceConfig.costDebugRpcService(), monitoringInterceptor));
+                .addService(ServerInterceptors.intercept(costServiceConfig.costDebugRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(buyRIAnalysisConfig.buyReservedInstanceRpcService(), monitoringInterceptor));
         return Optional.of(builder.build());
     }
 }

@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
@@ -51,6 +52,9 @@ public class ReservedInstanceAnalysisConfig {
     private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
+    private BuyRIAnalysisConfig buyRIAnalysisConfig;
+
+    @Autowired
     private ReservedInstanceActionsSenderConfig reservedInstanceActionsSenderConfig;
 
     @Autowired
@@ -77,6 +81,7 @@ public class ReservedInstanceAnalysisConfig {
                 computeTierDemandStatsConfig.riDemandStatsStore(),
                 topologyListenerConfig.cloudTopologyFactory(),
                 reservedInstanceActionsSenderConfig.actionSender(),
+                buyRIAnalysisConfig.buyReservedInstanceStore(),
                 realtimeTopologyContextId);
     }
 

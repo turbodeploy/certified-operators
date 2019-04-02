@@ -9,7 +9,6 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -21,7 +20,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,8 +41,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -60,6 +56,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
+import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
@@ -67,6 +64,7 @@ import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActio
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -105,6 +103,8 @@ public class ReservedInstanceAnalyzer {
     // The inventory of RIs that have already been purchased
     private final ReservedInstanceBoughtStore riBoughtStore;
 
+    private final BuyReservedInstanceStore buyRiStore;
+
     private final ReservedInstanceSpecStore riSpecStore;
 
     private final RepositoryServiceBlockingStub repositoryClient;
@@ -121,7 +121,7 @@ public class ReservedInstanceAnalyzer {
 
     private final ReservedInstanceActionsSender actionsSender;
 
-    private final long realtimeTopologyContextId;
+    private final long topologyContextId;
 
     // A count of the number of separate contexts that were analyzed -- separate
     // combinations of region, tenancy, platform, and instance type or family
@@ -142,7 +142,8 @@ public class ReservedInstanceAnalyzer {
      * @param priceTableStore Provides price information for RIs and on-demand instances.
      * @param computeTierDemandStatsStore Provides historical data for instances.
      * @param cloudTopologyFactory Cloud topology factory.
-     * @param realtimeTopologyContextId Realtime topology contextId.
+     * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
+     * @param topologyContextId topology contextId.
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
@@ -152,7 +153,8 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
                                     @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
-                                    long realtimeTopologyContextId) {
+                                    @Nonnull BuyReservedInstanceStore buyRiStore,
+                                    long topologyContextId) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
@@ -161,14 +163,15 @@ public class ReservedInstanceAnalyzer {
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.actionsSender = Objects.requireNonNull(actionsSender);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.buyRiStore = Objects.requireNonNull(buyRiStore);
+        this.topologyContextId = topologyContextId;
     }
 
     public void runRIAnalysisAndSendActions(@Nonnull ReservedInstanceAnalysisScope scope,
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
-
         ReservedInstanceAnalysisResult result = analyze(scope, historicalDemandDataType);
         ActionPlan actionPlan = result.createActionPlan();
+        result.persistResults();
         try {
             actionsSender.notifyActionsRecommended(actionPlan);
         } catch (InterruptedException ie) {
@@ -205,7 +208,7 @@ public class ReservedInstanceAnalyzer {
             final RetrieveTopologyEntitiesResponse response =
                     repositoryClient.retrieveTopologyEntities(
                             RetrieveTopologyEntitiesRequest.newBuilder()
-                                    .setTopologyContextId(realtimeTopologyContextId)
+                                    .setTopologyContextId(topologyContextId)
                                     .setTopologyType(TopologyType.SOURCE)
                                     .build());
             TopologyEntityCloudTopology cloudTopology =
@@ -241,8 +244,8 @@ public class ReservedInstanceAnalyzer {
                 removeBuyZeroRecommendations(recommendations);
                 ReservedInstanceAnalysisResult result =
                         new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
-                                realtimeTopologyContextId, analysisStartTime.getTime(),
-                                (new Date()).getTime(), numContextsAnalyzed);
+                                topologyContextId, analysisStartTime.getTime(),
+                                (new Date()).getTime(), numContextsAnalyzed, buyRiStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
                         map.size(), recommendations.size(), overallTime.elapsed(TimeUnit.MILLISECONDS));
@@ -382,6 +385,9 @@ public class ReservedInstanceAnalyzer {
         Table<Long, Long, List<ReservedInstanceBoughtInfo>> reservedInstanceBoughtTable =
                 fetchReservedInstanceBought();
         Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap = fetchReservedInstanceSpecs();
+        Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap = reservedInstanceSpecMap.entrySet()
+                .stream().collect(Collectors.toMap(
+                        e -> e.getValue().getReservedInstanceSpecInfo(), e -> e.getValue()));
 
         PriceTable priceTable = priceTableStore.getMergedPriceTable();
         ReservedInstancePriceTable reservedInstancePriceTable =
@@ -435,8 +441,9 @@ public class ReservedInstanceAnalyzer {
             if (kernelResult == null) {
                 continue;
             }
-            ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(scope, regionalContext, purchaseConstraints,
-                    kernelResult, pricing, activeHours);
+            ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(scope,
+                    regionalContext, purchaseConstraints, kernelResult, pricing, activeHours,
+                    riSpecLookupMap);
             if (recommendation != null) {
                 recommendations.add(recommendation);
             }
@@ -682,6 +689,8 @@ public class ReservedInstanceAnalyzer {
      * @param constraints the constraints under which to purchase RIs.
      * @param kernelResult the results from running the kernel algorithm
      * @param pricing the hourly cost for on demand and RI.
+     * @param activeHours
+     * @param riSpecLookupMap map of riSpec to riSpec. Used to look up riSpecId from the regionalContext.
      * @return a list of recommendations, which may be empty if no actions are necessary.
      */
     @Nullable
@@ -690,7 +699,8 @@ public class ReservedInstanceAnalyzer {
                                                                           @Nonnull ReservedInstancePurchaseConstraints constraints,
                                                                           @Nonnull RecommendationKernelAlgorithmResult kernelResult,
                                                                           @Nonnull PricingProviderResult pricing,
-                                                                          int activeHours) {
+                                                                          int activeHours,
+                                                                          @Nonnull Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap) {
         Objects.requireNonNull(regionalContext);
         Objects.requireNonNull(constraints);
         Objects.requireNonNull(kernelResult);
@@ -716,6 +726,12 @@ public class ReservedInstanceAnalyzer {
 
         logger.debug("{}numberOfRIsToBuy {} > 0  for computeTier {} in cluster {}",
             logTag, numberOfRIsToBuy, regionalContext.getComputeTier(), regionalContext);
+        ReservedInstanceSpec riSpec = getRiSpec(
+                scope.getRiPurchaseProfile().getRiType(), regionalContext, riSpecLookupMap);
+        if (riSpec == null) {
+            logger.error("Could not find riSpec for {}", regionalContext);
+            return null;
+        }
         recommendation = new ReservedInstanceAnalysisRecommendation(recommendationTag,
                                             actionGoal,
                                             regionalContext,
@@ -729,9 +745,23 @@ public class ReservedInstanceAnalyzer {
                                             kernelResult.getTotalHours(),
                                             activeHours,
                                             riPotentialInCoupons,
-                                            riUsedInCoupons);
+                                            riUsedInCoupons,
+                                            riSpec);
 
         return recommendation;
+    }
+
+    private ReservedInstanceSpec getRiSpec(@Nonnull ReservedInstanceType riType,
+            @Nonnull ReservedInstanceRegionalContext regionalContext,
+            @Nonnull Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap) {
+        ReservedInstanceSpecInfo riSpecInfoToLookup = ReservedInstanceSpecInfo.newBuilder()
+                .setOs(regionalContext.getPlatform())
+                .setRegionId(regionalContext.getRegion())
+                .setTenancy(regionalContext.getTenancy())
+                .setTierId(regionalContext.getComputeTier().getOid())
+                .setType(riType)
+                .build();
+        return riSpecLookupMap.get(riSpecInfoToLookup);
     }
 
     /**

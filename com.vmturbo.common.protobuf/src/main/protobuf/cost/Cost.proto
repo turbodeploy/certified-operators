@@ -175,7 +175,7 @@ message EntityReservedInstanceCoverage {
 // Actual message that gets sent across the wire from market component
 // containing projected ri coverage of entities in topology.
 message ProjectedEntityReservedInstanceCoverage {
-	// The ID of the projected topology the cost is for.
+    // The ID of the projected topology the cost is for.
     optional int64 projected_topology_id = 1;
 
     oneof segment {
@@ -583,6 +583,25 @@ message GetReservedInstanceBoughtByFilterResponse {
     repeated ReservedInstanceBought reserved_instance_boughts = 1;
 }
 
+// A request to get Buy reserved instances by some filter condition. If there is more than one
+// filter type, it will consider all of them and perform AND logic.
+message GetBuyReservedInstancesByFilterRequest {
+    // get buy reserved instance recommendations filter by topology context id
+    optional int64 topology_context_id = 1;
+
+    // get buy reserved instance recommendations filter by region ids.
+    optional RegionFilter region_filter = 2;
+
+    // get buy reserved instance recommendations filter by account ids.
+    optional AccountFilter account_filter = 3;
+}
+
+// A response contains a list of buy RIs represented as reserved instance bought.
+message GetBuyReservedInstancesByFilterResponse {
+    // A list of buy RIs represented as reserved instance bought.
+    repeated ReservedInstanceBought reserved_instance_boughts = 1;
+}
+
 // A request to get reserved instance bought count map.
 message GetReservedInstanceBoughtCountRequest {
     // get reserved instance bought filter by region ids.
@@ -810,6 +829,31 @@ message GetEntityReservedInstanceCoverageResponse {
 }
 
 message StartBuyRIAnalysisRequest {
+    // the topology info
+    optional .topology.TopologyInfo topologyInfo = 1;
+
+    // the list of platforms to analyze buy RI
+    repeated common_dto.OSType platforms = 2;
+
+    // the list of regions to analyze buy RI
+    repeated int64 regions = 3;
+
+    // the list of tenancies to analyze buy RI
+    repeated common_dto.Tenancy tenancies = 4;
+
+    // the list of business accounts to analyze buy RI
+    repeated int64 accounts = 5;
+
+    // the RI purchase profile
+    optional RIPurchaseProfile purchaseProfile = 6;
+}
+// the RI purchase profile for buy RI recommendations
+message RIPurchaseProfile {
+    // the reserved instance type. The type of RIs which will be suggested in the Buy RI results
+    optional common_dto.ReservedInstanceType riType = 1;
+
+    // the purchase date of the RI
+    optional int64 purchaseDate = 2;
 }
 
 message StartBuyRIAnalysisResponse {
@@ -831,7 +875,7 @@ service ReservedInstanceBoughtService {
 
     // Get the per-entity RI coverage information - how much of an entity is covered by which RIs.
     rpc GetEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest) returns
-        (GetEntityReservedInstanceCoverageResponse);
+    (GetEntityReservedInstanceCoverageResponse);
 }
 
 // A service for getting reserved instance spec.
@@ -840,15 +884,22 @@ service ReservedInstanceSpecService {
     rpc GetReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest) returns (GetReservedInstanceSpecByIdsResponse);
 }
 
+// A service for getting Buy RIs
+service BuyReservedInstanceService {
+    // Get buy RIs by some filter condition, such as filter by topology context id, region, business account.
+    rpc GetBuyReservedInstancesByFilter(GetBuyReservedInstancesByFilterRequest) returns
+    (GetBuyReservedInstancesByFilterResponse);
+}
+
 // A service for reserved instance utilization and coverage stats.
 service ReservedInstanceUtilizationCoverageService {
     // Get the reserved instance utilization stats.
     rpc GetReservedInstanceUtilizationStats(GetReservedInstanceUtilizationStatsRequest)
-        returns(GetReservedInstanceUtilizationStatsResponse);
+    returns(GetReservedInstanceUtilizationStatsResponse);
 
     // Get the reserved instance coverage stats.
     rpc GetReservedInstanceCoverageStats(GetReservedInstanceCoverageStatsRequest)
-        returns(GetReservedInstanceCoverageStatsResponse);
+    returns(GetReservedInstanceCoverageStatsResponse);
 }
 
 // A service for buy reserved instance analysis.
@@ -856,7 +907,7 @@ service BuyRIAnalysisService {
     // Set a new interval for buy RI analysis schedule. Note that this will
     // trigger buy RI analysis immediately.
     rpc SetBuyRIAnalysisSchedule(SetBuyRIAnalysisScheduleRequest)
-        returns (SetBuyRIAnalysisScheduleResponse);
+    returns (SetBuyRIAnalysisScheduleResponse);
 
     rpc StartBuyRIAnalysis(StartBuyRIAnalysisRequest) returns (StartBuyRIAnalysisResponse);
 }

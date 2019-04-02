@@ -9,7 +9,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
+import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({ComputeTierDemandStatsConfig.class,
@@ -23,10 +25,16 @@ public class BuyRIAnalysisConfig {
     private long normalBuyRIAnalysisIntervalHours;
 
     @Autowired
+    private SQLDatabaseConfig databaseConfig;
+
+    @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
     @Autowired
     private ReservedInstanceAnalysisConfig reservedInstanceAnalysisConfig;
+
+    @Autowired
+    private IdentityProviderConfig identityProviderConfig;
 
     @Bean
     public BuyRIAnalysisScheduler buyReservedInstanceScheduler() {
@@ -44,5 +52,16 @@ public class BuyRIAnalysisConfig {
     @Bean
     public BuyRIAnalysisServiceController buyReservedInstanceScheduleServiceController() {
         return new BuyRIAnalysisServiceController(buyReservedInstanceScheduleRpcService());
+    }
+
+    @Bean
+    public BuyReservedInstanceStore buyReservedInstanceStore() {
+        return new BuyReservedInstanceStore(databaseConfig.dsl(),
+                identityProviderConfig.identityProvider());
+    }
+
+    @Bean
+    public BuyReservedInstanceRpcService buyReservedInstanceRpcService() {
+        return new BuyReservedInstanceRpcService(buyReservedInstanceStore());
     }
 }

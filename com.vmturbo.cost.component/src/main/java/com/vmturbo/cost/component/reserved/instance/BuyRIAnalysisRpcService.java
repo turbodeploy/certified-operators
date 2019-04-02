@@ -95,7 +95,7 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
         buyRIFuture = buyRIExecutor.submit( () -> {
             logger.info("Executing buy RI algorithm.");
             ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
-                    new ReservedInstanceAnalysisScope();
+                    new ReservedInstanceAnalysisScope(request);
             reservedInstanceAnalyzer.runRIAnalysisAndSendActions(reservedInstanceAnalysisScope,
                     ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
             return;

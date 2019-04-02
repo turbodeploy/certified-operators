@@ -9,6 +9,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -54,6 +57,11 @@ public class ReservedInstanceAnalysisScope {
     private final boolean overrideRICoverage;
 
     /**
+     * The type of RI to be bought which includes offering class, payment option, term, purchase date.
+     */
+    private final RIPurchaseProfile riPurchaseProfile;
+
+    /**
      * Create an object describing the scope of analysis to be performed.
      *
      * @param platforms             the set of platforms to analyze. If null, all platforms.
@@ -70,13 +78,16 @@ public class ReservedInstanceAnalysisScope {
      * @param overrideRICoverage    The coverage can be overriden by a percentage. false override
      *                              coverage means default maximum savings and true override
      *                              coverage means specific coverage
+     * @param riPurchaseProfile     The type of RI to be bought which includes offering class,
+     *                              payment option, term, purchase date.
      */
     public ReservedInstanceAnalysisScope(@Nullable Collection<OSType> platforms,
                          @Nullable Collection<Long> regions,
                          @Nullable Collection<Tenancy> tenancies,
                          @Nullable Collection<Long> accounts,
                          float preferredCoverage,
-                         boolean overrideRICoverage) {
+                         boolean overrideRICoverage,
+                         @Nullable RIPurchaseProfile riPurchaseProfile) {
             this.platforms = (platforms==null) ?
                     ImmutableSet.copyOf(OSType.values()) :
                     ImmutableSet.copyOf(platforms);
@@ -91,29 +102,23 @@ public class ReservedInstanceAnalysisScope {
                     : ImmutableSet.copyOf(accounts);
         this.preferredCoverage = preferredCoverage;
         this.overrideRICoverage = overrideRICoverage;
+        this.riPurchaseProfile = riPurchaseProfile;
     }
 
     /**
-     * Create a default analysis scope with a target coverage percentage.
+     * Create analysis scope based on the StartBuyRIAnalysisRequest.
      *
-     * @param preferredCoverage The target for the percentage of usage to be covered. A positive number
-     *     indicates to cover at least this percentage of usage with RIs. A negative number indicates
-     *     that the algorithm should choose itself how much to cover for the lowest possible cost.
-     * @return a scope object covering all platforms in all regions,
-     * of all supported tenancies, with a desired coverage.
+     * @param startAnalysisRequest The start analysis request which contains the scope of analysis
+     *                             like platforms, regions, tenancies, accounts
      */
-    public ReservedInstanceAnalysisScope(float preferredCoverage, boolean overrideRICoverage) {
-        this(null, null, null, null, preferredCoverage, overrideRICoverage);
-    }
-
-    /**
-     * Entry point for real time scheduled RI analysis.
-     *
-     * @return a scope object covering all platforms in all regions,
-     * of all supported tenancies, for the lowest cost.
-     */
-    public ReservedInstanceAnalysisScope() {
-        this(null, null, null, null, -1, false);
+    public ReservedInstanceAnalysisScope(StartBuyRIAnalysisRequest startAnalysisRequest) {
+        // TODO: Should the default values of preferred coverage and override coverage come from
+        // startBuyAnalysisRequest?
+        this(startAnalysisRequest.getPlatformsList(),
+                startAnalysisRequest.getRegionsList(),
+                startAnalysisRequest.getTenanciesList(),
+                startAnalysisRequest.getAccountsList(), -1, false,
+                startAnalysisRequest.getPurchaseProfile());
     }
 
     /**
@@ -161,5 +166,9 @@ public class ReservedInstanceAnalysisScope {
 
     public boolean getOverrideRICoverage() {
         return overrideRICoverage;
+    }
+
+    public RIPurchaseProfile getRiPurchaseProfile() {
+        return riPurchaseProfile;
     }
 }
