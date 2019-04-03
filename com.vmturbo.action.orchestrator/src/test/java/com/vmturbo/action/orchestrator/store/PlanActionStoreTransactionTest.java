@@ -25,10 +25,13 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+
+import com.google.common.collect.ImmutableMap;
 
 /**
  * Test transaction failures with the {@link PlanActionStore}.
@@ -69,7 +72,7 @@ public class PlanActionStoreTransactionTest {
         assertFalse(actionStore.populateRecommendedActions(actionPlan.toBuilder().setId(1234L).build()));
 
         // The store should have failed to populate and planId should continue to be null.
-        assertEquals(initialPlanId, (long)actionStore.getActionPlanId().get());
+        assertEquals(initialPlanId, (long)actionStore.getActionPlanId(ActionPlanType.MARKET).get());
     }
 
     @Test
@@ -81,7 +84,7 @@ public class PlanActionStoreTransactionTest {
         assertFalse(actionStore.populateRecommendedActions(actionPlan));
 
         // And the plan ID should not get set.
-        assertFalse(actionStore.getActionPlanId().isPresent());
+        assertFalse(actionStore.getActionPlanId(ActionPlanType.MARKET).isPresent());
     }
 
     @Test
@@ -93,10 +96,10 @@ public class PlanActionStoreTransactionTest {
         List<Action> actions = actionPlan.getActionList().stream()
             .map(action -> actionFactory.newAction(action, actionPlan.getId()))
             .collect(Collectors.toList());
-        assertFalse(actionStore.overwriteActions(actions));
+        assertFalse(actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actions)));
 
         // And the plan ID should not get set.
-        assertFalse(actionStore.getActionPlanId().isPresent());
+        assertFalse(actionStore.getActionPlanId(ActionPlanType.MARKET).isPresent());
     }
 
     @Test
@@ -111,7 +114,7 @@ public class PlanActionStoreTransactionTest {
         assertFalse(actionStore.clear());
 
         // The store should have failed to populate and planId should continue to be null.
-        assertEquals(initialPlanId, (long)actionStore.getActionPlanId().get());
+        assertEquals(initialPlanId, (long)actionStore.getActionPlanId(ActionPlanType.MARKET).get());
     }
 
     private static DSLContext contextFor(@Nonnull final MockDataProvider mockProvider) {

@@ -16,11 +16,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.collections4.SetUtils;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -34,6 +37,11 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -43,7 +51,9 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -113,7 +123,7 @@ public class PlanActionStoreTest {
     @Test
     public void testPopulateRecommendedActionsFromEmpty() throws Exception {
         assertEquals(0, allMarketActions().size());
-        actionStore.populateRecommendedActions(actionPlan(firstPlanId, firstContextId, actionList(3)));
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
 
         assertEquals(3, allMarketActions().size());
         assertEquals(3, marketActionsForContext(firstContextId).size());
@@ -123,22 +133,17 @@ public class PlanActionStoreTest {
     @Test
     public void testPopulateRecommendedActionsOverwrite() throws Exception {
         assertEquals(0, allMarketActions().size());
-        actionStore.populateRecommendedActions(actionPlan(firstPlanId, firstContextId, actionList(3)));
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
         assertEquals(3, allMarketActions().size());
 
-        actionStore.populateRecommendedActions(actionPlan(firstPlanId, firstContextId, actionList(1)));
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(1)));
         assertEquals(1, allMarketActions().size());
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testPopulateRecommendedActionsWithDifferentContext() throws Exception {
-        actionStore.populateRecommendedActions(actionPlan(firstPlanId, firstContextId, actionList(3)));
-        assertEquals(3, marketActionsForContext(firstContextId).size());
-        assertEquals(0, marketActionsForContext(secondContextId).size());
-
-        actionStore.populateRecommendedActions(actionPlan(secondPlanId, secondContextId, actionList(4)));
-        assertEquals(0, marketActionsForContext(firstContextId).size());
-        assertEquals(4, marketActionsForContext(secondContextId).size());
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
+        actionStore.populateRecommendedActions(marketActionPlan(secondPlanId, secondContextId, actionList(4)));
     }
 
     @Test
@@ -148,7 +153,7 @@ public class PlanActionStoreTest {
 
     @Test
     public void testSizeAfterPopulate() throws Exception {
-        actionStore.populateRecommendedActions(actionPlan(firstPlanId, firstContextId, actionList(3)));
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
         assertEquals(3, actionStore.size());
     }
 
@@ -160,7 +165,7 @@ public class PlanActionStoreTest {
         @Test
     public void testGetActionViews() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
         Collection<ActionView> actionViews = actionStore.getActionViews().values();
@@ -171,7 +176,7 @@ public class PlanActionStoreTest {
     @Test
     public void testGetActionView() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
         final ActionView actionView = actionStore.getActionView(1).get();
@@ -196,7 +201,7 @@ public class PlanActionStoreTest {
     @Test
     public void testGetAction() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
         ActionOrchestratorTestUtils.assertActionsEqual(
@@ -213,7 +218,7 @@ public class PlanActionStoreTest {
     @Test
     public void testGetActions() throws Exception {
         final List<ActionDTO.Action> actionList = actionList(3);
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, actionList);
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, actionList);
         actionStore.populateRecommendedActions(actionPlan);
 
         Map<Long, Action> actionsMap = actionStore.getActions();
@@ -232,7 +237,7 @@ public class PlanActionStoreTest {
                     firstPlanId))
             .collect(Collectors.toList());
 
-        actionStore.overwriteActions(actionList);
+        actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
                 ActionOrchestratorTestUtils.assertActionsEqual(
@@ -244,23 +249,32 @@ public class PlanActionStoreTest {
 
     @Test
     public void testOverwriteActions() throws Exception {
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, actionList(4));
-        actionStore.populateRecommendedActions(actionPlan);
+        final ActionPlan actionPlan1 = marketActionPlan(firstPlanId, firstContextId, actionList(4));
+        final ActionPlan actionPlan2 = buyRIActionPlan(secondPlanId, firstContextId, actionList(3));
+        actionStore.populateRecommendedActions(actionPlan1);
+        actionStore.populateRecommendedActions(actionPlan2);
 
         final int numOverwriteActions = 2;
-        final List<Action> overwriteActions = actionList(numOverwriteActions).stream()
+        final List<Action> marketOverwriteActions = actionList(numOverwriteActions).stream()
             .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                    firstPlanId))
+                firstPlanId))
+            .collect(Collectors.toList());
+        final List<Action> buyRIOverwriteActions = actionList(numOverwriteActions).stream()
+            .map(buyRIAction -> actionFactory.newAction(buyRIAction, actionRecommendationTime,
+                secondPlanId))
             .collect(Collectors.toList());
 
-        actionStore.overwriteActions(overwriteActions);
+        actionStore.overwriteActions(ImmutableMap.of(
+            ActionPlanType.MARKET, marketOverwriteActions,
+            ActionPlanType.BUY_RI, buyRIOverwriteActions));
+        Map<ActionPlanType, Collection<Action>> actionsByActionPlanType = actionStore.getActionsByActionPlanType();
+        assertEquals(2, actionsByActionPlanType.size());
         Map<Long, Action> actionsMap = actionStore.getActions();
-        assertEquals(numOverwriteActions, actionsMap.size());
-        overwriteActions.forEach(action ->
-                ActionOrchestratorTestUtils.assertActionsEqual(
-                    action,
-                    actionsMap.get(action.getId())
-                )
+        ListUtils.union(marketOverwriteActions, buyRIOverwriteActions).forEach(action ->
+            ActionOrchestratorTestUtils.assertActionsEqual(
+                action,
+                actionsMap.get(action.getId())
+            )
         );
     }
 
@@ -268,20 +282,20 @@ public class PlanActionStoreTest {
     public void testClearEmpty() {
         assertTrue(actionStore.clear());
         assertEquals(0, actionStore.size());
-        assertFalse(actionStore.getActionPlanId().isPresent());
+        assertFalse(actionStore.getActionPlanId(ActionPlanType.MARKET).isPresent());
     }
 
     @Test
     public void testClear() {
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, actionList(2));
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, actionList(2));
         actionStore.populateRecommendedActions(actionPlan);
 
         assertEquals(2, actionStore.size());
-        assertEquals(firstPlanId, (long) actionStore.getActionPlanId().get());
+        assertEquals(firstPlanId, (long) actionStore.getActionPlanId(ActionPlanType.MARKET).get());
 
         assertTrue(actionStore.clear());
         assertEquals(0, actionStore.size());
-        assertFalse(actionStore.getActionPlanId().isPresent());
+        assertFalse(actionStore.getActionPlanId(ActionPlanType.MARKET).isPresent());
     }
 
     @Test
@@ -299,14 +313,71 @@ public class PlanActionStoreTest {
 
     @Test
     public void testStoreLoader() {
-        final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, actionList(2));
-        actionStore.populateRecommendedActions(actionPlan);
+        // map of topology context id to action store
+        Map<Long, ActionStore> expectedActionStores = Maps.newHashMap();
+        Map<Long, ActionStore> actualActionStores = Maps.newHashMap();
 
+        // Setup first planActionStore. This has 2 Market actions and 3 Buy RI Actions
+        final ActionPlan marketActionPlan = marketActionPlan(firstPlanId, firstContextId, actionList(2));
+        final ActionPlan buyRIActionPlan = buyRIActionPlan(secondPlanId, firstContextId, actionList(3));
+        actionStore.populateRecommendedActions(marketActionPlan);
+        actionStore.populateRecommendedActions(buyRIActionPlan);
+        expectedActionStores.put(firstContextId, actionStore);
+
+        // Setup second planActionStore. This has 9 Buy RI Actions
+        final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
+        PlanActionStore actionStore2 = new PlanActionStore(actionFactory, dsl, secondContextId);
+        actionStore2.populateRecommendedActions(buyRIActionPlan2);
+        expectedActionStores.put(secondContextId, actionStore2);
+
+        // Load the stores from DB
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
-        assertEquals(1, loadedStores.size());
-        assertEquals(2, loadedStores.get(0).size());
-        assertEquals(firstContextId, loadedStores.get(0).getTopologyContextId());
+        loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
+
+        // Assert that what we load from DB is the same as what we setup initially
+        for (Map.Entry<Long, ActionStore> storeEntry : expectedActionStores.entrySet()) {
+            long topologyContextId = storeEntry.getKey();
+            ActionStore expectedStore = storeEntry.getValue();
+            ActionStore actualStore = actualActionStores.get(topologyContextId);
+            Map<ActionPlanType, Collection<Action>> actualActions = actualStore.getActionsByActionPlanType();
+
+            for (Map.Entry<ActionPlanType, Collection<Action>> actionsByActionPlanType :
+                expectedStore.getActionsByActionPlanType().entrySet()) {
+                ActionPlanType type = actionsByActionPlanType.getKey();
+                Collection<Action> expectedActions = actionsByActionPlanType.getValue();
+                assertEquals(expectedActions.size(), actualActions.get(type).size());
+            }
+        }
+    }
+
+    @Test
+    public void testPopulateMultipleActionPlans() {
+        final ActionPlan marketActionPlan = marketActionPlan(firstPlanId, firstContextId, actionList(2));
+        final ActionPlan buyRIActionPlan = buyRIActionPlan(secondPlanId, firstContextId, actionList(3));
+
+        actionStore.populateRecommendedActions(marketActionPlan);
+        actionStore.populateRecommendedActions(buyRIActionPlan);
+
+        Map<ActionPlanType, Collection<Action>> actionsByActionPlanType = actionStore.getActionsByActionPlanType();
+        assertEquals(2, actionsByActionPlanType.get(ActionPlanType.MARKET).size());
+        assertEquals(firstPlanId, actionStore.getActionPlanId(ActionPlanType.MARKET).get().longValue());
+        assertEquals(3, actionsByActionPlanType.get(ActionPlanType.BUY_RI).size());
+        assertEquals(secondPlanId, actionStore.getActionPlanId(ActionPlanType.BUY_RI).get().longValue());
+    }
+
+    @Test
+    public void testReplaceActions() {
+        final ActionPlan marketActionPlan1 = marketActionPlan(firstPlanId, firstContextId, actionList(2));
+        final ActionPlan marketActionPlan2 = marketActionPlan(secondPlanId, firstContextId, actionList(3));
+
+        actionStore.populateRecommendedActions(marketActionPlan1);
+        assertEquals(2, actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size());
+        assertEquals(firstPlanId, actionStore.getActionPlanId(ActionPlanType.MARKET).get().longValue());
+
+        actionStore.populateRecommendedActions(marketActionPlan2);
+        assertEquals(3, actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size());
+        assertEquals(secondPlanId, actionStore.getActionPlanId(ActionPlanType.MARKET).get().longValue());
     }
 
     private static List<ActionDTO.Action> actionList(final int numActions) {
@@ -315,8 +386,8 @@ public class PlanActionStoreTest {
             .collect(Collectors.toList());
     }
 
-    private static ActionPlan actionPlan(final long planId, final long topologyContextId,
-                                         @Nonnull final Collection<ActionDTO.Action> actions) {
+    private static ActionPlan marketActionPlan(final long planId, final long topologyContextId,
+                                               @Nonnull final Collection<ActionDTO.Action> actions) {
 
         return ActionPlan.newBuilder()
             .setId(planId)
@@ -326,6 +397,18 @@ public class PlanActionStoreTest {
                         .setTopologyId(IdentityGenerator.next())
                         .setTopologyContextId(topologyContextId)
                         .setTopologyType(TopologyType.PLAN))))
+            .addAllAction(Objects.requireNonNull(actions))
+            .build();
+    }
+
+    private static ActionPlan buyRIActionPlan(final long planId, final long topologyContextId,
+                                               @Nonnull final Collection<ActionDTO.Action> actions) {
+
+        return ActionPlan.newBuilder()
+            .setId(planId)
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                    .setTopologyContextId(topologyContextId)))
             .addAllAction(Objects.requireNonNull(actions))
             .build();
     }

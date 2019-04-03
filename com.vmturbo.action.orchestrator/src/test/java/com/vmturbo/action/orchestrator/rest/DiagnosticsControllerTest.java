@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.rest;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.zip.ZipOutputStream;
 
@@ -35,6 +36,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -51,6 +53,7 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
 
@@ -145,7 +148,7 @@ public class DiagnosticsControllerTest {
     private WebApplicationContext wac;
 
     @Captor
-    private ArgumentCaptor<List<Action>> actionCaptor;
+    private ArgumentCaptor<Map<ActionPlanType, List<Action>>> actionCaptor;
 
     @Before
     public void setup() {
@@ -176,14 +179,14 @@ public class DiagnosticsControllerTest {
         final Action action = actionFactory.newAction(
                 ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
 
-        Mockito.when(actionStore.getActions()).thenReturn(ImmutableMap.of(action.getId(), action));
+        Mockito.when(actionStore.getActionsByActionPlanType()).thenReturn(ImmutableMap.of(ActionPlanType.MARKET, ImmutableSet.of(action)));
         Mockito.when(actionStore.getEntitySeverityCache()).thenReturn(mock(EntitySeverityCache.class));
 
         getThenPost();
 
         Mockito.verify(actionStore).overwriteActions(actionCaptor.capture());
 
-        final List<Action> deserializedActions = actionCaptor.getValue();
+        final List<Action> deserializedActions = actionCaptor.getValue().get(ActionPlanType.MARKET);
         Assert.assertEquals(1, deserializedActions.size());
         final Action deserializedAction = deserializedActions.get(0);
 

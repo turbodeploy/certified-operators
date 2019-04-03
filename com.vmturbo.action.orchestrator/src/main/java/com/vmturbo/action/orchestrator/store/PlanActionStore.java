@@ -4,11 +4,14 @@ import static com.vmturbo.action.orchestrator.db.tables.ActionPlan.ACTION_PLAN;
 import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -23,6 +26,7 @@ import org.jooq.InsertValuesStep4;
 import org.jooq.impl.DSL;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
 
 import io.prometheus.client.Summary;
 
@@ -34,6 +38,8 @@ import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
 import com.vmturbo.action.orchestrator.db.tables.records.MarketActionRecord;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 
 /**
  * {@inheritDoc}
@@ -73,14 +79,17 @@ public class PlanActionStore implements ActionStore {
     private final DSLContext dsl;
 
     /**
-     * The ID of the action plan whose actions are currently in the store.
+     * One Plan Action Store can store one action plan per action plan type.
+     * For ex., there can be one action plan each for market, BuyRI and Delete wasted storage.
+     *
+     * A map of action plan type to the corresponding action plan id.
      */
-    private Optional<Long> actionPlanId;
+    private Map<ActionPlanType, Long> actionPlanIdByActionPlanType;
 
     /**
-     * The time at which the currently stored action plan was recommended.
+     * A map of action plan id to the recommendation time.
      */
-    private Optional<LocalDateTime> planRecommendationTime;
+    private Map<Long, LocalDateTime> recommendationTimeByActionPlanId;
 
     /**
      * The context id for the topology context.
@@ -122,8 +131,8 @@ public class PlanActionStore implements ActionStore {
                            final long topologyContextId) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.dsl = dsl;
-        this.actionPlanId = Optional.empty();
-        this.planRecommendationTime = Optional.empty();
+        this.actionPlanIdByActionPlanType = Maps.newHashMap();
+        this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
     }
@@ -138,14 +147,12 @@ public class PlanActionStore implements ActionStore {
      */
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
-        if (actionPlan.getInfo().hasBuyRi()) {
-            // Add support for storing RI actions when we have RI purchasing plans.
-            logger.error("Plan action store cannot support a buy RI action plan (id: {})",
-                actionPlan.getId());
-            return false;
+        if (ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo()) != topologyContextId) {
+            throw new IllegalArgumentException("Attempt to set store with topologyContextId " + topologyContextId +
+                " with information from an action plan with topologyContextId " + actionPlan);
         }
         return replaceAllActions(actionPlan.getActionList(),
-            Optional.of(actionPlanData(actionPlan, LocalDateTime.now())));
+            actionPlanData(actionPlan, LocalDateTime.now()));
     }
 
     /**
@@ -153,10 +160,8 @@ public class PlanActionStore implements ActionStore {
      */
     @Override
     public int size() {
-        return actionPlanId.map(planId -> dsl.fetchCount(dsl
-                .selectFrom(MARKET_ACTION)
-                .where(MARKET_ACTION.ACTION_PLAN_ID.eq(planId)))
-        ).orElse(0);
+        return dsl.fetchCount(dsl.selectFrom(MARKET_ACTION)
+                .where(MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(topologyContextId)));
     }
 
     /**
@@ -186,10 +191,10 @@ public class PlanActionStore implements ActionStore {
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {
-        return actionPlanId.flatMap(planId -> loadAction(actionId))
-            .map(marketAction -> actionFactory.newAction(marketAction.getRecommendation(),
-                planRecommendationTime.get(),
-                marketAction.getActionPlanId()));
+        return loadAction(actionId)
+                .map(action -> actionFactory.newAction(action.getRecommendation(),
+                        recommendationTimeByActionPlanId.get(action.getActionPlanId()),
+                        action.getActionPlanId()));
     }
 
     /**
@@ -216,35 +221,46 @@ public class PlanActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
-        return actionPlanId.map(planId -> loadActions(planId).stream()
-                .map(marketAction -> actionFactory.newAction(marketAction.getRecommendation(),
-                    planRecommendationTime.get(),
-                    marketAction.getActionPlanId()))
-                .collect(Collectors.toMap(Action::getId, Function.identity()))
-        ).orElse(Collections.emptyMap());
+        return loadActions().stream().map(action ->
+            actionFactory.newAction(action.getRecommendation(),
+                recommendationTimeByActionPlanId.get(action.getActionPlanId()),
+                action.getActionPlanId()))
+            .collect(Collectors.toMap(Action::getId, Function.identity()));
+    }
+
+    @Nonnull
+    @Override
+    public Map<ActionPlanType, Collection<Action>> getActionsByActionPlanType() {
+        return actionPlanIdByActionPlanType.entrySet().stream()
+            .collect(Collectors.toMap(
+                Entry::getKey,
+                e -> loadActions(e.getValue()).stream().map(
+                    action -> actionFactory.newAction(action.getRecommendation(),
+                    recommendationTimeByActionPlanId.get(action.getActionPlanId()),
+                    action.getActionPlanId())).collect(Collectors.toList())));
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public boolean overwriteActions(@Nonnull final List<Action> newActions) {
-        // Data for the plan is pulled from the first action in the list.
-        // Since in the PersistentImmutableStore all actions are from the same plan, this
-        // should be fine. If data from mixed plans are to be put in a PersistentImmutableDataStore
-        // this logic should be reconsidered.
-        final Optional<com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan> planData = newActions.isEmpty() ?
-            Optional.empty() :
-            Optional.of(actionPlanData(newActions.get(0)));
-
-        if (replaceAllActions(newActions.stream()
-                .map(Action::getRecommendation)
-                .collect(Collectors.toList()), planData)) {
-            logger.info("Successfully overwrote actions in the store with {} new actions.", newActions.size());
-            return true;
-        } else {
-            return false;
+    public boolean overwriteActions(@Nonnull final Map<ActionPlanType, List<Action>> newActions) {
+        boolean overwriteResult = true;
+        for (Entry<ActionPlanType, List<Action>> e : newActions.entrySet()) {
+            ActionPlanType actionPlanType = e.getKey();
+            List<Action> actions = e.getValue();
+            com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData =
+                    actionPlanData(actionPlanType, actions);
+            if (replaceAllActions(actions.stream()
+                    .map(Action::getRecommendation)
+                    .collect(Collectors.toList()), planData)) {
+                logger.info("Successfully overwrote {} actions in the store with {} new actions.",
+                    actionPlanType, actions.size());
+            } else {
+                overwriteResult = false;
+            }
         }
+        return overwriteResult;
     }
 
     /**
@@ -253,14 +269,12 @@ public class PlanActionStore implements ActionStore {
      */
     public boolean clear() {
         try {
-            actionPlanId.ifPresent(planId -> cleanActions(dsl, planId));
-            actionPlanId = Optional.empty();
-            planRecommendationTime = Optional.empty();
-
+            actionPlanIdByActionPlanType.values().forEach(planId -> cleanActions(dsl, planId));
+            actionPlanIdByActionPlanType.clear();
+            recommendationTimeByActionPlanId.clear();
             return true;
         } catch (RuntimeException e) {
             logger.error("Clear store failed with error: ", e);
-
             return false;
         }
     }
@@ -289,12 +303,12 @@ public class PlanActionStore implements ActionStore {
     }
 
     /**
-     * Get the id of the last action plan whose actions were successfully stored in this store.
+     * Get the ids of the last action plans whose actions were successfully stored in this store.
      *
-     * @return the id of the last action plan whose actions were successfully stored in this store.
+     * @return the ids of the last action plans whose actions were successfully stored in this store.
      */
-    public Optional<Long> getActionPlanId() {
-        return actionPlanId;
+    public Optional<Long> getActionPlanId(@Nonnull ActionPlanType actionPlanType) {
+        return Optional.ofNullable(actionPlanIdByActionPlanType.get(actionPlanType));
     }
 
     /**
@@ -307,18 +321,17 @@ public class PlanActionStore implements ActionStore {
      * @return Whether actions were successfully replaced with those in the list of actions.
      */
     private boolean replaceAllActions(@Nonnull final List<ActionDTO.Action> actions,
-                                      @Nonnull final Optional<com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan> planData) {
+                                      @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         try {
             dsl.transaction(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
-                actionPlanId.ifPresent(planId -> cleanActions(transactionDsl, planId));
-
-                if (planData.isPresent()) {
-                    final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan data = planData.get();
-
+                // Delete existing action plan if it exists for the incoming action plan type
+                ActionPlanType incomingActionPlanType = ActionPlanType.forNumber(planData.getActionPlanType());
+                deleteActionPlanIfExists(transactionDsl, incomingActionPlanType);
+                if (!actions.isEmpty()) {
                     // Store the action plan
                     transactionDsl
-                        .newRecord(ACTION_PLAN, data)
+                        .newRecord(ACTION_PLAN, planData)
                         .store();
 
                     // Store the associated actions for the plan in batches, but keep
@@ -334,23 +347,18 @@ public class PlanActionStore implements ActionStore {
                                         MARKET_ACTION.RECOMMENDATION);
                         for (ActionDTO.Action action : actionBatch) {
                             step = step.values(action.getId(),
-                                    data.getId(),
-                                    data.getTopologyContextId(),
+                                    planData.getId(),
+                                    planData.getTopologyContextId(),
                                     action);
                         }
                         step.execute();
                     });
-
                     // Update internal state tracking only on success of database operations.
-                    this.planRecommendationTime = Optional.of(data.getCreateTime());
-                    actionPlanId = Optional.of(data.getId());
-                } else {
-                    logger.info("Clearing plan information.");
-                    this.planRecommendationTime = Optional.empty();
-                    actionPlanId = Optional.empty();
+                    updateInternalState(incomingActionPlanType, planData.getId(), planData.getCreateTime());
+                    logger.info("Successfully stored action plan id {} of type {} with {} actions",
+                        planData.getId(), planData.getActionPlanType(), actions.size());
                 }
             });
-
             return true;
         } catch (RuntimeException e) {
             logger.error("Replace all actions transaction failed with error: ", e);
@@ -361,14 +369,25 @@ public class PlanActionStore implements ActionStore {
     /**
      * Load all market actions in the persistent store by their associated topologyContextId.
      *
-     * @param contextId The topologyContextId whose last known actions should be loaded.
-     * @return A last known {@link MarketAction}s for a the given topology context.
+     * @return A last known {@link MarketAction}s for the topology context.
      */
-    private List<MarketAction> loadActions(final long contextId) {
+    private List<MarketAction> loadActions() {
         return dsl.selectFrom(MARKET_ACTION)
-            .where(MARKET_ACTION.ACTION_PLAN_ID.eq(contextId))
+            .where(MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(topologyContextId))
             .fetch()
             .into(MarketAction.class);
+    }
+
+    /**
+     * Load all market actions in the persistent store for an action plan id.
+     *
+     * @return A last known {@link MarketAction}s for the action plan id.
+     */
+    private List<MarketAction> loadActions(long actionPlanId) {
+        return dsl.selectFrom(MARKET_ACTION)
+                .where(MARKET_ACTION.ACTION_PLAN_ID.eq(actionPlanId))
+                .fetch()
+                .into(MarketAction.class);
     }
 
     /**
@@ -380,8 +399,7 @@ public class PlanActionStore implements ActionStore {
     private Optional<MarketAction> loadAction(final long actionId) {
         return Optional.ofNullable(dsl.selectFrom(MARKET_ACTION)
             .where(MARKET_ACTION.ID.eq(actionId))
-            .fetchAny()
-            .into(MarketAction.class));
+            .fetchAny()).map(rec -> rec.into(MarketAction.class));
     }
 
     /**
@@ -409,9 +427,39 @@ public class PlanActionStore implements ActionStore {
             throw new IllegalArgumentException("Attempt to set store with topologyContextId " + topologyContextId +
                 " with information from an action plan with topologyContextId " + actionPlan.getTopologyContextId());
         }
+        updateInternalState(ActionPlanType.forNumber(actionPlan.getActionPlanType()),
+                actionPlan.getId(), actionPlan.getCreateTime());
+    }
 
-        this.actionPlanId = Optional.of(actionPlan.getId());
-        this.planRecommendationTime = Optional.of(actionPlan.getCreateTime());
+    /**
+     * Updates maps actionPlanIdByActionPlanType and recommendationTimeByActionPlanId with the action plan details
+     * like action plan id and recommendation time.
+     *
+     * @param actionPlanType the action plan type
+     * @param actionPlanId the action plan id
+     * @param recommendationTime the recommendation time
+     */
+    private void updateInternalState(ActionPlanType actionPlanType, long actionPlanId,
+                                           LocalDateTime recommendationTime) {
+        actionPlanIdByActionPlanType.put(actionPlanType, actionPlanId);
+        recommendationTimeByActionPlanId.put(actionPlanId, recommendationTime);
+    }
+
+    /**
+     * Delete action plan of the incoming action plan type if it exists.
+     * But this should never happen as of writing this {4/9/2019}.
+     * One plan action store should store one action plan type only once.
+     * For ex. market actions should be stored once, Buy RI actions should be stored once.
+     */
+    private void deleteActionPlanIfExists(DSLContext transactionDsl, ActionPlanType actionPlanType) {
+        Long oldActionPlanId = actionPlanIdByActionPlanType.get(actionPlanType);
+        if (oldActionPlanId != null) {
+            logger.error("Existing action plan id {} of action plan type {} exists. " +
+                "Deleting action plan {}", oldActionPlanId, actionPlanType, oldActionPlanId);
+            cleanActions(transactionDsl, oldActionPlanId);
+            recommendationTimeByActionPlanId.remove(oldActionPlanId);
+            actionPlanIdByActionPlanType.remove(actionPlanType);
+        }
     }
 
     /**
@@ -436,16 +484,18 @@ public class PlanActionStore implements ActionStore {
         @Override
         public List<ActionStore> loadActionStores() {
             try {
-                return dsl.selectFrom(ACTION_PLAN)
+                final Map<Long, PlanActionStore> planActionStoresByTopologyContextId = Maps.newHashMap();
+                dsl.selectFrom(ACTION_PLAN)
                     .fetch()
                     .into(com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan.class)
-                    .stream()
-                    .map(actionPlan -> {
-                        final PlanActionStore store =
-                            new PlanActionStore(actionFactory, dsl, actionPlan.getTopologyContextId());
+                    .forEach(actionPlan -> {
+                        final PlanActionStore store = planActionStoresByTopologyContextId
+                            .computeIfAbsent(actionPlan.getTopologyContextId(),
+                                k -> new PlanActionStore(actionFactory, dsl,
+                                    actionPlan.getTopologyContextId()));
                         store.setupPlanInformation(actionPlan);
-                        return store;
-                    }).collect(Collectors.toList());
+                    });
+                return planActionStoresByTopologyContextId.values().stream().collect(Collectors.toList());
             } catch (Exception e) {
                 logger.error("Unable to load action stores due to exception: ", e);
                 return Collections.emptyList();
@@ -465,9 +515,11 @@ public class PlanActionStore implements ActionStore {
 
         return new com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan(
             actionPlan.getId(),
+            // In case of Buy RI, topologyId will be 0
             actionPlan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId(),
-            actionPlan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId(),
-            recommendationTime
+            topologyContextId,
+            recommendationTime,
+            (short) ActionDTOUtil.getActionPlanType(actionPlan.getInfo()).getNumber()
         );
     }
 
@@ -476,15 +528,25 @@ public class PlanActionStore implements ActionStore {
      * The generated plan information does not include topologyId information. The topologyContextId
      * comes from the store's associated topologyContextId.
      *
-     * @param action The action to use as a source for plan information.
+     * @param actionPlanType The action plan type which is an input for the ActionPlan db pojo.
+     * @praam actions List of {@link Action} to use as a source for plan information.
      * @return A POJO ActionPlan.
      */
-    private com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan actionPlanData(@Nonnull final Action action) {
+    private com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan actionPlanData(
+            @Nonnull ActionPlanType actionPlanType, @Nonnull final List<Action> actions) {
+        long actionPlanId = -1;
+        LocalDateTime recommendationTime = null;
+        if (!actions.isEmpty()) {
+            Action action = actions.get(0);
+            actionPlanId = action.getActionPlanId();
+            recommendationTime = action.getRecommendationTime();
+        }
         return new com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan(
-            action.getActionPlanId(),
-            -1L,
-            topologyContextId,
-            action.getRecommendationTime()
+                actionPlanId,
+                -1L,
+                topologyContextId,
+                recommendationTime,
+                (short)actionPlanType.getNumber()
         );
     }
 }

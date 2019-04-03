@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -31,6 +32,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.InvalidRestoreInputException;
@@ -115,9 +117,10 @@ public class ActionOrchestratorDiagnostics {
             ActionStoreData::getTopologyContextId,
             storeData -> {
                 final IActionStoreFactory actionStoreFactory = Objects.requireNonNull(actionStorehouse.getActionStoreFactory());
-                final List<Action> actions = storeData.getActions().stream()
-                    .map(action -> new Action(action, actionModeCalculator))
-                    .collect(Collectors.toList());
+                final Map<ActionPlanType, List<Action>> actions = storeData.getActions().entrySet().stream()
+                    .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().stream()
+                            .map(action -> new Action(action, actionModeCalculator))
+                            .collect(Collectors.toList())));
                 final ActionStore store = actionStorehouse
                     .getStore(storeData.getTopologyContextId())
                     .orElse(actionStoreFactory.newStore(storeData.getTopologyContextId()));
@@ -163,22 +166,21 @@ public class ActionOrchestratorDiagnostics {
     public class ActionStoreData {
         public final long topologyContextId;
 
-        public final List<SerializationState> actions;
+        public final Map<ActionPlanType, List<SerializationState>> actionsByActionPlanType;
 
         public ActionStoreData(final long topologyContextId, @Nonnull final ActionStore actionStore) {
             this.topologyContextId = topologyContextId;
-            this.actions = actionStore.getActions().values()
-                .stream()
-                .map(Action::toSerializationState)
-                .collect(Collectors.toList());
+            this.actionsByActionPlanType = actionStore.getActionsByActionPlanType().entrySet().stream()
+                    .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().stream()
+                            .map(Action::toSerializationState).collect(Collectors.toList())));
         }
 
         public long getTopologyContextId() {
             return topologyContextId;
         }
 
-        public List<SerializationState> getActions() {
-            return actions;
+        public Map<ActionPlanType, List<SerializationState>> getActions() {
+            return actionsByActionPlanType;
         }
     }
 }

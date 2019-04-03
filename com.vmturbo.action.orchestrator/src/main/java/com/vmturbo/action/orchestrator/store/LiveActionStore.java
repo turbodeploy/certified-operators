@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
@@ -46,6 +47,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -488,6 +490,19 @@ public class LiveActionStore implements ActionStore {
 
     @Nonnull
     @Override
+    public Map<ActionPlanType, Collection<Action>> getActionsByActionPlanType() {
+        Map<ActionPlanType, Collection<Action>> results = Maps.newHashMap();
+        if (!actions.isEmpty()) {
+            results.put(ActionPlanType.MARKET, actions.values());
+        }
+        if (!riActions.isEmpty()) {
+            results.put(ActionPlanType.BUY_RI, riActions.values());
+        }
+        return results;
+    }
+
+    @Nonnull
+    @Override
     public Optional<ActionView> getActionView(long actionId) {
         // The map operation is necessary because of how Java handles generics via type erasure.
         // An Optional<Action> is not directly assignable to an Optional<ActionView> even though an
@@ -540,13 +555,14 @@ public class LiveActionStore implements ActionStore {
     }
 
     @Override
-    public boolean overwriteActions(@Nonnull final List<Action> newActions) {
+    public boolean overwriteActions(@Nonnull final Map<ActionPlanType, List<Action>> newActions) {
         synchronized (actionsLock) {
             actions.clear();
-            newActions.forEach(action -> actions.put(action.getId(), action));
+            newActions.values().forEach(actionsList ->
+                    actionsList.forEach(action -> actions.put(action.getId(), action)));
         }
 
-        logger.info("Successfully overwrote actions in the store with {} new actions.", newActions.size());
+        logger.info("Successfully overwrote actions in the store with {} new actions.", actions.size());
         return true;
     }
 

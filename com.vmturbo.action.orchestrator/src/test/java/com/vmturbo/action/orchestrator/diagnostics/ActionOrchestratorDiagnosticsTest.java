@@ -12,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.zip.ZipInputStream;
@@ -28,6 +29,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.prometheus.client.CollectorRegistry;
 
@@ -52,6 +54,7 @@ import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.components.common.DiagnosticsWriter;
 
 /**
@@ -77,10 +80,10 @@ public class ActionOrchestratorDiagnosticsTest {
     private final long realtimeTopologyContextId = 1234L;
 
     @Captor
-    private ArgumentCaptor<List<Action>> actionCaptor;
+    private ArgumentCaptor<Map<ActionPlanType, List<Action>>> actionCaptor;
 
     @Captor
-    private ArgumentCaptor<List<Action>> planCaptor;
+    private ArgumentCaptor<Map<ActionPlanType, List<Action>>> planCaptor;
 
     @Before
     public void setup() {
@@ -169,14 +172,14 @@ public class ActionOrchestratorDiagnosticsTest {
         when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder().put(realtimeTopologyContextId, actionStore).build()
         );
-        when(actionStore.getActions())
-               .thenReturn(ImmutableMap.of(action1.getId(), action1, action2.getId(), action2));
+        when(actionStore.getActionsByActionPlanType())
+               .thenReturn(ImmutableMap.of(ActionPlanType.MARKET, ImmutableSet.of(action1, action2)));
 
         dumpAndRestore();
 
         Mockito.verify(actionStore).overwriteActions(actionCaptor.capture());
 
-        final List<Action> deserializedActions = actionCaptor.getValue();
+        final List<Action> deserializedActions = actionCaptor.getValue().get(ActionPlanType.MARKET);
         Assert.assertEquals(2, deserializedActions.size());
 
         ActionOrchestratorTestUtils.assertActionsEqual(action1, deserializedActions.get(0));
@@ -198,8 +201,8 @@ public class ActionOrchestratorDiagnosticsTest {
                 .build()
         );
 
-        when(planStore.getActions())
-            .thenReturn(ImmutableMap.of(action.getId(), action));
+        when(planStore.getActionsByActionPlanType())
+            .thenReturn(ImmutableMap.of(ActionPlanType.MARKET, ImmutableSet.of(action)));
         when(actionStorehouse.getStore(eq(planTopologyContextId))).thenReturn(Optional.empty());
         when(storeFactory.newStore(anyLong())).thenReturn(newStore);
         when(newStore.getEntitySeverityCache()).thenReturn(severityCache);
@@ -209,7 +212,7 @@ public class ActionOrchestratorDiagnosticsTest {
         Mockito.verify(newStore).overwriteActions(actionCaptor.capture());
         Mockito.verify(severityCache).refresh(newStore);
 
-        final List<Action> actions = actionCaptor.getValue();
+        final List<Action> actions = actionCaptor.getValue().get(ActionPlanType.MARKET);
         Assert.assertEquals(1, actions.size());
     }
 
@@ -223,6 +226,10 @@ public class ActionOrchestratorDiagnosticsTest {
             ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
         final Action action2 = actionFactory.newAction(
             ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L);
+        final Action action3 = actionFactory.newAction(
+            ActionOrchestratorTestUtils.createMoveRecommendation(3), 0L);
+        final Action action4 = actionFactory.newAction(
+            ActionOrchestratorTestUtils.createMoveRecommendation(4), 0L);
         when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder()
                 .put(realtimeTopologyContextId, actionStore)
@@ -230,10 +237,14 @@ public class ActionOrchestratorDiagnosticsTest {
                 .build()
         );
 
-        when(actionStore.getActions())
-            .thenReturn(ImmutableMap.of(action1.getId(), action1));
-        when(planStore.getActions())
-            .thenReturn(ImmutableMap.of(action2.getId(), action2));
+        when(actionStore.getActionsByActionPlanType())
+            .thenReturn(ImmutableMap.of(
+                ActionPlanType.MARKET, ImmutableSet.of(action1),
+                ActionPlanType.BUY_RI, ImmutableSet.of(action2)));
+        when(planStore.getActionsByActionPlanType())
+            .thenReturn(ImmutableMap.of(
+                ActionPlanType.MARKET, ImmutableSet.of(action3),
+                ActionPlanType.BUY_RI, ImmutableSet.of(action4)));
         when(actionStorehouse.getStore(eq(planTopologyContextId)))
             .thenReturn(Optional.of(planStore));
         when(planStore.getEntitySeverityCache()).thenReturn(planSeverityCache);
@@ -246,11 +257,18 @@ public class ActionOrchestratorDiagnosticsTest {
         Mockito.verify(severityCache).refresh(actionStore);
         Mockito.verify(planSeverityCache).refresh(planStore);
 
-        final List<Action> deserializedActions = actionCaptor.getValue();
-        Assert.assertEquals(1, deserializedActions.size());
-
-        final List<Action> planActions = planCaptor.getValue();
-        Assert.assertEquals(1, planActions.size());
+        final List<Action> deserializedMarketActions = actionCaptor.getValue().get(ActionPlanType.MARKET);
+        Assert.assertEquals(1, deserializedMarketActions.size());
+        Assert.assertEquals(1L, deserializedMarketActions.get(0).getId());
+        final List<Action> deserializedBuyRIActions = actionCaptor.getValue().get(ActionPlanType.BUY_RI);
+        Assert.assertEquals(1, deserializedBuyRIActions.size());
+        Assert.assertEquals(2L, deserializedBuyRIActions.get(0).getId());
+        final List<Action> planMarketActions = planCaptor.getValue().get(ActionPlanType.MARKET);
+        Assert.assertEquals(1, planMarketActions.size());
+        Assert.assertEquals(3L, planMarketActions.get(0).getId());
+        final List<Action> planBuyRiActions = planCaptor.getValue().get(ActionPlanType.BUY_RI);
+        Assert.assertEquals(1, planBuyRiActions.size());
+        Assert.assertEquals(4L, planBuyRiActions.get(0).getId());
     }
 
     private void testSingleAction(@Nullable final Consumer<Action> actionModifier)
@@ -267,13 +285,14 @@ public class ActionOrchestratorDiagnosticsTest {
         when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder().put(realtimeTopologyContextId, actionStore).build()
         );
-        when(actionStore.getActions()).thenReturn(ImmutableMap.of(action.getId(), action));
+        when(actionStore.getActionsByActionPlanType()).thenReturn(ImmutableMap.of(
+                ActionPlanType.MARKET, ImmutableSet.of(action)));
 
         dumpAndRestore();
 
         Mockito.verify(actionStore).overwriteActions(actionCaptor.capture());
 
-        final List<Action> deserializedActions = actionCaptor.getValue();
+        final List<Action> deserializedActions = actionCaptor.getValue().get(ActionPlanType.MARKET);
         Assert.assertEquals(1, deserializedActions.size());
         final Action deserializedAction = deserializedActions.get(0);
 

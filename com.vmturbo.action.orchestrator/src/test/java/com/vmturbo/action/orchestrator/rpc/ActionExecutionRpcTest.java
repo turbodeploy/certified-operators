@@ -24,6 +24,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
@@ -56,6 +58,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -191,7 +194,8 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
-        actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(Collections.emptyList()); // Clear the action from the store
+        actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(ImmutableMap.of(
+                ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
         AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
         assertTrue(response.hasError());
@@ -248,7 +252,7 @@ public class ActionExecutionRpcTest {
         Action actionSpy = Mockito.spy(actionStore.getAction(ACTION_ID).get());
         Mockito.doReturn(new TransitionResult<>(ActionState.READY, ActionState.READY, false))
             .when(actionSpy).receive(Mockito.any(AcceptanceEvent.class));
-        actionStore.overwriteActions(Collections.singletonList(actionSpy));
+        actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, Collections.singletonList(actionSpy)));
 
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 

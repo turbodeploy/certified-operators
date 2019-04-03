@@ -28,6 +28,8 @@ import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
@@ -224,7 +226,7 @@ public class ActionStorehouseTest {
         when(persistedStore.getTopologyContextId()).thenReturn(topologyContextId);
 
         final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
-        when(actionStoreLoader.loadActionStores()).thenReturn(Collections.singletonList(persistedStore));
+        when(actionStoreLoader.loadActionStores()).thenReturn(ImmutableList.of(persistedStore));
 
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, actionModeCalculator);

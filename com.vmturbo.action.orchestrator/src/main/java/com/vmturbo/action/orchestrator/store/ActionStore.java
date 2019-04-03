@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -11,6 +12,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 
 /**
  * A store for actions that are active in the system.
@@ -112,13 +114,21 @@ public interface ActionStore {
     Map<Long, Action> getActions();
 
     /**
+     * Get the actions in the store grouped by the action plan type.
+     *
+     * @return An unmodifiable map of action plan type to list of actions for that action plan type.
+     */
+    @Nonnull
+    Map<ActionPlanType, Collection<Action>> getActionsByActionPlanType();
+
+    /**
      * Overwrite the actions in the {@link ActionStore} with a supplied list
      * of actions. Clears the {@link ActionStore} of all existing actions.
      *
      * @param actions The actions to put into the store.
      * @return If the store successfully overwrote its actions with those in the list.
      */
-    boolean overwriteActions(@Nonnull final List<Action> actions);
+    boolean overwriteActions(@Nonnull final Map<ActionPlanType, List<Action>> actions);
 
     /**
      * Clears the {@link ActionStore} of all existing actions.
