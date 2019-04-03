@@ -14,7 +14,7 @@ java:
 
 resources:
   limits:
-    memory: 2048Mi
+    memory: 2Gi
   requests:
     memory: 384Mi
 
