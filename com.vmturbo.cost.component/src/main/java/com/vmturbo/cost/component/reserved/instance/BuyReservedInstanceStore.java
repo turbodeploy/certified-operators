@@ -122,17 +122,17 @@ public class BuyReservedInstanceStore {
 
     private List<Condition> generateConditions(@Nonnull final GetBuyReservedInstancesByFilterRequest request) {
         final List<Condition> conditions = new ArrayList<>();
-        if (!request.hasTopologyContextId()) {
+        if (request.hasTopologyContextId()) {
             conditions.add(Tables.BUY_RESERVED_INSTANCE.TOPOLOGY_CONTEXT_ID.eq(
                     request.getTopologyContextId()));
         }
 
-        if (!request.hasRegionFilter() && !request.getRegionFilter().getRegionIdList().isEmpty()) {
+        if (request.hasRegionFilter() && !request.getRegionFilter().getRegionIdList().isEmpty()) {
             conditions.add(Tables.BUY_RESERVED_INSTANCE.REGION_ID.in(
                     request.getRegionFilter().getRegionIdList()));
         }
 
-        if (!request.hasAccountFilter() && !request.getAccountFilter().getAccountIdList().isEmpty()) {
+        if (request.hasAccountFilter() && !request.getAccountFilter().getAccountIdList().isEmpty()) {
             conditions.add(Tables.BUY_RESERVED_INSTANCE.BUSINESS_ACCOUNT_ID.in(
                     request.getAccountFilter().getAccountIdList()));
         }

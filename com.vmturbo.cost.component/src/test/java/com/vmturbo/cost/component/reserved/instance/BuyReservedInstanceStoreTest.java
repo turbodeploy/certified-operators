@@ -3,6 +3,8 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,6 +21,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -49,22 +55,12 @@ public class BuyReservedInstanceStoreTest {
 
     private DSLContext dsl;
 
-    final ReservedInstanceBoughtInfo oldRiInfoOne = ReservedInstanceBoughtInfo.newBuilder()
-            .setReservedInstanceSpec(99L)
-            .setNumBought(8)
-            .build();
-
-    final ReservedInstanceBoughtInfo oldRiInfoTwo = ReservedInstanceBoughtInfo.newBuilder()
-            .setReservedInstanceSpec(99L)
-            .setNumBought(9)
-            .build();
-
-    final ReservedInstanceBoughtInfo newRInfo = ReservedInstanceBoughtInfo.newBuilder()
+    private final ReservedInstanceBoughtInfo newRInfo = ReservedInstanceBoughtInfo.newBuilder()
             .setReservedInstanceSpec(99L)
             .setNumBought(18)
             .build();
 
-    final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
+    private final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
             .setId(99L)
             .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.getDefaultInstance())
             .build();
@@ -85,7 +81,71 @@ public class BuyReservedInstanceStoreTest {
     }
 
     /**
-     * Inserts 1 Buy RI Record for topology context id 1 and 2.
+     * Gets the Buy RIs with no condition
+     */
+    @Test
+    public void testGetBuyRIs_noCondition() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest.getDefaultInstance();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        assertEquals(4, buyRIs.size());
+    }
+
+    /**
+     * Gets the Buy RIs in a region
+     */
+    @Test
+    public void testGetBuyRIs_filterByRegion() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                .newBuilder().setRegionFilter(RegionFilter.newBuilder().addRegionId(400L).build()).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        assertEquals(1, buyRIs.size());
+        assertEquals(1001L, buyRIs.iterator().next().getId());
+    }
+
+    /**
+     * Gets the Buy RIs in a business account
+     */
+    @Test
+    public void testGetBuyRIs_filterByAccount() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        assertEquals(1, buyRIs.size());
+        assertEquals(1002L, buyRIs.iterator().next().getId());
+    }
+
+    /**
+     * Gets the Buy RIs in a topology context id
+     */
+    @Test
+    public void testGetBuyRIs_topologyContextId() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                .newBuilder().setTopologyContextId(1L).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        assertEquals(3, buyRIs.size());
+    }
+
+    /**
+     * Gets the Buy RIs in a topology context id and region
+     */
+    @Test
+    public void testGetBuyRIs_topologyContextIdAndRegion() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                .newBuilder().setTopologyContextId(1L)
+                .setRegionFilter(RegionFilter.newBuilder().addRegionId(300L).build())
+                .build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        assertEquals(1, buyRIs.size());
+        assertEquals(1000L, buyRIs.iterator().next().getId());
+    }
+
+    /**
+     * Inserts 3 Buy RI Record for topology context id 1 and 1 buy RI for topology context id 2.
      * Updates Buy RI Record for topology context id 1.
      */
     @Test
@@ -94,16 +154,17 @@ public class BuyReservedInstanceStoreTest {
         BuyReservedInstanceInfo newBuyRiInfo = ImmutableBuyReservedInstanceInfo.builder()
                 .riBoughtInfo(newRInfo).riSpec(riSpec).topologyContextId(1L).build();
 
-        buyRiStore.udpateBuyReservedInstances(Arrays.asList(newBuyRiInfo));
+        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(newBuyRiInfo));
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         Map<Long, List<BuyReservedInstanceRecord>> recordsByContextId = records.stream().collect(
-                Collectors.groupingBy(record -> record.getTopologyContextId()));
+                Collectors.groupingBy(BuyReservedInstanceRecord::getTopologyContextId));
         assertEquals(2, recordsByContextId.size());
         // Verify that Buy RI Record for topology context 2 was NOT updated
         assertEquals(1, recordsByContextId.get(2L).size());
         assertEquals(Integer.valueOf(9), recordsByContextId.get(2L).get(0).getCount());
         // Verify that Buy RI Record for topology context 1 was updated
+        assertEquals(1, recordsByContextId.get(1L).size());
         assertEquals(Integer.valueOf(18), recordsByContextId.get(1L).get(0).getCount());
     }
 
@@ -115,7 +176,7 @@ public class BuyReservedInstanceStoreTest {
         BuyReservedInstanceInfo newBuyRiInfo = ImmutableBuyReservedInstanceInfo.builder()
                 .riBoughtInfo(newRInfo).riSpec(riSpec).topologyContextId(1L).build();
 
-        buyRiStore.udpateBuyReservedInstances(Arrays.asList(newBuyRiInfo));
+        buyRiStore.udpateBuyReservedInstances(Collections.singletonList(newBuyRiInfo));
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         assertEquals(1, records.size());
@@ -152,27 +213,32 @@ public class BuyReservedInstanceStoreTest {
     }
 
     /**
-     * Setup one buy RI record each for topology context ids 1 and 2.
+     * Setup buy RI records for topology context ids 1 and 2.
      */
     private void insertOldBuyRIRecords() {
-        final BuyReservedInstanceRecord buyRIRecord1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
-                new BuyReservedInstanceRecord(
-                        1000L,
-                        1L,
-                        123L,
-                        300L,
-                        99L,
-                        8,
-                        oldRiInfoOne));
-        final BuyReservedInstanceRecord buyRIRecord2 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
-                new BuyReservedInstanceRecord(
-                        1001L,
-                        2L,
-                        123L,
-                        300L,
-                        99L,
-                        9,
-                        oldRiInfoTwo));
-        dsl.batchInsert(Arrays.asList(buyRIRecord1, buyRIRecord2)).execute();
+        final ReservedInstanceBoughtInfo oldRiInfoOne = ReservedInstanceBoughtInfo.newBuilder()
+                .setReservedInstanceSpec(99L)
+                .setNumBought(8)
+                .build();
+
+        final ReservedInstanceBoughtInfo oldRiInfoTwo = ReservedInstanceBoughtInfo.newBuilder()
+                .setReservedInstanceSpec(99L)
+                .setNumBought(9)
+                .build();
+
+        final BuyReservedInstanceRecord buyRIRecord1ForTopoContext1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
+                new BuyReservedInstanceRecord(1000L, 1L, 123L, 300L, 99L, 8, oldRiInfoOne));
+
+        final BuyReservedInstanceRecord buyRIRecord2ForTopoContext1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
+                new BuyReservedInstanceRecord(1001L, 1L, 123L, 400L, 99L, 8, oldRiInfoOne));
+
+        final BuyReservedInstanceRecord buyRIRecord3ForTopoContext1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
+                new BuyReservedInstanceRecord(1002L, 1L, 456L, 500L, 99L, 8, oldRiInfoOne));
+
+        final BuyReservedInstanceRecord buyRIRecord1ForTopoContext2 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
+                new BuyReservedInstanceRecord(1003L, 2L, 123L, 300L, 99L, 9, oldRiInfoTwo));
+
+        dsl.batchInsert(Arrays.asList(buyRIRecord1ForTopoContext1, buyRIRecord2ForTopoContext1,
+                buyRIRecord3ForTopoContext1, buyRIRecord1ForTopoContext2)).execute();
     }
 }
