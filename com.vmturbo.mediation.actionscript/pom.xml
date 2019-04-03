@@ -13,7 +13,16 @@
     <artifactId>com.vmturbo.mediation.actionscript</artifactId>
     <packaging>jar</packaging>
 
-    <dependencies>
+   <build>
+       <plugins>
+           <plugin>
+               <groupId>com.vmturbo</groupId>
+               <artifactId>vmturbo-sdk-plugin</artifactId>
+           </plugin>
+       </plugins>
+   </build>
+
+   <dependencies>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
