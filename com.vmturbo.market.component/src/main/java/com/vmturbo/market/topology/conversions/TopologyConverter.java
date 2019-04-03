@@ -1266,6 +1266,9 @@ public class TopologyConverter {
                             topologyDTO, unmodifiableEntityOidToDtoMap, isAlleviatePressurePlan);
             settingsBuilder.setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
                     .setControllable(topologyDTO.getAnalysisSettings().getControllable())
+                    // cloud providers do not come here. We will hence be setting this to true just for
+                    // on-prem storages
+                    .setCanSimulateAction(topologyDTO.getEntityType() == EntityType.STORAGE_VALUE)
                     .setSuspendable(suspendable)
                     .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
                                               && topologyDTO.getAnalysisSettings().getControllable())
