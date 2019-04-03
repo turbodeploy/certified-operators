@@ -49,8 +49,10 @@ public class Resizer {
                                                                  @NonNull Ledger ledger) {
         List<@NonNull Action> actions = new ArrayList<>();
         float rateOfResize = economy.getSettings().getRateOfResize();
+
+        ledger.calculateAllCommodityExpensesAndRevenues(economy);
+
         for (Trader seller : economy.getTraders()) {
-            ledger.calculateCommodityExpensesAndRevenuesForTrader(economy,seller);
             if (economy.getForceStop()) {
                 return actions;
             }
