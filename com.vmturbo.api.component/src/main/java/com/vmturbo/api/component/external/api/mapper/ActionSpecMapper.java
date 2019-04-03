@@ -125,6 +125,8 @@ public class ActionSpecMapper {
     private static final Set<String> STORAGE_VALUES = ImmutableSet.of(
             UIEntityType.STORAGE_TIER.getValue(), UIEntityType.STORAGE.getValue());
 
+    private static final String UP = "up";
+    private static final String DOWN = "down";
 
     private final PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
@@ -950,7 +952,8 @@ public class ActionSpecMapper {
                     readableEntityTypeAndName(actionApiDTO.getTarget())));
         } else {
             // Regular case
-            actionApiDTO.setDetails(MessageFormat.format("Resize {0} on entity {1} from {2} to {3}",
+            actionApiDTO.setDetails(MessageFormat.format("Resize {0} {1} for {2} from {3} to {4}",
+                    resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
                     readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
                     readableEntityTypeAndName(actionApiDTO.getTarget()),
                     formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
