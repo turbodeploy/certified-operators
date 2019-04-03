@@ -1205,7 +1205,6 @@ public class ActionSpecMapper {
             // These don't map to ActionStates directly, because in XL we separate the concept
             // of a "decision" from the state of the action, and these relate to the decision.
             case REJECTED: case RECOMMENDED: case DISABLED: case CLEARED:
-                logger.warn("Not able to convert {} to ActionState.", stateStr);
                 return Optional.empty();
             default:
                 logger.error("Unknown action state {}", stateStr);
