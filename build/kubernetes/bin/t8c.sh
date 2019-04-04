@@ -133,16 +133,27 @@ popd > /dev/null
 
 # Setup storage with heketi/gluster
 # These need to be done on each node
+if [ ${nodeAnswer} = 1 ]
+then
+   sudo /usr/sbin/modprobe dm_thin_pool
+   sudo /usr/sbin/modprobe dm_snapshot
+   sudo /usr/sbin/setsebool -P virt_sandbox_use_fusefs on
+else
 for ((i=0,j=1; i<(${#node[*]}-1); i++,j++));
 do
    ssh turbo@${node[$i]} sudo /usr/sbin/modprobe dm_thin_pool
    ssh turbo@${node[$i]} sudo /usr/sbin/modprobe dm_snapshot
    ssh turbo@${node[$i]} sudo /usr/sbin/setsebool -P virt_sandbox_use_fusefs on
 done
+fi
 
 # Setup Secure kubernetes api
 echo "export KUBECONFIG=/opt/turbonomic/.kube/config" >> /opt/turbonomic/.bashrc
-mkdir /opt/turbonomic/.kube/
+if [ ! -d /opt/turbonomic/.kube/ ]
+then 
+  mkdir /opt/turbonomic/.kube/
+fi
+
 sudo cp /etc/kubernetes/admin.conf /opt/turbonomic/.kube/config
 sudo chown $(id -u):$(id -g) /opt/turbonomic/.kube/config
 export KUBECONFIG=/opt/turbonomic/.kube/config
@@ -183,7 +194,7 @@ then
 EOF
   done
 fi
-# For the last node, leave out the common for valid json file
+# For the last node, leave out the comma for valid json file
 lastNodeElement="${node[-1]}"
 cat << EOF >> /tmp/topology.json
         {
