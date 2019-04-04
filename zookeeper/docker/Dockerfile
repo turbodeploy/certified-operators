@@ -11,6 +11,7 @@ RUN groupadd -g 1000 zookeeper && useradd -m -r -d /home/zookeeper -g 1000 -s /b
 passwd -l root
 
 COPY start_zookeeper /
+COPY zookeeper-ready /
 
 RUN yum install -y rsyslog java-1.8.0-openjdk-headless && \
     yum clean all && \
@@ -25,7 +26,8 @@ RUN cd /tmp && \
     chown -R zookeeper /tmp/zookeeper && \
     mkdir /var/lib/zoo && \
     chown -R zookeeper /var/lib/zoo && \
-    chmod a+x /start_zookeeper
+    chmod a+x /start_zookeeper && \
+    chmod a+x /zookeeper-ready
 
 # rsyslog
 ADD rsyslog.conf /etc

@@ -49,8 +49,11 @@ spec:
         ports:
         - containerPort: 2181
         readinessProbe:
-          tcpSocket:
-            port: 2181
+          exec:
+            command:
+              - sh
+              - -c
+              - "/zookeeper-ready"
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
