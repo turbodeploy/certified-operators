@@ -55,7 +55,6 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET character_set_results     = utf8 */;
 /*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`vmtplatform`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `vm_capacity_by_day` AS select 'VirtualMachine' AS `class_name`,`vm_stats_by_day`.`uuid` AS `uuid`,`vm_stats_by_day`.`producer_uuid` AS `producer_uuid`,`vm_stats_by_day`.`property_type` AS `property_type`,round((`vm_stats_by_day`.`avg_value` / `vm_stats_by_day`.`capacity`),3) AS `utilization`,`vm_stats_by_day`.`capacity` AS `capacity`,`vm_stats_by_day`.`avg_value` AS `used_capacity`,round((1.0 - `vm_stats_by_day`.`avg_value`),0) AS `available_capacity`,cast(`vm_stats_by_day`.`snapshot_time` as date) AS `recorded_on` from (`vm_stats_by_day` join `vm_instances`) where ((`vm_stats_by_day`.`uuid` = `vm_instances`.`uuid`) and (`vm_stats_by_day`.`property_subtype` = 'used') and (`vm_stats_by_day`.`capacity` > 0.00)) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
