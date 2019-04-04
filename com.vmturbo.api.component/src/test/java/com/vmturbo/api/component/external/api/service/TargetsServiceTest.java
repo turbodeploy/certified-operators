@@ -925,6 +925,7 @@ public class TargetsServiceTest {
         Assert.assertEquals(accountDef.isRequired(), dto.getIsMandatory());
         Assert.assertEquals(accountDef.getDisplayName(), dto.getDisplayName());
         Assert.assertEquals(accountDef.isSecret(), dto.getIsSecret());
+        Assert.assertEquals(accountDef.getDescription(), dto.getDescription());
     }
 
     private static AccountDefEntry createAccountDef(String key) {

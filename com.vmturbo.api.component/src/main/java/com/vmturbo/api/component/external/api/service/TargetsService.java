@@ -909,8 +909,7 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setIsSecret(entry.isSecret());
         inputFieldDTO.setValueType(convert(entry.getValueType()));
         inputFieldDTO.setDefaultValue(entry.getDefaultValue());
-        // TODO: the InputFieldApiDTO has nowhere to store the
-        // inputField.getDescription()
+        inputFieldDTO.setDescription(entry.getDescription());
         return inputFieldDTO;
     }
 
