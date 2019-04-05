@@ -2,6 +2,7 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_CPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
+import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_VCPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
 import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
@@ -12,6 +13,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -35,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.BasedbIO;
@@ -43,7 +47,6 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -108,25 +111,41 @@ public class MarketStatsAccumulator {
     private final Map<String, MarketStatsData> statsMap = new HashMap<>();
 
 
-    // A safe way to get the string "common_dto.EntityDTO.PhysicalMachineData.numCpuCores"
-    private static final String NUM_CPU_CORES = CommonDTO.EntityDTO.PhysicalMachineData.newBuilder()
-            .setNumCpuCores(0).build()
-            .getAllFields().keySet().iterator().next().toString();
-    // A safe way to get the string "common_dto.EntityDTO.PhysicalMachineData.numCpuSockets"
-    private static final String NUM_CPU_SOCKETS = CommonDTO.EntityDTO.PhysicalMachineData.newBuilder()
-            .setNumCpuSockets(0).build()
-            .getAllFields().keySet().iterator().next().toString();
+    /**
+     * We are using function to get the {@link TypeSpecificInfo} attribute value here. The input is
+     * the {@link TypeSpecificInfo} and we define what is the field we need to get in the function.
+     * The return value is option of double as the persist value.
+     */
+    private static final Function<TypeSpecificInfo, Optional<Double>> NUM_CPU_CORES_FUNC =
+        typeSpecificInfo -> typeSpecificInfo.hasPhysicalMachine()
+            && typeSpecificInfo.getPhysicalMachine().hasNumCpus()
+                ? Optional.of((double) typeSpecificInfo.getPhysicalMachine().getNumCpus())
+                : Optional.empty();
+    private static final Function<TypeSpecificInfo, Optional<Double>> NUM_CPU_SOCKETS_FUNC =
+        typeSpecificInfo -> typeSpecificInfo.hasPhysicalMachine()
+            && typeSpecificInfo.getPhysicalMachine().hasNumCpuSockets()
+                ? Optional.of((double) typeSpecificInfo.getPhysicalMachine().getNumCpuSockets())
+                : Optional.empty();
+    private static final Function<TypeSpecificInfo, Optional<Double>> NUM_VCPU_FUNC =
+        typeSpecificInfo -> typeSpecificInfo.hasVirtualMachine()
+            && typeSpecificInfo.getVirtualMachine().hasNumCpus()
+                ? Optional.of((double) typeSpecificInfo.getVirtualMachine().getNumCpus())
+                : Optional.empty();
+
 
     /**
      * This map lists properties of entities which are to be persisted as stats.
      * If an entity property with the given property key is found, the value of that property
-     * is persisted as the corresponding {@link com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits} using the mixedCase name.
+     * is persisted as the corresponding {@link CommodityTypeUnits} using the mixedCase name.
      */
-    private static final Map<String, CommodityTypeUnits> PERSISTED_ATTRIBUTE_MAP
-            = new ImmutableMap.Builder<String, CommodityTypeUnits>()
-            .put(NUM_CPU_CORES, NUM_CPUS)
-            .put(NUM_CPU_SOCKETS, NUM_SOCKETS)
-            .build();
+    private static final Map<Function<TypeSpecificInfo, Optional<Double>>, CommodityTypeUnits>
+        PERSISTED_ATTRIBUTE_MAP = new ImmutableMap.Builder<Function<TypeSpecificInfo,
+            Optional<Double>>, CommodityTypeUnits>()
+                .put(NUM_CPU_CORES_FUNC, NUM_CPUS)
+                .put(NUM_CPU_SOCKETS_FUNC, NUM_SOCKETS)
+                .put(NUM_VCPU_FUNC, NUM_VCPUS)
+                .build();
+
 
     /**
      * Create an object to accumulate min / max / total / capacity over the commodities for
@@ -448,21 +467,25 @@ public class MarketStatsAccumulator {
                 entityDTO.getCommoditySoldListCount(), insertStmt, dbTable);
 
         // scan entity attributes for specific attributes to persist as commodities
-        for (Map.Entry<String, String> propertyMapEntry : entityDTO.getEntityPropertyMapMap().entrySet()) {
-            final String propertyKey = propertyMapEntry.getKey();
-            final String propertyValue = propertyMapEntry.getValue();
-            if (PERSISTED_ATTRIBUTE_MAP.containsKey(propertyKey)) {
-                try {
-                    double floatValue = Float.valueOf(propertyValue);
-                    String commodityType = PERSISTED_ATTRIBUTE_MAP.get(propertyKey).getMixedCase();
-                    persistEntityAttribute(entityId, commodityType,
-                            floatValue, insertStmt, dbTable);
-                    internalAddCommodity(commodityType, commodityType, floatValue, floatValue,
-                            floatValue, floatValue, RelationType.METRICS);
-                } catch (NumberFormatException e) {
-                    logger.warn("error converting {} for {} = {}",
-                            propertyKey, entityDTO.getDisplayName(), propertyValue);
+        for (Map.Entry<Function<TypeSpecificInfo, Optional<Double>>, CommodityTypeUnits>
+            persistedAttributesMapEntry : PERSISTED_ATTRIBUTE_MAP.entrySet()) {
+            final Function<TypeSpecificInfo, Optional<Double>> func =
+                persistedAttributesMapEntry.getKey();
+            final CommodityTypeUnits commodityTypeUnits = persistedAttributesMapEntry.getValue();
+            try {
+                final Optional<Double> floatValueOpt = func.apply(entityDTO.getTypeSpecificInfo());
+                if (!floatValueOpt.isPresent()) {
+                    continue;
                 }
+                final String commodityType = commodityTypeUnits.getMixedCase();
+                persistEntityAttribute(entityId, commodityTypeUnits.getMixedCase(),
+                    floatValueOpt.get(), insertStmt, dbTable);
+                internalAddCommodity(commodityType, commodityType, floatValueOpt.get(),
+                    floatValueOpt.get(), floatValueOpt.get(), floatValueOpt.get(),
+                    RelationType.METRICS);
+            } catch (NumberFormatException e) {
+                logger.warn("Error converting {} for {}",
+                    commodityTypeUnits.getMixedCase(), entityDTO.getDisplayName());
             }
         }
     }
@@ -484,16 +507,13 @@ public class MarketStatsAccumulator {
                                         @Nonnull InsertSetMoreStep<?> insertStmt,
                                         @Nonnull Table<?> dbTable) throws VmtDbException {
         // initialize the common values for this row
-        historydbIO.initializeCommodityInsert(mixedCaseCommodityName, topologyInfo.getCreationTime(), entityId,
-                RelationType.METRICS, /*providerId*/null, null,
-                null, null, insertStmt, dbTable);
+        historydbIO.initializeCommodityInsert(mixedCaseCommodityName, topologyInfo.getCreationTime(),
+            entityId, RelationType.METRICS, null, null, null, null, insertStmt, dbTable);
         // set the values specific to used component of commodity and write
-        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, insertStmt,
-                dbTable);
+        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, insertStmt, dbTable);
         // mark the row complete
         markRowComplete();
     }
-
 
     /**
      * Append commodities bought to the current DB statement, and write to the DB when the number

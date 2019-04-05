@@ -109,7 +109,6 @@ public class MarketStatsAccumulatorTest {
 
     @Test
     public void testPersistMarketStats() throws Exception {
-
         // arrange
         String entityType = "PhysicalMachine";
         MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(TOPOLOGY_INFO,

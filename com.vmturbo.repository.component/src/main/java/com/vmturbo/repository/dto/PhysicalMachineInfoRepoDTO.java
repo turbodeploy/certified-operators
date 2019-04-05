@@ -1,10 +1,11 @@
 package com.vmturbo.repository.dto;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.google.common.base.Objects;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
@@ -23,6 +24,8 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private String model;
     // The total number of CPU cores on the host
     private Integer numCpus;
+    // The total number of CPU sockets on the host
+    private Integer numCpuSockets;
     // The timezone of this host
     private String timezone;
 
@@ -40,6 +43,10 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         if (physicalMachineInfo.hasNumCpus()) {
             setNumCpus(physicalMachineInfo.getNumCpus());
+        }
+
+        if (physicalMachineInfo.hasNumCpuSockets()) {
+            setNumCpuSockets(physicalMachineInfo.getNumCpuSockets());
         }
 
         if (physicalMachineInfo.hasTimezone()) {
@@ -62,6 +69,9 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getModel() != null) {
             physicalMachineInfoBuilder.setModel(getModel());
+        }
+        if (getNumCpuSockets() != null) {
+            physicalMachineInfoBuilder.setNumCpuSockets(getNumCpuSockets());
         }
         if (getNumCpus() != null) {
             physicalMachineInfoBuilder.setNumCpus(getNumCpus());
@@ -106,6 +116,12 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.numCpus = numCpus;
     }
 
+    public Integer getNumCpuSockets() { return numCpuSockets; }
+
+    public void setNumCpuSockets(final Integer numCpuSockets) {
+        this.numCpuSockets = numCpuSockets;
+    }
+
     public String getTimezone() {
         return timezone;
     }
@@ -119,26 +135,28 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (this == o) return true;
         if (!(o instanceof PhysicalMachineInfoRepoDTO)) return false;
         final PhysicalMachineInfoRepoDTO that = (PhysicalMachineInfoRepoDTO) o;
-        return Objects.equal(cpuModel, that.cpuModel) &&
-                Objects.equal(vendor, that.vendor) &&
-                Objects.equal(model, that.model) &&
-                Objects.equal(numCpus, that.numCpus) &&
-                Objects.equal(timezone, that.timezone);
+        return Objects.equals(cpuModel, that.cpuModel) &&
+            Objects.equals(vendor, that.vendor) &&
+            Objects.equals(model, that.model) &&
+            Objects.equals(numCpus, that.numCpus) &&
+            Objects.equals(numCpuSockets, that.numCpuSockets) &&
+            Objects.equals(timezone, that.timezone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(cpuModel, vendor, model, numCpus, timezone);
+        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, timezone);
     }
 
     @Override
     public String toString() {
         return "PhysicalMachineInfoRepoDTO{" +
-                "cpuModel='" + cpuModel + '\'' +
-                ", vendor='" + vendor + '\'' +
-                ", model='" + model + '\'' +
-                ", numCpus=" + numCpus +
-                ", timezone='" + timezone + '\'' +
-                '}';
+            "cpuModel='" + cpuModel + '\'' +
+            ", vendor='" + vendor + '\'' +
+            ", model='" + model + '\'' +
+            ", numCpus=" + numCpus +
+            ", numCpuSockets=" + numCpuSockets +
+            ", timezone='" + timezone + '\'' +
+            '}';
     }
 }

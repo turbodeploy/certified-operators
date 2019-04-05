@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
@@ -81,9 +82,6 @@ public class LiveStatsReader {
     private final FullMarketRatioProcessorFactory fullMarketRatioProcessorFactory;
 
     private final RatioRecordFactory ratioRecordFactory;
-
-    // TODO: After StringConstants class add entity type constant, we can use it from StringConstants.
-    private final String ENTITY_TYPE = "entity_type";
 
     private static final DataMetricSummary GET_STATS_RECORDS_DURATION_SUMMARY = DataMetricSummary.builder()
             .withName("history_get_live_stats_records_duration_seconds")
@@ -475,7 +473,7 @@ public class LiveStatsReader {
         return entityType
                 .filter(serviceEntityType -> !serviceEntityType.isEmpty())
                 .map(serviceEntityType ->
-                        str(dField(table, ENTITY_TYPE)).in(serviceEntityType));
+                        str(dField(table, StringConstants.ENTITY_TYPE)).in(serviceEntityType));
     }
 
     /**

@@ -40,6 +40,9 @@ public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
         if (physicalMachineData.hasNumCpuCores()) {
             physicalMachineInfoBuilder.setNumCpus(physicalMachineData.getNumCpuCores());
         }
+        if (physicalMachineData.hasNumCpuSockets()) {
+            physicalMachineInfoBuilder.setNumCpuSockets(physicalMachineData.getNumCpuSockets());
+        }
         // note that the PhysicalMachineInfo will be added even if none of the properties are found
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)

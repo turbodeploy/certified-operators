@@ -73,6 +73,9 @@ message TypeSpecificInfo {
 
         // The timezone of this host
         optional string timezone = 5;
+
+        // The total number of CPU sockets on the host
+        optional int32 num_cpu_sockets = 6;
     }
 
     message BusinessAccountInfo {

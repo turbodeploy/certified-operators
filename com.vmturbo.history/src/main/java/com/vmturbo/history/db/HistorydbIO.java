@@ -45,7 +45,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -85,7 +84,6 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;

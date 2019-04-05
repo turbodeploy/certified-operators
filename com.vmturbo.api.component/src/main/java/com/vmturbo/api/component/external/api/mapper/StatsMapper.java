@@ -106,7 +106,8 @@ public class StatsMapper {
         StringConstants.NUM_CNT_PER_STORAGE, StringConstants.NUM_CNT_PER_VM,
         StringConstants.HEADROOM_VMS, StringConstants.CURRENT_HEADROOM, StringConstants.DESIREDVMS,
         StringConstants.PRODUCES, StringConstants.NUM_RI, StringConstants.RI_COUPON_COVERAGE,
-        StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_DISCOUNT
+        StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_DISCOUNT,
+        StringConstants.NUM_CPUS, StringConstants.NUM_SOCKETS, StringConstants.NUM_VCPUS
     );
     private static final String UNKNOWN = "UNKNOWN";
 

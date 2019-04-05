@@ -30,6 +30,7 @@ public class StringConstants {
     public static final String ENTITIES = "entities";
     public static final String ENTITY_DEST_ID = "entity_dest_id";
     public static final String ENTITY_ID = "entity_id";
+    public static final String ENTITY_TYPE = "entity_type";
     public static final String FILENAME = "filename";
     public static final String TITLE = "title";
     public static final String GROUP = "Group";

@@ -45,7 +45,7 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         if (vmData.hasNumCpus()) {
             vmInfo.setNumCpus(vmData.getNumCpus());
         } else {
-            String numCpus = entityPropertyMap.get(SupplyChainConstants.NUM_CPUS);
+            final String numCpus = entityPropertyMap.get(SupplyChainConstants.NUM_CPUS);
             if (numCpus != null) {
                 try {
                     vmInfo.setNumCpus(Integer.valueOf(numCpus));
@@ -54,6 +54,7 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
                 }
             }
         }
+
         if (!vmData.getConnectedNetworkList().isEmpty()) {
             vmInfo.addAllConnectedNetworks(vmData.getConnectedNetworkList());
         }

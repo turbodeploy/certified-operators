@@ -302,7 +302,6 @@ public class SdkToTopologyEntityConverter {
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(CommonDTO.EntityDTOOrBuilder dto,
                                                                              long oid,
                                                                              Map<String, Long> providerOIDs) {
-
         final int entityType = type(dto);
         final String displayName = dto.getDisplayName();
         final TopologyDTO.EntityState entityState = entityState(dto);
