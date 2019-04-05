@@ -168,16 +168,21 @@ public class DiscoveredCloudCostUploader {
      * @param targetId
      */
     public void targetRemoved(long targetId) {
-        priceTableUploader.targetRemoved(targetId, probeTypesForTargetId.get(targetId));
-        probeTypesForTargetId.remove(targetId);
-        long stamp = targetCostDataCacheLock.readLock();
-        try {
-            costDataByTargetId.remove(targetId);
-        } finally {
-            logger.trace("Releasing read lock for target cost data map");
-            targetCostDataCacheLock.unlock(stamp);
+        // Try to retrieve the probe type for the target that was just removed. This may be null--
+        // if discovery has not completed for the removed target, it won't be in the map yet.
+        // If the target is not in the probe type map yet, then no data will have been stored for it.
+        final SDKProbeType probeType = probeTypesForTargetId.get(targetId);
+        if (probeType != null) {
+            priceTableUploader.targetRemoved(targetId, probeType);
+            probeTypesForTargetId.remove(targetId);
+            long stamp = targetCostDataCacheLock.readLock();
+            try {
+                costDataByTargetId.remove(targetId);
+            } finally {
+                logger.trace("Releasing read lock for target cost data map");
+                targetCostDataCacheLock.unlock(stamp);
+            }
         }
-
     }
 
     /**
