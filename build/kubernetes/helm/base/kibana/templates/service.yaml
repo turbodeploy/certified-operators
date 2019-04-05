@@ -41,9 +41,11 @@ spec:
 {{- if .Values.service.portName }}
       name: {{ .Values.service.portName }}
 {{- end }}
-{{- if .Values.service.externalIPs }}
+{{- if .Values.global }}
+  {{- if .Values.global.externalIP }}
   externalIPs:
-{{ toYaml .Values.service.externalIPs | indent 4 }}
+    - {{ .Values.global.externalIP }}
+  {{- end -}}
 {{- end }}
   selector:
     app: {{ template "kibana.name" . }}

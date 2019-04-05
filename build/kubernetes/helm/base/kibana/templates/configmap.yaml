@@ -8,7 +8,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-{{- range $key, $value := .Values.files }}
-  {{ $key }}: |
-{{ toYaml $value | default "{}" | indent 4 }}
-{{- end -}}
+  kibana.yml: |
+    server.host: "0"
+    server.name: kibana
+    elasticsearch.url: "http://{{ .Release.Name }}-{{ .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"

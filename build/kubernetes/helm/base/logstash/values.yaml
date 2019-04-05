@@ -32,14 +32,14 @@ service:
     #   port: 1514
     #   targetPort: syslog-udp
     #   protocol: UDP
-    # syslog-tcp:
-    #   port: 1514
-    #   targetPort: syslog-tcp
-    #   protocol: TCP
-    beats:
-      port: 5044
-      targetPort: beats
+    syslog-tcp:
+      port: 2514
+      targetPort: syslog-tcp
       protocol: TCP
+    #beats:
+    #  port: 5044
+    #  targetPort: beats
+    #  protocol: TCP
     # http:
     #  port: 8080
     #  targetPort: http
@@ -49,12 +49,12 @@ ports:
   # - name: syslog-udp
   #   containerPort: 1514
   #   protocol: UDP
-  # - name: syslog-tcp
-  #   containerPort: 1514
-  #   protocol: TCP
-  - name: beats
-    containerPort: 5044
+  - name: syslog-tcp
+    containerPort: 2514
     protocol: TCP
+  #- name: beats
+  #  containerPort: 5044
+  #  protocol: TCP
   # - name: http
   #   containerPort: 8080
   #   protocol: TCP
@@ -198,7 +198,7 @@ exporter:
       successThreshold: 1
 
 elasticsearch:
-  host: elasticsearch-client.default.svc.cluster.local
+  host: elasticsearch-client
   port: 9200
 
 ## ref: https://github.com/elastic/logstash-docker/blob/master/build/logstash/env2yaml/env2yaml.go
@@ -257,13 +257,13 @@ inputs:
       #   port => 1514
       #   type => syslog
       # }
-      # tcp {
-      #   port => 1514
-      #   type => syslog
-      # }
-      beats {
-        port => 5044
+      tcp {
+        port => 2514
+        type => syslog
       }
+      #beats {
+      #  port => 5044
+      #}
       # http {
       #   port => 8080
       # }
@@ -278,9 +278,17 @@ inputs:
     }
 
 filters:
-  # main: |-
-  #   filter {
-  #   }
+   main: |-
+    filter {
+      if [type] == "syslog" {
+        grok {
+          match => { "message" => "%{SYSLOGLINE}" }
+        }
+        date {
+          match => [ "timestamp", "MMM  d HH:mm:ss", "MMM dd HH:mm:ss" ]
+        }
+      }
+    }
 
 outputs:
   main: |-
@@ -288,9 +296,8 @@ outputs:
       # stdout { codec => rubydebug }
       elasticsearch {
         hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+        index => "syslog-%{+YYYY.MM.dd}"
         manage_template => false
-        index => "%{[@metadata][beat]}-%{+YYYY.MM.dd}"
-        document_type => "%{[@metadata][type]}"
       }
       # kafka {
       #   ## ref: https://www.elastic.co/guide/en/logstash/current/plugins-outputs-kafka.html

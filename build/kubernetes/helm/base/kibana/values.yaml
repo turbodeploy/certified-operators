@@ -10,7 +10,9 @@ testFramework:
 commandline:
   args: []
 
-env: {}
+elasticsearch:
+  host: elasticsearch-client
+  port: 9200
   # All Kibana configuration options are adjustable via env vars.
   # To adjust a config option to an env var uppercase + replace `.` with `_`
   # Ref: https://www.elastic.co/guide/en/kibana/current/settings.html
@@ -20,27 +22,14 @@ env: {}
   # LOGGING_VERBOSE: "true"
   # SERVER_DEFAULTROUTE: "/app/kibana"
 
-files:
-  kibana.yml:
-    ## Default Kibana configuration from kibana-docker.
-    server.name: kibana
-    server.host: "0"
-    elasticsearch.url: http://elasticsearch:9200
-
-    ## Custom config properties below
-    ## Ref: https://www.elastic.co/guide/en/kibana/current/settings.html
-    # server.port: 5601
-    # logging.verbose: "true"
-    # server.defaultRoute: "/app/kibana"
-
 deployment:
   annotations: {}
 
 service:
-  type: ClusterIP
+  type: LoadBalancer
   # clusterIP: None
   # portName: kibana-svc
-  externalPort: 443
+  externalPort: 5601
   internalPort: 5601
   # authProxyPort: 5602 To be used with authProxyEnabled and a proxy extraContainer
   ## External IP addresses of service
