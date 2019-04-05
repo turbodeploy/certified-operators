@@ -5,11 +5,14 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Before;
 import org.junit.Rule;
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
@@ -17,6 +20,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -30,7 +34,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class MailManagerTest {
 
-    private SettingProtoMoles.SettingServiceMole settingServiceMole = spy(new SettingProtoMoles.SettingServiceMole());
+    private SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
 
     private final List<String> specNames = Arrays.asList(
             MailConfiguration.SETTING_SMTP_SERVER,
@@ -43,9 +47,30 @@ public class MailManagerTest {
 
     @Rule
     public GrpcTestServer settingsServer = GrpcTestServer.newServer(settingServiceMole);
+    private SettingServiceGrpc.SettingServiceBlockingStub settingsService;
 
-    private final SettingServiceGrpc.SettingServiceBlockingStub settingsService =
-                    SettingServiceGrpc.newBlockingStub(settingsServer.getChannel());
+    @Before
+    public void setup() throws IOException {
+        settingsService =
+            SettingServiceGrpc.newBlockingStub(settingsServer.getChannel());
+    }
+
+    /**
+     * Test skipping sending email.
+     *
+     * @throws Exception
+     */
+    @Test(expected = MailEmptyConfigException.class)
+    public void testSendMailEmptyConfig() throws Exception {
+        MailManager mailManager = new MailManager(settingsService);
+
+        when(settingServiceMole.getMultipleGlobalSettings(eq(GetMultipleGlobalSettingsRequest.newBuilder()
+            .addAllSettingSpecName(specNames)
+            .build())))
+            .thenReturn(getEmptySettingList());
+
+        mailManager.sendMail(Arrays.asList(""), "", "");
+    }
 
     /**
      * Test sending an email without authentication using a relay SMTP server.
@@ -103,6 +128,31 @@ public class MailManagerTest {
                 "Test body",
                 Arrays.asList(getClass().getClassLoader()
                         .getResource("emailAttachment.txt").getFile()));
+    }
+
+    /**
+     * Return empty smtpServer and fromAddress settings.
+     *
+     * @return settings for skipping sending email.
+     */
+    private List<Setting> getEmptySettingList() {
+        List<Setting> settings = new ArrayList<>();
+        settings.add(Setting.newBuilder()
+            .setSettingSpecName(MailConfiguration.SETTING_SMTP_SERVER)
+            .setStringSettingValue(StringSettingValue.newBuilder()
+                .setValue(""))
+            .build());
+        settings.add(Setting.newBuilder()
+            .setSettingSpecName(MailConfiguration.SETTING_SMTP_PORT)
+            .setNumericSettingValue(NumericSettingValue.newBuilder()
+                .setValue(25))
+            .build());
+        settings.add(Setting.newBuilder()
+            .setSettingSpecName(MailConfiguration.SETTING_FROM_ADDRESS)
+            .setStringSettingValue(StringSettingValue.newBuilder()
+                .setValue(""))
+            .build());
+        return settings;
     }
 
     /**

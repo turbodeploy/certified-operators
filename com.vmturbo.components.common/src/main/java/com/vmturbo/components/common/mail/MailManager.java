@@ -1,6 +1,7 @@
 package com.vmturbo.components.common.mail;
 
 import java.io.File;
+import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -12,6 +13,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.mail.EmailAttachment;
 import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.MultiPartEmail;
+import org.springframework.util.StringUtils;
 
 import com.google.common.collect.Lists;
 
@@ -81,6 +83,14 @@ public class MailManager {
         // The configurations are not cached between calls of sendMail to make sure the latest
         // setting values are used.
         MailConfiguration config = new MailConfiguration(settingService);
+        if (StringUtils.isEmpty(config.getSmtpServer()) ||
+            StringUtils.isEmpty(config.getFromAddress())) {
+            throw new MailEmptyConfigException(
+                MessageFormat.format(
+                    "Skip sending email because of empty SMTP server or sender''s email address." +
+                        " SMTP server is \"{0}\", sender''s email address is \"{1}\", SMTP port is {2}.",
+                    config.getSmtpServer(), config.getFromAddress(), config.getSmtpPort()));
+        }
 
         try {
             // Add attachments

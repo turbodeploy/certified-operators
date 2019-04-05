@@ -40,6 +40,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.mail.MailConfigException;
+import com.vmturbo.components.common.mail.MailEmptyConfigException;
 import com.vmturbo.components.common.mail.MailException;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.licensing.License;
@@ -429,6 +430,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
             } else {
                 logger.warn("License doesn't have email address, skip sending email.");
             }
+        } catch (MailEmptyConfigException e) {
+            logger.warn(e.getMessage());
         } catch (MailException e) {
             logger.error("Failed to send notification by email: ", e);
         } catch (MailConfigException e) {
