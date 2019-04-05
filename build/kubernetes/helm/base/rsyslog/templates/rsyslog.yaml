@@ -1,3 +1,5 @@
+{{ if .Values.global }}
+  {{ if and (not .Values.global.elk) (not .Values.global.externalSyslog) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -82,6 +84,8 @@ spec:
           claimName: rsyslog-auditlogdata
       - name: rsyslog-tmpfs0
         emptyDir: {}
+  {{ end }}
+{{ end }}
 ---
 apiVersion: v1
 kind: Service
@@ -91,6 +95,15 @@ metadata:
     io.kompose.service: rsyslog
   name: {{ .Chart.Name }}
 spec:
+{{- if .Values.global }}
+  {{- if .Values.global.elk }}
+  type: ExternalName
+  externalName: {{ .Release.Name }}-logstash.{{ .Release.Namespace }}.svc.cluster.local
+  {{- else if .Values.global.externalSyslog }}
+  type: ExternalName
+  externalName: {{ .Values.global.externalSyslog }}
+  {{- end -}}
+{{- end }}
   ports:
   - name: rsyslog
     port: 2514

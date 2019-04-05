@@ -72,7 +72,21 @@ dependencies:
     repository: file://../services/topology-processor
     version: 0.1.0
 
-# Monitoring dependencies
+# Logging dependencies
+  - name: elasticsearch
+    repository: file://../base/elasticsearch
+    version: 1.24.0
+    condition: global.elk
+  - name: kibana
+    repository: file://../base/kibana
+    version: 2.2.0
+    condition: global.elk
+  - name: logstash
+    repository: file://../base/logstash
+    version: 1.7.0
+    condition: global.elk
+
+  # Monitoring dependencies
   - name: prometheus
     repository: file://../base/prometheus
     version: 8.4.3
