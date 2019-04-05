@@ -534,8 +534,9 @@ public class SearchRpcService extends SearchServiceImplBase {
                     .build())
                 : Optional.empty();
 
-        // this is needed since searchParametersList may be empty, otherwise entityOidList will be ignored
-        if (searchParametersList.isEmpty()) {
+        // this is needed since searchParametersList may be empty, otherwise entityOidList will be ignored.
+        // the operation doesn't support the case of empty searchParametersList and empty entityOidList
+        if (searchParametersList.isEmpty() && !entityOidList.isEmpty()) {
             final Either<Throwable, List<String>> result = searchHandler.searchEntityOids(
                     Collections.emptyList(), db, paginationParamOnlySort, candidateEntityOids);
             if (result.isLeft()) {

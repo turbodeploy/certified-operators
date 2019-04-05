@@ -259,12 +259,14 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                 regionByVolumeId.put(volumeId, region.get(0));
             }
         });
-        searchTopologyEntityDTOs(volumeIdsByRegionId.keySet()).forEach(region -> {
-            Set<Long> volumeIds = volumeIdsByRegionId.get(region.getOid());
-            if (volumeIds != null) {
-                volumeIds.forEach(volumeId -> regionByVolumeId.put(volumeId, region));
-            }
-        });
+        if (volumeIdsByRegionId.keySet().size() > 0) {
+            searchTopologyEntityDTOs(volumeIdsByRegionId.keySet()).forEach(region -> {
+                Set<Long> volumeIds = volumeIdsByRegionId.get(region.getOid());
+                if (volumeIds != null) {
+                    volumeIds.forEach(volumeId -> regionByVolumeId.put(volumeId, region));
+                }
+            });
+        }
 
         // get cost stats for all volumes
         final Map<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(vmByVolumeId.keySet());
