@@ -58,6 +58,10 @@ dependencies:
     repository: file://../services/ml-datastore
     version: 0.1.0
     condition: metron.enabled
+  - name: ml-training
+    repository: file://../services/ml-training
+    version: 0.1.0
+    condition: metron.enabled
   - name: plan-orchestrator
     repository: file://../services/plan-orchestrator
     version: 0.1.0
