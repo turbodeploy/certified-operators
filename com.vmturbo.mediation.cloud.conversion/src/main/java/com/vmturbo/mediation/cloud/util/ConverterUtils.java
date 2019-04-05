@@ -13,11 +13,8 @@ import com.google.common.collect.Lists;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.DBProfileDTO;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Helper class containing constants, util functions, etc, which are used by different converters.
@@ -98,26 +95,6 @@ public class ConverterUtils {
                 .collect(Collectors.toList());
         commodityBought.clear();
         commodityBought.addAllBought(newBoughtCommodities);
-    }
-
-    /**
-     * Take a {@link DiscoveryResponse} and remove any {@link DerivedTargetSpecificationDTO} that
-     * match the given {@link SDKProbeType}.
-     *
-     * @param rawDiscoveryResponse the DiscoveryResponse to filter
-     * @param derivedProbeType the type of probe whose derived targets will be removed
-     * @return {@link DiscoveryResponse} without any derived targets of the given probe type
-     */
-    public static DiscoveryResponse removeDerivedTargets(@Nonnull DiscoveryResponse rawDiscoveryResponse,
-                                                         @Nonnull SDKProbeType derivedProbeType) {
-        List<DerivedTargetSpecificationDTO> targetsToKeep =
-            rawDiscoveryResponse.getDerivedTargetList().stream()
-                .filter(derivedTargetSpec -> derivedTargetSpec.hasProbeType() &&
-                    !derivedTargetSpec.getProbeType()
-                        .equals(derivedProbeType.getProbeType()))
-                .collect(Collectors.toList());
-        return rawDiscoveryResponse.toBuilder().clearDerivedTarget()
-            .addAllDerivedTarget(targetsToKeep).build();
     }
 
     // a wrapper class to represent the storage amount and storage access commodity's min and max capacity

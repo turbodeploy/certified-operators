@@ -15,7 +15,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -104,10 +103,9 @@ public class PriceTableUploader {
     /**
      * When a target is removed, we will clear the cached price table for it's probe type.
      *
-     * @param targetId the ID of a target that was just removed
-     * @param probeType the probe type of the removed target
+     * @param targetId
      */
-    public void targetRemoved(long targetId, @Nonnull SDKProbeType probeType) {
+    public void targetRemoved(long targetId, SDKProbeType probeType) {
         if (probeType.getProbeCategory() != ProbeCategory.COST) {
             return;
         }
