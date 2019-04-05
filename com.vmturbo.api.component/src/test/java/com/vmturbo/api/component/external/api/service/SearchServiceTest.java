@@ -44,6 +44,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
@@ -55,6 +56,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -71,6 +73,9 @@ import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationRespon
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
@@ -135,11 +140,12 @@ public class SearchServiceTest {
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
     private StatsHistoryServiceMole historyServiceSpy = Mockito.spy(new StatsHistoryServiceMole());
+    private ActionsServiceMole actionOrchestratorRpcService = new ActionsServiceMole();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy,
-        entitySeverityServiceSpy,
-        historyServiceSpy);
+    public GrpcTestServer grpcServer =
+        GrpcTestServer.newServer(
+            searchServiceSpy, entitySeverityServiceSpy, historyServiceSpy, actionOrchestratorRpcService);
 
     private final long targetId1 = 111L;
     private final long targetId2 = 112L;
@@ -150,13 +156,21 @@ public class SearchServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        SearchServiceBlockingStub searchGrpcStub =
+        final long realTimeContextId = 777777;
+        final SearchServiceBlockingStub searchGrpcStub =
                 SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        StatsHistoryServiceBlockingStub statsHistoryServiceStub =
+        final StatsHistoryServiceBlockingStub statsHistoryServiceStub =
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        EntitySeverityServiceBlockingStub severityGrpcStub =
+        final EntitySeverityServiceBlockingStub severityGrpcStub =
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final ActionsServiceBlockingStub actionsServiceBlockingStub =
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
+        final SearchUtil searchUtil =
+            new SearchUtil(
+                searchGrpcStub, topologyProcessor, actionsServiceBlockingStub,
+                mock(ActionSpecMapper.class), mock(PaginationMapper.class),
+                supplyChainFetcherFactory, realTimeContextId);
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -176,9 +190,9 @@ public class SearchServiceTest {
                 tagsService,
                 repositoryClient,
                 businessUnitMapper,
-                777777,
-                userSessionContext
-        ));
+                realTimeContextId,
+                userSessionContext,
+                searchUtil));
 
         doReturn(ImmutableMap.of(
             targetId1, probeType1,

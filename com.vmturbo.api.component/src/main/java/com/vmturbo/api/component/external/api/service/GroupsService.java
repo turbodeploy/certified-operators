@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -42,11 +44,12 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -76,7 +79,6 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -93,6 +95,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -125,6 +129,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  **/
 public class GroupsService implements IGroupsService {
 
+
+    private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
+            "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
     public static Set<String> NESTED_GROUP_TYPES =
         ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
@@ -169,7 +176,11 @@ public class GroupsService implements IGroupsService {
 
     private final TopologyProcessor topologyProcessor;
 
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     private StatsService statsService = null;
+
+    private final SearchUtil searchUtil;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -188,7 +199,9 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                   @Nonnull final SeverityPopulator severityPopulator,
-                  @Nonnull final TopologyProcessor topologyProcessor) {
+                  @Nonnull final TopologyProcessor topologyProcessor,
+                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                  @Nonnull final SearchUtil searchUtil) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -205,6 +218,8 @@ public class GroupsService implements IGroupsService {
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
+        this.searchUtil = Objects.requireNonNull(searchUtil);
     }
 
     /**
@@ -290,18 +305,8 @@ public class GroupsService implements IGroupsService {
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
         return
-            SearchUtil.getActionsByEntityUuids(
-                actionOrchestratorRpc,
-                topologyProcessor,
-                searchServiceBlockingStub,
-                actionSpecMapper,
-                paginationMapper,
-                realtimeTopologyContextId,
-                groupExpander.getGroupWithMembers(uuid)
-                    .map(GroupAndMembers::entities)
-                    .map(Sets::newHashSet),
-                inputDto,
-                paginationRequest);
+            searchUtil.getActionsByEntityUuids(
+                getMemberIds(uuid).orElseGet(Collections::emptySet), inputDto, paginationRequest);
     }
 
     @Override
@@ -768,6 +773,44 @@ public class GroupsService implements IGroupsService {
     @Override
     public void deleteTagsByGroupUuid(final String s) throws Exception {
         throw ApiUtils.notImplementedInXL();
+    }
+
+    /**
+     * Get the ID's of entities that are members of a group or cluster.
+     *
+     * @param groupUuid The UUID of the group or cluster.
+     * @return An optional containing the ID's of the entities in the group/cluster.
+     *         An empty optional if the group UUID is not valid (e.g. "Market").
+     * @throws UnknownObjectException if the UUID is valid, but group with the UUID exists.
+     */
+    @VisibleForTesting
+    Optional<Set<Long>> getMemberIds(@Nonnull final String groupUuid)
+            throws UnknownObjectException {
+        Set<Long> memberIds = null;
+
+        // These magic UI strings currently have no associated group in XL, so they are not valid.
+        if (groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
+                groupUuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID)) {
+            return Optional.empty();
+        }
+
+        // If the uuid is not for the global, get the group membership from Group component.
+        if (!GLOBAL_SCOPE_SUPPLY_CHAIN.contains(groupUuid)) {
+            final long id = Long.parseLong(groupUuid);
+            try {
+                GetMembersResponse groupResp = groupServiceRpc.getMembers(GetMembersRequest.newBuilder()
+                        .setId(id)
+                        .build());
+                memberIds = Sets.newHashSet(groupResp.getMembers().getIdsList());
+            } catch (StatusRuntimeException e) {
+                if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                    throw new UnknownObjectException("Can't find group " + groupUuid);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        return Optional.ofNullable(memberIds);
     }
 
     /**

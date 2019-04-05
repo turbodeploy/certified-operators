@@ -12,7 +12,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -28,9 +28,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.springframework.web.client.RestTemplate;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -38,7 +36,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
@@ -48,10 +45,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCount;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -151,6 +145,47 @@ public class SupplyChainFetcherFactoryTest {
         assertThat(stateSummary.keySet(), containsInAnyOrder(onState, offState));
         assertThat(stateSummary.get(onState), is(2));
         assertThat(stateSummary.get(offState), is(1));
+    }
+
+    /**
+     * Tests proper extraction of entity ids from a correct result.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testFetchIds() throws Exception {
+        final SupplyChainNode supplyChainNode1 =
+            SupplyChainNode.newBuilder()
+                .putMembersByState(
+                    EntityState.POWERED_ON_VALUE,
+                    MemberList.newBuilder().addMemberOids(1L).addMemberOids(2L).build())
+                .putMembersByState(
+                    EntityState.POWERED_OFF_VALUE,
+                    MemberList.newBuilder().addMemberOids(3L).build())
+                .build();
+        final SupplyChainNode supplyChainNode2 =
+                SupplyChainNode.newBuilder()
+                    .putMembersByState(
+                        EntityState.POWERED_ON_VALUE,
+                        MemberList.newBuilder().addMemberOids(1L).addMemberOids(4L).build())
+                    .putMembersByState(
+                        EntityState.POWERED_OFF_VALUE,
+                        MemberList.newBuilder().addMemberOids(4L).addMemberOids(5L).build())
+                    .build();
+
+        when(supplyChainServiceBackend.getSupplyChain(any()))
+            .thenReturn(
+                GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(
+                        SupplyChain.newBuilder()
+                            .addSupplyChainNodes(supplyChainNode1)
+                            .addSupplyChainNodes(supplyChainNode2)
+                            .build())
+                    .build());
+
+        Assert.assertEquals(
+            LongStream.range(1L, 6L).boxed().collect(Collectors.toSet()),
+            supplyChainFetcherFactory.newNodeFetcher().fetchEntityIds());
     }
 
     @Test
@@ -299,15 +334,6 @@ public class SupplyChainFetcherFactoryTest {
         if (severity != null) {
             builder.setSeverity(severity);
         }
-        return builder.build();
-    }
-
-    @Nonnull
-    private static SeverityCount newSeverityCount(@Nonnull Severity severity, long count) {
-        final SeverityCount.Builder builder = SeverityCount.newBuilder()
-            .setSeverity(severity)
-            .setEntityCount(count);
-
         return builder.build();
     }
 }

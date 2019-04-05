@@ -158,6 +158,8 @@ public class SearchService implements ISearchService {
 
     private TopologyProcessor topologyProcessor;
 
+    private final SearchUtil searchUtil;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -177,7 +179,8 @@ public class SearchService implements ISearchService {
                   @Nonnull RepositoryClient repositoryClient,
                   @Nonnull BusinessUnitMapper businessUnitMapper,
                   final long realtimeTopologyContextId,
-                  @Nonnull final UserSessionContext userSessionContext) {
+                  @Nonnull final UserSessionContext userSessionContext,
+                  @Nonnull final SearchUtil searchUtil) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -198,6 +201,7 @@ public class SearchService implements ISearchService {
         this.businessUnitMapper = businessUnitMapper;
         this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
+        this.searchUtil = searchUtil;
     }
 
     @Override
@@ -217,7 +221,7 @@ public class SearchService implements ISearchService {
         // The input is the uuid for a single entity.
         ServiceEntityApiDTO entity = repositoryApi.getServiceEntityForUuid(Long.valueOf(uuidString));
         // fetch information about the discovering target
-        entity.setDiscoveredBy(SearchUtil.fetchDiscoveringTarget(topologyProcessor, entity));
+        entity.setDiscoveredBy(searchUtil.fetchDiscoveringTarget(entity));
         return entity;
     }
 

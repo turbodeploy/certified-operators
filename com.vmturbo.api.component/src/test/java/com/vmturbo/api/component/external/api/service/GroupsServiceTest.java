@@ -43,10 +43,12 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -57,6 +59,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
@@ -85,6 +88,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -152,8 +156,22 @@ public class GroupsServiceTest {
     public void init() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        groupsService =  new GroupsService(
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+        // create inputs for the service
+        final SearchServiceBlockingStub searchServiceRpc =
+                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final ActionsServiceBlockingStub actionOrchestratorRpcService =
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final PaginationMapper paginationMapper = new PaginationMapper();
+        final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
+        final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+        final SearchUtil searchUtil =
+                new SearchUtil(
+                        searchServiceRpc, topologyProcessor, actionOrchestratorRpcService, actionSpecMapper,
+                        paginationMapper, supplyChainFetcherFactory, CONTEXT_ID);
+
+        groupsService =
+            new GroupsService(
+                actionOrchestratorRpcService,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionSpecMapper,
                 groupMapper,
@@ -161,14 +179,16 @@ public class GroupsServiceTest {
                 uuidMapper,
                 paginationMapper,
                 repositoryApi,
-            CONTEXT_ID,
+                CONTEXT_ID,
                 mock(SettingsManagerMapping.class),
                 TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 entityAspectMapper,
-                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                searchServiceRpc,
                 actionStatsQueryExecutor,
                 severityPopulator,
-            mock(TopologyProcessor.class));
+                topologyProcessor,
+                supplyChainFetcherFactory,
+                searchUtil);
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);

@@ -141,6 +141,20 @@ public class SupplyChainFetcherFactory {
                         + e.getMessage());
             }
         }
+
+        @Override
+        public Set<Long> fetchEntityIds() throws OperationFailedException {
+            try {
+                return
+                    new SupplychainNodeFetcher(
+                            topologyContextId, seedUuids, entityTypes, environmentType,
+                            supplyChainRpcService, groupExpander, enforceUserScope)
+                        .fetchEntityIds();
+            } catch (InterruptedException|ExecutionException|TimeoutException e) {
+                throw new OperationFailedException("Failed to fetch supply chain! Error: "
+                        + e.getMessage());
+            }
+        }
     }
 
     /**
@@ -197,6 +211,22 @@ public class SupplyChainFetcherFactory {
                         + e.getMessage());
             }
         }
+
+        @Override
+        @Nonnull
+        public Set<Long> fetchEntityIds() throws OperationFailedException, InterruptedException {
+            try {
+                return
+                    new SupplychainApiDTOFetcher(
+                            topologyContextId, seedUuids, entityTypes, environmentType,
+                            entityDetailType, includeHealthSummary, supplyChainRpcService,
+                            severityRpcService, repositoryApi, groupExpander, enforceUserScope)
+                        .fetchEntityIds();
+            } catch (ExecutionException | TimeoutException e) {
+                throw new OperationFailedException("Failed to fetch supply chain! Error: "
+                        + e.getMessage());
+            }
+        }
     }
 
     /**
@@ -233,6 +263,17 @@ public class SupplyChainFetcherFactory {
          * @throws InterruptedException If the thread is interrupted while waiting for the operation.
          */
         public abstract T fetch() throws OperationFailedException, InterruptedException;
+
+        /**
+         * Synchronously fetch the supply chain with the parameters specified in the builder
+         * and return the ids of all the contained entities
+         *
+         * @return The set of ids of all contained entities.
+         * @throws OperationFailedException If any of the calls/processing required for the fetch
+         *                                  operation fail.
+         * @throws InterruptedException If the thread is interrupted while waiting for the operation.
+         */
+        public abstract Set<Long> fetchEntityIds() throws OperationFailedException, InterruptedException;
 
         /**
          * The seed UUID to start the supply chain generation from; may be SE, Group, Cluster.
@@ -370,13 +411,38 @@ public class SupplyChainFetcherFactory {
 
         public abstract T processSupplyChain(final List<SupplyChainNode> supplyChainNodes);
 
+        public final T fetch() throws InterruptedException, ExecutionException, TimeoutException {
+            return processSupplyChain(fetchSupplyChainNodes());
+        }
+
+        /**
+         * Fetch the requested supply chain using {@link #fetch()} and then return the ids
+         * of all the entities in the supply chain.
+         *
+         * @return the set of ids of all the entities in the supply chain.
+         * @throws InterruptedException
+         * @throws ExecutionException
+         * @throws TimeoutException
+         */
+        public final Set<Long> fetchEntityIds()
+                throws InterruptedException, ExecutionException, TimeoutException {
+            return
+                fetchSupplyChainNodes().stream()
+                    .map(SupplyChainNode::getMembersByStateMap)
+                    .map(Map::values)
+                    .flatMap(memberList ->
+                        memberList.stream().map(MemberList::getMemberOidsList).flatMap(List::stream))
+                    .collect(Collectors.toSet());
+        }
+
         /**
          * Fetch the requested supply chain in a blocking fashion, waiting at most the duration
          * of the timeout.
          *
          * @return The {@link SupplychainApiDTO} populated with the supply chain search results.
          */
-        final T fetch() throws InterruptedException, ExecutionException, TimeoutException {
+        final List<SupplyChainNode> fetchSupplyChainNodes()
+                throws InterruptedException, ExecutionException, TimeoutException {
 
             final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
 
@@ -403,13 +469,13 @@ public class SupplyChainFetcherFactory {
                                 GroupProtoUtil.getEntityType(group.get()));
 
                         if (groupType.equals(desiredEntityType)) {
-                            return processSupplyChain(Collections.singletonList(SupplyChainNode.newBuilder()
+                            return Collections.singletonList(SupplyChainNode.newBuilder()
                                 .setEntityType(groupType)
                                 .putMembersByState(EntityState.POWERED_ON_VALUE,
                                     MemberList.newBuilder()
                                         .addAllMemberOids(groupExpander.expandUuid(groupUuid))
                                         .build())
-                                .build()));
+                                .build());
                         }
                     }
                 }
@@ -421,7 +487,7 @@ public class SupplyChainFetcherFactory {
                         .collect(Collectors.toSet());
                 // empty expanded list?  If so, return immediately
                 if (expandedUuids.isEmpty()) {
-                    return processSupplyChain(Collections.emptyList());
+                    return Collections.emptyList();
                 }
                 // otherwise add the expanded list of seed uuids to the request
                 requestBuilder.addAllStartingEntityOid(expandedUuids.stream()
@@ -447,7 +513,7 @@ public class SupplyChainFetcherFactory {
                     CollectionUtils.size(seedUuids),
                     response.getSupplyChain().getMissingStartingEntitiesList());
             }
-            return processSupplyChain(response.getSupplyChain().getSupplyChainNodesList());
+            return response.getSupplyChain().getSupplyChainNodesList();
         }
 
         protected long getTopologyContextId() {

@@ -35,6 +35,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -49,6 +50,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -59,6 +61,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRespons
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -191,15 +194,26 @@ public class EntitiesServiceTest {
         when(probeInfo.getId()).thenReturn(PROBE_ID);
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
 
+        // create inputs for the service
+        final SearchServiceBlockingStub searchServiceRpc =
+            SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final ActionsServiceBlockingStub actionOrchestratorRpcService =
+            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final PaginationMapper paginationMapper = new PaginationMapper();
+        final SearchUtil searchUtil =
+            new SearchUtil(
+                searchServiceRpc, topologyProcessor, actionOrchestratorRpcService, actionSpecMapper,
+                paginationMapper, supplyChainFetcherFactory, CONTEXT_ID);
+
         // Create service
         service =
             new EntitiesService(
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionOrchestratorRpcService,
                 actionSpecMapper,
                 CONTEXT_ID,
                 supplyChainFetcherFactory,
-                new PaginationMapper(),
-                SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                paginationMapper,
+                searchServiceRpc,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(EntityAspectMapper.class),
                 topologyProcessor,
@@ -210,7 +224,8 @@ public class EntitiesServiceTest {
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                mock(SettingsMapper.class));
+                mock(SettingsMapper.class),
+                searchUtil);
     }
 
     /**

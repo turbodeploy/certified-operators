@@ -24,6 +24,7 @@ import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -219,7 +220,8 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 settingPolicyServiceBlockingStub(),
                 communicationConfig.settingRpcService(),
-                mapperConfig.settingsMapper());
+                mapperConfig.settingsMapper(),
+                searchUtil());
     }
 
     @Bean
@@ -240,7 +242,9 @@ public class ServiceConfig {
                 communicationConfig.searchServiceBlockingStub(),
                 actionStatsQueryExecutor(),
                 communicationConfig.severityPopulator(),
-                communicationConfig.topologyProcessor());
+                communicationConfig.topologyProcessor(),
+                communicationConfig.supplyChainFetcher(),
+                searchUtil());
     }
 
     @Bean
@@ -386,7 +390,8 @@ public class ServiceConfig {
                 repositoryClientConfig.repositoryClient(),
                 mapperConfig.businessUnitMapper(),
                 communicationConfig.getRealtimeTopologyContextId(),
-                userSessionContext());
+                userSessionContext(),
+                searchUtil());
     }
 
     @Bean
@@ -532,5 +537,17 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.supplyChainFetcher(),
             userSessionContext());
+    }
+
+    @Bean
+    public SearchUtil searchUtil() {
+        return new SearchUtil(
+            communicationConfig.searchServiceBlockingStub(),
+            communicationConfig.topologyProcessor(),
+            communicationConfig.actionsRpcService(),
+            mapperConfig.actionSpecMapper(),
+            mapperConfig.paginationMapper(),
+            communicationConfig.supplyChainFetcher(),
+            communicationConfig.getRealtimeTopologyContextId());
     }
 }

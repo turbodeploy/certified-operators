@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.action;
 
 import java.nio.file.AccessDeniedException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,11 +16,14 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -51,14 +55,36 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
  * Common functionality that has to do with searching.
  */
 public class SearchUtil {
-    private static final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger();
 
-    private SearchUtil() {}
+    private final SearchServiceBlockingStub searchServiceRpc;
+    private final TopologyProcessor topologyProcessor;
+    private final ActionsServiceBlockingStub actionOrchestratorRpc;
+    private final ActionSpecMapper actionSpecMapper;
+    private final PaginationMapper paginationMapper;
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
+    private final long realtimeTopologyContextId;
+
+    public SearchUtil(
+            @Nonnull SearchServiceBlockingStub searchServiceRpc,
+            @Nonnull TopologyProcessor topologyProcessor,
+            @Nonnull ActionsServiceBlockingStub actionOrchestratorRpc,
+            @Nonnull ActionSpecMapper actionSpecMapper,
+            @Nonnull PaginationMapper paginationMapper,
+            @Nonnull SupplyChainFetcherFactory supplyChainFetcherFactory,
+            long realtimeTopologyContextId) {
+        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpc);
+        this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
+        this.realtimeTopologyContextId = Objects.requireNonNull(realtimeTopologyContextId);
+    }
 
     /**
      * Fetch an entity in {@link TopologyEntityDTO} form, given its oid.
      *
-     * @param searchServiceRpc search service.
      * @param oid the oid of the entity to fetch.
      * @return the entity in a {@link TopologyEntityDTO} format.
      *
@@ -69,10 +95,7 @@ public class SearchUtil {
      * @throws AccessDeniedException if user is properly authenticated.
      */
     @Nonnull
-    public static TopologyEntityDTO getTopologyEntityDTO(
-            @Nonnull SearchServiceBlockingStub searchServiceRpc,
-            long oid)
-            throws Exception {
+    public TopologyEntityDTO getTopologyEntityDTO(long oid) throws Exception {
         // get information about this entity from the repository
         final SearchTopologyEntityDTOsResponse searchTopologyEntityDTOsResponse;
         try {
@@ -97,16 +120,13 @@ public class SearchUtil {
      * and returns it in {@link TargetApiDTO} format.  If no target is found,
      * {@code null} is returned.
      *
-     * @param topologyProcessor topology processor interface to be used.
      * @param entityAsTopologyEntityDTO entity to find a discovering target for.
      * @throws CommunicationException communication with the topology processor failed.
      * @throws TopologyProcessorException mandatory data for the target could not be retrieved.
      * @return a discovering target.
      */
     @Nullable
-    public static TargetApiDTO fetchDiscoveringTarget(
-            @Nonnull TopologyProcessor topologyProcessor,
-            @Nonnull TopologyEntityDTO entityAsTopologyEntityDTO)
+    public TargetApiDTO fetchDiscoveringTarget(@Nonnull TopologyEntityDTO entityAsTopologyEntityDTO)
             throws CommunicationException, TopologyProcessorException {
         if (entityAsTopologyEntityDTO.hasOrigin()
                 && entityAsTopologyEntityDTO.getOrigin().hasDiscoveryOrigin()
@@ -118,7 +138,7 @@ public class SearchUtil {
             final long targetId =
                 entityAsTopologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIds(0);
 
-            return fetchTarget(topologyProcessor, targetId);
+            return fetchTarget(targetId);
         }
         return null;
     }
@@ -128,21 +148,19 @@ public class SearchUtil {
      * and returns it in {@link TargetApiDTO} format.  If no target is found,
      * {@code null} is returned.
      *
-     * @param topologyProcessor topology processor interface to be used.
      * @param serviceEntityApiDTO entity to find a discovering target for.
      * @throws CommunicationException communication with the topology processor failed.
      * @throws TopologyProcessorException mandatory data for the target could not be retrieved.
      * @return a discovering target.
      */
     @Nullable
-    public static TargetApiDTO fetchDiscoveringTarget(@Nonnull TopologyProcessor topologyProcessor,
-                                               @Nonnull ServiceEntityApiDTO serviceEntityApiDTO)
-        throws CommunicationException, TopologyProcessorException {
+    public TargetApiDTO fetchDiscoveringTarget(@Nonnull ServiceEntityApiDTO serviceEntityApiDTO)
+            throws CommunicationException, TopologyProcessorException {
         final TargetApiDTO target = serviceEntityApiDTO.getDiscoveredBy();
         if (target != null) {
             final String targetId = target.getUuid();
             if (targetId != null) {
-                return fetchTarget(topologyProcessor, Long.parseLong(targetId));
+                return fetchTarget(Long.parseLong(targetId));
             }
         }
         return null;
@@ -151,16 +169,14 @@ public class SearchUtil {
     /**
      * Given a target ID, fetches a corresponding {@link TargetApiDTO}.
      *
-     * @param topologyProcessor topology processor interface to be used.
      * @param targetId of the target to be fetched
      * @throws CommunicationException communication with the topology processor failed.
      * @throws TopologyProcessorException mandatory data for the target could not be retrieved.
      * @return the target.
      */
     @Nonnull
-    public static TargetApiDTO fetchTarget(
-        @Nonnull TopologyProcessor topologyProcessor,
-        long targetId) throws CommunicationException, TopologyProcessorException {
+    private TargetApiDTO fetchTarget(long targetId)
+            throws CommunicationException, TopologyProcessorException {
         final TargetApiDTO target = new TargetApiDTO();
         target.setUuid(Long.toString(targetId));
 
@@ -183,15 +199,10 @@ public class SearchUtil {
      * Obtains an {@link ActionApiDTO} object and populates all "discovered by" fields
      * of all associated entities that it contains.
      *
-     * @param topologyProcessor topology processor interface to be used.
-     * @param searchService search service.
      * @param actionApiDTO the {@link ActionApiDTO} object whose entities are to be populated
      *                     with target information.
      */
-    public static void populateActionApiDTOWithTargets(
-            @Nonnull TopologyProcessor topologyProcessor,
-            @Nonnull SearchServiceBlockingStub searchService,
-            @Nonnull ActionApiDTO actionApiDTO) {
+    public void populateActionApiDTOWithTargets(@Nonnull ActionApiDTO actionApiDTO) {
         Stream.of(actionApiDTO.getTarget(), actionApiDTO.getCurrentEntity(), actionApiDTO.getNewEntity())
                 .filter(Objects::nonNull)
                 .forEach(serviceEntityApiDTO -> {
@@ -199,9 +210,7 @@ public class SearchUtil {
                     final long entityIdNumber = Long.valueOf(entityId);
                     try {
                         serviceEntityApiDTO.setDiscoveredBy(
-                            fetchDiscoveringTarget(
-                                topologyProcessor,
-                                getTopologyEntityDTO(searchService, entityIdNumber)));
+                            fetchDiscoveringTarget(getTopologyEntityDTO(entityIdNumber)));
                     } catch (Exception e) {
                         logger.warn(
                             "Cannot retrieve information about the discovering target " +
@@ -214,37 +223,41 @@ public class SearchUtil {
     /**
      * Get the actions related to a set of entity uuids.
      *
-     * @param actionOrchestratorRpc action orchestrator internal service to be used.
-     * @param topologyProcessor topology processor interface to be used.
-     * @param searchServiceRpc search service to be used.
-     * @param actionSpecMapper action mapper to be used.
-     * @param paginationMapper pagination mapper to be used.
-     * @param realtimeTopologyContextId real time context id.
      * @param entityUuids the set of entities.
      * @param inputDto query about the related actions.
      * @param paginationRequest pagination request.
      * @return a pagination response with {@link ActionApiDTO} objects.
      * @throws UnknownObjectException if the entity or action was not found.
+     * @throws OperationFailedException if the call to the supply chain service failed
      * @throws InterruptedException if thread is interrupted during processing.
      * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
      *                                    because of action type that is not supported by the translation.
      * @throws ExecutionException translation to {@link ActionApiDTO} object failed for one object.
      */
     @Nonnull
-    public static ActionPaginationResponse getActionsByEntityUuids(
-            @Nonnull ActionsServiceBlockingStub actionOrchestratorRpc,
-            @Nonnull TopologyProcessor topologyProcessor,
-            @Nonnull SearchServiceBlockingStub searchServiceRpc,
-            @Nonnull ActionSpecMapper actionSpecMapper,
-            @Nonnull PaginationMapper paginationMapper,
-            long realtimeTopologyContextId,
-            @Nonnull Optional<Set<Long>> entityUuids,
+    public ActionPaginationResponse getActionsByEntityUuids(
+            @Nonnull Set<Long> entityUuids,
             ActionApiInputDTO inputDto,
             ActionPaginationRequest paginationRequest)
-            throws  InterruptedException, UnknownObjectException,
+            throws  InterruptedException, UnknownObjectException, OperationFailedException,
                     UnsupportedActionException, ExecutionException {
-        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(inputDto, entityUuids);
+        final Set<Long> scope = new HashSet<>(entityUuids);
 
+        // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
+        // entities from the scoped supply chain
+        if (inputDto != null &&
+                inputDto.getRelatedEntityTypes() != null &&
+                !inputDto.getRelatedEntityTypes().isEmpty()) {
+            // get the scoped supply chain
+            // extract entity oids from the supply chain and add them to the scope
+            scope.addAll(expandScope(entityUuids, inputDto.getRelatedEntityTypes()));
+        }
+
+        // create filter
+        final ActionQueryFilter filter =
+            actionSpecMapper.createActionFilter(inputDto, Optional.of(scope));
+
+        // call the service and retrieve results
         final FilteredActionResponse response =
             actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
@@ -252,18 +265,31 @@ public class SearchUtil {
                     .setFilter(filter)
                     .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                     .build());
+
+        // translate results
         final List<ActionApiDTO> results =
             actionSpecMapper.mapActionSpecsToActionApiDTOs(
                 response.getActionsList().stream()
                     .map(ActionOrchestratorAction::getActionSpec)
                     .collect(Collectors.toList()),
                 realtimeTopologyContextId);
-        results.forEach(actionApiDTO ->
-            SearchUtil.populateActionApiDTOWithTargets(topologyProcessor, searchServiceRpc, actionApiDTO));
+        results.forEach(this::populateActionApiDTOWithTargets);
+
         return
             PaginationProtoUtil
                 .getNextCursor(response.getPaginationResponse())
                 .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
                 .orElseGet(() -> paginationRequest.finalPageResponse(results));
+    }
+
+    @VisibleForTesting
+    public Set<Long> expandScope(@Nonnull Set<Long> entityUuids, @Nonnull List<String> relatedEntityTypes)
+            throws OperationFailedException {
+        return
+            supplyChainFetcherFactory.newNodeFetcher()
+                .addSeedUuids(
+                    entityUuids.stream().map(Object::toString).collect(Collectors.toList()))
+                .entityTypes(relatedEntityTypes)
+                .fetchEntityIds();
     }
 }

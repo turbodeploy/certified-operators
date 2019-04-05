@@ -158,6 +158,8 @@ public class EntitiesService implements IEntitiesService {
 
     private final SettingsMapper settingsMapper;
 
+    private final SearchUtil searchUtil;
+
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
@@ -203,7 +205,8 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final StatsHistoryServiceBlockingStub statsHistoryService,
             @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
             @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
-            @Nonnull final SettingsMapper settingsMapper) {
+            @Nonnull final SettingsMapper settingsMapper,
+            @Nonnull final SearchUtil searchUtil) {
 
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -222,6 +225,7 @@ public class EntitiesService implements IEntitiesService {
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.statsHistoryService = Objects.requireNonNull(statsHistoryService);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
+        this.searchUtil = Objects.requireNonNull(searchUtil);
     }
 
     @Override
@@ -244,15 +248,14 @@ public class EntitiesService implements IEntitiesService {
             throws Exception {
         // get information about this entity from the repository
         final long oid = Long.valueOf(uuid);
-        final TopologyEntityDTO entityAsTopologyEntityDTO = SearchUtil.getTopologyEntityDTO(searchServiceRpc, oid);
+        final TopologyEntityDTO entityAsTopologyEntityDTO = searchUtil.getTopologyEntityDTO(oid);
         final ServiceEntityApiDTO result =
             ServiceEntityMapper.toServiceEntityApiDTO(
                 entityAsTopologyEntityDTO,
                 includeAspects ? entityAspectMapper : null);
 
         // fetch information about the discovering target
-        result.setDiscoveredBy(
-            SearchUtil.fetchDiscoveringTarget(topologyProcessor, entityAsTopologyEntityDTO));
+        result.setDiscoveredBy(searchUtil.fetchDiscoveringTarget(entityAsTopologyEntityDTO));
 
         // fetch all consumers
         try {
@@ -365,16 +368,8 @@ public class EntitiesService implements IEntitiesService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         return
-            SearchUtil.getActionsByEntityUuids(
-                actionOrchestratorRpcService,
-                topologyProcessor,
-                searchServiceRpc,
-                actionSpecMapper,
-                paginationMapper,
-                realtimeTopologyContextId,
-                Optional.of(Collections.singleton(Long.valueOf(uuid))),
-                inputDto,
-                paginationRequest);
+            searchUtil.getActionsByEntityUuids(
+                Collections.singleton(Long.valueOf(uuid)), inputDto, paginationRequest);
     }
 
     @Override
@@ -399,7 +394,7 @@ public class EntitiesService implements IEntitiesService {
                     realtimeTopologyContextId);
 
             // add discovering targets to all entities associated with the action object
-            SearchUtil.populateActionApiDTOWithTargets(topologyProcessor, searchServiceRpc, result);
+            searchUtil.populateActionApiDTOWithTargets(result);
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
@@ -588,9 +583,7 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
         return
-            TagsMapper
-                .convertTagsToApi(
-                    SearchUtil.getTopologyEntityDTO(searchServiceRpc, Long.valueOf(s)).getTagsMap());
+            TagsMapper.convertTagsToApi(searchUtil.getTopologyEntityDTO(Long.valueOf(s)).getTagsMap());
     }
 
     @Override
