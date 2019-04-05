@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -127,6 +128,14 @@ public class ActionSpecMapper {
 
     private static final String UP = "up";
     private static final String DOWN = "down";
+
+    // Commodities in actions mapped to their default units.
+    // For example, vMem commodity has its default capacity unit as KB.
+    private static final ImmutableMap<CommodityDTO.CommodityType, Long> commodityTypeToDefaultUnits =
+                    new ImmutableMap.Builder<CommodityDTO.CommodityType, Long>()
+                        .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
+                        .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
+                        .build();
 
     private final PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
@@ -967,8 +976,7 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Format resize actions commodity capacity value to more readable format. If it is vMem commodity,
-     * format it from default KB to GB unit. Otherwise, it will keep its original format.
+     * Format resize actions commodity capacity value to more readable format.
      *
      * @param commodityType commodity type.
      * @param capacity commodity capacity which needs to format.
@@ -976,9 +984,9 @@ public class ActionSpecMapper {
      */
     private String formatResizeActionCommodityValue(@Nonnull final CommodityDTO.CommodityType commodityType,
                                                     final double capacity) {
-        if (commodityType.equals(CommodityDTO.CommodityType.VMEM)) {
-            // if it is vMem commodity, it needs to convert to GB units. And its default capacity unit is KB.
-            return MessageFormat.format("{0} GB", capacity / (Units.GBYTE / Units.KBYTE));
+        // Currently all items in this map are converted from default units to GB.
+        if (commodityTypeToDefaultUnits.keySet().contains(commodityType)) {
+            return MessageFormat.format("{0} GB", capacity / (Units.GBYTE / commodityTypeToDefaultUnits.get(commodityType)));
         } else {
             return MessageFormat.format("{0}", capacity);
         }
