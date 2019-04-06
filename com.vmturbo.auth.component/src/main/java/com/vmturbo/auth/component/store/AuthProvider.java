@@ -24,11 +24,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,6 +32,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.CompressionCodecs;
@@ -442,6 +442,7 @@ public class AuthProvider {
         try {
             ssoUtil.authenticateADUser(info.userName, password);
         } catch (SecurityException e) {
+            logger_.warn("AUDIT::FAILURE:AUTH: Failed authentication for user: " + info.userName);
             throw new AuthenticationException(e);
         }
         logger_.info("AUDIT::SUCCESS: Success authenticating user: " + info.userName);
@@ -455,7 +456,6 @@ public class AuthProvider {
      * @param info     The user info.
      * @param ipaddress The user request IP address.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthenticationException In case of error authenticating AD user.
      */
     private @Nonnull JWTAuthorizationToken authorizeSAMLUser(final @Nonnull UserInfo info,
                                                              final @Nonnull String ipaddress) {
@@ -533,8 +533,7 @@ public class AuthProvider {
      * @param userName The user name.
      * @param password The password.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthenticationException In case of error authenticating the user. We can get
-     *                                 {@link SecurityException} in case of
+     * @throws AuthenticationException In case of error authenticating the user.
      * @throws SecurityException       In case of an internal error while authenticating an user.
      */
     public @Nonnull JWTAuthorizationToken authenticate(final @Nonnull String userName,
@@ -553,20 +552,22 @@ public class AuthProvider {
                 UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
                 // Check the authentication.
                 if (!info.unlocked) {
+                    logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
                     throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
                     if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
-                        throw new AuthenticationException("AUDIT::NEGATIVE: Hash mismatch");
+                        logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
+                        throw new AuthenticationException("AUDIT::NEGATIVE: The User Name or Password is Incorrect");
                     }
-
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
                     return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups);
                 } else {
                     return authenticateADUser(info, password);
                 }
             } catch (AuthenticationException e) {
-                logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
+                // prevent next catch clause from wrapping this exception; all paths here
+                // log the authentication failure
                 throw e;
             } catch (Exception e) {
                 logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
@@ -584,8 +585,7 @@ public class AuthProvider {
      * @param password The password.
      * @param ipAddress The user's IP address.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthenticationException In case of error authenticating the user. We can get
-     *                                 {@link SecurityException} in case of
+     * @throws AuthenticationException In case of error authenticating the user.
      * @throws SecurityException       In case of an internal error while authenticating an user.
      */
     public @Nonnull JWTAuthorizationToken authenticate(final @Nonnull String userName,
@@ -605,11 +605,13 @@ public class AuthProvider {
                 UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
                 // Check the authentication.
                 if (!info.unlocked) {
+                    logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
                     throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
                     if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
                         // removed "Hash mismatch" to avoid leaking internal authentication algorithm
+                        logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
                         throw new AuthenticationException("AUDIT::NEGATIVE: " +
                                 "The User Name or Password is Incorrect");
                     }
@@ -620,7 +622,8 @@ public class AuthProvider {
                     return authenticateADUser(info, password);
                 }
             } catch (AuthenticationException e) {
-                logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
+                // prevent next clause from wrapping this exception. All paths here have already
+                // loggged the authentication failure
                 throw e;
             } catch (Exception e) {
                 logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
@@ -638,8 +641,7 @@ public class AuthProvider {
      * @param groupName The password.
      * @param ipAddress The user's IP address.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthorizationException In case of error authenticating the user. We can get
-     *                                 {@link SecurityException} in case of
+     * @throws AuthorizationException In case of error authenticating the user.
      * @throws SecurityException       In case of an internal error while authorizing an user.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
@@ -672,12 +674,15 @@ public class AuthProvider {
                 UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
                 // Check the authentication.
                 if (!info.unlocked) {
+                    logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
                     throw new AuthorizationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 return authorizeSAMLUser(info, ipAddress);
-
+            } catch (AuthorizationException e) {
+                // this is to prevent next catch clause from grabbing this one
+                throw e;
             } catch (Exception e) {
-                logger_.error("AUDIT::FAILURE:AUTH: Error authorizing user: " + userName);
+                logger_.error("AUDIT::FAILURE:AUTH: Failure during authorization: " + userName);
                 throw new AuthorizationException(e);
             }
         }
