@@ -3,6 +3,8 @@ package com.vmturbo.cost.component.topology;
 
 import java.util.EnumSet;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +18,6 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory.DefaultTopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
@@ -46,6 +47,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
         ReservedInstanceConfig.class,
         CostConfig.class})
 public class TopologyListenerConfig {
+    private static final Logger logger = LogManager.getLogger();
 
     @Autowired
     private TopologyProcessorClientConfig topologyClientConfig;
@@ -71,6 +73,9 @@ public class TopologyListenerConfig {
     @Autowired
     private CostConfig costConfig;
 
+    @Value("${enabled:true}")
+    private boolean enabled;
+
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
@@ -80,17 +85,19 @@ public class TopologyListenerConfig {
                 reservedInstanceConfig.reservedInstanceCoverageUpload(),
                 costConfig.businessAccountHelper(),
                 costJournalRecorder());
-        //OM-42831: Disabling the live topology listener until we are ready to release the cloud functionality
-        //topologyProcessor().addLiveTopologyListener(entitiesListener);
+        if (enabled) {
+            logger.info("Enabling topology listener.");
+            topologyProcessor().addLiveTopologyListener(entitiesListener);
+        } else {
+            logger.info("Not adding topology listener.");
+        }
         return entitiesListener;
     }
 
-    /* OM-42831: restore this when we are ready to release the cloud functionality in XL
     @Bean
     public TopologyProcessor topologyProcessor() {
         return topologyClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
     }
-    */
 
     @Bean
     public TopologyCostCalculatorFactory topologyCostCalculatorFactory() {

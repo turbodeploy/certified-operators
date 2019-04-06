@@ -3,12 +3,12 @@ package com.vmturbo.topology.processor.cost;
 import java.util.Collections;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;

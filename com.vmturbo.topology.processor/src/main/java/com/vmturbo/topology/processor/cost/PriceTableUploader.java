@@ -9,28 +9,41 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable.ReservedInstanceSpecPrice;
-import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableChunk;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableHeader;
+import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbeRISpecPriceChunk;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
-import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
@@ -39,6 +52,9 @@ import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePri
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.proactivesupport.DataMetricGauge;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
@@ -55,12 +71,20 @@ public class PriceTableUploader {
 
     private static final Logger logger = LogManager.getLogger();
 
+    protected static final DataMetricSummary PRICE_TABLE_HASH_CALCULATION_TIME = DataMetricSummary.builder()
+            .withName("tp_price_table_hash_calculation_seconds")
+            .withHelp("Time taken to calculate the hash code for a potential price table upload.")
+            .build()
+            .register();
+
     /**
      * grpc client for price service
      */
-    private final PricingServiceBlockingStub priceServiceClient;
+    private final PricingServiceStub priceServiceClient;
 
     private final Clock clock;
+
+    private final int riSpecPriceChunkSize;
 
     /**
      * a cache of last price table received per probe type. We assume any price tables returned by
@@ -74,10 +98,12 @@ public class PriceTableUploader {
     private final Map<SDKProbeType, PricingDTO.PriceTable> sourcePriceTableByProbeType
             = Collections.synchronizedMap(new HashMap<>());
 
-    public PriceTableUploader(@Nonnull final PricingServiceBlockingStub priceServiceClient,
-                              @Nonnull final Clock clock) {
+    public PriceTableUploader(@Nonnull final PricingServiceStub priceServiceClient,
+                              @Nonnull final Clock clock,
+                              final int riSpecPriceChunkSize) {
         this.priceServiceClient = priceServiceClient;
         this.clock = clock;
+        this.riSpecPriceChunkSize = riSpecPriceChunkSize;
     }
 
     /**
@@ -129,60 +155,102 @@ public class PriceTableUploader {
      */
     public void uploadPriceTables(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
 
-        // first build the price tables upload request
+        // calculate a hashcode for the new data being assembled so we can see if we even need to
+        // update the price tables. We'll create a new hash code based on the source price tables
+        // and cloud entities map, since if those two are the same then the resulting upload data
+        // should also be the same.
+        DataMetricTimer timer = PRICE_TABLE_HASH_CALCULATION_TIME.startTimer();
+        long newHashcode = cloudEntitiesMap.hashCode() * 31 + sourcePriceTableByProbeType.hashCode();
+        double hashCalculationSecs = timer.observe();
+        logger.debug("Price table hash code calculation took {} secs", hashCalculationSecs);
+
+        // check if the data has changed since our last upload by comparing the new hash against
+        // the hash of the last successfully saved price table from the cost component
+        CompletableFuture<Long> lastConfirmedHashFuture = new CompletableFuture<>();
+        priceServiceClient.getPriceTableChecksum(
+                GetPriceTableChecksumRequest.getDefaultInstance(),
+                new StreamObserver<GetPriceTableChecksumResponse>() {
+                    @Override
+                    public void onNext(final GetPriceTableChecksumResponse getPriceTableChecksumResponse) {
+                        lastConfirmedHashFuture.complete(getPriceTableChecksumResponse.getPriceTableChecksum());
+                    }
+
+                    @Override
+                    public void onError(final Throwable throwable) {
+                        lastConfirmedHashFuture.completeExceptionally(throwable);
+                    }
+
+                    @Override
+                    public void onCompleted() {}
+                });
+
+        long lastConfirmedHashCode;
+        try {
+            lastConfirmedHashCode = lastConfirmedHashFuture.get();
+        } catch (ExecutionException|InterruptedException e) {
+            logger.error("Could not retrieve last persisted price table hash. Will not proceed with price table upload.", e);
+            return;
+        }
+        if (newHashcode == lastConfirmedHashCode) {
+            logger.info("Last processed upload hash is the same as this one [{}], skipping this upload.",
+                    Long.toUnsignedString(newHashcode));
+            return;
+        }
+        logger.info("Price table upload hash check: new upload {} last upload {}. We will upload.",
+                Long.toUnsignedString(newHashcode), Long.toUnsignedString(lastConfirmedHashCode));
+
+        // build a new set of price objects to upload.
         DataMetricTimer buildTimer = CLOUD_COST_UPLOAD_TIME.labels(CLOUD_COST_PRICES_SECTION,
                 UPLOAD_REQUEST_BUILD_STAGE).startTimer();
-
-        UploadPriceTablesRequest.Builder uploadRequestBuilder = UploadPriceTablesRequest.newBuilder();
+        List<ProbePriceData> probePricesList = new ArrayList<>();
         synchronized (sourcePriceTableByProbeType) {
             sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
-                ProbePriceTable.Builder probePriceTableBuilder = ProbePriceTable.newBuilder();
+                ProbePriceData probePriceData = new ProbePriceData();
+                probePriceData.probeType = probeType.getProbeType();
 
-                // add the price table for this probe type
-                probePriceTableBuilder.setPriceTable(priceTableToCostPriceTable(priceTable, cloudEntitiesMap, probeType));
+                // convert the price table for this probe type
+                probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap, probeType);
                 // add the RI price table for this probe type
-                probePriceTableBuilder.addAllReservedInstanceSpecPrices(getRISpecPrices(priceTable, cloudEntitiesMap));
-
-                uploadRequestBuilder.putProbePriceTables(probeType.getProbeType(),
-                        probePriceTableBuilder.build());
+                probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
+                probePricesList.add(probePriceData);
             });
         }
         buildTimer.observe();
         logger.debug("Build of {} price tables took {} secs", sourcePriceTableByProbeType.size(),
                 buildTimer.getTimeElapsedSecs());
 
-        // get the hash of the last successfully saved price table from the cost component
-        long lastConfirmedHash = priceServiceClient.getPriceTableChecksum(
-                GetPriceTableChecksumRequest.getDefaultInstance())
-                .getPriceTableChecksum();
-
-        // check if the data has changed since our last upload
-        long requestHash = uploadRequestBuilder.build().hashCode();
-        if (requestHash == lastConfirmedHash) {
-            logger.info("Last processed upload hash is the same as this one [{}], skipping this upload.",
-                    Long.toUnsignedString(requestHash));
-            return;
-        }
-        logger.info("Price table upload hash check: new upload {} last upload {}. We will upload.",
-                Long.toUnsignedString(requestHash), Long.toUnsignedString(lastConfirmedHash));
-
-        // add the hash and current time to the upload
-        uploadRequestBuilder.setChecksum(requestHash);
-        uploadRequestBuilder.setCreatedTime(clock.millis());
-        UploadPriceTablesRequest request = uploadRequestBuilder.build();
-
         DataMetricTimer uploadTimer = CLOUD_COST_UPLOAD_TIME.labels(CLOUD_COST_PRICES_SECTION,
                 UPLOAD_REQUEST_UPLOAD_STAGE).startTimer();
         try {
-            UploadPriceTablesResponse response = priceServiceClient.uploadPriceTables(request);
-            lastConfirmedHash = requestHash;
-        } catch (RuntimeException rte) {
-            logger.error("Error uploading price tables.", rte);
+            logger.info("Uploading price tables for {} probe types", probePricesList.size());
+            // since we want this to be a synchronous upload, we will wait for the upload to complete
+            // in this thread.
+            CountDownLatch uploadLatch = new CountDownLatch(1);
+            ProbePriceDataSender priceDataSender = new ProbePriceDataSender(priceServiceClient.updatePriceTables(new StreamObserver<UploadPriceTablesResponse>() {
+                @Override
+                public void onNext(final UploadPriceTablesResponse uploadPriceTablesResponse) {}
+
+                @Override
+                public void onError(final Throwable throwable) {
+                    logger.warn("Error while uploading price tables.", throwable);
+                    uploadLatch.countDown();
+                }
+
+                @Override
+                public void onCompleted() {
+                    uploadLatch.countDown();
+                }
+            }));
+
+            priceDataSender.sendProbePrices(probePricesList, newHashcode);
+
+            uploadLatch.await();
+        } catch (InterruptedException | RuntimeException e) {
+            logger.error("Error uploading price tables.", e);
         }
         uploadTimer.observe();
-        logger.info("Upload of {} price tables [{} bytes] took {} secs",
-                sourcePriceTableByProbeType.size(), request.getSerializedSize(),
-                uploadTimer.getTimeElapsedSecs() );
+        logger.info("Upload of {} price tables took {} secs",
+                sourcePriceTableByProbeType.size(), uploadTimer.getTimeElapsedSecs() );
     }
 
     /**
@@ -194,7 +262,7 @@ public class PriceTableUploader {
      * price table rather than modify the source in-place, so that exceptions can cause a copy of
      * the original object to be returned, if that is preferred.
      *
-     * @param sourcePriceTable the input {@link com.vmturbo.platform.sdk.common.PricingDTO.PriceTable}
+     * @param sourcePriceTable the input {@link PriceTable}
      * @param cloudEntitiesMap the map of cloud entity id's -> oids
      * @param probeType the probe type that discovered this price table
      */
@@ -208,6 +276,9 @@ public class PriceTableUploader {
         // we only knows on-demand prices for now.
         // TODO: reckon the spot instance prices
         // TODO: savvy the license prices
+        // structure to track missing tiers - we want to log about this but not spam the log.
+        Multimap<String,String> missingTiers = ArrayListMultimap.create();
+
         // the price tables are demselves broken up into tables within the table, with one table per
         // type of "good" (on-demand, spot instance, license) per region.
         for (OnDemandPriceTableByRegionEntry onDemandPriceTableForRegion : sourcePriceTable.getOnDemandPriceTableList()) {
@@ -234,7 +305,8 @@ public class PriceTableUploader {
                     entry -> entry.getRelatedComputeTier().getId(),
                     oid -> onDemandPricesBuilder.containsComputePricesByTierId(oid),
                     (oid, entry) -> onDemandPricesBuilder.putComputePricesByTierId(oid,
-                                    entry.getComputeTierPriceList())
+                                    entry.getComputeTierPriceList()),
+                    missingTiers
             );
 
             // add DB prices
@@ -243,7 +315,8 @@ public class PriceTableUploader {
                     entry -> entry.getRelatedDatabaseTier().getId(),
                     oid -> onDemandPricesBuilder.containsDbPricesByInstanceId(oid),
                     (oid, entry) -> onDemandPricesBuilder.putDbPricesByInstanceId(oid,
-                            entry.getDatabaseTierPriceList())
+                            entry.getDatabaseTierPriceList()),
+                    missingTiers
                     );
 
             // add Storage prices
@@ -260,7 +333,8 @@ public class PriceTableUploader {
                     },
                     oid -> onDemandPricesBuilder.containsCloudStoragePricesByTierId(oid),
                     (oid, entry) -> onDemandPricesBuilder.putCloudStoragePricesByTierId(oid,
-                            entry.getStorageTierPriceList())
+                            entry.getStorageTierPriceList()),
+                    missingTiers
             );
 
             // TODO: Get IP Prices too
@@ -268,6 +342,10 @@ public class PriceTableUploader {
             // add the on demand prices
             priceTableBuilder.putOnDemandPriceByRegionId(regionOid, onDemandPricesBuilder.build());
         }
+        if (missingTiers.size() > 0) {
+            logger.warn("Couldnt find oids for: {}", missingTiers);
+        }
+
         return priceTableBuilder.build();
     }
 
@@ -287,14 +365,14 @@ public class PriceTableUploader {
                       @Nonnull final Map<String, Long> cloudEntityOidByLocalId,
                       Function<PricesForTier, String> localIdGetter,
                       Function<Long, Boolean> duplicateChecker,
-                      BiConsumer<Long, PricesForTier> putMethod) {
+                      BiConsumer<Long, PricesForTier> putMethod, Multimap missingTiers) {
         for (PricesForTier priceEntry : priceEntries) {
             // find the cloud tier oid this set of prices is associated to.
             String localID = localIdGetter.apply(priceEntry);
             Long oid = cloudEntityOidByLocalId.get(localID);
             if (oid == null) {
-                logger.warn("Can't find oid for {} {} -- skipping price table for it.",
-                        priceEntry.getClass().getSimpleName(), localID);
+                // track for logging purposes
+                missingTiers.put(priceEntry.getClass().getSimpleName(), localID);
             } else {
                 // if there is no price list for this "tier" yet, add these prices to the table.
                 // otherwise, if a price list already exists for the tier in this region, then
@@ -323,7 +401,7 @@ public class PriceTableUploader {
      * @return a list of {@link ReservedInstanceSpecPrice} based on the source price table
      */
     private static List<ReservedInstanceSpecPrice> getRISpecPrices(@Nonnull PricingDTO.PriceTable sourcePriceTable,
-                                                                    @Nonnull final Map<String, Long>  cloudEntitiesMap) {
+                                                                   @Nonnull final Map<String, Long>  cloudEntitiesMap) {
 
         // keep a map of spec info's to prices we've visited so far
         Map<ReservedInstanceSpecInfo, ReservedInstancePrice> riPricesBySpec = new HashMap<>();
@@ -335,14 +413,15 @@ public class PriceTableUploader {
 
         List<ReservedInstanceSpecPrice> retVal = new ArrayList<>();
 
+        Set<String> missingRITiers = new HashSet<>(); // track any RI tiers we can't match
+        Set<String> missingRegions = new HashSet<>(); // track missing regions
         for (ReservedInstancePriceTableByRegionEntry riPriceTableForRegion
                 : sourcePriceTable.getReservedInstancePriceTableList()) {
             // look up the region for this set of prices
             String regionId = riPriceTableForRegion.getRelatedRegion().getId();
             Long regionOid = cloudEntitiesMap.get(regionId);
             if (regionOid == null) {
-                logger.warn("RI Spec Prices: Region oid not found for region id {} - will not add RI Spec prices for this region.",
-                        regionId);
+                missingRegions.add(regionId);
                 continue;
             }
             // construct/find an RISpecInfo for each set of prices
@@ -358,8 +437,7 @@ public class PriceTableUploader {
                 }
                 Long tierOid = cloudEntitiesMap.get(sourceRiSpec.getTier().getId());
                 if (tierOid == null) {
-                    logger.warn("could find compute tier oid for RI Spec tier id {}",
-                            sourceRiSpec.getTier().getId());
+                    missingRITiers.add(sourceRiSpec.getTier().getId());
                     continue;
 
                 }
@@ -378,13 +456,19 @@ public class PriceTableUploader {
                     continue;
                 }
                 // add to the map of already priced RI specs
-                riPricesBySpec.put( riSpecInfo, riPriceEntry.getReservedInstancePrice());
+                riPricesBySpec.put(riSpecInfo, riPriceEntry.getReservedInstancePrice());
                 // add to the return list
                 retVal.add(ReservedInstanceSpecPrice.newBuilder()
                         .setRiSpecInfo(riSpecInfo)
                         .setPrice(riPriceEntry.getReservedInstancePrice())
                         .build());
             }
+        }
+        if (missingRITiers.size() > 0) {
+            logger.warn("couldn't find compute tier oid for RI Spec tier ids {}", missingRITiers);
+        }
+        if (missingRegions.size() > 0) {
+            logger.warn("Couldn't find regions for RI Spec Pricing: {}", missingRegions);
         }
         if (numConflictingPrices > 0) {
             logger.warn("{} conflicting RI Prices were skipped. Only the first price found was "
@@ -393,4 +477,83 @@ public class PriceTableUploader {
         return retVal;
     }
 
+    // Utility class for assembling price upload data
+    private static class ProbePriceData {
+        public String probeType;
+        public PriceTable priceTable;
+        public List<ReservedInstanceSpecPrice> riSpecPrices;
+    }
+
+    // Helper class for sending the probe price tables over a GRPC stream.
+    private class ProbePriceDataSender {
+        private final StreamObserver<ProbePriceTableSegment> uploadStream;
+        long totalBytesSent = 0;
+        long numSegmentsSent = 0;
+
+        public ProbePriceDataSender(StreamObserver<ProbePriceTableSegment> uploadStream) {
+            this.uploadStream = uploadStream;
+        }
+
+        public void sendProbePrices(List<ProbePriceData> probePriceDataList, long checksum) {
+            // first send the header
+            sendSegment(ProbePriceTableSegment.newBuilder()
+                    .setHeader(ProbePriceTableHeader.newBuilder()
+                            .setCreatedTime(clock.millis())
+                            .setChecksum(checksum))
+                    .build());
+            // send the upload segments
+            for (ProbePriceData probePriceData : probePriceDataList) {
+                if (probePriceData.priceTable != null) {
+                    logger.debug("Sending price table for probe {}", probePriceData.probeType);
+                    sendSegment(ProbePriceTableSegment.newBuilder()
+                            .setProbePriceTable(ProbePriceTableChunk.newBuilder()
+                                .setProbeType(probePriceData.probeType)
+                                .setPriceTable(probePriceData.priceTable))
+                            .build());
+                }
+
+                if (CollectionUtils.isNotEmpty(probePriceData.riSpecPrices)) {
+                    logger.debug("Sending RI prices for probe {}", probePriceData.probeType);
+                    int x = 0;
+                    ProbePriceTableSegment.Builder nextSegmentBuilder = ProbePriceTableSegment.newBuilder()
+                            .setProbeRiSpecPrices(ProbeRISpecPriceChunk.newBuilder()
+                                .setProbeType(probePriceData.probeType));
+                    while (x < probePriceData.riSpecPrices.size()) {
+                        // add to the next chunk
+                        nextSegmentBuilder.getProbeRiSpecPricesBuilder().addReservedInstanceSpecPrices(probePriceData.riSpecPrices.get(x));
+                        x++;
+                        // if we have hit the threshold, then send this chunk and start a new one.
+                        if (x % riSpecPriceChunkSize == 0) {
+                            sendSegment(nextSegmentBuilder.build());
+                            nextSegmentBuilder = ProbePriceTableSegment.newBuilder()
+                                    .setProbeRiSpecPrices(ProbeRISpecPriceChunk.newBuilder()
+                                            .setProbeType(probePriceData.probeType));
+                        }
+                    }
+                    // if there is still an unfinished segment to send, send it now.
+                    if (nextSegmentBuilder.getProbeRiSpecPrices().getReservedInstanceSpecPricesCount() > 0) {
+                        sendSegment(nextSegmentBuilder.build());
+                    }
+
+                }
+            }
+            uploadStream.onCompleted();
+            logger.debug("Sent {} total bytes over {} segments.", totalBytesSent, numSegmentsSent);
+        }
+
+        private void sendSegment(ProbePriceTableSegment segment) {
+            numSegmentsSent++;
+            totalBytesSent += segment.getSerializedSize();
+            if (segment.hasHeader()) {
+                logger.debug("Sending header with checksum {} and creation time {}",
+                        segment.getHeader().getChecksum(), segment.getHeader().getCreatedTime());
+            } else if (segment.hasProbePriceTable()) {
+                logger.debug("Sending price table segment.");
+            } else if (segment.hasProbeRiSpecPrices()) {
+                logger.debug("Sending ri price segment with {} ri spec prices.", segment.getProbeRiSpecPrices().getReservedInstanceSpecPricesCount());
+            }
+            uploadStream.onNext(segment);
+        }
+
+    }
 }

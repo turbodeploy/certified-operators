@@ -110,44 +110,41 @@ message GetPriceTableResponse {
     optional PriceTable global_price_table = 1;
 }
 
-message UploadPriceTablesRequest {
-    // the checksum of the data in this request
-    optional int64 checksum = 1;
 
-    // the time the request was created
-    optional int64 created_time = 2;
+// a segment of a probe price table delivery
+message ProbePriceTableSegment {
+    oneof segment_contents {
+        ProbePriceTableHeader header = 1;
+        ProbePriceTableChunk probe_price_table = 2;
+        ProbeRISpecPriceChunk probe_ri_spec_prices = 3;
+    }
 
-    // We expect the listed prices for each probe type (e.g. AWS, Azure, and so on) to be the
-    // same across all targets, so there is no point of supporting per-target price tables.
-    //
-    // The main purpose of uploading per-probe-type price tables is to have a mechanism to discard
-    // old/expired prices. For example, if a particular tier or configuration is deprecated and
-    // no longer has a price, we want to delete it.
-    map<string, ProbePriceTable> probe_price_tables = 10;
+    message ProbePriceTableHeader {
+        // the checksum of the data in this request
+        optional int64 checksum = 1;
+
+        // the time the request was created
+        optional int64 created_time = 2;
+    }
+
+    // a chunk containing a probe's price table.
+    message ProbePriceTableChunk {
+        optional string probe_type = 1;
+        optional PriceTable price_table = 2;
+    }
+
+    // a chunk of RI Spec Prices from a probe type. We may see several of these spread across
+    // several ProbePriceTableSegments
+    message ProbeRISpecPriceChunk {
+        optional string probe_type = 1;
+        repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 20;
+    }
 }
 
-message ProbePriceTable {
+message ReservedInstanceSpecPrice {
+    optional ReservedInstanceSpecInfo ri_spec_info = 1;
 
-    // The price table discovered for the probe.
-
-    // This price table will completely overwrite the previously-uploaded price table for the
-    // probe.
-    optional PriceTable price_table = 10;
-
-    // We will receive RI prices as a map of RI Spec -> prices. (they are modeled as a list in the
-    // protobuf because the protobuf map doesn't support messages as keys. The
-    // ReservedIntanceSpecInfo objects on the ReservedInstanceSpecPrice message should be seen as
-    // the "key" field of the map, so RISpecInfo objects should be unique per list).
-    // We'll use this data to build a reserved instance price table for the probe that we will
-    // persist. This price table will completely overwrite the previously-uploaded price table for
-    // the probe.
-    repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 20;
-
-    message ReservedInstanceSpecPrice {
-        optional ReservedInstanceSpecInfo ri_spec_info = 1;
-
-        optional common_dto.ReservedInstancePrice price = 2;
-    }
+    optional common_dto.ReservedInstancePrice price = 2;
 }
 
 message UploadPriceTablesResponse {
@@ -172,5 +169,5 @@ service PricingService {
     // Upload the most recent price table discovered by a particular cost probe.
     //
     // Returns INVALID_ARGUMENT if the request is missing fields.
-    rpc UploadPriceTables(UploadPriceTablesRequest) returns (UploadPriceTablesResponse);
+    rpc UpdatePriceTables(stream ProbePriceTableSegment) returns (UploadPriceTablesResponse);
 }

@@ -5,7 +5,6 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 
 /**
@@ -54,7 +53,7 @@ public interface PriceTableStore {
      * We keep the price tables separated by probe type to make it easy to delete prices no longer
      * offered by a particular service provider.
      *
-     * @param tablesByProbeType The new {@link ProbePriceTable}s by probe type. These will
+     * @param tablesByProbeType The new {@link PriceTable}s by probe type. These will
      *        completely overwrite the existing price tables by probe type, and any
      *        existing probe types that are not found in this map will be deleted.
      */

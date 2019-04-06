@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -47,7 +46,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * RICostDataUploader collects Account expense data and Reserved Instance coverage and purchases
@@ -153,8 +151,10 @@ public class RICostDataUploader {
                     RI_DATA_SECTION, UPLOAD_REQUEST_UPLOAD_STAGE).startTimer()) {
                 // we should probably upload empty data too, if we are relying on this as a way to
                 // "clear" data when all cloud targets are removed.
+                UploadRIDataRequest request = requestBuilder.build();
+                logger.info("Uploading RI cost data ({} bytes)", request.getSerializedSize());
                 UploadRIDataResponse response = costServiceClient.uploadRIData(requestBuilder.build());
-                logger.debug("Cloud cost upload took {} secs", uploadTimer.getTimeElapsedSecs());
+                logger.info("Cloud cost upload took {} secs", uploadTimer.getTimeElapsedSecs());
                 lastUploadTime = clock.instant();
             } catch (Exception e) {
                 logger.error("Error uploading cloud expenses", e);

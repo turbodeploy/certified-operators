@@ -14,9 +14,8 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTable;
-import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
+import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -50,7 +49,7 @@ public class PriceTableUploaderTest {
     public GrpcTestServer server = GrpcTestServer.newServer(priceServiceSpy);
 
     // test cost component client
-    private PricingServiceBlockingStub priceServiceClient;
+    private PricingServiceStub priceServiceClient;
 
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
 
@@ -90,7 +89,7 @@ public class PriceTableUploaderTest {
                 .build();
 
         // call the price table builder
-        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC());
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
@@ -127,7 +126,7 @@ public class PriceTableUploaderTest {
                 .build();
 
         // call the price table builder
-        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC());
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
 
         // check the results.
@@ -162,7 +161,7 @@ public class PriceTableUploaderTest {
                                                                 .setAmount(10)))))))
                 .build();
         // call the price table builder
-        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC());
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());

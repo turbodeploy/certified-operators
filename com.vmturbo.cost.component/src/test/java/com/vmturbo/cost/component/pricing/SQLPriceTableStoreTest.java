@@ -108,11 +108,6 @@ public class SQLPriceTableStoreTest {
     @Test
     public void testUpdateAndRetrievePrice() {
         final PriceTable priceTable = mockPriceTable(1L);
-        /*
-        final ProbePriceTable probePriceTable = ProbePriceTable.newBuilder()
-                .setPriceTable(priceTable)
-                .build();
-                */
         store.putProbePriceTables(ImmutableMap.of("foo", new PriceTables(priceTable, null)));
 
         final PriceTable resultPriceTable = store.getMergedPriceTable();

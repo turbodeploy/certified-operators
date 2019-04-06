@@ -208,9 +208,7 @@ services:
     extends:
       file: prod-services.yml
       service: cost-prod
-    mem_limit: 512M
-# OM-42831: restore the original settings when the cloud features are ready to go
-#    mem_limit: 1536M
+    mem_limit: 1536M
     depends_on:
       - db
       - clustermgr

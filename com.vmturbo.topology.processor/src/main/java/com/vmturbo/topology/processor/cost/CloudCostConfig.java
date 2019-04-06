@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
-import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.cost.api.CostClientConfig;
@@ -36,19 +36,22 @@ public class CloudCostConfig {
     @Value("${minimumRIDataUploadIntervalMins}")
     private int minimumRIDataUploadIntervalMins;
 
+    @Value("${riSpecPriceChunkSize:10000}")
+    private int riSpecPriceChunkSize;
+
     @Bean
     public RIAndExpenseUploadServiceBlockingStub costServiceClient() {
         return RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean
-    public PricingServiceBlockingStub priceServiceClient() {
-        return PricingServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    public PricingServiceStub priceServiceClient() {
+        return PricingServiceGrpc.newStub(costClientConfig.costChannel());
     }
 
     @Bean
     public PriceTableUploader priceTableUploader() {
-        return new PriceTableUploader(priceServiceClient(), clockConfig.clock());
+        return new PriceTableUploader(priceServiceClient(), clockConfig.clock(), riSpecPriceChunkSize);
     }
 
     @Bean

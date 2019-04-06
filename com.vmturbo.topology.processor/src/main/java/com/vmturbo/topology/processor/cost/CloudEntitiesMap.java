@@ -54,6 +54,11 @@ public class CloudEntitiesMap implements Map<String, Long> {
         populateFrom(stitchingContext, probeTypesForTargetIds);
     }
 
+    @Override
+    public int hashCode() {
+        return cloudEntityOidByLocalId.hashCode();
+    }
+
     /**
      * Create a mapping of cloud entity local id's to oids, to facilitate later lookups by local id.
      * @param stitchingContext containing the cloud entities to include in the map.
