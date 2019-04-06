@@ -6,10 +6,10 @@
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
         <version>7.15.0-SNAPSHOT</version>
-        <relativePath>../build/pom.xml</relativePath>
+        <relativePath>../build</relativePath>
     </parent>
 
-    <artifactId>com.vmturbo.nginx</artifactId>
+    <artifactId>nginx</artifactId>
 
     <profiles>
         <profile>
@@ -21,9 +21,9 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/nginx</imageName>
+                            <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
                             <imageTags>
-                                <imageTag>${project.version}</imageTag>
+                                <imageTag>${project.version}-${turbo-version.commit.id.abbrev}</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
@@ -44,8 +44,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/nginx:${project.version}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/nginx:${project.version}</newName>
+                                    <image>${docker.image.prefix}/${project.artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -55,8 +55,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/nginx</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/nginx:latest</newName>
+                                    <image>${docker.image.prefix}/${project.artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -66,7 +66,17 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/nginx</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</imageName>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>push-docker-latest-image</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>push</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</imageName>
                                 </configuration>
                             </execution>
                         </executions>
