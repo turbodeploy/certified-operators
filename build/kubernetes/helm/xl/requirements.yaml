@@ -89,11 +89,11 @@ dependencies:
   # Monitoring dependencies
   - name: prometheus
     repository: file://../base/prometheus
-    version: 8.4.3
+    version: 8.9.1
     condition: prometheus.enabled
   - name: grafana
     repository: file://../base/grafana
-    version: 1.25.1
+    version: 3.0.1
     condition: grafana.enabled
 
 # Mediation dependencies
