@@ -12,11 +12,11 @@ image:
 java:
   options: ""
 
-  resources:
-    limits:
-      memory: 512Mi
-    requests:
-      memory: 384Mi
+resources:
+  limits:
+    memory: 512Mi
+  requests:
+    memory: 384Mi
 
 nodeSelector: {}
 
