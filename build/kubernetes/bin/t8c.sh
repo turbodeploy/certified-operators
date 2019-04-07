@@ -8,6 +8,14 @@
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
 
+# Create the ssh keys to run with
+if [ ! -f ~/.ssh/authorized_keys ]
+then
+  ssh-keygen -f ~/.ssh/id_rsa -t rsa -N ''
+  cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
+  chmod 600 ~/.ssh/authorized_keys
+fi
+
 # Functions
 usage()
 {
