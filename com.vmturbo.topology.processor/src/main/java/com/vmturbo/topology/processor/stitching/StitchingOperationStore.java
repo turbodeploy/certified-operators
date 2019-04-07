@@ -230,6 +230,13 @@ public class StitchingOperationStore {
     }
 
     /**
+     * Clear all the stitching operations.
+     */
+    public void clearOperations() {
+        operations.clear();
+    }
+
+    /**
      * A class that associates a probeId with the stitching operations that should be applied
      * for that probe.
      */

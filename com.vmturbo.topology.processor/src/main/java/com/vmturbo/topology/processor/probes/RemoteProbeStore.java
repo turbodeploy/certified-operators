@@ -171,6 +171,15 @@ public class RemoteProbeStore implements ProbeStore {
         synchronized (dataLock) {
             probeInfos.clear();
             probeInfos.putAll(probeInfoMap);
+            // set stitching operations when loading diags so stitching will happen
+            stitchingOperationStore.clearOperations();
+            probeInfos.forEach((probeId, probeInfo) -> {
+                try {
+                    stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
+                } catch (ProbeException e) {
+                    logger.error("Failed to create stitching operations for probe {} due to {}", probeId, e);
+                }
+            });
         }
         logger.info("Stored info from {} probes", probeInfos.size());
     }
