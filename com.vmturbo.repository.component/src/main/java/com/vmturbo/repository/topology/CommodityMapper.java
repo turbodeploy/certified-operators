@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.AdditionalCommodityData;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -110,17 +110,25 @@ class CommodityMapper {
         commRepo.setCapacityIncrement(comm.getCapacityIncrement());
         commRepo.setMaxQuantity(comm.getMaxQuantity());
         commRepo.setScalingFactor(comm.getScalingFactor());
-        commRepo.setHotReplaceSupported(getHotReplaceValue(comm));
+
+        if (comm.hasHotResizeInfo()) {
+            HotResizeInfo hotResizeInfo = comm.getHotResizeInfo();
+            if (hotResizeInfo.hasHotReplaceSupported()) {
+                commRepo.setHotReplaceSupported(hotResizeInfo.getHotReplaceSupported());
+            }
+            if (hotResizeInfo.hasHotAddSupported()) {
+                commRepo.setHotAddSupported(hotResizeInfo.getHotAddSupported());
+            }
+            if (hotResizeInfo.hasHotRemoveSupported()) {
+                commRepo.setHotRemoveSupported(hotResizeInfo.getHotRemoveSupported());
+            }
+        }
+        commRepo.setHotAddSupported(comm.getHotResizeInfo().getHotAddSupported());
+        commRepo.setHotRemoveSupported(comm.getHotResizeInfo().getHotRemoveSupported());
         commRepo.setDisplayName(comm.getDisplayName());
         commRepo.setAggregates(comm.getAggregatesList());
 
         return commRepo;
-    }
-
-    private static boolean getHotReplaceValue(CommoditySoldDTO comm) {
-       return comm.hasAdditionalCommodityData()
-           && comm.getAdditionalCommodityData().hasIsHotReplaceSupported()
-           && comm.getAdditionalCommodityData().getIsHotReplaceSupported();
     }
 
     /**
@@ -150,9 +158,11 @@ class CommodityMapper {
         }
 
         commoditySoldDTOBuilder.setCommodityType(commodityTypeBuilder.build());
-        commoditySoldDTOBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
-            .setIsHotReplaceSupported(commoditySoldRepoDTO.isHotReplaceSupported())
-            .build());
+
+        commoditySoldDTOBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()
+            .setHotReplaceSupported(commoditySoldRepoDTO.isHotReplaceSupported())
+            .setHotAddSupported(commoditySoldRepoDTO.isHotAddSupported())
+            .setHotRemoveSupported(commoditySoldRepoDTO.isHotRemoveSupported()).build());
 
         if (commoditySoldRepoDTO.getDisplayName() != null) {
             commoditySoldDTOBuilder.setDisplayName(commoditySoldRepoDTO.getDisplayName());

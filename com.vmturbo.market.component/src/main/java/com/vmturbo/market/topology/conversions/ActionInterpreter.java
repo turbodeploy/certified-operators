@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -449,14 +450,18 @@ public class ActionInterpreter {
     private ActionDTO.Resize interpretResize(@Nonnull final ResizeTO resizeTO,
                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = resizeTO.getSellingTrader();
-        final CommodityType topologyCommodity =
+        final CommodityType topologyCommodityType =
                 commodityConverter.economyToTopologyCommodity(resizeTO.getSpecification())
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Resize commodity can't be converted to topology commodity format! "
                                         + resizeTO.getSpecification()));
         // Determine if this is a remove limit or a regular resize.
-        final ProjectedTopologyEntity projectedEntity = projectedTopology.get(entityId);
-        if (projectedEntity.getEntity().getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
+        final TopologyEntityDTO projectedEntity = projectedTopology.get(entityId).getEntity();
+        // find original commodity sold
+        Optional<CommoditySoldDTO> originalCommoditySold = projectedEntity.getCommoditySoldListList().stream()
+            .filter(comm -> comm.getCommodityType().equals(topologyCommodityType))
+            .findFirst();
+        if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
             // If this is a VM and has a restricted capacity, we are going to assume it's a limit
             // removal. This logic seems like it could be fragile, in that limit may not be the
             // only way VM capacity could be restricted in the future, but this is consistent
@@ -488,26 +493,46 @@ public class ActionInterpreter {
                         float approximateLimit = commoditySold.getCapacity() * utilizationPercentage;
                         logger.debug("The commodity {} has util% of {}, so treating as limit"
                                         +" removal (approximate limit: {}).",
-                                topologyCommodity.getKey(), utilizationPercentage, approximateLimit);
+                                topologyCommodityType.getKey(), utilizationPercentage, approximateLimit);
 
-                        return ActionDTO.Resize.newBuilder()
-                                .setTarget(createActionEntity(entityId, projectedTopology))
-                                .setOldCapacity(approximateLimit)
-                                .setNewCapacity(0)
-                                .setCommodityType(topologyCommodity)
-                                .setCommodityAttribute(CommodityAttribute.LIMIT)
-                                .build();
+                        ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
+                            .setTarget(createActionEntity(entityId, projectedTopology))
+                            .setOldCapacity(approximateLimit)
+                            .setNewCapacity(0)
+                            .setCommodityType(topologyCommodityType)
+                            .setCommodityAttribute(CommodityAttribute.LIMIT);
+                        setHotAddRemove(resizeBuilder, originalCommoditySold);
+                        return resizeBuilder.build();
                     }
                     break;
                 }
             }
         }
-        return ActionDTO.Resize.newBuilder()
+        ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
                 .setTarget(createActionEntity(entityId, projectedTopology))
                 .setNewCapacity(resizeTO.getNewCapacity())
                 .setOldCapacity(resizeTO.getOldCapacity())
-                .setCommodityType(topologyCommodity)
-                .build();
+                .setCommodityType(topologyCommodityType);
+        setHotAddRemove(resizeBuilder, originalCommoditySold);
+        return resizeBuilder.build();
+    }
+
+    /**
+     * Set the hot add / hot remove flag on the resize action. This is needed for the resize
+     * action execution of probes like VMM.
+     */
+    private void setHotAddRemove(@Nonnull ActionDTO.Resize.Builder resizeBuilder,
+                                 @Nonnull Optional<CommoditySoldDTO> commoditySold) {
+        commoditySold.filter(CommoditySoldDTO::hasHotResizeInfo)
+            .map(CommoditySoldDTO::getHotResizeInfo)
+            .ifPresent(hotResizeInfo -> {
+                if (hotResizeInfo.hasHotAddSupported()) {
+                    resizeBuilder.setHotAddSupported(hotResizeInfo.getHotAddSupported());
+                }
+                if (hotResizeInfo.hasHotRemoveSupported()) {
+                    resizeBuilder.setHotRemoveSupported(hotResizeInfo.getHotRemoveSupported());
+                }
+            });
     }
 
     @Nonnull

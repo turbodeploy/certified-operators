@@ -21,6 +21,10 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     private boolean hotReplaceSupported;
 
+    private boolean hotAddSupported;
+
+    private boolean hotRemoveSupported;
+
     public double getCapacity() {
         return capacity;
     }
@@ -85,6 +89,22 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
         this.hotReplaceSupported = hotReplaceSupported;
     }
 
+    public boolean isHotAddSupported() {
+        return hotAddSupported;
+    }
+
+    public void setHotAddSupported(final boolean hotAddSupported) {
+        this.hotAddSupported = hotAddSupported;
+    }
+
+    public boolean isHotRemoveSupported() {
+        return hotRemoveSupported;
+    }
+
+    public void setHotRemoveSupported(final boolean hotRemoveSupported) {
+        this.hotRemoveSupported = hotRemoveSupported;
+    }
+
     @Override
     public String toString() {
         return "CommoditySoldRepoDTO{" +
@@ -96,6 +116,8 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
                 ", capacityIncrement=" + capacityIncrement +
                 ", maxQuantity=" + maxQuantity +
                 ", hotReplaceSupported=" + hotReplaceSupported +
+                ", hotAddSupported=" + hotAddSupported +
+                ", hotRemoveSupported=" + hotRemoveSupported +
                 '}';
     }
 }

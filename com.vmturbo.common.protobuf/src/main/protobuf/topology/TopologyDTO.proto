@@ -715,7 +715,8 @@ message CommoditySoldDTO {
     // moving to the cloud in cloud migration plans.
     optional double resize_target_utilization = 19;
 
-    optional AdditionalCommodityData additional_commodity_data = 20;
+    // for VMem and VCpu include info on hot add/hot remove
+    optional HotResizeInfo hot_resize_info = 20;
 
     // The display name for specific commodity like port channel and net throughput.
     optional string display_name = 21;
@@ -729,13 +730,17 @@ message CommoditySoldDTO {
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.
-        optional CommodityType base_commodity = 100;
+        optional CommodityType base_commodity = 1;
         // The ratio which will be used to multiply with base commodity's usage.
-        optional int32 ratio = 101;
+        optional int32 ratio = 2;
     }
 
-    message AdditionalCommodityData {
-        optional bool isHotReplaceSupported = 200 [default = false];
+    message HotResizeInfo {
+        optional bool hot_replace_supported = 1 [default = false];
+        // whether or not this commodity supports hot add
+        optional bool hot_add_supported = 2 [default = false];
+        // whether or not this commodity supports hot remove
+        optional bool hot_remove_supported = 3 [default = false];
     }
 }
 

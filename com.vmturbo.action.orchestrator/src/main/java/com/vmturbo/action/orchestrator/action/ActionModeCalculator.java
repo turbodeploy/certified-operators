@@ -242,9 +242,7 @@ public class ActionModeCalculator {
                 boolean supportsHotReplace = false;
                 if (commoditySold.isPresent()) {
                     CommoditySoldDTO commSold = commoditySold.get();
-                    supportsHotReplace = commSold.hasAdditionalCommodityData()
-                            && commSold.getAdditionalCommodityData().hasIsHotReplaceSupported()
-                            && commSold.getAdditionalCommodityData().getIsHotReplaceSupported();
+                    supportsHotReplace = commSold.getHotResizeInfo().getHotReplaceSupported();
                 }
 
                 // Check hot replace setting enabled.

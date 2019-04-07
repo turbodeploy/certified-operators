@@ -11,16 +11,21 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -545,9 +550,18 @@ public class ActionExecutionContextTest {
     public void testResizeContext() throws Exception {
         // Construct an resize action request
         final long entityId = 35;
+        final float oldCapacity = 2000;
+        final float newCapacity = 3000;
         final ActionDTO.ActionInfo resize = ActionInfo.newBuilder()
-                .setResize(ActionDTO.Resize.newBuilder()
-                        .setTarget(ActionExecutionTestUtils.createActionEntity(entityId)))
+                .setResize(Resize.newBuilder()
+                    .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VMEM_VALUE)
+                        .build())
+                    .setHotAddSupported(true)
+                    .setNewCapacity(newCapacity)
+                    .setOldCapacity(oldCapacity)
+                    .setCommodityAttribute(CommodityAttribute.CAPACITY))
                 .build();
         final int targetId = 13;
         final int actionId = 5;
@@ -605,6 +619,15 @@ public class ActionExecutionContextTest {
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
+
+        // verify resize commodity value and attributes like: hotAddSupported
+        ActionItemDTO actionItemDTO = actionExecutionContext.getActionItems().get(0);
+        Assert.assertEquals(ActionItemDTO.CommodityAttribute.Capacity, actionItemDTO.getCommodityAttribute());
+        Assert.assertEquals(CommodityDTO.CommodityType.VMEM, actionItemDTO.getCurrentComm().getCommodityType());
+        Assert.assertEquals(oldCapacity, actionItemDTO.getCurrentComm().getCapacity(), 0);
+        Assert.assertEquals(newCapacity, actionItemDTO.getNewComm().getCapacity(), 0);
+        Assert.assertTrue(actionItemDTO.getCurrentComm().getVmemData().getHotAddSupported());
+        Assert.assertTrue(actionItemDTO.getNewComm().getVmemData().getHotAddSupported());
 
         // Check that the raw entityInfo was retrieved (used only for setting the host field)
         Mockito.verify(entityStoreMock).getEntity(entityId);

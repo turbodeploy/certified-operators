@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.AdditionalCommodityData;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -727,14 +727,14 @@ public class ActionModeCalculatorTest {
         CommoditySoldDTO vCPU = CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.VCPU_VALUE))
-                                        .setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
-                                            .setIsHotReplaceSupported(hotAddSupported))
+                                        .setHotResizeInfo(HotResizeInfo.newBuilder()
+                                            .setHotReplaceSupported(hotAddSupported))
                         .build();
         CommoditySoldDTO vMEM = CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.VMEM_VALUE))
-                                        .setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
-                                            .setIsHotReplaceSupported(hotAddSupported))
+                                        .setHotResizeInfo(HotResizeInfo.newBuilder()
+                                            .setHotReplaceSupported(hotAddSupported))
                         .build();
         ImmutableList<CommoditySoldDTO> commoditiesSold = ImmutableList.of(vCPU, vMEM);
         return TopologyEntityDTO.newBuilder()

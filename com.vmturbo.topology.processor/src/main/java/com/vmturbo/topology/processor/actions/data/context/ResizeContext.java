@@ -14,6 +14,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -79,22 +81,47 @@ public class ResizeContext extends AbstractActionExecutionContext {
                 CommodityAttribute.forNumber(resizeInfo.getCommodityAttribute().getNumber()));
 
         final CommodityType commodityType = resizeInfo.getCommodityType();
-        actionItemBuilder.setCurrentComm(commodityBuilderFromType(commodityType)
-                .setCapacity(resizeInfo.getOldCapacity()));
+        actionItemBuilder.setCurrentComm(commodityForResizeAction(commodityType,
+            resizeInfo.getOldCapacity(), resizeInfo));
 
         // TODO (roman, May 15 2017): Right now we forward the capacity from the resize
         // action directly to the probe. We may need to round things off to certain increments
         // depending on which commodity we're dealing with. This will be partially mitigated
         // by sending correct increments to the market. (OM-16571)
-        actionItemBuilder.setNewComm(commodityBuilderFromType(commodityType)
-                .setCapacity(resizeInfo.getNewCapacity()));
+        actionItemBuilder.setNewComm(commodityForResizeAction(commodityType,
+            resizeInfo.getNewCapacity(), resizeInfo));
 
         return builders;
     }
 
-    private CommodityDTO.Builder commodityBuilderFromType(@Nonnull final CommodityType commodityType) {
-        return CommodityDTO.newBuilder()
-                .setCommodityType(CommodityDTO.CommodityType.forNumber(commodityType.getType()))
-                .setKey(commodityType.getKey());
+    /**
+     * Create the commodity (current / new) for the resize action.
+     *
+     * Todo: Currently we set the hot add / hot remove flag on the commodity. This is needed for
+     * the resize action execution of VMM. we will need to set more info on the commodity,
+     * once more probes are supported in XL. For example:
+     *     ActiveSession data for action execution of HorizonView probe
+     * See MediationDTOUtil::createCommodityDTOFromComm in classic.
+     */
+    private CommodityDTO.Builder commodityForResizeAction(@Nonnull final CommodityType commodityType,
+                                                          float capacity,
+                                                          @Nonnull Resize resizeInfo) {
+        CommodityDTO.CommodityType sdkCommodityType = CommodityDTO.CommodityType.forNumber(commodityType.getType());
+        CommodityDTO.Builder commodity = CommodityDTO.newBuilder()
+            .setCommodityType(sdkCommodityType)
+            .setKey(commodityType.getKey())
+            .setCapacity(capacity);
+
+        // set VMem/Vcpu data which includes info on hot add/hot remove
+        if (sdkCommodityType == CommodityDTO.CommodityType.VMEM) {
+            commodity.setVmemData(VMemData.newBuilder()
+                .setHotAddSupported(resizeInfo.getHotAddSupported()).build());
+        } else if (sdkCommodityType == CommodityDTO.CommodityType.VCPU) {
+            commodity.setVcpuData(VCpuData.newBuilder()
+                .setHotAddSupported(resizeInfo.getHotAddSupported())
+                .setHotRemoveSupported(resizeInfo.getHotRemoveSupported()).build());
+        }
+
+        return commodity;
     }
 }

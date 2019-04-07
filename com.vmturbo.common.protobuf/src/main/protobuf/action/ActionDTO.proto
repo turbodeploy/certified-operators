@@ -198,6 +198,12 @@ message Resize {
 
     // which specific attribute of the commodity should be resized? defaults to "capacity".
     optional topology.CommodityAttribute commodity_attribute = 5 [default = CAPACITY];
+
+    // whether or not this commodity supports hot add
+    optional bool hot_add_supported = 6 [default = false];
+
+    // whether or not this commodity supports hot remove
+    optional bool hot_remove_supported = 7 [default = false];
 }
 
 // Activate an existing deactivated entity.

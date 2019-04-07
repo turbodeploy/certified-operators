@@ -1810,21 +1810,37 @@ public class TopologyConverter {
         final float peakQuantity = peak; // It must be final
 
         return commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification())
-                .map(commType -> CommoditySoldDTO.newBuilder()
-                        .setCapacity(reverseScaleCommSold(commType, commSoldTO.getCapacity(),
-                                originalEntity))
-                        .setUsed(reverseScaleCommSold(commType, commSoldTO.getQuantity(),
-                                originalEntity))
+                .map(commType -> {
+                    // find original sold commodity of same type from original entity
+                    Optional<CommoditySoldDTO> originalCommoditySold = originalEntity == null
+                        ? Optional.empty()
+                        : originalEntity.getCommoditySoldListList().stream()
+                            .filter(originalCommodity -> originalCommodity.getCommodityType().equals(commType))
+                            .findFirst();
+
+                    CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
+                        .setCapacity(reverseScaleCommSold(commSoldTO.getCapacity(), originalEntity,
+                            originalCommoditySold))
+                        .setUsed(reverseScaleCommSold(commSoldTO.getQuantity(), originalEntity,
+                            originalCommoditySold))
                         .setPeak(peakQuantity)
                         .setMaxQuantity(commSoldTO.getMaxQuantity())
                         .setIsResizeable(commSoldTO.getSettings().getResizable())
                         .setEffectiveCapacityPercentage(
-                                commSoldTO.getSettings().getUtilizationUpperBound() * 100)
+                            commSoldTO.getSettings().getUtilizationUpperBound() * 100)
                         .setCommodityType(commType)
                         .setIsThin(commSoldTO.getThin())
                         .setCapacityIncrement(
-                                commSoldTO.getSettings().getCapacityIncrement())
-                        .build());
+                            commSoldTO.getSettings().getCapacityIncrement());
+
+                    // set hot add / hot remove, if present
+                    originalCommoditySold
+                        .filter(CommoditySoldDTO::hasHotResizeInfo)
+                        .map(CommoditySoldDTO::getHotResizeInfo)
+                        .ifPresent(hotResizeInfo -> commoditySoldBuilder.setHotResizeInfo(hotResizeInfo));
+
+                    return commoditySoldBuilder.build();
+                });
     }
 
     /**
@@ -1842,52 +1858,46 @@ public class TopologyConverter {
      * as the CommoditySoldTO for the market does not record the 'key' value from the
      * original commodity.
      *
-     * @param commType the type of commodity being processed, used to find the 'original'
-     *                 commodity value
      * @param valueToReverseScale the commodity value output from the market to
      *                            scale down (if there is a scaleFactor)
      * @param originalEntity the input to the MarketAnalysis, used to look up the original
      *                       commodity and find the 'scaleFactor', if any
+     *
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    private double reverseScaleCommSold(CommodityType commType, float valueToReverseScale,
-                                        @Nullable final TopologyEntityDTO originalEntity) {
-        if (originalEntity == null) {
-            return valueToReverseScale;
-        }
-        return originalEntity.getCommoditySoldListList().stream()
-                // look for the corresponding commodity on the original TopologyEntityDTO; also
-                // require that the original has a 'scalingFactor' set and is non-zero
-                .filter(originalCommodity ->
-                        originalCommodity.getCommodityType().equals(commType) &&
-                                originalCommodity.hasScalingFactor() &&
-                                Math.abs(originalCommodity.getScalingFactor() - ZERO) > EPSILON)
-                .findFirst()
-                .map(matchingCommodity -> {
-                    // found the matching commodity - divide by scalingFactor
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("reverse scale sold comm {} for {} mkt val {}, factor {}, unscaled {}",
-                                commType, originalEntity.getDisplayName(), valueToReverseScale,
-                                matchingCommodity.getScalingFactor(),
-                                valueToReverseScale / matchingCommodity.getScalingFactor());
-                    }
-                    // Creating valToReverseScale because valueToReverseScale has to be final
-                    float valToReverseScale;
-                    if (valueToReverseScale < 0) {
-                        logger.error("Value is negative: {} for commodity type {}", valueToReverseScale, commType);
-                        if (originalEntity != null) {
-                            logger.trace("The entity with negative value is {}", originalEntity);
-                        }
-                        valToReverseScale = 0;
-                    } else {
-                        valToReverseScale = valueToReverseScale;
-                    }
-                    return valToReverseScale / matchingCommodity.getScalingFactor();
-                })
-                // either we didn't find the matching commodity, or the matching commodity had
-                // no 'scalingFactor', or the 'scalingFactor' was zero (and hence we could not divide)
-                .orElse((double) valueToReverseScale);
+    private double reverseScaleCommSold(float valueToReverseScale,
+                                        @Nullable final TopologyEntityDTO originalEntity,
+                                        Optional<CommoditySoldDTO> originalCommoditySold) {
+        return originalCommoditySold
+            // look for the corresponding commodity on the original TopologyEntityDTO; also
+            // require that the original has a 'scalingFactor' set and is non-zero
+            .filter(originalCommodity -> originalCommodity.hasScalingFactor() &&
+                Math.abs(originalCommodity.getScalingFactor() - ZERO) > EPSILON)
+            .map(matchingCommodity -> {
+                // found the matching commodity - divide by scalingFactor
+                if (logger.isDebugEnabled()) {
+                    logger.debug("reverse scale sold comm {} for {} mkt val {}, factor {}, unscaled {}",
+                        matchingCommodity.getCommodityType(), originalEntity.getDisplayName(),
+                        valueToReverseScale, matchingCommodity.getScalingFactor(),
+                        valueToReverseScale / matchingCommodity.getScalingFactor());
+                }
+                // Creating valToReverseScale because valueToReverseScale has to be final
+                float valToReverseScale;
+                if (valueToReverseScale < 0) {
+                    logger.error("Value is negative: {} for commodity type {}", valueToReverseScale,
+                        matchingCommodity.getCommodityType());
+                    logger.trace("The entity with negative value is {}", originalEntity);
+                    valToReverseScale = 0;
+                } else {
+                    valToReverseScale = valueToReverseScale;
+                }
+                return valToReverseScale / matchingCommodity.getScalingFactor();
+
+            })
+            // either we didn't find the matching commodity, or the matching commodity had
+            // no 'scalingFactor', or the 'scalingFactor' was zero (and hence we could not divide)
+            .orElse((double) valueToReverseScale);
     }
 
     /**

@@ -36,7 +36,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.AdditionalCommodityData;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -572,13 +572,16 @@ public class SdkToTopologyEntityConverter {
 
         if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {
             VCpuData vCPUData = commDTO.getVcpuData();
-            retCommSoldBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
-                .setIsHotReplaceSupported(vCPUData.getHotAddSupported() || vCPUData.getHotRemoveSupported())
+            retCommSoldBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()
+                .setHotReplaceSupported(vCPUData.getHotAddSupported() || vCPUData.getHotRemoveSupported())
+                .setHotAddSupported(vCPUData.getHotAddSupported())
+                .setHotRemoveSupported(vCPUData.getHotRemoveSupported())
                 .build());
         } else if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VMEM && commDTO.hasVmemData()) {
             VMemData vMemData = commDTO.getVmemData();
-            retCommSoldBuilder.setAdditionalCommodityData(AdditionalCommodityData.newBuilder()
-                .setIsHotReplaceSupported(vMemData.getHotAddSupported())
+            retCommSoldBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()
+                .setHotReplaceSupported(vMemData.getHotAddSupported())
+                .setHotAddSupported(vMemData.getHotAddSupported())
                 .build());
         }
 

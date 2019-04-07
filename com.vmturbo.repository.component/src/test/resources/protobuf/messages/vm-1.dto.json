@@ -66,8 +66,10 @@
       "effectiveCapacityPercentage": 0.0,
       "reservedCapacity": 0.0,
       "isThin": true,
-      "additionalCommodityData": {
-          "isHotReplaceSupported": true
+      "hotResizeInfo": {
+          "hotReplaceSupported": true,
+          "hotAddSupported": true,
+          "hotRemoveSupported": true
       }
     }
   ],
