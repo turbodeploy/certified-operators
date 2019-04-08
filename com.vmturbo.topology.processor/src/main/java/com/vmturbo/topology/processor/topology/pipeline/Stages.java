@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuild
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -65,6 +65,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
+import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -870,10 +871,28 @@ public class Stages {
      * We generate flow commodities in here.
      */
     public static class FlowGenerationStage extends PassthroughStage<StitchingContext> {
+        /**
+         * The matrix.
+         */
+        private final @Nonnull MatrixInterface matrix;
+
+        /**
+         * Constructs the {@link FlowGenerationStage}.
+         *
+         * @param matrix The matrix.
+         */
+        FlowGenerationStage(final @Nonnull MatrixInterface matrix) {
+            this.matrix = matrix;
+        }
+
         @Override
-        public Status passthrough(final StitchingContext input) throws PipelineStageException {
-            FlowCommoditiesGenerator commoditiesGenerator = new FlowCommoditiesGenerator();
-            commoditiesGenerator.generateCommodities(input.getStitchingGraph());
+        @Nonnull
+        public Status passthrough(StitchingContext input) throws PipelineStageException {
+            // Don't generate flow commodities if there are no flows.
+            if (input != null && !matrix.isEmpty()) {
+                FlowCommoditiesGenerator commoditiesGenerator = new FlowCommoditiesGenerator(matrix);
+                commoditiesGenerator.generateCommodities(input.getStitchingGraph());
+            }
             return Status.success();
         }
     }
@@ -882,8 +901,23 @@ public class Stages {
      * We update matrix with capacities here.
      */
     public static class MatrixUpdateStage extends PassthroughStage<GraphWithSettings> {
+        /**
+         * The matrix.
+         */
+        private final @Nonnull MatrixInterface matrix;
+
+        /**
+         * Constructs the {@link MatrixUpdateStage}.
+         *
+         * @param matrix The matrix.
+         */
+        MatrixUpdateStage(final @Nonnull MatrixInterface matrix) {
+            this.matrix = matrix;
+        }
+
         @Override
-        public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
+        @Nonnull
+        public Status passthrough(GraphWithSettings input) throws PipelineStageException {
             return Status.success();
         }
     }
