@@ -355,11 +355,6 @@ public class ServiceConfig {
     }
 
     @Bean
-    public SchedulesService schedulesService() {
-        return new SchedulesService();
-    }
-
-    @Bean
     public ScenarioServiceBlockingStub scenarioServiceClient() {
         return ScenarioServiceGrpc.newBlockingStub(
                 communicationConfig.planOrchestratorChannel())
