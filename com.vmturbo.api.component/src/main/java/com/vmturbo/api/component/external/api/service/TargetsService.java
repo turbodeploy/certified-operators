@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -68,6 +69,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -148,7 +150,10 @@ public class TargetsService implements ITargetsService {
      */
     @VisibleForTesting
     static final String UNKNOWN_TARGET_STATUS = "UNKNOWN";
-
+    /**
+     * Probe types that requires the public cloud feautre in the license
+     */
+    static Set<SDKProbeType> publicCloudProbes = new HashSet<>(Arrays.asList(SDKProbeType.AWS,SDKProbeType.AZURE));
     /**
      * This is currently required because the SDK probes have
      * the category field inconsistently cased
@@ -339,9 +344,31 @@ public class TargetsService implements ITargetsService {
         if (licenseCheckClient == null) return true;
 
         // check if the probe is available according to the license data.
-        // OM-36001 -- for now, we are only filtering out storage targets.
+        //This set should be overwritten once OM-31984  will be implemented
         ProbeCategory category = ProbeCategory.create(probeInfo.getCategory());
+        SDKProbeType probeType = SDKProbeType.create(probeInfo.getType());
         switch (category) {
+            case APPLICATION_SERVER :
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
+            case CLOUD_MANAGEMENT:
+                if (publicCloudProbes.contains(probeType)) {
+                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.PUBLIC_CLOUD);
+                }
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.CLOUD_TARGETS);
+            case DATABASE_SERVER:
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
+            case FABRIC:
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.FABRIC);
+            case GUEST_OS_PROCESSES:
+                if (probeType == SDKProbeType.APPDYNAMICS || probeType == SDKProbeType.DYNATRACE) {
+                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
+                }
+                //Docker isn't supported in XL yet. We need to make sure this category will correspond to its implementation
+                if (probeType == SDKProbeType.DOCKER ) {
+                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.CONTAINER_CONTROL);
+                }
+            case NETWORK:
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.NETWORK_CONTROL);
             case STORAGE:
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.STORAGE);
         }
