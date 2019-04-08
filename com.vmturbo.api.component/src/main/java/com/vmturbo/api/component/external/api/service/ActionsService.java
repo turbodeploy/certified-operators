@@ -35,6 +35,7 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -375,4 +376,15 @@ public class ActionsService implements IActionsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Get details for an action.
+     *
+     * @param uuid
+     * @return
+     * @throws Exception
+     */
+    @Override
+    public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
 }
