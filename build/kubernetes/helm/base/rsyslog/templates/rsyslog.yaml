@@ -98,7 +98,7 @@ spec:
 {{- if .Values.global }}
   {{- if .Values.global.elk }}
   type: ExternalName
-  externalName: {{ .Release.Name }}-logstash.{{ .Release.Namespace }}.svc.cluster.local
+  externalName: logstash.{{ .Release.Namespace }}.svc.cluster.local
   {{- else if .Values.global.externalSyslog }}
   type: ExternalName
   externalName: {{ .Values.global.externalSyslog }}

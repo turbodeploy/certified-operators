@@ -7,6 +7,7 @@ updateStrategy:
   type: RollingUpdate
 
 terminationGracePeriodSeconds: 30
+fullnameOverride: logstash
 
 image:
   repository: docker.elastic.co/logstash/logstash-oss
@@ -293,7 +294,7 @@ filters:
 outputs:
   main: |-
     output {
-      # stdout { codec => rubydebug }
+      stdout { codec => rubydebug }
       elasticsearch {
         hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
         index => "syslog-%{+YYYY.MM.dd}"

@@ -11,4 +11,4 @@ data:
   kibana.yml: |
     server.host: "0"
     server.name: kibana
-    elasticsearch.url: "http://{{ .Release.Name }}-{{ .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+    elasticsearch.url: "http://{{ .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"

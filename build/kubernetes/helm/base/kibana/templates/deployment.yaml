@@ -137,7 +137,7 @@ spec:
         {{- end }}
         env:
         - name: ELASTICSEARCH_URL
-          value: "http://{{ .Release.Name }}-{{ .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+          value: "http://{{ .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
 {{- if (not .Values.authProxyEnabled) }}
         ports:
         - containerPort: {{ .Values.service.internalPort }}

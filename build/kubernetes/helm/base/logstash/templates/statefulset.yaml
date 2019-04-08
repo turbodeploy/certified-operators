@@ -69,7 +69,7 @@ spec:
               value: {{ .Values.exporter.logstash.target.port | quote }}
             ## Elasticsearch output
             - name: ELASTICSEARCH_HOST
-              value: "{{ .Release.Name }}-{{ .Values.elasticsearch.host }}"
+              value: {{ .Values.elasticsearch.host | quote }}
             - name: ELASTICSEARCH_PORT
               value: {{ .Values.elasticsearch.port | quote }}
             ## Additional env vars

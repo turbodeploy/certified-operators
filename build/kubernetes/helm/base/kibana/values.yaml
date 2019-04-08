@@ -1,3 +1,5 @@
+fullnameOverride: kibana
+
 image:
   repository: "docker.elastic.co/kibana/kibana-oss"
   tag: "6.7.0"
