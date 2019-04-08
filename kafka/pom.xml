@@ -6,10 +6,10 @@
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
         <version>7.15.0-SNAPSHOT</version>
-        <relativePath>../build</relativePath>
+        <relativePath>../build/pom.xml</relativePath>
     </parent>
 
-    <artifactId>kafka</artifactId>
+    <artifactId>com.vmturbo.kafka</artifactId>
 
     <profiles>
         <profile>
@@ -21,9 +21,9 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
+                            <imageName>${docker.image.prefix}/kafka</imageName>
                             <imageTags>
-                                <imageTag>${project.version}-${turbo-version.commit.id.abbrev}</imageTag>
+                                <imageTag>${project.version}</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
@@ -44,8 +44,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/${project.artifactId}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</newName>
+                                    <image>${docker.image.prefix}/kafka</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/kafka:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -55,8 +55,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/${project.artifactId}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</newName>
+                                    <image>${docker.image.prefix}/kafka</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/kafka:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -66,17 +66,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</imageName>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>push-docker-latest-image</id>
-                                <phase>deploy</phase>
-                                <goals>
-                                    <goal>push</goal>
-                                </goals>
-                                <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/kafka</imageName>
                                 </configuration>
                             </execution>
                         </executions>
