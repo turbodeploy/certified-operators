@@ -145,7 +145,7 @@
                             <include>swagger.json</include>
                         </resource>
                     </resources>
-                    <serverId>${docker.registry}</serverId>
+                    <serverId>docker-registry</serverId>
                 </configuration>
             </plugin>
             <plugin>

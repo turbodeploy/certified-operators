@@ -783,7 +783,6 @@
         <profile>
             <id>release</id>
             <modules>
-                <module>../versioning</module>
                 <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
@@ -888,6 +887,7 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../versioning</module>
 
                 <!-- Mediation container with all the probes inside. -->
                 <module>../com.vmturbo.mediation.component</module>
@@ -896,19 +896,6 @@
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
-            </modules>
-        </profile>
-        <profile>
-            <id>base-components</id>
-            <modules>
-                <module>../versioning</module>
-                <module>../com.vmturbo.components.baseimage</module>
-                <module>../syslog</module>
-                <module>../db</module>
-                <module>../com.vmturbo.arangodb</module>
-                <module>../kafka</module>
-                <module>../zookeeper</module>
-                <module>../nginx</module>
             </modules>
         </profile>
         <profile>
@@ -1380,10 +1367,6 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
-            <plugin>
-                <groupId>pl.project13.maven</groupId>
-                <artifactId>git-commit-id-plugin</artifactId>
-            </plugin>
         </plugins>
     </build>
 
@@ -1408,7 +1391,7 @@
             <!-- Dependencies from XL -->
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>vmt-component-base</artifactId>
+                <artifactId>com.vmturbo.components.baseimage</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

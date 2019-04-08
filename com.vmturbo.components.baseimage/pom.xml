@@ -10,8 +10,16 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>vmt-component-base</artifactId>
-
+    <artifactId>com.vmturbo.components.baseimage</artifactId>
+        <build>
+        <defaultGoal>install</defaultGoal>
+            <plugins>
+                <plugin>
+                    <groupId>pl.project13.maven</groupId>
+                    <artifactId>git-commit-id-plugin</artifactId>
+                </plugin>
+            </plugins>
+        </build>
     <profiles>
         <profile>
             <id>docker</id>
@@ -45,12 +53,13 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
+                            <imageName>${docker.image.prefix}/vmt-component-base</imageName>
                             <imageTags>
-                                <imageTag>${project.version}-${turbo-version.commit.id.abbrev}</imageTag>
+                                <imageTag>${project.version}</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
+                                <label>com.vmturbo.build=${buildNumber}</label>
                             </labels>
                             <serverId>docker-hub</serverId>
                             <!-- include the support files - entrypoint.sh and collect_diags.sh -->
@@ -91,8 +100,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/${project.artifactId}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</newName>
+                                    <image>${docker.image.prefix}/vmt-component-base</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/vmt-component-base:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -102,8 +111,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/${project.artifactId}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</newName>
+                                    <image>${docker.image.prefix}/vmt-component-base</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/vmt-component-base:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -113,17 +122,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</imageName>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>push-docker-latest-image</id>
-                                <phase>deploy</phase>
-                                <goals>
-                                    <goal>push</goal>
-                                </goals>
-                                <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/vmt-component-base</imageName>
                                 </configuration>
                             </execution>
                         </executions>
@@ -132,4 +131,5 @@
             </build>
         </profile>
     </profiles>
+
 </project>
