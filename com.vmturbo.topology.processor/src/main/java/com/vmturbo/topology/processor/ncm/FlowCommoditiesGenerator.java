@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.ncm;
 
+import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -12,19 +13,49 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.FLOW;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.*;
 
 public class FlowCommoditiesGenerator {
+    /**
+     * The matrix.
+     */
+    private final MatrixInterface matrix;
+
+    /**
+     * Constructs the {@link FlowCommoditiesGenerator}
+     *
+     * @param matrix The Communication Matrix.
+     */
+    public FlowCommoditiesGenerator(final @Nonnull MatrixInterface matrix) {
+        this.matrix = matrix;
+    }
+
     /**
      * Generates Flow commodities.
      *
      * @param graph The graph with settings.
      */
     public void generateCommodities(final @Nonnull TopologyStitchingGraph graph) {
+        // Get Networks.
+        graph.entities().filter(e -> e.getEntityType().equals(CHASSIS))
+                .forEach(this::getNetworkDpods);
         // Get PMs.
-        graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE)).
-                forEach(this::sellFlowCommoditiesPM);
+        graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
+                .forEach(this::sellFlowCommoditiesPM);
+    }
+
+    /**
+     * Obtains network DPoDs.
+     *
+     * @param chassis The Chassis.
+     */
+    private void getNetworkDpods(final @Nonnull TopologyStitchingEntity chassis) {
+        Set<Long> dpod = chassis.getConsumers().stream()
+                .filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
+                .map(StitchingEntity::getOid).collect(Collectors.toSet());
+        matrix.populateDpod(dpod);
     }
 
     /**
@@ -37,7 +68,7 @@ public class FlowCommoditiesGenerator {
     private @Nonnull Builder buildSoldFlowComm(final @Nonnull String key,
                                                final double capacity) {
         return CommonDTO.CommodityDTO.newBuilder()
-                .setCommodityType(CommonDTO.CommodityDTO.CommodityType.FLOW)
+                .setCommodityType(FLOW)
                 .setActive(true)
                 .setResizable(true)
                 .setKey(key)
@@ -48,7 +79,7 @@ public class FlowCommoditiesGenerator {
      * Build bought Flow commodity.
      *
      * @param providerID   The provider ID.
-     * @param providerType The provider type..
+     * @param providerType The provider type.
      * @return The bought commodity.
      */
     private CommodityBought buildBoughtFlowComm(
@@ -101,6 +132,7 @@ public class FlowCommoditiesGenerator {
                                        final @Nonnull Builder[] soldComms) {
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
             CommodityBought comm = buildBoughtFlowComm(providerID, PHYSICAL_MACHINE, soldComms[i]);
+            // FIXME: Figure out the IP addresses and matrix.place() calls.
             vm.getEntityBuilder().addCommoditiesBought(comm);
             vm.addCommoditySold(buildSoldFlowComm(FlowsCommonUtils.FLOW_KEYS[i],
                                                   soldComms[i].getCapacity()),
