@@ -2,15 +2,15 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
         <version>7.15.0-SNAPSHOT</version>
-        <relativePath>../build/pom.xml</relativePath>
+        <relativePath>../build</relativePath>
     </parent>
-    <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>com.vmturbo.arangodb</artifactId>
+    <artifactId>arangodb</artifactId>
 
     <profiles>
         <profile>
@@ -20,12 +20,11 @@
                     <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
-                        <version>${docker.maven.plugin.version}</version>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/arangodb</imageName>
+                            <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
                             <imageTags>
-                                <imageTag>${project.version}</imageTag>
+                                <imageTag>${project.version}-${turbo-version.commit.id.abbrev}</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
@@ -46,8 +45,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/arangodb</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/arangodb:${project.version}</newName>
+                                    <image>${docker.image.prefix}/${project.artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -57,8 +56,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/arangodb</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/arangodb:latest</newName>
+                                    <image>${docker.image.prefix}/${project.artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -68,7 +67,17 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/arangodb</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</imageName>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>push-docker-latest-image</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>push</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</imageName>
                                 </configuration>
                             </execution>
                         </executions>

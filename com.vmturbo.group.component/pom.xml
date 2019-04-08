@@ -165,9 +165,6 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                  <configuration>
-                    <serverId>docker-registry</serverId>
-                  </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

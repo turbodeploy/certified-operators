@@ -3,7 +3,6 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
@@ -171,12 +170,12 @@
                             <configuration>
                                 <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
                                 <imageTags>
-                                    <imageTag>${project.version}</imageTag>
+                                    <imageTag>${project.version}-${turbo-version.commit.id.abbrev}</imageTag>
                                 </imageTags>
                                 <labels>
                                     <label>com.vmturbo.version=${project.version}</label>
                                 </labels>
-                                <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}</baseImage>
+                                <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}-${turbo-version.commit.id.abbrev}</baseImage>
                                 <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
                                 <volumes>
                                     <volume>/home/turbonomic/data</volume>
@@ -213,7 +212,18 @@
                                     </goals>
                                     <configuration>
                                         <image>${docker.image.prefix}/${project.artifactId}</image>
-                                        <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
+                                        <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</newName>
+                                    </configuration>
+                                </execution>
+                                <execution>
+                                    <id>tag-docker-image-latest</id>
+                                    <phase>package</phase>
+                                    <goals>
+                                        <goal>tag</goal>
+                                    </goals>
+                                    <configuration>
+                                        <image>${docker.image.prefix}/${project.artifactId}</image>
+                                        <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</newName>
                                     </configuration>
                                 </execution>
                                 <execution>
@@ -223,9 +233,19 @@
                                         <goal>push</goal>
                                     </goals>
                                     <configuration>
-                                        <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
+                                        <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}-${turbo-version.commit.id.abbrev}</imageName>
                                     </configuration>
                                 </execution>
+                                <execution>
+                                    <id>push-docker-latest-image</id>
+                                    <phase>deploy</phase>
+                                    <goals>
+                                        <goal>push</goal>
+                                    </goals>
+                                    <configuration>
+                                        <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:latest</imageName>
+                                    </configuration>
+                            </execution>
                             </executions>
                         </plugin>
                         <plugin>
