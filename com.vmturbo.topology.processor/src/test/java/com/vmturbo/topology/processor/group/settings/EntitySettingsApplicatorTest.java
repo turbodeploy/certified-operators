@@ -95,6 +95,20 @@ public class EntitySettingsApplicatorTest {
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
             .build();
 
+    private static final Setting VM_VSTORAGE_INCREMENT_DEFAULT = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.VstorageIncrement.getSettingName())
+                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(
+                                    EntitySettingSpecs.VstorageIncrement
+                                        .getSettingSpec()
+                                        .getNumericSettingValueType()
+                                        .getDefault()))
+                    .build();
+
+    private static final Setting VM_VSTORAGE_INCREMENT_NOT_DEFAULT = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.VstorageIncrement.getSettingName())
+                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5000))
+                    .build();
+
     private static final Setting.Builder REZISE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
 
@@ -561,6 +575,30 @@ public class EntitySettingsApplicatorTest {
         // Since there is no desired state settings set, leave effective capacity as is.
         Assert.assertEquals(80.0f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
+    }
+
+    @Test
+    public void testResizeIncrementApplicatorForVStorageForDefault() {
+        final TopologyEntityDTO.Builder builder =
+                        createEntityWithCommodity(EntityType.VIRTUAL_MACHINE, CommodityType.VSTORAGE);
+        builder.getCommoditySoldListBuilder(0).setIsResizeable(true);
+
+        applySettings(TOPOLOGY_INFO, builder, VM_VSTORAGE_INCREMENT_DEFAULT);
+
+        // Resizeable false for default setting of vStorage increment.
+        assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    @Test
+    public void testResizeIncrementApplicatorForVStorageForNotDefault() {
+        final TopologyEntityDTO.Builder builder =
+                        createEntityWithCommodity(EntityType.VIRTUAL_MACHINE, CommodityType.VSTORAGE);
+        builder.getCommoditySoldListBuilder(0).setIsResizeable(true);
+
+        applySettings(TOPOLOGY_INFO, builder, VM_VSTORAGE_INCREMENT_NOT_DEFAULT);
+
+        // Resizeable unchanged for non default setting of vStorage increment.
+        assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
     }
 
     /**

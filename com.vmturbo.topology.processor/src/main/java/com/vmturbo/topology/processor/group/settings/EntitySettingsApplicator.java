@@ -583,10 +583,26 @@ public class EntitySettingsApplicator {
                         commodityBuilder.setCapacityIncrement(
                             ResizeIncrementAdjustor.roundToProbeIncrement(
                                     userRequestedIncrement, probeProvidedIncrement));
+
+                        // Value out of the box is set to large number for vStorage commodity and it is done so that
+                        // we don't resize. It still leaves some scope of resize in case provider is large enough.
+                        // To prevent that set resizeable false if vStorage increment is set to default value.
+                        if (commodityType.getNumber() == CommodityType.VSTORAGE_VALUE
+                                && setting.getNumericSettingValue().getValue() == getDefualtVStorageIncrement()) {
+                            commodityBuilder.setIsResizeable(false);
+                        }
+
                         logger.debug("Apply Resize Increment for commodity: {} , value={}",
                             commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
                     });
             }
+        }
+
+        private float getDefualtVStorageIncrement() {
+            return EntitySettingSpecs.VstorageIncrement
+                    .getSettingSpec()
+                    .getNumericSettingValueType()
+                    .getDefault();
         }
     }
 
