@@ -186,65 +186,41 @@ public class PlanStatsAggregator {
         int numContainers = entityTypeCounts.getOrDefault(EntityType.CONTAINER_VALUE, 0);
         int numStorages = entityTypeCounts.getOrDefault(EntityType.STORAGE_VALUE, 0);
         logger.debug("Entity type counts for topology id {} and context id {} :"
-                    + " {} PMs, {} VMs, {} containers, {} storages.",
-                    topologyId, topologyContextId,
-                    numPMs, numVMs, numContainers, numStorages);
-        if (numPMs != 0) {
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numPMs,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_HOSTS, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numVMs / numPMs,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_VMS_PER_HOST, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numContainers / numPMs,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_CNT_PER_HOST, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-        }
-        if (numVMs != 0) {
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numVMs,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_VMS, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-        }
-        if (numStorages != 0) {
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numStorages,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_STORAGES, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numVMs / numStorages,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_VMS_PER_STORAGE, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numContainers / numStorages,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_CNT_PER_STORAGE, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-        }
-        if (numContainers != 0) {
-            entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                    snapshotTimestamp, numContainers,
-                    null /*capacity*/,
-                    HistoryStatsUtils.addPrefix(NUM_CONTAINERS, dbCommodityPrefix),
-                    null /* propertySubtype*/,
-                    topologyContextId));
-        }
+                        + " {} PMs, {} VMs, {} containers, {} storages.",
+                        topologyId, topologyContextId,
+                        numPMs, numVMs, numContainers, numStorages);
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numPMs, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_HOSTS, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numPMs == 0 ? 0 : numVMs / numPMs, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_VMS_PER_HOST, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numPMs == 0 ? 0 : numContainers / numPMs, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_CNT_PER_HOST, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numVMs, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_VMS, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numStorages, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_STORAGES, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numStorages == 0 ? 0 : numVMs / numStorages, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_VMS_PER_STORAGE, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numStorages == 0 ? 0 : numContainers / numStorages, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_CNT_PER_STORAGE, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
+        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
+                snapshotTimestamp, numContainers, null /*capacity*/,
+                HistoryStatsUtils.addPrefix(NUM_CONTAINERS, dbCommodityPrefix),
+                null /* propertySubtype*/, topologyContextId));
 
         return entityTypeCountRecords;
     }

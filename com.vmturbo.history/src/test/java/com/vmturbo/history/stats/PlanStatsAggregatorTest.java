@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -87,12 +88,15 @@ public class PlanStatsAggregatorTest {
      */
     @Test
     public void testNumRecords() {
-        Set<String> propertyTypes = records.stream()
+        List<String> propertyTypes = records.stream()
                 .map(MktSnapshotsStatsRecord::getPropertyType)
-                .collect(Collectors.toSet());
-        Assert.assertEquals(Sets.newHashSet(
-            PREFIX + "CPU", PREFIX + "NumHosts", PREFIX + "NumVMs",
-            PREFIX + "NumVMsPerHost", PREFIX + "NumContainersPerHost"), propertyTypes);
+                .collect(Collectors.toList());
+        Assert.assertEquals(Arrays.asList(
+            PREFIX + "NumHosts", PREFIX + "NumVMsPerHost", PREFIX + "NumContainersPerHost",
+            PREFIX + "NumVMs", PREFIX + "NumStorages", PREFIX + "NumVMsPerStorage",
+            PREFIX + "NumContainersPerStorage", PREFIX + "NumContainers",
+            PREFIX + "CPU"),
+            propertyTypes);
     }
 
     /**

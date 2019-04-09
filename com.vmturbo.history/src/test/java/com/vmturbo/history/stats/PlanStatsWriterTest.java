@@ -2,6 +2,7 @@ package com.vmturbo.history.stats;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyDouble;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,7 +28,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 public class PlanStatsWriterTest {
 
     /**
-     * Verify when numberOfEntities or numOriginalPriceIndex is 0, stop persist them to DB
+     * Verify when numberOfEntities or numOriginalPriceIndex is 0, we still persist them to DB
      */
     @Test
     public void testCounts() throws InterruptedException, TimeoutException, CommunicationException, VmtDbException {
@@ -39,7 +40,7 @@ public class PlanStatsWriterTest {
             = Mockito.mock(RemoteIterator.class);
         when(iterator.hasNext()).thenReturn(false);
         planStatsWriter.processProjectedChunks(TopologyInfo.newBuilder().build(), Collections.EMPTY_SET, iterator);
-        verify(historydbIO, never()).clipValue(anyDouble());
+        verify(historydbIO, atLeastOnce()).clipValue(anyDouble());
     }
 
 
