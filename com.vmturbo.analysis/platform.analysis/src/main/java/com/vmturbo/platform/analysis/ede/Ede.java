@@ -469,6 +469,7 @@ public final class Ede {
         try {
             placementResults.getUnplacedTraders().forEach((trader, quoteTrackers) -> {
                 String explanation = quoteTrackers.stream()
+                                .filter(QuoteTracker::hasQuotesToExplain)
                                 .map(QuoteTracker::explainInterestingSellers)
                                 .collect(Collectors.joining("\n\t"));
                 trader.setUnplacedExplanation(explanation);
