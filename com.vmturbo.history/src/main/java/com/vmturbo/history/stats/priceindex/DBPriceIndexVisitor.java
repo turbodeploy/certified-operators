@@ -1,6 +1,8 @@
 package com.vmturbo.history.stats.priceindex;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +32,8 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO;
+import io.swagger.models.auth.In;
 
 /**
  * A {@link TopologyPriceIndexVisitor} that saves the price indices to the appropriate tables
@@ -50,6 +54,11 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
         new HashMap<>();
 
     private final Set<Integer> notFoundEntityTypes = new HashSet<>();
+
+    private final Set<Integer> notSavedEntityTypes = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(EntityDTO.EntityType.NETWORK.getValue(),
+                                        EntityDTO.EntityType.INTERNET.getValue(),
+                                        EntityDTO.EntityType.VIRTUAL_VOLUME.getValue())));
 
     // accumulate a batch of SQL statements to insert the commodity rows; execute in batches
     private List<Query> commodityInsertStatements = Lists.newArrayList();
@@ -111,8 +120,26 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
      */
     public void onComplete() throws VmtDbException {
         if (!notFoundEntityTypes.isEmpty()) {
-            logger.error("History DB Entity Types not found for entity types: {}",
-                notFoundEntityTypes);
+            // Split entity types that are saved in DB from entity types not saved
+            Set<Integer> errorNotFound = new HashSet<>();
+            Set<Integer> traceNotFound = new HashSet<>();
+            for (Integer entityType : notFoundEntityTypes) {
+                if (notSavedEntityTypes.contains(entityType)) {
+                    traceNotFound.add(entityType);
+                } else {
+                    errorNotFound.add(entityType);
+                }
+            }
+            // Print error message for not found entity types that are saved in DB
+            if (!errorNotFound.isEmpty()) {
+                logger.error("History DB Entity Types not found for entity types: {}",
+                        errorNotFound);
+            }
+            // Print trace message for not found entity types that are not saved in DB
+            if (!traceNotFound.isEmpty()) {
+                logger.trace("History DB Entity Types not found for entity types: {}",
+                        traceNotFound);
+            }
         }
 
         // now execute the remaining batch of updates, if any

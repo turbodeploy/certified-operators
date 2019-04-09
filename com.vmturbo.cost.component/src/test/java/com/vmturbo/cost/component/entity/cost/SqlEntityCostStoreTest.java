@@ -121,6 +121,7 @@ public class SqlEntityCostStoreTest {
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
     }
 
+    @Ignore
     @Test
     public void testGetCostWithEntityCostFilter() throws DbException, InvalidEntityCostsException {
         // get by date
