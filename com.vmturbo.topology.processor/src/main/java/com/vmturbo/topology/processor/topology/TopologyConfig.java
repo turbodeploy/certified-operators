@@ -2,8 +2,6 @@ package com.vmturbo.topology.processor.topology;
 
 import java.util.concurrent.Executors;
 
-import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -57,8 +55,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     ControllableConfig.class,
     WorkflowConfig.class,
     HistoryClientConfig.class,
-    CloudCostConfig.class,
-    MatrixConfig.class
+    CloudCostConfig.class
 })
 public class TopologyConfig {
 
@@ -116,9 +113,6 @@ public class TopologyConfig {
     @Autowired
     private SQLDatabaseConfig sqlDatabaseConfig;
 
-    @Autowired
-    private MatrixConfig matrixConfig;
-
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -160,10 +154,6 @@ public class TopologyConfig {
         return new EnvironmentTypeInjector(targetConfig.targetStore());
     }
 
-    @Bean MatrixInterface matrixInterface() {
-        return matrixConfig.matrixInterface();
-    }
-
     @Bean
     public TopologyPipelineFactory topologyPipelineFactory() {
         return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
@@ -190,8 +180,7 @@ public class TopologyConfig {
                 applicationCommodityKeyChanger(),
                 controllableConfig.controllableManager(),
                 commoditiesEditor(),
-                historicalEditor(),
-                matrixInterface()
+                historicalEditor()
         );
     }
 

@@ -12,7 +12,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
@@ -133,8 +132,6 @@ public class TopologyPipelineFactory {
 
     private final HistoricalEditor historicalEditor;
 
-    private final MatrixInterface matrix;
-
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -159,8 +156,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
                                    @Nonnull final ControllableManager controllableManager,
                                    @Nonnull final CommoditiesEditor commoditiesEditor,
-                                   @Nonnull final HistoricalEditor historicalEditor,
-                                   @Nonnull final MatrixInterface matrix) {
+                                   @Nonnull final HistoricalEditor historicalEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -186,7 +182,6 @@ public class TopologyPipelineFactory {
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
         this.historicalEditor = Objects.requireNonNull(historicalEditor);
-        this.matrix = Objects.requireNonNull(matrix);
     }
 
     /**
@@ -219,7 +214,7 @@ public class TopologyPipelineFactory {
 
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
-                .addStage(new Stages.FlowGenerationStage(matrix))
+                .addStage(new Stages.FlowGenerationStage())
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
@@ -237,7 +232,7 @@ public class TopologyPipelineFactory {
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
-                .addStage(new Stages.MatrixUpdateStage(matrix))
+                .addStage(new Stages.MatrixUpdateStage())
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
