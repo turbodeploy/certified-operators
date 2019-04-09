@@ -353,7 +353,13 @@ public class MarketTest {
         };
     }
 
-    @Ignore
+    /*
+    This test the sorting of virtual machines in a cloud based on the cost.
+    The test has 3 VMS all buying storage from the same storage. VM0 is buying 20,
+    VM1 is buying 40 and VM2 is buying 30. Since VM1 is buying the most it should
+    be the one that is spening the most. So in the buyers list it will be the first
+    on the list.
+    */
     @Test
     public void testBuyerSortCloud() {
         BalanceAccountDTO ba = BalanceAccountDTO.newBuilder().setBudget(10000).setSpent(100).setId(1).build();
@@ -366,16 +372,13 @@ public class MarketTest {
                                 .build())
                         .build();
 
-        CommoditySpecificationTO storageProvisionSpecTO =
-                CommoditySpecificationTO.newBuilder().setBaseType(2).setType(2).build();
 
-
-        CommodityBoughtTO storageProvisionBoughtTO = CommodityBoughtTO.newBuilder().setQuantity(20)
-                .setPeakQuantity(50).setSpecification(storageProvisionSpecTO).build();
-        CommodityBoughtTO storageProvisionBoughtTO1 = CommodityBoughtTO.newBuilder().setQuantity(40)
-                .setPeakQuantity(40).setSpecification(storageProvisionSpecTO).build();
-        CommodityBoughtTO storageProvisionBoughtTO2 = CommodityBoughtTO.newBuilder().setQuantity(30)
-                .setPeakQuantity(30).setSpecification(storageProvisionSpecTO).build();
+        CommodityBoughtTO storageBoughtTO0 = CommodityBoughtTO.newBuilder().setQuantity(20)
+                .setPeakQuantity(50).setSpecification(TestUtils.stAmtTO).build();
+        CommodityBoughtTO storageBoughtTO1 = CommodityBoughtTO.newBuilder().setQuantity(40)
+                .setPeakQuantity(40).setSpecification(TestUtils.stAmtTO).build();
+        CommodityBoughtTO storageBoughtTO2 = CommodityBoughtTO.newBuilder().setQuantity(30)
+                .setPeakQuantity(30).setSpecification(TestUtils.stAmtTO).build();
 
         PriceFunctionTO standardPriceTO = PriceFunctionTO.newBuilder().setStandardWeighted(
                 StandardWeighted.newBuilder().setWeight(
@@ -387,33 +390,33 @@ public class MarketTest {
 
 
         CommoditySoldTO storageSoldByST1 = CommoditySoldTO.newBuilder()
-                .setSpecification(storageProvisionSpecTO).setQuantity(1000)
+                .setSpecification(TestUtils.stAmtTO).setQuantity(1000)
                 .setPeakQuantity(1000).setMaxQuantity(1000).setCapacity(2000)
                 .setSettings(standardSettingTO).build();
 
 
 
 
-        TraderTO shopAloneVMTO = TraderTO.newBuilder().setOid(23456).setType(55555)
+        TraderTO shopAloneVMTO0 = TraderTO.newBuilder().setOid(23456).setType(55555)
                 .setState(TraderStateTO.ACTIVE)
                 .setSettings(shoptogetherFalseTO)
                 .addShoppingLists(ShoppingListTO.newBuilder()
                         .setOid(11114).setMovable(true).setSupplier(56789)
-                        .addCommoditiesBought(storageProvisionBoughtTO))
+                        .addCommoditiesBought(storageBoughtTO0))
                 .build();
-        TraderTO shopAloneVMT1 = TraderTO.newBuilder().setOid(123456).setType(55555)
+        TraderTO shopAloneVMTO1 = TraderTO.newBuilder().setOid(123456).setType(55555)
                 .setState(TraderStateTO.ACTIVE)
                 .setSettings(shoptogetherFalseTO)
                 .addShoppingLists(ShoppingListTO.newBuilder()
                         .setOid(111114).setMovable(true).setSupplier(56789)
-                        .addCommoditiesBought(storageProvisionBoughtTO1))
+                        .addCommoditiesBought(storageBoughtTO1))
                 .build();
-        TraderTO shopAloneVMT2 = TraderTO.newBuilder().setOid(223456).setType(55555)
+        TraderTO shopAloneVMTO2 = TraderTO.newBuilder().setOid(223456).setType(55555)
                 .setState(TraderStateTO.ACTIVE)
                 .setSettings(shoptogetherFalseTO)
                 .addShoppingLists(ShoppingListTO.newBuilder()
                         .setOid(211114).setMovable(true).setSupplier(56789)
-                        .addCommoditiesBought(storageProvisionBoughtTO2))
+                        .addCommoditiesBought(storageBoughtTO2))
                 .build();
 
 
@@ -424,9 +427,9 @@ public class MarketTest {
                 .addCommoditiesSold(storageSoldByST1).build();
 
         Topology topology = new Topology();
-        Trader shopAloneVM0 = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO);
-        Trader shopAloneVM1 = ProtobufToAnalysis.addTrader(topology, shopAloneVMT1);
-        Trader shopAloneVM2 = ProtobufToAnalysis.addTrader(topology, shopAloneVMT2);
+        Trader shopAloneVM0 = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO0);
+        Trader shopAloneVM1 = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO1);
+        Trader shopAloneVM2 = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO2);
         TraderSettings traderSst2 = ProtobufToAnalysis.addTrader(topology, st2TO).getSettings();
         traderSst2.setCanAcceptNewCustomers(true);
         CostFunction gp2CostFunc = TestUtils.setUpGP2CostFunction();
