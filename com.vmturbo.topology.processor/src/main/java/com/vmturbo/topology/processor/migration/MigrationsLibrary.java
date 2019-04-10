@@ -43,15 +43,11 @@ public class MigrationsLibrary {
 
     public SortedMap<String, Migration> getMigrationsList(){
         return ImmutableSortedMap.of(
-            "V_01_00_00__Probe_Metadata_Change_Migration",
-            new V_01_00_00__Probe_Metadata_Change_Migration(probeStore,
-                dslContext, statsHistoryClient,
-                identityServiceUnderlyingStore,
-                identityProvider),
-            "V_01_00_01__Vim_Probe_Storage_Browsing_Migration",
-            new V_01_00_01__Vim_Probe_Storage_Browsing_Migration(probeStore,
-                identityServiceUnderlyingStore,
-                identityProvider)
+                "V_01_00_00__Probe_Metadata_Change_Migration",
+                            new V_01_00_00__Probe_Metadata_Change_Migration(probeStore,
+                                    dslContext, statsHistoryClient,
+                                    identityServiceUnderlyingStore,
+                                    identityProvider)
         );
     }
 }
