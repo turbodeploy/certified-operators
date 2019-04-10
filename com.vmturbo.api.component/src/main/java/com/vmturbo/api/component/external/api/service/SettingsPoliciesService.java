@@ -19,6 +19,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -31,6 +32,8 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
@@ -125,7 +128,18 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
     @Override
     public SettingsPolicyApiDTO getSettingsPolicyByUuid(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+
+        final GetSettingPolicyResponse response;
+        try {
+            response = settingPolicyService.getSettingPolicy(
+                    GetSettingPolicyRequest.newBuilder()
+                            .setId(Long.valueOf(uuid))
+                            .build());
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
+
+        return settingsMapper.convertSettingPolicy(response.getSettingPolicy());
     }
 
     @Override

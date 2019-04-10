@@ -7,6 +7,7 @@ import org.springframework.security.access.AccessDeniedException;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.service.ProbesService;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -40,6 +41,8 @@ public class ExceptionMapper {
                 return new AccessDeniedException(statusException.getMessage(), statusException.getCause());
             case CANCELLED:
                 return new InterruptedException(statusException.getMessage());
+            case INVALID_ARGUMENT:
+                return new InvalidOperationException(statusException.getMessage());
             default:
                 return new OperationFailedException(statusException.getMessage(), statusException);
         }
