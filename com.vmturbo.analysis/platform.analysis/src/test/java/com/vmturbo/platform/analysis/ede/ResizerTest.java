@@ -731,61 +731,63 @@ public class ResizerTest {
         return economy;
     }
 
-    /**
-     * Setup economy with one PM, one VM and two applications.
-     * Both the apps are highly utlized and they resize up.
-     * Since the VM shops later it also resizes up.
-     * Expected result: 3 resize actions are generated. two for apps and 1 for vm
-     */
     @Test
-    public void testResizeDecisions_dbResize_appfirst() {
-        Economy economy = setupTopologyForDBResizeTest(100, 100,
+    public void testResizeDecisions_application() {
+        List<String> actual;
+        /**
+         * Setup economy with one PM, one VM and two applications.
+         * Both the apps are highly utlized and they resize up.
+         * Since the VM shops later it also resizes up.
+         * Expected result: 3 resize actions are generated. two for apps and 1 for vm
+         */
+
+        //APP buys DBMEM
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
                 100, 100, 40, 40,
-                35, 35,35,34,
-                0.65, 0.8,0.65, 0.8,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, true);
-        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
-        List<String> expected = new ArrayList<>();
-        expected.add("APP1");
-        expected.add("APP2");
-        expected.add("VM1");
-        List<String> actual = new ArrayList<>();
-        for(Action a : actions){
-            if(a.getType() == ActionType.RESIZE) {
-                actual.add(a.getActionTarget().getDebugInfoNeverUseInCode());
-            }
-        }
-        expected.removeAll(actual);
-        assertEquals(0, expected.size());
+                35, 35, 35, 34,
+                0.65, 0.8, 0.65, 0.8,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, true, true);
+        assertEquals(3, actual.size());
+        actual.removeAll(Arrays.asList("APP1", "APP2", "VM1"));
+        assertEquals(0, actual.size());
 
-    }
-
-    /**
-     * Setup economy with one PM, one VM and two applications.
-     * Both the apps are highly utlized and they resize up.
-     * Since the VM shops before it never gets a chance to resize up.
-     * Expected result: 2 resize actions are generated. two for apps and none for vm
-     */
-    @Test
-    public void testResizeDecisions_dbResize_vmfirst() {
-        Economy economy = setupTopologyForDBResizeTest(100, 100,
+        //APP buys HEAP
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
                 100, 100, 40, 40,
-                35, 35,35,34,
-                0.65, 0.8,0.2,0.3,
-                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, false);
+                35, 35, 35, 34,
+                0.65, 0.8, 0.65, 0.8,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, true, false);
+        assertEquals(3, actual.size());
+        actual.removeAll(Arrays.asList("APP1", "APP2", "VM1"));
+        assertEquals(0, actual.size());
 
-        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
-        List<String> expected = new ArrayList<>();
-        expected.add("APP1");
-        expected.add("APP2");
-        List<String> actual = new ArrayList<>();
-        for(Action a : actions){
-            if(a.getType() == ActionType.RESIZE) {
-                actual.add(a.getActionTarget().getDebugInfoNeverUseInCode());
-            }
-        }
-        expected.removeAll(actual);
-        assertEquals(0, expected.size());
+        /**
+         * Setup economy with one PM, one VM and two applications.
+         * Both the apps are highly utlized and they resize up.
+         * Since the VM shops before it never gets a chance to resize up.
+         * Expected result: 2 resize actions are generated. two for apps and none for vm
+         */
+        //APP buys DBMEM
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
+                100, 100, 40, 40,
+                35, 35, 35, 34,
+                0.65, 0.8, 0.2, 0.3,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, false, true);
+        assertEquals(2, actual.size());
+        actual.removeAll(Arrays.asList("APP1", "APP2"));
+        assertEquals(0, actual.size());
+
+        //APP buys HEAP
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
+                100, 100, 40, 40,
+                35, 35, 35, 34,
+                0.65, 0.8, 0.2, 0.3,
+                RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true, false, false);
+        assertEquals(2, actual.size());
+        actual.removeAll(Arrays.asList("APP1", "APP2"));
+        assertEquals(0, actual.size());
+
+
     }
 
     /**
@@ -798,8 +800,8 @@ public class ResizerTest {
      * @param memUsedByVm - The quantity of MEM used by the VM
      * @param vcpuUsedByApp - The quantity of VCPU used by the app.
      * @param vmemUsedByApp - The quantity of the VMEM used by the app.
-     * @param AppDBMemCapacity - The db mem capacity of app
-     * @param dbmemUsedByApp - The quantity of dbmem used by the app
+     * @param AppMemCapacity - The db mem capacity of app
+     * @param memUsedByApp - The quantity of dbmem used by the app
      * @param vmMinDesiredUtil - The VM's minimum desired utilization.
      * @param vmMaxDesiredUtil - The VM's maximum desired utilization.
      * @param appMinDesiredUtil - The app's minimum desired utilization.
@@ -810,19 +812,21 @@ public class ResizerTest {
      *        should the commodity resize dependency map
      *        be setup for the economy passed in.
      * @param appfirst - if true the app shops first.
+     * @param isdbMem - if true the app shops dbmem. false app shops heap
      * @return Economy with the topology setup.
      */
-    private Economy setupTopologyForDBResizeTest(
+    private List<String>  setupTopologyForDBHeapResizeTestAndRunResize(
             double pmCpuCapacity, double pmMemCapacity,
             double vmVcpuCapacity, double vmVmemCapacity,
             double cpuUsedByVm, double memUsedByVm,
             double vcpuUsedByApp, double vmemUsedByApp,
-            double AppDBMemCapacity, double dbmemUsedByApp,
+            double AppMemCapacity, double memUsedByApp,
             double vmMinDesiredUtil, double vmMaxDesiredUtil,
             double appMinDesiredUtil, double appMaxDesiredUtil,
             double economyRightSizeLower, double economyRightSizeUpper,
             boolean shouldSetupCommodityResizeDependencyMap,
-            boolean appfirst) {
+            boolean appfirst,
+            boolean isdbMem) {
         Economy economy = new Economy();
         pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
                 Arrays.asList(TestUtils.CPU, TestUtils.MEM),
@@ -834,10 +838,17 @@ public class ResizerTest {
                     new double[]{vmVcpuCapacity, vmVmemCapacity}, false, false);
         }
         // Create VM and place on PM
+        CommoditySpecification commoditySpecification;
+        if(isdbMem){
+            commoditySpecification = TestUtils.DBMEM;
+        }
+        else{
+            commoditySpecification = TestUtils.HEAP;
+        }
         app1 = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.DBMEM), new double[]{AppDBMemCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(commoditySpecification), new double[]{AppMemCapacity}, false, false);
         app2 = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.DBMEM), new double[]{AppDBMemCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(commoditySpecification), new double[]{AppMemCapacity}, false, false);
         if(appfirst) {
             vm = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
                     Arrays.asList(0L), Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
@@ -849,14 +860,14 @@ public class ResizerTest {
                 new double[]{cpuUsedByVm, memUsedByVm}, pm);
         //Create app and place on VM
         app1.setDebugInfoNeverUseInCode("APP1");
-        app1.getCommoditiesSold().get(0).setQuantity(dbmemUsedByApp);
+        app1.getCommoditiesSold().get(0).setQuantity(memUsedByApp);
         app1.getSettings().setMinDesiredUtil(appMinDesiredUtil);
         app1.getSettings().setMaxDesiredUtil(appMaxDesiredUtil);
         TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), app1,
                 new double[]{vcpuUsedByApp, vmemUsedByApp}, vm);
         app2.setDebugInfoNeverUseInCode("APP2");
-        app2.getCommoditiesSold().get(0).setQuantity(dbmemUsedByApp);
+        app2.getCommoditiesSold().get(0).setQuantity(memUsedByApp);
         app2.getSettings().setMinDesiredUtil(appMinDesiredUtil);
         app2.getSettings().setMaxDesiredUtil(appMaxDesiredUtil);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -872,6 +883,13 @@ public class ResizerTest {
         }
         economy.populateMarketsWithSellers();
         ledger = new Ledger(economy);
-        return economy;
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+        List<String> actual = new ArrayList<>();
+        for (Action a : actions) {
+            if (a.getType() == ActionType.RESIZE) {
+                actual.add(a.getActionTarget().getDebugInfoNeverUseInCode());
+            }
+        }
+        return actual;
     }
 }

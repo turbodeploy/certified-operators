@@ -84,6 +84,7 @@ public class TestUtils {
     public static final CommoditySpecification VCPU = createNewCommSpec();
     public static final CommoditySpecification VMEM = createNewCommSpec();
     public static final CommoditySpecification DBMEM = createNewCommSpec();
+    public static final CommoditySpecification HEAP = createNewCommSpec();
     public static final CommoditySpecification COST_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification IOPS = createNewCommSpec();
     public static final CommoditySpecification TRANSACTION = createNewCommSpec();
@@ -394,9 +395,13 @@ public class TestUtils {
         CommodityResizeSpecification DBMemDependency =
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+        CommodityResizeSpecification HeapDependency =
+                new CommodityResizeSpecification(TestUtils.VMEM.getType(),
+                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
         commodityResizeDependencyMap.put(TestUtils.VCPU.getType(), Arrays.asList(vCpuDependency));
         commodityResizeDependencyMap.put(TestUtils.VMEM.getType(), Arrays.asList(vMemDependency));
         commodityResizeDependencyMap.put(TestUtils.DBMEM.getType(), Arrays.asList(DBMemDependency));
+        commodityResizeDependencyMap.put(TestUtils.HEAP.getType(), Arrays.asList(HeapDependency));
     }
 
     /**
@@ -409,6 +414,7 @@ public class TestUtils {
         rawMaterialMap.put(TestUtils.VCPU.getType(), Arrays.asList(TestUtils.CPU.getType()));
         rawMaterialMap.put(TestUtils.VMEM.getType(), Arrays.asList(TestUtils.MEM.getType()));
         rawMaterialMap.put(TestUtils.DBMEM.getType(), Arrays.asList(TestUtils.VMEM.getType()));
+        rawMaterialMap.put(TestUtils.HEAP.getType(), Arrays.asList(TestUtils.VMEM.getType()));
     }
 
     public static CostFunction setUpGP2CostFunction() {
