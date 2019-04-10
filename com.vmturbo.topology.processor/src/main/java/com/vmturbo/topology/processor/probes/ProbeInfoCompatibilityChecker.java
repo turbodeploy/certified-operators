@@ -49,7 +49,8 @@ public class ProbeInfoCompatibilityChecker {
         final List<Function<ProbeInfo, Object>> extractors = new ArrayList<>();
         extractors.add(ProbeInfo::getProbeType);
         extractors.add(ProbeInfo::getProbeCategory);
-        extractors.add(ProbeInfo::getAccountDefinitionList);
+        // Lists are converted to Sets so that ordering does not affect equality checking
+        extractors.add(probe -> new HashSet<>(probe.getAccountDefinitionList()));
         extractors.add(probe -> new HashSet<>(probe.getTargetIdentifierFieldList()));
         extractors.add(probe -> new HashSet<>(probe.getEntityMetadataList()));
         PROPERTY_EXTRACTORS = Collections.unmodifiableList(extractors);
