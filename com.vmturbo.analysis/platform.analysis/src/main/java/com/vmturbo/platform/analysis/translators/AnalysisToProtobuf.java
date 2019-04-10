@@ -800,7 +800,7 @@ public final class AnalysisToProtobuf {
 
                         // if the difference in quote is positive, or it is not bigger than
                         // threshold, skip it
-                        if (quoteDiff >= 0 && (Math.abs(quoteDiff) < QUOTE_DIFF_THRESHOLD)) {
+                        if (quoteDiff >= 0 || (Math.abs(quoteDiff) < QUOTE_DIFF_THRESHOLD)) {
                             continue;
                         }
                         if (quoteDiffPerComm.containsKey(quoteDiff)) {
