@@ -715,22 +715,39 @@ public class TopologyConverter {
         if (slInfo == null) {
             throw new IllegalStateException("Market returned invalid shopping list for : " + sl);
         }
-        Long supplier;
+        // Six cases for a sl move:
+        // active provider -> active provider/provisioned provider/unplaced
+        // unplaced -> active provider/provisioned provider/unplaced
+        // skipped provider -> unplaced
+        //
+        // active provider: provider exists before the market
+        // provisioned provider: provider is created by the market
+        // unplaced: sl has no provider
+        // skipped provider: provider in skippedEntities
+        Long supplier = null;
         if (sl.hasSupplier()) {
             supplier = sl.getSupplier();
-        } else {
-            // If Market still can not find a placement, we should set providerId to the original
-            // providerOid of this sl.
+        } else if (skippedEntities.containsKey(slInfo.sellerId)) {
+            // If a sl is unplaced due to skipped provider, which makes it movable false,
+            // we should set the supplier of it to the original skipped provider.
+            // Why do we need else if here, not just else?
+            // Because for a sl moving from active provider to unplaced, the supplier should be null.
+            // If we just use else here, then the supplier will be the original active provider,
+            // which is not correct.
             supplier = slInfo.sellerId;
         }
         if (supplier != null) {
             // If the supplier is a market tier, then get the tier TopologyEntityDTO and
-            // make that the supplier
+            // make that the supplier.
             if (cloudTc.isMarketTier(supplier)) {
                 supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
             }
             commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
         }
+        // For a sl of an unplaced VM before market, it doesn't have a provider, but has
+        // providerEntityType. It should remain the same if it's unplaced after market.
+        // For a sl moving from active provider/unplaced to provisioned provider,
+        // we can get the providerEntityType from slInfo.
         slInfo.getSellerEntityType()
             .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
         slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
@@ -899,22 +916,6 @@ public class TopologyConverter {
     }
 
     /**
-     * Get topologyEntityDTO with the given oid.
-     * First look for it in entityOidToDto, then in skippedEntities.
-     * null is returned if we can't find it.
-     *
-     * @param oid The oid of the entity.
-     * @return topologyEntityDTO
-     */
-    private TopologyEntityDTO getTopologyEntityDTO(Long oid) {
-        if (entityOidToDto.containsKey(oid)) {
-            return entityOidToDto.get(oid);
-        } else {
-            return skippedEntities.get(oid);
-        }
-    }
-
-    /**
      * Create entities for resources of topologyEntityDTO.
      * For ex. If a Cloud VM has a volume, then we create the projected version of the volume here.
      *
@@ -930,11 +931,7 @@ public class TopologyConverter {
             if (commBoughtGrouping.hasVolumeId()) {
                 TopologyEntityDTO originalVolume = entityOidToDto.get(commBoughtGrouping.getVolumeId());
                 if (originalVolume != null && originalVolume.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    // Get the storage/storage tier the VM consumes from
-                    TopologyEntityDTO storageOrStorageTier;
-                    if (commBoughtGrouping.hasProviderId()) {
-                        storageOrStorageTier = getTopologyEntityDTO(commBoughtGrouping.getProviderId());
-                    } else {
+                    if (!commBoughtGrouping.hasProviderId() || !commBoughtGrouping.hasProviderEntityType()) {
                         logger.error("commBoughtGrouping of projected entity {} has volume Id {} " +
                             "but no associated storage or storageTier",
                             topologyEntityDTO.getDisplayName(), commBoughtGrouping.getVolumeId());
@@ -950,8 +947,8 @@ public class TopologyConverter {
 
                     // connect to storage or storage tier
                     ConnectedEntity connectedStorageOrStorageTier = ConnectedEntity.newBuilder()
-                            .setConnectedEntityId(storageOrStorageTier.getOid())
-                            .setConnectedEntityType(storageOrStorageTier.getEntityType())
+                            .setConnectedEntityId(commBoughtGrouping.getProviderId())
+                            .setConnectedEntityType(commBoughtGrouping.getProviderEntityType())
                             .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
                     volume.addConnectedEntityList(connectedStorageOrStorageTier);
 
