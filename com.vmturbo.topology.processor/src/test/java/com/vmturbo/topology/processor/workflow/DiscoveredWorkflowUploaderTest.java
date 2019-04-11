@@ -8,6 +8,8 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
+import java.util.Collections;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -44,6 +46,18 @@ public class DiscoveredWorkflowUploaderTest {
 
     @Test
     public void targetRemoved() {
+        // arrange
+        recorderSpy.setTargetWorkflows(TARGET_ID, NME_WITH_WORKFLOWS);
+        // After removing a target, an empty workflow list should be uploaded for that target
+        StoreDiscoveredWorkflowsRequest expectedRequest = StoreDiscoveredWorkflowsRequest
+            .newBuilder()
+            .setTargetId(TARGET_ID)
+            .addAllDiscoveredWorkflow(Collections.emptyList())
+            .build();
+        // act
+        recorderSpy.targetRemoved(TARGET_ID);
+        // assert
+        verify(uploadServiceSpy).storeDiscoveredWorkflows(eq(expectedRequest), any());
     }
 
     @Test

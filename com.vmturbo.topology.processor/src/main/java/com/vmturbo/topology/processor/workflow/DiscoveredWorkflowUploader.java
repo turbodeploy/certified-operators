@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.workflow;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,13 +79,18 @@ public class DiscoveredWorkflowUploader {
     }
 
     /**
-     * If a Target is removed, clear the local cache of Workflows discovered from that target,
-     * if any.
+     * When a Target is removed, notify Action Orchestrator and clear the local cache of Workflows
+     * discovered from that target, if any.
      *
      * @param targetId the OID of the target that was deleted
      */
     public void targetRemoved(long targetId) {
         log.debug("target removed: {}", targetId);
+        // Notify the Action Orchestrator that all workflows related to this target should be deleted
+        final StoreDiscoveredWorkflowsRequest emptyWorkflowRequest =
+            createWorkflowRequest(targetId, Collections.emptyList());
+        uploadWorkflowsStub.storeDiscoveredWorkflows(emptyWorkflowRequest);
+        // clear the local cache of workflows discovered from the target, if any.
         synchronized (workflowByTarget) {
             workflowByTarget.remove(targetId);
         }
@@ -108,19 +114,24 @@ public class DiscoveredWorkflowUploader {
         synchronized (workflowByTarget) {
             workflowByTarget.forEach((targetId, workflows) -> {
                 if (!workflows.isEmpty()) {
-                    StoreDiscoveredWorkflowsRequest.Builder storeDiscoveredWorkflowsRequest =
-                            StoreDiscoveredWorkflowsRequest.newBuilder();
-                    storeDiscoveredWorkflowsRequest.setTargetId(targetId);
-                    storeDiscoveredWorkflowsRequest.addAllDiscoveredWorkflow(workflows);
-                    log.info("upload discovered workflow for {} size: {}",
-                            storeDiscoveredWorkflowsRequest.getTargetId(),
-                            storeDiscoveredWorkflowsRequest.getDiscoveredWorkflowCount());
-                    requests.add(storeDiscoveredWorkflowsRequest.build());
+                    requests.add(createWorkflowRequest(targetId, workflows));
                 }
             });
             workflowByTarget.clear();
         }
         requests.forEach(uploadWorkflowsStub::storeDiscoveredWorkflows);
+    }
+
+    private StoreDiscoveredWorkflowsRequest createWorkflowRequest(final Long targetId,
+            final List<WorkflowInfo> workflows) {
+        StoreDiscoveredWorkflowsRequest.Builder storeDiscoveredWorkflowsRequest =
+                StoreDiscoveredWorkflowsRequest.newBuilder();
+        storeDiscoveredWorkflowsRequest.setTargetId(targetId);
+        storeDiscoveredWorkflowsRequest.addAllDiscoveredWorkflow(workflows);
+        log.info("upload discovered workflow for {} size: {}",
+                storeDiscoveredWorkflowsRequest.getTargetId(),
+                storeDiscoveredWorkflowsRequest.getDiscoveredWorkflowCount());
+        return storeDiscoveredWorkflowsRequest.build();
     }
 }
 
