@@ -216,7 +216,7 @@ services:
     volumes:
       - /tmp/certs:/etc/nginx/certs
       - /tmp/load_status:/var/www/load_status
-      - nginx-data:/var/lib/nginx
+      - nginx-data:/var/cache/nginx
       - nginx-run:/var/run
       - nginx-home:/home/nginx
 

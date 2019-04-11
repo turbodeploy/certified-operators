@@ -28,7 +28,7 @@ services:
     volumes:
       - /tmp/certs:/etc/nginx/certs
       - /tmp/status:/var/www/status
-      - nginx-data:/var/lib/nginx
+      - nginx-data:/var/cache/nginx
       - nginx-run:/var/run
     restart: always
 
