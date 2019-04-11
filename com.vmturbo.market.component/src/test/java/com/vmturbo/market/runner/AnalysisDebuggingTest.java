@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceCont
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -116,6 +117,7 @@ public class AnalysisDebuggingTest {
 
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
+    private final TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
 
@@ -251,7 +253,7 @@ public class AnalysisDebuggingTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topoInfo)).thenReturn(cloudCostCalculator);
 
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));

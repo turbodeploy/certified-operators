@@ -11,7 +11,6 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
-import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -87,7 +86,7 @@ public class ReservedInstanceAnalysisScope {
                          @Nullable Collection<Long> accounts,
                          float preferredCoverage,
                          boolean overrideRICoverage,
-                         @Nullable RIPurchaseProfile riPurchaseProfile) {
+                         @Nullable RIPurchaseProfile profile) {
             this.platforms = (platforms==null) ?
                     ImmutableSet.copyOf(OSType.values()) :
                     ImmutableSet.copyOf(platforms);
@@ -102,7 +101,7 @@ public class ReservedInstanceAnalysisScope {
                     : ImmutableSet.copyOf(accounts);
         this.preferredCoverage = preferredCoverage;
         this.overrideRICoverage = overrideRICoverage;
-        this.riPurchaseProfile = riPurchaseProfile;
+        this.riPurchaseProfile = profile;
     }
 
     /**

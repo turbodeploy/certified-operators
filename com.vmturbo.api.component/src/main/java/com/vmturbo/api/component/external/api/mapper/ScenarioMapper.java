@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -80,6 +81,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUt
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -89,6 +91,9 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
@@ -137,6 +142,22 @@ public class ScenarioMapper {
     private static final List<ConstraintType> ALLEVIATE_PRESSURE_IGNORE_CONSTRAINTS = Arrays.asList(
                     ConstraintType.NetworkCommodity, ConstraintType.StorageClusterCommodity,
                     ConstraintType.DataCenterCommodity);
+
+    private final ImmutableMap<String, OfferingClass> riOfferingClassMapper = ImmutableMap.<String, OfferingClass>builder()
+            .put("Standard", OfferingClass.STANDARD)
+            .put("Convertible", OfferingClass.CONVERTIBLE)
+            .build();
+
+    private final ImmutableMap<String, PaymentOption> riPaymentOptionMapper = ImmutableMap.<String, PaymentOption>builder()
+                    .put("All Upfront", PaymentOption.ALL_UPFRONT)
+                    .put("No Upfront", PaymentOption.NO_UPFRONT)
+                    .put("Partial Upfront", PaymentOption.PARTIAL_UPFRONT)
+                    .build();
+
+    private final ImmutableMap<String, Integer> riTermMapper = ImmutableMap.<String, Integer>builder()
+                    .put("Years 1", 1)
+                    .put("Years 3", 3)
+                    .build();
 
     private final TemplatesUtils templatesUtils;
 
@@ -646,8 +667,32 @@ public class ScenarioMapper {
         if (!CollectionUtils.isEmpty(configChanges.getRemoveConstraintList())) {
             scenarioChanges.add(buildPlanChanges(configChanges));
         }
-
+        if (configChanges.getRiSettingList() != null && !configChanges.getRiSettingList().isEmpty()) {
+            scenarioChanges.add(buildRISettingChanges(configChanges.getRiSettingList()));
+        }
         return scenarioChanges.build();
+    }
+
+    /**
+     * Build RI setting scenario change
+     *
+     * @param riSettingList a list of ri settings
+     * @return a ScenarioChange
+     */
+    private ScenarioChange buildRISettingChanges(List<SettingApiDTO> riSettingList) {
+        ScenarioChange.RISetting.Builder riSetting = RISetting.newBuilder();
+        riSettingList.forEach(r -> {
+            if (r.getUuid().equals(StringConstants.PREFERRED_OFFERING_CLASS)) {
+                riSetting.setPreferredOfferingClass(riOfferingClassMapper.get(r.getValue()));
+            } else if (r.getUuid().equals(StringConstants.PREFERRED_PAYMENT_OPTION)) {
+                riSetting.setPreferredPaymentOption(riPaymentOptionMapper.get(r.getValue()));
+            } else if (r.getUuid().equals(StringConstants.PREFERRED_TERM)) {
+                riSetting.setPreferredTerm(riTermMapper.get(r.getValue()));
+            } else if (r.getUuid().equals(StringConstants.PURCHASE_DATE)) {
+                riSetting.setPurchaseDate(Long.valueOf(r.getValue()));
+            }
+        });
+        return ScenarioChange.newBuilder().setRiSetting(riSetting).build();
     }
 
     @Nonnull
@@ -884,6 +929,35 @@ public class ScenarioMapper {
         // --- END HAX ---
     }
 
+    /**
+     * Convert {@link RISetting} to {@link SettingApiDTO}.
+     *
+     * @param ri the RISetting
+     * @return a list of SettingApiDTO
+     */
+    private List<SettingApiDTO> creatRiSettingApiDTO(RISetting ri) {
+        List<SettingApiDTO> riSettings = new ArrayList();
+        SettingApiDTO coverageDto = new SettingApiDTO();
+        riSettings.add(coverageDto);
+        SettingApiDTO offeringClassDto = new SettingApiDTO();
+        offeringClassDto.setUuid(StringConstants.PREFERRED_OFFERING_CLASS);
+        offeringClassDto.setValue(ri.getPreferredOfferingClass().name());
+        riSettings.add(offeringClassDto);
+        SettingApiDTO paymentDto = new SettingApiDTO();
+        paymentDto.setUuid(StringConstants.PREFERRED_PAYMENT_OPTION);
+        paymentDto.setValue(ri.getPreferredPaymentOption().name());
+        riSettings.add(paymentDto);
+        SettingApiDTO termDto = new SettingApiDTO();
+        termDto.setUuid(StringConstants.PREFERRED_TERM);
+        termDto.setValue(String.valueOf(ri.getPreferredTerm()));
+        riSettings.add(termDto);
+        SettingApiDTO purchaseDateDto = new SettingApiDTO();
+        purchaseDateDto.setUuid(StringConstants.PURCHASE_DATE);
+        purchaseDateDto.setValue(String.valueOf(ri.getPurchaseDate()));
+        riSettings.add(purchaseDateDto);
+        return riSettings;
+    }
+
     @Nonnull
     private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
         final List<SettingApiDTO> settingChanges = changes.stream()
@@ -896,6 +970,12 @@ public class ScenarioMapper {
                 .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
                 .collect(Collectors.toList());
 
+        final List<SettingApiDTO> riSetting = changes.stream()
+                        .filter(ScenarioChange::hasRiSetting)
+                        .map(ScenarioChange::getRiSetting)
+                        .flatMap(ri -> creatRiSettingApiDTO(ri).stream())
+                        .collect(Collectors.toList());
+
         final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges);
 
         final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
@@ -905,6 +985,7 @@ public class ScenarioMapper {
                 .convertToPlanSetting(settingChanges));
         outputChanges.setAddPolicyList(Lists.newArrayList());
         outputChanges.setRemovePolicyList(Lists.newArrayList());
+        outputChanges.setRiSettingList(riSetting);
         changes.stream()
                 .filter(change -> change.getDetailsCase() ==  DetailsCase.PLAN_CHANGES
                         && change.getPlanChanges().hasPolicyChange())

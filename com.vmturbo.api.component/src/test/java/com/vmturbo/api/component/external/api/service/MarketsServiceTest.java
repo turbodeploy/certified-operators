@@ -137,7 +137,7 @@ public class MarketsServiceTest {
     public MarketsServiceTest() {
         planDefault = PlanInstance.newBuilder()
                 .setPlanId(111)
-                .setActionPlanId(222)
+                .addActionPlanId(222)
                 .setStartTime(System.currentTimeMillis() - 10000)
                 .setEndTime(System.currentTimeMillis() - 10)
                 .setStatus(PlanStatus.QUEUED)

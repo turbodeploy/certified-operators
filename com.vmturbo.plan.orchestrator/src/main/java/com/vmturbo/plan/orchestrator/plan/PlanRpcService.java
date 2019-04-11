@@ -1,17 +1,28 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.List;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -21,6 +32,10 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessExcep
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -29,12 +44,24 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Plan gRPC service implementation.
@@ -44,6 +71,8 @@ public class PlanRpcService extends PlanServiceImplBase {
     private final PlanDao planDao;
 
     private final AnalysisServiceBlockingStub analysisService;
+
+    private final BuyRIAnalysisServiceBlockingStub buyRIService;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -57,12 +86,14 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
                           @Nonnull final ExecutorService analysisExecutor,
-                          @Nonnull final UserSessionContext userSessionContext) {
+                          @Nonnull final UserSessionContext userSessionContext,
+                          @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
         this.analysisExecutor = analysisExecutor;
         this.userSessionContext = userSessionContext;
+        this.buyRIService = buyRIService;
     }
 
     @Override
@@ -169,14 +200,78 @@ public class PlanRpcService extends PlanServiceImplBase {
      */
     void runQueuedPlan(PlanInstance planInstance, StreamObserver<PlanInstance> responseObserver) {
         Preconditions.checkArgument(planInstance.getStatus().equals(PlanStatus.QUEUED));
+        @Nullable ScenarioInfo scenarioInfo = planInstance.hasScenario() ?
+                planInstance.getScenario().getScenarioInfo() : null;
+        long planId = planInstance.getPlanId();
+        if (scenarioInfo != null && scenarioInfo.getType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)) {
+            List<ScenarioChange> riScenario = scenarioInfo.getChangesList()
+                    .stream()
+                    .filter(c -> c.hasRiSetting())
+                    .collect(Collectors.toList());
+            if (!riScenario.isEmpty()) {
+                // trigger buy RI for optimize cloud buy RI only or buy RI and optimize workload
+                // if the optimize plan is for optimize workload only, then this block will be skipped
+                // and we directly go to triggerAnalysis
+                triggerBuyRI(scenarioInfo, riScenario.get(0), planId);
+                responseObserver.onNext(planInstance);
+                responseObserver.onCompleted();
+                return;
+            }
+        }
+        triggerAnalysis(planInstance);
+        responseObserver.onNext(planInstance);
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Trigger buy RI recommendation algorithm in cost component
+     *
+     * @param scenarioInfo the scenarioInfo of plan instance
+     * @param riScenario the scenario change related with RI 
+     * @param planId the plan id
+     */
+    @VisibleForTesting
+    void triggerBuyRI(@Nonnull ScenarioInfo scenarioInfo,
+                              @Nonnull ScenarioChange riScenario, long planId) {
+        try {
+            StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
+                    riScenario, planId);
+            buyRIService.startBuyRIAnalysis(request);
+            planDao.updatePlanInstance(planId, oldInstance ->
+                    oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
+            logger.info("Started buy RI for plan {} on region {} account {}", planId,
+                    request.getRegionsList(), request.getAccountsList());
+        } catch (IntegrityException | NoSuchObjectException e) {
+            logger.warn("Failed to update status after run buy RI for plan {}", planId);
+        } catch (StatusRuntimeException statusException) {
+            try {
+                logger.error("Failed to start buy RI for plan {}  because the gRPC call failed with status: {}",
+                        planId, statusException.getStatus());
+                planDao.updatePlanInstance(planId, oldInstance -> {
+                        oldInstance.setStatus(PlanStatus.FAILED);});
+            } catch (IntegrityException integrityException) {
+                logger.warn("Referential integrity violated while changing plan status to failed for plan {}"
+                            + " after starting buy RI", planId);
+            } catch (NoSuchObjectException noObjectException) {
+                // This could happen in the rare case where the plan got deleted
+                // between queueing the analysis and starting it.
+                logger.warn("Can not find plan object while changing plan status to failed for plan {}."
+                            + " Did the plan get deleted?", planId);
+            }
+        } catch (RuntimeException runtimeEx) {
+            logger.error("Failed to start buy RI analysis for plan " + planId +
+                        "due to unexpected runtime exception.", runtimeEx);
+        }
+    }
+    public void triggerAnalysis(@Nonnull PlanInstance planInstance) {
         final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
+        ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
         builder.setPlanId(planInstance.getPlanId());
 
         if (planInstance.hasTopologyId()) {
             builder.setTopologyId(planInstance.getTopologyId());
         }
         if (planInstance.hasScenario()) {
-            ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
             builder.addAllScenarioChange(scenarioInfo.getChangesList());
             if (scenarioInfo.hasScope()) {
                 builder.setPlanScope(scenarioInfo.getScope());
@@ -187,9 +282,6 @@ public class PlanRpcService extends PlanServiceImplBase {
         }
         builder.setPlanProjectType(planInstance.getProjectType());
         startAnalysis(builder.build());
-
-        responseObserver.onNext(planInstance);
-        responseObserver.onCompleted();
     }
 
     @Override
@@ -225,7 +317,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                         planInstanceBuilder
                                 .setTopologyId(planInstance.getProjectedTopologyId())
                                 .setProjectedTopologyId(0)
-                                .setActionPlanId(0)
+                                .addActionPlanId(0)
                                 .clearStatsAvailable()
                                 .setStatus(PlanStatus.READY)
                                 .setStartTime(System.currentTimeMillis())

@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
@@ -113,10 +114,11 @@ public class ReservedInstanceAggregatorTest {
      */
     @Test
     public void testAggregateRis() {
+        TopologyInfo topoInfo = TopologyInfo.newBuilder().build();
         CloudCostData ccd = mock(CloudCostData.class);
-        when(ccd.getAllRiBought()).thenReturn(Arrays.asList(riData1));
+        when(ccd.getExistingRiBought()).thenReturn(Arrays.asList(riData1));
         ReservedInstanceAggregator ria = new ReservedInstanceAggregator(ccd, topology);
-        assertFalse(ria.aggregateRis());
+        assertFalse(ria.aggregateRis(topoInfo));
         assertEquals(0, ria.riAggregates.size());
 
 
@@ -129,7 +131,7 @@ public class ReservedInstanceAggregatorTest {
             .build();
         when(topology.get(TIER_1)).thenReturn(computeTier);
         when(topology.get(new Long(REGION_1))).thenReturn(computeTier);
-        assertTrue(ria.aggregateRis());
+        assertTrue(ria.aggregateRis(topoInfo));
         assertEquals(1, ria.riAggregates.size());
     }
 }

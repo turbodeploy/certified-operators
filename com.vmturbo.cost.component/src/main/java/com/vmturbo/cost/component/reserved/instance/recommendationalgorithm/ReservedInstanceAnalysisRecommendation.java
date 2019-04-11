@@ -30,6 +30,8 @@ import com.vmturbo.cost.component.reserved.instance.ImmutableBuyReservedInstance
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -231,7 +233,7 @@ public class ReservedInstanceAnalysisRecommendation {
     }
 
     @Nonnull
-    public PreferredOfferingClass getOfferingClass() {
+    public OfferingClass getOfferingClass() {
         return constraints.getOfferingClass();
     }
 
@@ -240,7 +242,7 @@ public class ReservedInstanceAnalysisRecommendation {
     }
 
     @Nonnull
-    public PreferredPaymentOption getPaymentOption() {
+    public PaymentOption getPaymentOption() {
         return constraints.getPaymentOption();
     }
 

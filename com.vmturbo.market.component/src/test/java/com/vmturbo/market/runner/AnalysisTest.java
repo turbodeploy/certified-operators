@@ -126,7 +126,7 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -158,7 +158,7 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -193,7 +193,7 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -241,7 +241,7 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -267,7 +267,7 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -349,7 +349,7 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator()).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));

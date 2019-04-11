@@ -24,6 +24,9 @@ public class BuyRIAnalysisConfig {
     @Value("${normalBuyRIAnalysisIntervalHours}")
     private long normalBuyRIAnalysisIntervalHours;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
@@ -46,7 +49,9 @@ public class BuyRIAnalysisConfig {
     @Bean
     public BuyRIAnalysisRpcService buyReservedInstanceScheduleRpcService() {
         return new BuyRIAnalysisRpcService(buyReservedInstanceScheduler(),
-                reservedInstanceAnalysisConfig.reservedInstanceAnalyzer());
+                reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
+                computeTierDemandStatsConfig.riDemandStatsStore(),
+                realtimeTopologyContextId);
     }
 
     @Bean

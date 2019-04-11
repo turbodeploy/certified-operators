@@ -73,6 +73,12 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public BuyReservedInstanceStore buyReservedInstanceStore() {
+        return new BuyReservedInstanceStore(databaseConfig.dsl(),
+                identityProviderConfig.identityProvider());
+    }
+
+    @Bean
     public ReservedInstanceSpecStore reservedInstanceSpecStore() {
         return new ReservedInstanceSpecStore(databaseConfig.dsl(),
                 identityProviderConfig.identityProvider());

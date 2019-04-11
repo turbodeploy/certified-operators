@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
@@ -49,7 +50,7 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
 
     @Nonnull
     @Override
-    public CloudCostData getCloudCostData() throws CloudCostDataRetrievalException {
+    public CloudCostData getCloudCostData(TopologyInfo topoInfo) throws CloudCostDataRetrievalException {
         try {
             final Map<Long, Discount> discountsByAccountId = discountStore.getAllDiscount().stream()
                     .collect(Collectors.toMap(Discount::getAssociatedAccountId, Function.identity()));
@@ -63,7 +64,8 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                     discountsByAccountId,
                     entityRiMappingStore.getEntityRiCoverage(),
                     riBoughtById,
-                    riSpecById);
+                    riSpecById,
+                    Collections.emptyMap());
         } catch (DbException e) {
             throw new CloudCostDataRetrievalException(e);
         }

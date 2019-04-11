@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -86,6 +87,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -405,6 +409,23 @@ public class ScenarioMapperTest {
         final UtilizationLevel utilizationLevel =
                 scenarioInfo.getChangesList().get(0).getPlanChanges().getUtilizationLevel();
         Assert.assertEquals(20, utilizationLevel.getPercentage());
+    }
+
+    @Test
+    public void testToScenarioInfoWithRISettingChanges() {
+        List<SettingApiDTO> riSettingList = new ArrayList<SettingApiDTO>();
+        SettingApiDTO riSetting = new SettingApiDTO();
+        riSetting.setUuid("preferredOfferingClass");
+        riSetting.setValue("Standard");
+        riSettingList.add(riSetting);
+        ScenarioApiDTO dto = new ScenarioApiDTO();
+        ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        configChanges.setRiSettingList(riSettingList);
+        dto.setConfigChanges(configChanges);
+        final ScenarioInfo scenarioInfo = getScenarioInfo("Ri setting", dto);
+        Assert.assertEquals(1, scenarioInfo.getChangesList().size());
+        Assert.assertEquals(ReservedInstanceType.OfferingClass.STANDARD, scenarioInfo.getChangesList().get(0)
+                .getRiSetting().getPreferredOfferingClass());
     }
 
     @Test

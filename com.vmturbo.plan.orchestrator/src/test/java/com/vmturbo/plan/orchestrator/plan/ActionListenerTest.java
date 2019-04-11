@@ -12,6 +12,7 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -63,8 +64,21 @@ public class ActionListenerTest {
                 .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
-        Assert.assertEquals(ACTION_PLAN_ID, instance.getActionPlanId());
+        Assert.assertTrue(ACTION_PLAN_ID == instance.getActionPlanIdList().get(0));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, instance.getStatus());
+    }
+
+    @Test
+    public void testUpdateBuyRiPlan() throws Exception {
+        planDao.updatePlanInstance(planId, builder -> builder.setStatus(PlanStatus.STARTING_BUY_RI));
+        final ActionsUpdated actionsUpdated =
+                ActionsUpdated.newBuilder().setActionPlanId(ACTION_PLAN_ID)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder().setBuyRi(BuyRIActionPlanInfo
+                        .newBuilder().setTopologyContextId(planId))).build();
+        actionsListener.onActionsUpdated(actionsUpdated);
+        final PlanInstance instance = planDao.getPlanInstance(planId).get();
+        Assert.assertTrue(ACTION_PLAN_ID == instance.getActionPlanIdList().get(0));
+        Assert.assertEquals(PlanStatus.SUCCEEDED, instance.getStatus());
     }
 
     /**
@@ -83,7 +97,7 @@ public class ActionListenerTest {
             .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
-        Assert.assertFalse(instance.hasActionPlanId());
+        Assert.assertFalse(!instance.getActionPlanIdList().isEmpty());
     }
 
     /**
@@ -107,7 +121,7 @@ public class ActionListenerTest {
             .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
-        Assert.assertEquals(ACTION_PLAN_ID, instance.getActionPlanId());
+        Assert.assertTrue(ACTION_PLAN_ID == instance.getActionPlanIdList().get(0));
         Assert.assertEquals(PROJ_TOPO_ID, instance.getProjectedTopologyId());
         Assert.assertEquals(PlanStatus.SUCCEEDED, instance.getStatus());
     }

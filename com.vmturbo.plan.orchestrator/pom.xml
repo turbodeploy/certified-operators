@@ -253,6 +253,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>cost-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>topology-processor-api</artifactId>
         </dependency>
         <dependency>

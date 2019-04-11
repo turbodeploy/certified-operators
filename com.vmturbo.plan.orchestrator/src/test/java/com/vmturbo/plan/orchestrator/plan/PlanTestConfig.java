@@ -24,6 +24,8 @@ import io.grpc.Channel;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -78,6 +80,11 @@ public class PlanTestConfig {
     }
 
     @Bean
+    protected BuyRIAnalysisServiceBlockingStub buyRIService() throws IOException {
+        return BuyRIAnalysisServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
+    }
+
+    @Bean
     protected AnalysisServiceBlockingStub analysisClient() throws IOException {
         return AnalysisServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
     }
@@ -107,9 +114,10 @@ public class PlanTestConfig {
     }
 
     @Bean
-    public PlanServiceImplBase planServer() throws IOException {
+    public PlanRpcService planServer() throws IOException {
         return new PlanRpcService(planDao(),
-                analysisClient(), planNotificationSender(), startAnalysisThreadPool(), userSessionContext());
+                analysisClient(), planNotificationSender(), startAnalysisThreadPool(),
+                userSessionContext(), buyRIService());
     }
 
     @Bean
@@ -204,8 +212,8 @@ public class PlanTestConfig {
     }
 
     @Bean
-    public PlanProgressListener actionsListener() {
-        return new PlanProgressListener(planDao(), reservationPlacementHandler(), REALTIME_TOPOLOGY_ID);
+    public PlanProgressListener actionsListener() throws IOException {
+        return new PlanProgressListener(planDao(), planServer(), reservationPlacementHandler(), REALTIME_TOPOLOGY_ID);
     }
 
     @PostConstruct

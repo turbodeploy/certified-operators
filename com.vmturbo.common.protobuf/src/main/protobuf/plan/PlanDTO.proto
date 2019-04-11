@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.plan";
 import "CommonDTO.proto";
 import "group/PolicyDTO.proto";
 import "setting/Setting.proto";
+import "CloudCostDTO.proto";
 
 // A scenario specifies the changes to the topology, and changes to configuration
 // to be used when running a plan.
@@ -226,7 +227,15 @@ message ScenarioChange {
 
         SettingOverride setting_override = 21;
         PlanChanges plan_changes = 22;
+        RISetting ri_setting = 23;
     };
+
+    message RISetting {
+        optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
+        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
+        optional int32 preferred_term = 3;
+        optional int64 purchase_date = 4;
+    }
 
     message PlanChanges {
         repeated IgnoreConstraint ignore_constraints = 1;
@@ -409,8 +418,9 @@ message PlanInstance {
     optional int64 projected_topology_id = 5;
 
     // ID of the action plan produced by the market (An action plan is a set of actions produced by
-    // the market as a result of analyzing the topology)
-    optional int64 action_plan_id = 6;
+    // the market as a result of analyzing the topology or by cost component as a result of buy ri
+    // recommendation)
+    repeated int64 action_plan_id = 6;
 
     // If true, the history component has stats available for this plan instance.
     // TODO (roman, Jan 20 2016): This is more of an internal record, so maybe we can keep
@@ -461,6 +471,12 @@ message PlanInstance {
 
         // Plan calculation failed
         FAILED = 7;
+
+        // Buy RI algorithm start
+        STARTING_BUY_RI = 8;
+
+        // Buy RI completed
+        BUY_RI_COMPLETED = 9;
     }
 }
 

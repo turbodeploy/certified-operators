@@ -85,7 +85,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
         storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
 
-        final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator();
+        final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo);
         final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);
 

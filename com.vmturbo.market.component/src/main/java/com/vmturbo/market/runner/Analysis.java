@@ -196,7 +196,7 @@ public class Analysis {
         this.clock = Objects.requireNonNull(clock);
         this.config = analysisConfig;
         this.cloudTopologyFactory = cloudTopologyFactory;
-        this.topologyCostCalculator = cloudCostCalculatorFactory.newCalculator();
+        this.topologyCostCalculator = cloudCostCalculatorFactory.newCalculator(topologyInfo);
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
 
         // Use the cloud cost data we use for cost calculations for the price table.

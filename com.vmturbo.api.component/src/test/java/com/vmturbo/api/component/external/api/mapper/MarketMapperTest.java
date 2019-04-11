@@ -44,7 +44,7 @@ public class MarketMapperTest {
 
     private static final PlanInstance SUCCEEDED_INSTANCE = BASE.toBuilder()
             .setProjectedTopologyId(5L)
-            .setActionPlanId(55L)
+            .addActionPlanId(55L)
             .setStatus(PlanStatus.SUCCEEDED)
             .setEndTime(END_TIME)
             .build();

@@ -332,7 +332,7 @@ public class PlanDaoImpl implements PlanDao {
         }
 
         // Delete actions associated with the plan in the ActionsOrchestraor
-        if (plan.hasActionPlanId()) {
+        if (!plan.getActionPlanIdList().isEmpty()) {
             final DeleteActionsRequest actionRequest = DeleteActionsRequest.newBuilder()
                     .setTopologyContextId(topologyContextId)
                     .build();

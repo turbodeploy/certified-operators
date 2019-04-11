@@ -18,6 +18,7 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
@@ -47,18 +48,22 @@ public class TopologyCostCalculator {
 
     private final CloudCostData cloudCostData;
 
+    private final TopologyInfo topoInfo;
+
     private TopologyCostCalculator(@Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor,
                   @Nonnull final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory,
                   @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory,
-                  @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory) {
+                  @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory,
+                  @Nonnull final TopologyInfo topoInfo) {
         this.topologyEntityInfoExtractor = Objects.requireNonNull(topologyEntityInfoExtractor);
         this.cloudCostCalculatorFactory = Objects.requireNonNull(cloudCostCalculatorFactory);
         this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
         this.riApplicatorFactory = Objects.requireNonNull(riApplicatorFactory);
+        this.topoInfo = topoInfo;
         CloudCostData cloudCostData;
         try {
-            cloudCostData = cloudCostDataProvider.getCloudCostData();
+            cloudCostData = cloudCostDataProvider.getCloudCostData(topoInfo);
         } catch (CloudCostDataRetrievalException e) {
             logger.error("Failed to fetch cloud cost data. Error: {}.\n Using empty (no costs)",
                     e.getLocalizedMessage());
@@ -162,7 +167,7 @@ public class TopologyCostCalculator {
          * @return A {@link TopologyCostCalculator}.
          */
         @Nonnull
-        TopologyCostCalculator newCalculator();
+        TopologyCostCalculator newCalculator(TopologyInfo topologyInfo);
 
         /**
          * The default implementation of {@link TopologyCostCalculatorFactory}, for use in "real"
@@ -198,12 +203,13 @@ public class TopologyCostCalculator {
              */
             @Nonnull
             @Override
-            public TopologyCostCalculator newCalculator() {
+            public TopologyCostCalculator newCalculator(@Nonnull TopologyInfo topoInfo) {
                 return new TopologyCostCalculator(topologyEntityInfoExtractor,
                         cloudCostCalculatorFactory,
                         cloudCostDataProvider,
                         discountApplicatorFactory,
-                        riApplicatorFactory);
+                        riApplicatorFactory,
+                        topoInfo);
             }
         }
     }

@@ -245,7 +245,7 @@ public class TopologyConverterFromMarketTest {
      */
     @Test
     public void testVMTraderToEntityConversion() throws Exception {
-        when(mockCCD.getAllRiBought()).thenReturn(Collections.emptyList());
+        when(mockCCD.getExistingRiBought()).thenReturn(Collections.emptyList());
         TopologyConverter converter = Mockito.spy(
                 new TopologyConverter(TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
                     false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, marketPriceTable,

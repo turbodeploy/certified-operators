@@ -18,6 +18,8 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
@@ -60,9 +62,9 @@ public class ReservedInstanceAggregator {
      * computeTier in each family for every distinct ReservedInstanceAggregate that was created.
      *
      */
-    public Collection<ReservedInstanceAggregate> aggregate() {
+    public Collection<ReservedInstanceAggregate> aggregate(@Nonnull TopologyInfo topologyInfo) {
         // aggregate RIs into distinct ReservedInstanceAggregate objects based on RIKey
-        boolean success = aggregateRis();
+        boolean success = aggregateRis(topologyInfo);
 
         if (success) {
             // seperate compuTiers by family
@@ -79,9 +81,17 @@ public class ReservedInstanceAggregator {
      * objects containing related set of RIs
      *
      */
-    boolean aggregateRis() {
+    boolean aggregateRis(@Nonnull TopologyInfo topologyInfo) {
         boolean success = false;
-        for (ReservedInstanceData riData : cloudCostData.getAllRiBought()) {
+        Collection<ReservedInstanceData> riCollection;
+        if (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
+                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)) {
+            // get buy RI anf existing RI
+            riCollection = cloudCostData.getAllRiBought();
+        } else {
+            riCollection = cloudCostData.getExistingRiBought();
+        }
+        for (ReservedInstanceData riData : riCollection) {
             if (riData.isValid(topology)) {
                 riDataMap.put(riData.getReservedInstanceBought().getId(), riData);
                 ReservedInstanceAggregate riAggregate = new ReservedInstanceAggregate(riData, topology);

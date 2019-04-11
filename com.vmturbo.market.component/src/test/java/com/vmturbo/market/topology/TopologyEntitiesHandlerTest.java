@@ -119,7 +119,7 @@ public class TopologyEntitiesHandlerTest {
 
     @Before
     public void setup() {
-        when(ccd.getAllRiBought()).thenReturn(new ArrayList());
+        when(ccd.getExistingRiBought()).thenReturn(new ArrayList());
     }
 
     /**

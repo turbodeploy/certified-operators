@@ -32,6 +32,10 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
+import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -46,6 +50,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSetting
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithm;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
 import com.vmturbo.communication.CommunicationException;
@@ -65,6 +70,8 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBough
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -121,8 +128,6 @@ public class ReservedInstanceAnalyzer {
 
     private final ReservedInstanceActionsSender actionsSender;
 
-    private final long topologyContextId;
-
     // A count of the number of separate contexts that were analyzed -- separate
     // combinations of region, tenancy, platform, and instance type or family
     // (depending on whether instance size flexible rules applied).
@@ -153,8 +158,7 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
                                     @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
-                                    @Nonnull BuyReservedInstanceStore buyRiStore,
-                                    long topologyContextId) {
+                                    @Nonnull BuyReservedInstanceStore buyRiStore) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
@@ -164,22 +168,31 @@ public class ReservedInstanceAnalyzer {
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.actionsSender = Objects.requireNonNull(actionsSender);
         this.buyRiStore = Objects.requireNonNull(buyRiStore);
-        this.topologyContextId = topologyContextId;
     }
 
-    public void runRIAnalysisAndSendActions(@Nonnull ReservedInstanceAnalysisScope scope,
-                @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
-        ReservedInstanceAnalysisResult result = analyze(scope, historicalDemandDataType);
-        ActionPlan actionPlan = result.createActionPlan();
-        result.persistResults();
-        try {
-            actionsSender.notifyActionsRecommended(actionPlan);
-        } catch (InterruptedException ie) {
-            logger.error("Interrupted publishing of buy RI actions", ie);
-            Thread.currentThread().interrupt();
-        } catch (CommunicationException ce) {
-            logger.error("Exception while publishing buy RI actions", ce);
+    public void runRIAnalysisAndSendActions(final long planId,
+                @Nonnull ReservedInstanceAnalysisScope scope,
+                @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
+                                throws CommunicationException, InterruptedException {
+
+        @Nullable ReservedInstanceAnalysisResult result = analyze(planId, scope,
+                                                                  historicalDemandDataType);
+        ActionPlan actionPlan;
+        if (result == null) {
+            // when result is null, it may be that no need to buy any ri
+            // so we create a dummy action plan and send to action orchestrator
+            // once action orchestrator receives buy RI ation plan, it will
+            // notify plan orchestrator it status
+            actionPlan = ActionPlan.newBuilder()
+                            .setId(IdentityGenerator.next())
+                            .setInfo(ActionPlanInfo.newBuilder()
+                                     .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                                         .setTopologyContextId(planId)))
+                            .build();
+        } else {
+            actionPlan = result.createActionPlan();
         }
+        actionsSender.notifyActionsRecommended(actionPlan);
     }
 
     /**
@@ -194,7 +207,8 @@ public class ReservedInstanceAnalyzer {
      *         adequate RI coverage).
      */
     @Nullable
-    public ReservedInstanceAnalysisResult analyze(@Nonnull ReservedInstanceAnalysisScope scope,
+    public ReservedInstanceAnalysisResult analyze(final long planId,
+            @Nonnull ReservedInstanceAnalysisScope scope,
             @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
 
         final Date analysisStartTime = new Date();
@@ -208,7 +222,7 @@ public class ReservedInstanceAnalyzer {
             final RetrieveTopologyEntitiesResponse response =
                     repositoryClient.retrieveTopologyEntities(
                             RetrieveTopologyEntitiesRequest.newBuilder()
-                                    .setTopologyContextId(topologyContextId)
+                                    .setTopologyContextId(planId)
                                     .setTopologyType(TopologyType.SOURCE)
                                     .build());
             TopologyEntityCloudTopology cloudTopology =
@@ -216,7 +230,7 @@ public class ReservedInstanceAnalyzer {
 
             // Describes what kind of RIs can be considered for purchase
             final ReservedInstancePurchaseConstraints purchaseConstraints =
-                    getPurchaseConstraints();
+                    getPurchaseConstraints(scope);
 
             // Maps family type (eg t2 or m4) to compute tiers in the family.
             // Within each family, compute tiers are sorted by number of coupons.
@@ -244,7 +258,7 @@ public class ReservedInstanceAnalyzer {
                 removeBuyZeroRecommendations(recommendations);
                 ReservedInstanceAnalysisResult result =
                         new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
-                                topologyContextId, analysisStartTime.getTime(),
+                                planId, analysisStartTime.getTime(),
                                 (new Date()).getTime(), numContextsAnalyzed, buyRiStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
@@ -318,7 +332,7 @@ public class ReservedInstanceAnalyzer {
                 // TODO: karthikt - create different regional contexts if there are multiple regions.
                 TopologyEntityDTO region = cloudTopology.getConnectedRegion(computeTierId).get();
                 // if regions is empty, check all regions.
-                if (!scope.getRegions().isEmpty() && !scope.getRegions().contains(region)) {
+                if (!scope.getRegions().isEmpty() && !scope.getRegions().stream().anyMatch(oid -> oid == region.getOid())) {
                     logger.debug("region UUID {} not in scope {}", region.getOid(), scope.getRegions());
                     return;
                 }
@@ -751,6 +765,7 @@ public class ReservedInstanceAnalyzer {
         return recommendation;
     }
 
+    @Nullable
     private ReservedInstanceSpec getRiSpec(@Nonnull ReservedInstanceType riType,
             @Nonnull ReservedInstanceRegionalContext regionalContext,
             @Nonnull Map<ReservedInstanceSpecInfo, ReservedInstanceSpec> riSpecLookupMap) {
@@ -1051,6 +1066,21 @@ public class ReservedInstanceAnalyzer {
         return demands;
     }
 
+    private ReservedInstancePurchaseConstraints getPurchaseConstraints(ReservedInstanceAnalysisScope scope)
+            throws IllegalArgumentException {
+        if(scope.getRiPurchaseProfile() == null) {
+            return getPurchaseConstraints();
+        } else {
+            RIPurchaseProfile profile = scope.getRiPurchaseProfile();
+            if (!profile.hasRiType()) {
+                throw new IllegalArgumentException("No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
+            }
+            ReservedInstanceType type = profile.getRiType();
+            return new ReservedInstancePurchaseConstraints(type.getOfferingClass(), type.getTermYears(),
+                                                           type.getPaymentOption());
+
+        }
+    }
     /**
      * Fetch RI Purchase constraints settings from the Settings Service.
      *
@@ -1076,10 +1106,10 @@ public class ReservedInstanceAnalyzer {
 
         ReservedInstancePurchaseConstraints reservedInstancePurchaseConstraints =
                 new ReservedInstancePurchaseConstraints(
-                        PreferredOfferingClass.valueOf(
+                        OfferingClass.valueOf(
                                 settings.get(GlobalSettingSpecs.PreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
                         (int)(settings.get(GlobalSettingSpecs.PreferredTerm.getSettingName()).getNumericSettingValue().getValue()),
-                        PreferredPaymentOption.valueOf(
+                        PaymentOption.valueOf(
                                 settings.get(GlobalSettingSpecs.PreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 
         return reservedInstancePurchaseConstraints;

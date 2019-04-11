@@ -96,7 +96,7 @@ public class ReservedInstanceApplicatorTest {
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
 
-        when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
+        when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, closeTo(0.5, 0.0001));
@@ -128,7 +128,7 @@ public class ReservedInstanceApplicatorTest {
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
 
-        when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
+        when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(1.0));
@@ -197,7 +197,7 @@ public class ReservedInstanceApplicatorTest {
                 .build(infoExtractor);
 
         when(costJournal.getEntity()).thenReturn(entity);
-        when(cloudCostData.getRiBoughtData(RI_ID)).thenReturn(Optional.empty());
+        when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.empty());
 
         double coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage, is(0.0));

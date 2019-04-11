@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
  * An interface provided by the users of the cost calculation library to get the
@@ -32,11 +33,12 @@ public interface CloudCostDataProvider {
      * Get the cloud cost data from this particular provider. The cloud cost data is retrieved
      * in bulk via a single call.
      *
+     * @param topologyInfo
      * @return The {@link CloudCostData}.
      * @throws CloudCostDataRetrievalException If there is an error retrieving the data.
      */
     @Nonnull
-    CloudCostData getCloudCostData() throws CloudCostDataRetrievalException;
+    CloudCostData getCloudCostData(@Nonnull TopologyInfo topoInfo) throws CloudCostDataRetrievalException;
 
     /**
      * The bundle of non-topology data required to compute costs. This can include things like
@@ -48,7 +50,7 @@ public interface CloudCostDataProvider {
 
         private static final CloudCostData EMPTY = new CloudCostData(PriceTable.getDefaultInstance(),
                 Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap());
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         private final PriceTable combinedPriceTable;
 
@@ -58,11 +60,14 @@ public interface CloudCostDataProvider {
 
         private final Map<Long, ReservedInstanceData> riBoughtDataById;
 
+        private final Map<Long, ReservedInstanceData> buyRIBoughtDataById;
+
         public CloudCostData(@Nonnull final PriceTable priceTable,
                              @Nonnull final Map<Long, Discount> discountsByAccount,
                              @Nonnull final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId,
                              @Nonnull final Map<Long, ReservedInstanceBought> riBoughtById,
-                             @Nonnull final Map<Long, ReservedInstanceSpec> riSpecById) {
+                             @Nonnull final Map<Long, ReservedInstanceSpec> riSpecById,
+                             @Nonnull final Map<Long, ReservedInstanceBought> buyRIBoughtById) {
             this.combinedPriceTable = Objects.requireNonNull(priceTable);
             this.discountsByAccount = Objects.requireNonNull(discountsByAccount);
             this.riCoverageByEntityId = Objects.requireNonNull(riCoverageByEntityId);
@@ -72,6 +77,10 @@ public interface CloudCostDataProvider {
                 .filter(riBought -> riSpecById.containsKey(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
                 .map(riBought -> new ReservedInstanceData(riBought, riSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())))
                 .collect(Collectors.toMap(riData -> riData.getReservedInstanceBought().getId(), Function.identity()));
+            this.buyRIBoughtDataById = buyRIBoughtById.values().stream()
+                            .filter(riBought -> riSpecById.containsKey(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
+                            .map(riBought -> new ReservedInstanceData(riBought, riSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())))
+                            .collect(Collectors.toMap(riData -> riData.getReservedInstanceBought().getId(), Function.identity()));
         }
 
         @Nonnull
@@ -95,13 +104,20 @@ public interface CloudCostDataProvider {
         }
 
         @Nonnull
-        public Optional<ReservedInstanceData> getRiBoughtData(final long riBoughtId) {
+        public Optional<ReservedInstanceData> getExistingRiBoughtData(final long riBoughtId) {
             return Optional.ofNullable(riBoughtDataById.get(riBoughtId));
         }
 
         @Nonnull
-        public Collection<ReservedInstanceData> getAllRiBought() {
+        public Collection<ReservedInstanceData> getExistingRiBought() {
             return Collections.unmodifiableCollection(riBoughtDataById.values());
+        }
+
+        @Nonnull
+        public Collection<ReservedInstanceData> getAllRiBought() {
+            Collection<ReservedInstanceData> riData = riBoughtDataById.values();
+            riData.addAll(buyRIBoughtDataById.values());
+            return Collections.unmodifiableCollection(riData);
         }
 
         /**

@@ -20,6 +20,8 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -31,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceB
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
@@ -47,7 +50,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
-        GroupClientConfig.class, UserSessionConfig.class})
+        GroupClientConfig.class, CostClientConfig.class})
 public class PlanConfig {
 
     /**
@@ -67,6 +70,9 @@ public class PlanConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Autowired
+    private CostClientConfig costClientConfig;
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
@@ -103,7 +109,13 @@ public class PlanConfig {
                 analysisService(),
                 planNotificationSender(),
                 startAnalysisThreadPool(),
-                userSessionConfig.userSessionContext());
+                userSessionConfig.userSessionContext(),
+                buyRIService());
+    }
+
+    @Bean
+    public BuyRIAnalysisServiceBlockingStub buyRIService() {
+        return BuyRIAnalysisServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean
@@ -136,7 +148,7 @@ public class PlanConfig {
 
     @Bean
     public PlanProgressListener planProgressListener() {
-        final PlanProgressListener listener =  new PlanProgressListener(planDao(),
+        final PlanProgressListener listener =  new PlanProgressListener(planDao(), planService(),
                 reservationConfig.reservationPlacementHandler(), realtimeTopologyContextId);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addStatsListener(listener);

@@ -4,8 +4,9 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingClass;
-import com.vmturbo.components.common.setting.RISettingsEnum.PreferredPaymentOption;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
+
 
 /**
  * This class controls what kind of Reserved Instances the recommendation algorithm will recommend buying.
@@ -18,18 +19,18 @@ import com.vmturbo.components.common.setting.RISettingsEnum.PreferredPaymentOpti
 public class ReservedInstancePurchaseConstraints {
 
     // Which class of reserved instance to buy, eg STANDARD or CONVERTIBLE.
-    private final PreferredOfferingClass offeringClass;
+    private final OfferingClass offeringClass;
 
     // How long a term should be purchased, in years (eg 1 year or 3 year term).
     private final int termInYears;
 
     // How does the customer wish to pay for reserved instances, eg ALL_UPFRONT, PARTIAL_UPFRONT,
     // NO_UPFRONT.
-    private final PreferredPaymentOption paymentOption;
+    private final PaymentOption paymentOption;
 
-    public ReservedInstancePurchaseConstraints(@Nonnull PreferredOfferingClass offeringClass,
+    public ReservedInstancePurchaseConstraints(@Nonnull OfferingClass offeringClass,
                                                int termInYears,
-                                               @Nonnull PreferredPaymentOption paymentOption) {
+                                               @Nonnull PaymentOption paymentOption) {
         this.offeringClass = Objects.requireNonNull(offeringClass);
         this.termInYears = termInYears;
         this.paymentOption = Objects.requireNonNull(paymentOption);
@@ -41,7 +42,7 @@ public class ReservedInstancePurchaseConstraints {
      * @return the offering class.
      */
     @Nonnull
-    public PreferredOfferingClass getOfferingClass() {
+    public OfferingClass getOfferingClass() {
         return offeringClass;
     }
 
@@ -61,7 +62,7 @@ public class ReservedInstancePurchaseConstraints {
      * @return the payment option.
      */
     @Nonnull
-    public PreferredPaymentOption getPaymentOption() {
+    public PaymentOption getPaymentOption() {
         return paymentOption;
     }
 

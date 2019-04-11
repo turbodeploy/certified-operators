@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CostJournal;
@@ -53,11 +54,12 @@ public class TopologyCostCalculatorTest {
             topologyEntityInfoExtractor, cloudCostCalculatorFactory, localCostDataProvider,
             discountApplicatorFactory, reservedInstanceApplicatorFactory);
 
+    private TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Test
     public void testCalculateCosts() throws CloudCostDataRetrievalException {
         when(cloudCostData.getCurrentRiCoverage()).thenReturn(Maps.newHashMap());
-        when(localCostDataProvider.getCloudCostData()).thenReturn(cloudCostData);
-        final TopologyCostCalculator topologyCostCalculator = factory.newCalculator();
+        when(localCostDataProvider.getCloudCostData(topoInfo)).thenReturn(cloudCostData);
+        final TopologyCostCalculator topologyCostCalculator = factory.newCalculator(topoInfo);
 
         final Map<Long, TopologyEntityDTO> cloudEntities = ImmutableMap.of(ENTITY.getOid(), ENTITY);
         final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
@@ -83,9 +85,9 @@ public class TopologyCostCalculatorTest {
 
     @Test
     public void testCalculateCostsEmptyData() throws CloudCostDataRetrievalException {
-        when(localCostDataProvider.getCloudCostData()).thenThrow(CloudCostDataRetrievalException.class);
+        when(localCostDataProvider.getCloudCostData(topoInfo)).thenThrow(CloudCostDataRetrievalException.class);
 
-        final TopologyCostCalculator calculator = factory.newCalculator();
+        final TopologyCostCalculator calculator = factory.newCalculator(topoInfo);
         assertThat(calculator.getCloudCostData(), is(CloudCostData.empty()));
     }
 }

@@ -104,7 +104,7 @@ public class TopologyConverterGuaranteedTest {
                         .build();
         entities = Stream.of(vdc1, vdc2, dpod, pm, vm1, vm2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        when(ccd.getAllRiBought()).thenReturn(new ArrayList());
+        when(ccd.getExistingRiBought()).thenReturn(new ArrayList());
     }
 
     /**

@@ -14,6 +14,7 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
+import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
@@ -23,6 +24,9 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
@@ -33,6 +37,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 
 /**
@@ -49,11 +54,14 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
 
     private final ReservedInstanceSpecServiceBlockingStub riSpecServiceClient;
 
+    private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
+
     public MarketCloudCostDataProvider(@Nonnull final Channel costChannel) {
         this.pricingServiceClient = Objects.requireNonNull(PricingServiceGrpc.newBlockingStub(costChannel));
         this.costServiceClient = Objects.requireNonNull(CostServiceGrpc.newBlockingStub(costChannel));
         this.riBoughtServiceClient = Objects.requireNonNull(ReservedInstanceBoughtServiceGrpc.newBlockingStub(costChannel));
         this.riSpecServiceClient = Objects.requireNonNull(ReservedInstanceSpecServiceGrpc.newBlockingStub(costChannel));
+        this.buyRIServiceClient = Objects.requireNonNull(BuyReservedInstanceServiceGrpc.newBlockingStub(costChannel));
     }
 
     /**
@@ -61,7 +69,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
      */
     @Nonnull
     @Override
-    public CloudCostData getCloudCostData() throws CloudCostDataRetrievalException {
+    public CloudCostData getCloudCostData(@Nonnull TopologyInfo topoInfo)
+                    throws CloudCostDataRetrievalException {
         try {
             // Get the price table.
             final PriceTable priceTable = pricingServiceClient.getPriceTable(
@@ -79,6 +88,11 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
             final Map<Long, ReservedInstanceBought> riBoughtById =
                     new HashMap<>(riBoughtResponse.getReservedInstanceBoughtsCount());
 
+            // Get the RI bought.
+            final GetBuyReservedInstancesByFilterResponse buyRIBoughtResponse =
+                    buyRIServiceClient.getBuyReservedInstancesByFilter(GetBuyReservedInstancesByFilterRequest
+                            .newBuilder().setTopologyContextId(topoInfo.getTopologyContextId()).build());
+            final Map<Long, ReservedInstanceBought> buyRIBoughtById = new HashMap<>();
             // While processing the RI bought, collect the specs we need to retrieve.
             // There are A LOT of RI specs, and it would be very wasteful to retrieve all of them.
             // Retrieve only the ones that are referenced to by existing RI purchases.
@@ -86,6 +100,12 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
             final Set<Long> riSpecIdsToRetrieve = new HashSet<>();
             riBoughtResponse.getReservedInstanceBoughtsList().forEach(riBought -> {
                 riBoughtById.put(riBought.getId(), riBought);
+                riSpecIdsToRetrieve.add(
+                    riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec());
+            });
+            // also get the riSpec for buy RI
+            buyRIBoughtResponse.getReservedInstanceBoughtsList().forEach(riBought -> {
+                buyRIBoughtById.put(riBought.getId(), riBought);
                 riSpecIdsToRetrieve.add(
                     riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec());
             });
@@ -109,7 +129,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     discountsByAccount,
                     coverageResponse.getCoverageByEntityIdMap(),
                     riBoughtById,
-                    riSpecsById);
+                    riSpecsById,
+                    buyRIBoughtById);
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }

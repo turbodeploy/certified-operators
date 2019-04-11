@@ -109,7 +109,7 @@ public class TopologyConverterToMarketTest {
                         .setType(1)
                         .setBaseType(2)
                         .build();
-        when(ccd.getAllRiBought()).thenReturn(new ArrayList<>());
+        when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
     }
 
     @Test

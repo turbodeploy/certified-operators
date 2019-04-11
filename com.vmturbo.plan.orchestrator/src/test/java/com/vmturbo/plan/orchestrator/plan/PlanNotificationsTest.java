@@ -176,7 +176,7 @@ public class PlanNotificationsTest {
         final StatusMatcher inprogressMatcher = new StatusMatcher(PlanStatus.WAITING_FOR_RESULT);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT))
                 .onPlanStatusChanged(inprogressMatcher.capture());
-        Assert.assertEquals(ACT_PLAN_ID, inprogressMatcher.getValue().getActionPlanId());
+        Assert.assertTrue(ACT_PLAN_ID == inprogressMatcher.getValue().getActionPlanIdList().get(0));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, inprogressMatcher.getValue().getStatus());
 
         actionsListener.onStatsAvailable(StatsAvailable.newBuilder()
@@ -211,7 +211,7 @@ public class PlanNotificationsTest {
         final StatusMatcher inprogressMatcher = new StatusMatcher(PlanStatus.WAITING_FOR_RESULT);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT))
                 .onPlanStatusChanged(inprogressMatcher.capture());
-        Assert.assertEquals(ACT_PLAN_ID, inprogressMatcher.getValue().getActionPlanId());
+        Assert.assertTrue(ACT_PLAN_ID == inprogressMatcher.getValue().getActionPlanIdList().get(0));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, inprogressMatcher.getValue().getStatus());
 
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
@@ -302,7 +302,7 @@ public class PlanNotificationsTest {
         Assert.assertEquals(PlanStatus.SUCCEEDED, plan.getStatus());
         Assert.assertEquals(planId, plan.getPlanId());
         Assert.assertEquals(TOPOLOGY_ID, plan.getProjectedTopologyId());
-        Assert.assertEquals(ACT_PLAN_ID, plan.getActionPlanId());
+        Assert.assertTrue(ACT_PLAN_ID == plan.getActionPlanIdList().get(0));
     }
 
     /**

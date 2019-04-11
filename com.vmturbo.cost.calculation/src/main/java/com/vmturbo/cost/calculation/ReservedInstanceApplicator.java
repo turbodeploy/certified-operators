@@ -88,7 +88,7 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 for (Map.Entry<Long, Double> entry : entityRiCoverage.getCouponsCoveredByRiMap().entrySet()) {
                     final long riBoughtId = entry.getKey();
                     final double coveredCoupons = entry.getValue();
-                    Optional<ReservedInstanceData> riDataOpt = cloudCostData.getRiBoughtData(riBoughtId);
+                    Optional<ReservedInstanceData> riDataOpt = cloudCostData.getExistingRiBoughtData(riBoughtId);
                     if (riDataOpt.isPresent()) {
                         // Since we can calculate the cost, the coupons covered by this instance
                         // contribute to the RI coverage of the entity.

@@ -48,4 +48,5 @@ message ActionsUpdated {
     // The ID of the topology context. Used to differentiate, for example, between real and plan contexts.
     // If not set, it is an error.
     optional int64 __deprecated__topology_context_id = 3 [deprecated = true];
+
 }

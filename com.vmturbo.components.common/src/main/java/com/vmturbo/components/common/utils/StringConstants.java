@@ -269,4 +269,11 @@ public class StringConstants {
     public static final String PROPERTY = "property";
     public static final String OPTIMIZE_CLOUD_PLAN_TYPE= "OPTIMIZE_CLOUD";
     public static final String CLOUD_MIGRATION_PLAN_TYPE = "CLOUD_MIGRATION";
+    public static final String DISABLED = "DISABLED";
+    public static final String RESIZE = "resize";
+    public static final String BUSINESS_ACCOUNT = "BUSINESSACCOUNT";
+    public static final String PREFERRED_OFFERING_CLASS = "preferredOfferingClass";
+    public static final String PREFERRED_PAYMENT_OPTION = "preferredPaymentOption";
+    public static final String PREFERRED_TERM = "preferredTerm";
+    public static final String PURCHASE_DATE = "purchaseDate";
 }

@@ -137,7 +137,7 @@ public class CloudCostCalculatorTest {
         when(networkConfig.getNumElasticIps()).thenReturn(numElasticIpsBought);
 
         final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor,
@@ -216,7 +216,7 @@ public class CloudCostCalculatorTest {
 
         // No price data necessary - we're going to hard-code the price data.
         final CloudCostData cloudCostData = new CloudCostData(PriceTable.getDefaultInstance(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());;
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         // Set up the VM
         final TestEntityClass vm = TestEntityClass.newBuilder(vmId)
@@ -308,7 +308,7 @@ public class CloudCostCalculatorTest {
             .build();
 
         final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());;
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
@@ -360,7 +360,7 @@ public class CloudCostCalculatorTest {
                 .build();
 
         final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());;
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
@@ -414,7 +414,7 @@ public class CloudCostCalculatorTest {
                 .build();
 
         final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());;
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
@@ -477,7 +477,7 @@ public class CloudCostCalculatorTest {
                 .build();
 
         final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());;
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
                 calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
@@ -521,7 +521,7 @@ public class CloudCostCalculatorTest {
     public void testEmptyCost() throws CloudCostDataRetrievalException {
         final CloudCostData cloudCostData = new CloudCostData(PriceTable.getDefaultInstance(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap());;
+                Collections.emptyMap(), Collections.emptyMap());
 
         final CloudCostCalculator<TestEntityClass> calculator =
             calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, discountApplicatorFactory,
