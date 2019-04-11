@@ -75,7 +75,8 @@ public class ProbeInfoCompatibilityCheckerTest {
             .addAccountDefinition(firstEntry)
             .build();
 
-        assertFalse(checker.areCompatible(a, b));
+        // Order of account definitions should not be considered
+        assertTrue(checker.areCompatible(a, b));
         assertTrue(checker.areCompatible(a, a));
     }
 
