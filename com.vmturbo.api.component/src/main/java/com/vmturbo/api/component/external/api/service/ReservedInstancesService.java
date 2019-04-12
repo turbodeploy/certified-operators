@@ -55,8 +55,8 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.Reserv
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.reports.db.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
 

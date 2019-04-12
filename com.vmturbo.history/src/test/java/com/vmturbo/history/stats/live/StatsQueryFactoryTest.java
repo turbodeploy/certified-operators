@@ -41,14 +41,20 @@ public class StatsQueryFactoryTest {
                         .build()
         );
         final String X_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("X")
-                .and(PM_STATS_BY_MONTH.RELATION.eq(RelationType.COMMODITIESBOUGHT)).toString();
-        final String Y_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("Y").toString();
+            .and(PM_STATS_BY_MONTH.RELATION.eq(RelationType.COMMODITIESBOUGHT)).toString()
+            .replaceAll("\n", "")
+            .replaceAll(" ", "");
+        final String Y_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("Y").toString()
+            .replaceAll("\n", "")
+            .replaceAll(" ", "");
 
         // act
         Optional<Condition> condition = statsQueryFactory.createCommodityRequestsCond(commodityRequests, PM_STATS_BY_MONTH);
 
         assertTrue(condition.isPresent());
-        final String propertiesConditionsString = condition.get().toString();
+        final String propertiesConditionsString = condition.get().toString()
+            .replaceAll("\n", "")
+            .replaceAll(" ", "");
         assertThat(propertiesConditionsString, containsString(X_TEST));
         assertThat(propertiesConditionsString, containsString(Y_TEST));
     }

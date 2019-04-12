@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -50,6 +51,10 @@ import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.SchemaUtil;
+import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Basic access functions for JOOQ-based access to vmtdb database.
@@ -1105,12 +1110,14 @@ public abstract class BasedbIO {
                                 ? "no time limit"
                                 : "time limit " + queryLimit_sec + " seconds", query);
                     }
-                    if (query instanceof ResultQuery<?>) {
-                        ResultQuery<? extends Record> resQuery = (ResultQuery<?>)query;
-                        results.add(using(conn).fetch(resQuery));
-                    } else {
-                        using(conn).execute(query);
-                        results.add(null);
+                    try (DataMetricTimer timer = Metrics.QUERY_EXECUTE_DURATION.startTimer()) {
+                        if (query instanceof ResultQuery<?>) {
+                            ResultQuery<? extends Record> resQuery = (ResultQuery<?>) query;
+                            results.add(using(conn).fetch(resQuery));
+                        } else {
+                            using(conn).execute(query);
+                            results.add(null);
+                        }
                     }
                 }
                 lastQuery = null;
@@ -1124,7 +1131,9 @@ public abstract class BasedbIO {
 
                 lastException = ex;
                 trc("=execute Exception during execute or commit %s", ex);
-                switch (analyzeDBFailure(ex)) {
+                final DBFailureType failureType = analyzeDBFailure(ex);
+                Metrics.EXECUTE_ERROR_COUNTER.labels(failureType.name()).increment();
+                switch (failureType) {
                     // Weird case - log and treat as a soft failure.
                     case STRANGE:
                         logger.error("This should not have been thrown!", ex);
@@ -1136,9 +1145,11 @@ public abstract class BasedbIO {
                             logger.debug(String.format("Try %d to execute queries" + "failed: %s%n"
                                     + "Last known query was:%n"
                                     + "%s%n------%n", tries, ex, lastQuery), ex);
+                        } else {
+                            logger.warn("Query failed with soft error (try: {})." +
+                                " Exception message: {}", tries, ex.getMessage());
                         }
                         continue;
-
                     case SERVER:
                         logger.error(String.format("Server error accessing database; " +
                                 "Last known query was:%n"
@@ -1565,4 +1576,20 @@ public abstract class BasedbIO {
         }
     }
 
+    static class Metrics {
+
+        private static final DataMetricCounter EXECUTE_ERROR_COUNTER = DataMetricCounter.builder()
+            .withName("history_base_db_execute_failure_count")
+            .withHelp("The number of BasedbIO execution failures, by type.")
+            .withLabelNames("type")
+            .build()
+            .register();
+
+        private static final DataMetricHistogram QUERY_EXECUTE_DURATION = DataMetricHistogram.builder()
+            .withName("history_base_db_query_duration_seconds")
+            .withHelp("Duration of BasedbIO requests.")
+            .withBuckets(0.5, 1, 5, 10, 60)
+            .build()
+            .register();
+    }
 }

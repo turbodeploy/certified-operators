@@ -21,8 +21,6 @@
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
 
         <!-- these DB-related version should be in sync with ones in com.vmturbo.reports -->
-        <jooq.version>3.1.0</jooq.version>
-        <flyway.version>3.0</flyway.version>
     </properties>
 
     <build>
@@ -92,7 +90,6 @@
             <plugin>
                 <groupId>org.jooq</groupId>
                 <artifactId>jooq-codegen-maven</artifactId>
-                <version>${jooq.version}</version>
 
                 <executions>
                     <execution>
@@ -180,41 +177,41 @@
                                 -->
                                 <forcedType>
                                     <name>com.vmturbo.history.schema.RelationType</name>
-                                    <expressions>.*\.relation</expressions>
+                                    <expression>.*\.relation</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType</name>
-                                    <expressions>.*\.environment_type</expressions>
+                                    <expression>.*\.environment_type</expression>
                                 </forcedType>
 
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.ReportOutputFormat</name>
-                                    <expressions>.*\.format</expressions>
+                                    <expression>.*\.format</expression>
                                 </forcedType>
 
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.ReportType</name>
-                                    <expressions>.*\.report_type</expressions>
+                                    <expression>.*\.report_type</expression>
                                 </forcedType>
 
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.Period</name>
-                                    <expressions>(?i)(.*\.period.*)</expressions>
+                                    <expression>(?i)(.*\.period.*)</expression>
                                 </forcedType>
 
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.DayOfWeek</name>
-                                    <expressions>(?i)(.*\.day_type.*)</expressions>
+                                    <expression>(?i)(.*\.day_type.*)</expression>
                                 </forcedType>
 
                                 <forcedType>
                                     <name>com.vmturbo.api.dto.report.ReportAttributeType</name>
-                                    <expressions>.*\.report_attrs\.att_type</expressions>
+                                    <expression>.*\.report_attrs\.att_type</expression>
                                 </forcedType>
 
                                 <forcedType>
                                     <name>Double</name>
-                                    <expressions>(?i)(.*\.capacity.*|.*\.effective_capacity.*|.*\.avg_value.*|.*\.min_value.*|.*\.max_value.*|.*\.rate.*)</expressions>
+                                    <expression>(?i)(.*\.capacity.*|.*\.effective_capacity.*|.*\.avg_value.*|.*\.min_value.*|.*\.max_value.*|.*\.rate.*)</expression>
                                 </forcedType>
                             </forcedTypes>
 
@@ -222,6 +219,7 @@
 
                         <generate>
                             <!-- Generation flags: See advanced configuration properties -->
+                            <pojos>true</pojos>
                         </generate>
 
                         <target>

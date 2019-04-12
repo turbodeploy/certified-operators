@@ -23,6 +23,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -55,9 +56,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.reports.db.EntityType;
-import com.vmturbo.reports.db.RelationType;
-import com.vmturbo.reports.db.StringConstants;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.history.schema.RelationType;
 
 /**
  * Maps stats snapshots between their API DTO representation and their protobuf representation.
@@ -78,9 +78,9 @@ public class StatsMapper {
     private static final ImmutableMap<String, Optional<String>> dbToUiStatTypes = ImmutableMap.of(
                RelationType.COMMODITIES.getLiteral(), Optional.of("sold"),
                RelationType.COMMODITIESBOUGHT.getLiteral(), Optional.of("bought"),
-               // (June 12, 2017): "attribute" is not a relation that the UI understands,
+               // (June 12, 2017): This is not a relation that the UI understands,
                // so don't map it to any relation type.
-               RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral(), Optional.empty(),
+               RelationType.METRICS.getLiteral(), Optional.empty(),
                // (June 8, 2017): "plan" is not valid relation type from the UI's point of view,
                // so don't map it to any relation type when constructing results for the UI.
                "plan", Optional.empty());
@@ -662,9 +662,10 @@ public class StatsMapper {
      */
     @Nonnull
     public String normalizeRelatedType(@Nonnull String relatedType) {
-        return relatedType.equals(EntityType.CLUSTER.getClsName()) ||
-                relatedType.equals(EntityType.DATA_CENTER.getClsName())?
-                EntityType.PHYSICAL_MACHINE.getClsName() : relatedType;
+        return relatedType.equals(StringConstants.CLUSTER) ||
+                relatedType.equals(UIEntityType.DATACENTER.getValue()) ||
+                relatedType.equals(UIEntityType.PHYSICAL_MACHINE.getValue()) ?
+            UIEntityType.PHYSICAL_MACHINE.getValue() : relatedType;
     }
 
     /**

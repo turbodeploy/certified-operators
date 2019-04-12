@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static org.hamcrest.CoreMatchers.any;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -64,7 +63,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.reports.db.RelationType;
+import com.vmturbo.history.schema.RelationType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -92,7 +91,7 @@ public class StatsMapperTest {
         String[] postfixes = {"A", "B", "C"};
         String[] relations = {RelationType.COMMODITIES.getLiteral(),
                               RelationType.COMMODITIESBOUGHT.getLiteral(),
-                              RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+                              RelationType.METRICS.getLiteral()};
 
         // Arrange
         Stats.StatSnapshot testSnapshot = Stats.StatSnapshot.newBuilder()
@@ -526,7 +525,7 @@ public class StatsMapperTest {
         String[] postfixes = {"A", "B", "C"};
         String[] relations = {RelationType.COMMODITIES.getLiteral(),
                 RelationType.COMMODITIESBOUGHT.getLiteral(),
-                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+                RelationType.METRICS.getLiteral()};
 
        // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()
@@ -596,7 +595,7 @@ public class StatsMapperTest {
         String[] postfixes = {"A", "B", "C"};
         String[] relations = {RelationType.COMMODITIES.getLiteral(),
                 RelationType.COMMODITIESBOUGHT.getLiteral(),
-                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+                RelationType.METRICS.getLiteral()};
 
         // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()
@@ -647,7 +646,7 @@ public class StatsMapperTest {
         String[] postfixes = {"A", "B", "C"};
         String[] relations = {RelationType.COMMODITIES.getLiteral(),
                 RelationType.COMMODITIESBOUGHT.getLiteral(),
-                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+                RelationType.METRICS.getLiteral()};
 
         // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()

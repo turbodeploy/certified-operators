@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertValuesStep5;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 
 /**
  * DB Methods to write Cluster Stats.
@@ -192,13 +194,13 @@ class ClusterStatsWriter {
                 .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.equal(String.valueOf(clusterOid)))));
 
         // Insert new values with current date for this cluster.
-        InsertSetMoreStep<?> insertStmt = (InsertSetMoreStep<?>)HistorydbIO.getJooqBuilder()
-                        .insertInto(CLUSTER_STATS_BY_DAY,
-                                    CLUSTER_STATS_BY_DAY.RECORDED_ON,
-                                    CLUSTER_STATS_BY_DAY.INTERNAL_NAME,
-                                    CLUSTER_STATS_BY_DAY.PROPERTY_TYPE,
-                                    CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE,
-                                    CLUSTER_STATS_BY_DAY.VALUE);
+        final InsertValuesStep5<ClusterStatsByDayRecord, Date, String, String, String, BigDecimal> insertStmt =
+            HistorydbIO.getJooqBuilder().insertInto(CLUSTER_STATS_BY_DAY,
+                CLUSTER_STATS_BY_DAY.RECORDED_ON,
+                CLUSTER_STATS_BY_DAY.INTERNAL_NAME,
+                CLUSTER_STATS_BY_DAY.PROPERTY_TYPE,
+                CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE,
+                CLUSTER_STATS_BY_DAY.VALUE);
 
         // Expected size of batch is ~10 rows with 5 columns.
         clusterData.cellSet().forEach(cell -> {

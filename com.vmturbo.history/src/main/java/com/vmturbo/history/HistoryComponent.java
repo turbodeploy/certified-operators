@@ -1,6 +1,7 @@
 package com.vmturbo.history;
 
 import java.util.Optional;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -26,6 +27,8 @@ import com.vmturbo.history.api.ApiSecurityConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.diagnostics.HistoryDiagnostics;
+import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
 import com.vmturbo.history.market.MarketListenerConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.TopologyListenerConfig;
@@ -33,6 +36,7 @@ import com.vmturbo.history.topology.TopologyListenerConfig;
 @Configuration("theComponent")
 @Import({HistoryDbConfig.class, TopologyListenerConfig.class, MarketListenerConfig.class,
         StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class, SpringSecurityConfig.class,
+    HistoryDiagnosticsConfig.class,
 })
 public class HistoryComponent extends BaseVmtComponent {
 
@@ -49,6 +53,9 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @Autowired
     private SpringSecurityConfig springSecurityConfig;
+
+    @Autowired
+    private HistoryDiagnosticsConfig diagnosticsConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -67,6 +74,11 @@ public class HistoryComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbConfig.historyDbIO()::connection));
         getHealthMonitor().addHealthCheck(historyApiConfig.kafkaProducerHealthMonitor());
+    }
+
+    @Override
+    public void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        diagnosticsConfig.historyDiagnostics().dump(diagnosticZip);
     }
 
     public static void main(String[] args) {

@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertSetStep;
 import org.jooq.Query;
 import org.jooq.Table;
 import org.junit.Before;
@@ -339,8 +340,7 @@ public class MarketStatsAccumulatorTest {
     private InsertSetMoreStep createMockInsertQuery(Table table) {
 
         InsertSetMoreStep mockInsertStmt = Mockito.mock(InsertSetMoreStep.class);
-        DSLContext mockDSLContext = Mockito.mock(DSLContext.class);
-        when(mockDSLContext.insertInto(table)).thenReturn(mockInsertStmt);
+        InsertSetStep mockInsertSetStep = Mockito.mock(InsertSetStep.class);
 
         // simulate the accumulation of DB values on the mockInsertStmt
         int[] count = {0};
@@ -354,7 +354,7 @@ public class MarketStatsAccumulatorTest {
         // increment the count when the method "newRecord()" is called, indicating end of row
         doAnswer(invocation -> {
             count[0] = count[0] + FIELDS_PER_ROW;
-            return mockInsertStmt;
+            return mockInsertSetStep;
         }).when(mockInsertStmt).newRecord();
 
         // return an array simulating the bind values with 'rows * FIELDS_PER_ROW' elements

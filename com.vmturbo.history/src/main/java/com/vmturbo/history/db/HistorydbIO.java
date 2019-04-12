@@ -442,7 +442,7 @@ public class HistorydbIO extends BasedbIO {
                                           @Nullable Double capacity,
                                           @Nullable Double effectiveCapacity,
                                           @Nullable String commodityKey,
-                                          @Nonnull InsertSetStep<?> insertStmt,
+                                          @Nonnull InsertSetMoreStep<?> insertStmt,
                                           @Nonnull Table<?> table) {
         // providerId might be null
         String providerIdString = providerId != null ? Long.toString(providerId) : null;
@@ -480,7 +480,7 @@ public class HistorydbIO extends BasedbIO {
      * @param table the xxx_stats_latest table where this data will be written
      */
     public void setCommodityValues(@Nonnull String propertySubtype, double value,
-                                   @Nonnull InsertSetStep insertStmt, @Nonnull Table<?> table) {
+                                   @Nonnull InsertSetMoreStep insertStmt, @Nonnull Table<?> table) {
 
         value = clipValue(value);
         insertStmt.set(str(dField(table, PROPERTY_SUBTYPE)), propertySubtype);
