@@ -2,13 +2,13 @@ package com.vmturbo.api.component.external.api.util;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.hamcrest.Matchers.is;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -20,7 +20,6 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -60,7 +59,7 @@ public class MagicScopeGatewayTest {
         final ArgumentCaptor<GroupApiDTO> groupCreateRequestCaptor =
                 ArgumentCaptor.forClass(GroupApiDTO.class);
 
-        when(groupsService.createGroup(any())).thenReturn(tempGroup);
+        doReturn(tempGroup).when(groupsService).createGroup(any());
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
 
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
@@ -76,7 +75,7 @@ public class MagicScopeGatewayTest {
     @Test
     public void testMapOnPremHostGroupExpiredTriggersRefresh() throws Exception {
         // Create the group (this assumes the "normal" test works")
-        when(groupsService.createGroup(any())).thenReturn(tempGroup);
+        doReturn(tempGroup).when(groupsService).createGroup(any());
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
@@ -84,7 +83,7 @@ public class MagicScopeGatewayTest {
         final String newTempGroupId = "1029";
         final GroupApiDTO newTempGroup = new GroupApiDTO();
         newTempGroup.setUuid(newTempGroupId);
-        when(groupsService.createGroup(any())).thenReturn(newTempGroup);
+        doReturn(newTempGroup).when(groupsService).createGroup(any());
 
         // This request should trigger a RPC to the group service to make sure the temp group
         // still exists.
@@ -92,9 +91,9 @@ public class MagicScopeGatewayTest {
                 .setId(Long.parseLong(TEMP_GROUP_UUID))
                 .build();
         // Return a group
-        when(groupBackendMole.getGroup(tempGroupId)).thenReturn(GetGroupResponse.newBuilder()
+        doReturn(GetGroupResponse.newBuilder()
             .setGroup(Group.getDefaultInstance())
-            .build());
+            .build()).when(groupBackendMole).getGroup(tempGroupId);
 
         final String mappedUuid2 = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         verify(groupBackendMole).getGroup(tempGroupId);
@@ -102,7 +101,8 @@ public class MagicScopeGatewayTest {
         assertThat(mappedUuid2, is(TEMP_GROUP_UUID));
 
         // Now pretend the temporary group expired - RPC will return nothing.
-        when(groupBackendMole.getGroup(tempGroupId)).thenReturn(GetGroupResponse.getDefaultInstance());
+        doReturn(GetGroupResponse.getDefaultInstance())
+            .when(groupBackendMole).getGroup(tempGroupId);
 
         final String mappedUuid3 = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         verify(groupBackendMole, times(2)).getGroup(tempGroupId);
@@ -112,7 +112,7 @@ public class MagicScopeGatewayTest {
     @Test
     public void testMapOnPremHostNewTopologyTriggersRefresh() throws Exception {
         // Create the group (this assumes the "normal" test works")
-        when(groupsService.createGroup(any())).thenReturn(tempGroup);
+        doReturn(tempGroup).when(groupsService).createGroup(any());
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
@@ -120,7 +120,7 @@ public class MagicScopeGatewayTest {
         final String newTempGroupId = "1029";
         final GroupApiDTO newTempGroup = new GroupApiDTO();
         newTempGroup.setUuid(newTempGroupId);
-        when(groupsService.createGroup(any())).thenReturn(newTempGroup);
+        doReturn(newTempGroup).when(groupsService).createGroup(any());
 
         // This should "clear" the cached temp group.
         gateway.onSourceTopologyAvailable(1L, REALTIME_CONTEXT);
@@ -132,7 +132,7 @@ public class MagicScopeGatewayTest {
     @Test
     public void testMapOnPremHostNonRealtimeTopologyIgnored() throws Exception {
         // Create the group (this assumes the "normal" test works")
-        when(groupsService.createGroup(any())).thenReturn(tempGroup);
+        doReturn(tempGroup).when(groupsService).createGroup(any());
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
@@ -140,13 +140,14 @@ public class MagicScopeGatewayTest {
         final String newTempGroupId = "1029";
         final GroupApiDTO newTempGroup = new GroupApiDTO();
         newTempGroup.setUuid(newTempGroupId);
-        when(groupsService.createGroup(any())).thenReturn(newTempGroup);
+        doReturn(newTempGroup).when(groupsService).createGroup(any());
 
         // Return a group for the cache check.
-        when(groupBackendMole.getGroup(GroupID.newBuilder()
-            .setId(Long.parseLong(TEMP_GROUP_UUID))
-            .build())).thenReturn(GetGroupResponse.newBuilder()
+        doReturn(GetGroupResponse.newBuilder()
                 .setGroup(Group.getDefaultInstance())
+                .build())
+            .when(groupBackendMole).getGroup(GroupID.newBuilder()
+                .setId(Long.parseLong(TEMP_GROUP_UUID))
                 .build());
 
         // This should NOT "clear" the cached temp group, because the context is not realtime.
