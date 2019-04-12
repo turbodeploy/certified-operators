@@ -7,6 +7,7 @@ import java.time.Clock;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -136,7 +137,7 @@ public class OperationMessageHandlerTest {
      */
     @Test
     public void testActionWrongMessage() {
-        final Action action = new Action(0, 0, 0, identityProvider);
+        final Action action = new Action(0, 0, 0, identityProvider, ActionType.MOVE);
         final BaseMessageHandler handler = new ActionMessageHandler(operationManager, action,
                 Clock.systemUTC(), 1000);
         final MediationClientMessage clientMessage = MediationClientMessage.newBuilder()

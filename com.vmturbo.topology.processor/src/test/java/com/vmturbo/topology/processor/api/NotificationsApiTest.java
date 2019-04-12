@@ -37,6 +37,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.LoggingUncaughtExceptionHandler;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
@@ -374,7 +375,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final long probeId = createProbe();
         final Target target = createTarget(probeId, "1");
         final Action action = new Action(actionId, probeId, target.getId(),
-                integrationTestServer.getBean(IdentityProvider.class));
+                integrationTestServer.getBean(IdentityProvider.class), ActionType.MOVE);
         final MediationMessage.ActionResponse progressResponse = ActionResponse.newBuilder()
                 .setProgress(33)
                 .setActionResponseState(ActionResponseState.IN_PROGRESS)
@@ -403,7 +404,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final long probeId = createProbe();
         final Target target = createTarget(probeId, "1");
         final Action action = new Action(actionId, probeId, target.getId(),
-                integrationTestServer.getBean(IdentityProvider.class));
+                integrationTestServer.getBean(IdentityProvider.class), ActionType.MOVE);
         final MediationMessage.ActionResponse successResponse = ActionResponse.newBuilder()
                 .setProgress(100)
                 .setActionResponseState(ActionResponseState.SUCCEEDED)
@@ -431,7 +432,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final long probeId = createProbe();
         final Target target = createTarget(probeId, "1");
         final Action action = new Action(actionId, probeId, target.getId(),
-                integrationTestServer.getBean(IdentityProvider.class));
+                integrationTestServer.getBean(IdentityProvider.class), ActionType.MOVE);
         final MediationMessage.ActionResponse failResponse = ActionResponse.newBuilder()
                 .setProgress(100)
                 .setActionResponseState(ActionResponseState.FAILED)

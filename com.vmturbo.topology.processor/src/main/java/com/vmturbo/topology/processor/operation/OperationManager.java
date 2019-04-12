@@ -299,7 +299,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         + " corresponding to target " + targetId + " is not registered"));
 
         final Action action = new Action(actionId, target.getProbeId(),
-                targetId, identityProvider);
+                targetId, identityProvider, actionType);
         final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
                 .setActionType(actionType)
                 .addAllActionItem(actionDtos);
@@ -815,7 +815,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             @Nonnull final ActionResult message) {
         resultExecutor.execute(() -> {
             processActionResponse(operation, message);
-            updateControllableAndSuspendableState(operation);
+            if (shouldUpdateEntityActionTable(operation.getActionType())) {
+                updateControllableAndSuspendableState(operation);
+            }
         });
     }
 
@@ -823,9 +825,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                @Nonnull final MediationClientMessage message) {
         if (operation instanceof Action) {
             resultExecutor.execute(() -> {
-                ((Action)operation).updateProgress(message.getActionProgress().getResponse());
+                Action action = (Action)operation;
+                action.updateProgress(message.getActionProgress().getResponse());
                 operationListener.notifyOperationState(operation);
-                updateControllableAndSuspendableState((Action) operation);
+                if (shouldUpdateEntityActionTable(action.getActionType())) {
+                    updateControllableAndSuspendableState(action);
+                }
             });
         }
     }
@@ -1123,7 +1128,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                          @Nonnull final ActionItemDTO.ActionType actionType,
                                          @Nonnull final Set<Long> entities) {
         try {
-            if (shouldInsertActionToEntityActionTable(actionType)) {
+            if (shouldUpdateEntityActionTable(actionType)) {
                 entityActionDao.insertAction(actionId, actionType, entities);
             }
         } catch (DataAccessException | IllegalArgumentException e) {
@@ -1135,7 +1140,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     /**
      * Check if the sdk action type is START, MOVE, CHANGE, CROSS_TARGET_MOVE or MOVE_TOGETHER.
      */
-    private boolean shouldInsertActionToEntityActionTable(ActionType actionType) {
+    private boolean shouldUpdateEntityActionTable(ActionType actionType) {
         return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(actionType);
     }
 
@@ -1154,7 +1159,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             logger.error("Failed to update controllable table for action {}: {}",
                     action.getActionId(), e.getMessage());
         } catch (ControllableRecordNotFoundException e) {
-            logger.error("There is no existed action {}, Failed to update controllable table." ,
+            logger.error("Action with id {} does not exist. Failed to update controllable table." ,
                     action.getActionId());
         }
     }

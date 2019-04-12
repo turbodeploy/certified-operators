@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.operation.action;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -30,6 +31,7 @@ public class Action extends Operation {
 
     private int progress = 0;
     private String description = "";
+    private final ActionType actionType;
 
     private static final DataMetricSummary ACTION_DURATION_SUMMARY = DataMetricSummary.builder()
         .withName("tp_action_duration_seconds")
@@ -47,10 +49,12 @@ public class Action extends Operation {
     public Action(final long actionId,
                   final long probeId,
                   final long targetId,
-                  @Nonnull final IdentityProvider identityProvider) {
+                  @Nonnull final IdentityProvider identityProvider,
+                  @Nonnull ActionType actionType) {
         super(probeId, targetId, identityProvider);
         this.actionId = actionId;
         this.durationTimer = ACTION_DURATION_SUMMARY.startTimer();
+        this.actionType = actionType;
     }
 
     @Override
@@ -86,5 +90,9 @@ public class Action extends Operation {
     @Override
     protected DataMetricCounter getStatusCounter() {
         return ACTION_STATUS_COUNTER;
+    }
+
+    public ActionType getActionType() {
+        return actionType;
     }
 }
