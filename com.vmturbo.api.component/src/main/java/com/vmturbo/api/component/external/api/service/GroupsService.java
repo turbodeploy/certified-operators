@@ -18,6 +18,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
@@ -40,6 +41,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -119,6 +121,9 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlock
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -170,6 +175,8 @@ public class GroupsService implements IGroupsService {
 
     private final SearchServiceBlockingStub searchServiceBlockingStub;
 
+    private final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub;
+
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
     private final SeverityPopulator severityPopulator;
@@ -181,6 +188,8 @@ public class GroupsService implements IGroupsService {
     private StatsService statsService = null;
 
     private final SearchUtil searchUtil;
+
+    private final SettingsMapper settingsMapper;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -201,7 +210,9 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final SeverityPopulator severityPopulator,
                   @Nonnull final TopologyProcessor topologyProcessor,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                  @Nonnull final SearchUtil searchUtil) {
+                  @Nonnull final SearchUtil searchUtil,
+                  @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
+                  @Nonnull final SettingsMapper settingsMapper) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -219,7 +230,9 @@ public class GroupsService implements IGroupsService {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
+        this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.searchUtil = Objects.requireNonNull(searchUtil);
+        this.settingsMapper = Objects.requireNonNull(settingsMapper);
     }
 
     /**
@@ -628,8 +641,24 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<SettingsPolicyApiDTO> getSettingPoliciesByGroupUuid(String uuid) throws Exception {
-        // TODO: OM-23671
-        return new ArrayList<>();
+        if (!StringUtils.isNumeric(uuid)) {
+            throw new IllegalArgumentException("Group uuid should be numeric: " + uuid);
+        }
+        final long groupId = Long.valueOf(uuid);
+        GetSettingPoliciesForGroupResponse response =
+                settingPolicyServiceBlockingStub.getSettingPoliciesForGroup(
+                        GetSettingPoliciesForGroupRequest.newBuilder()
+                                .addGroupIds(groupId)
+                                .build());
+
+        List<SettingsPolicyApiDTO> settingsPolicyApiDtos = new ArrayList<>();
+        if (response.getSettingPoliciesByGroupIdMap().containsKey(groupId)) {
+            response.getSettingPoliciesByGroupIdMap().get(groupId).getSettingPoliciesList()
+                    .forEach(settingPolicy ->
+                            settingsPolicyApiDtos.add(settingsMapper.convertSettingPolicy(settingPolicy)));
+        }
+
+        return settingsPolicyApiDtos;
     }
 
     @Override

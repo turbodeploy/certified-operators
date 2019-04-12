@@ -690,6 +690,22 @@ message GetEntitySettingPoliciesResponse {
     repeated SettingPolicy setting_policies = 1;
 }
 
+message GetSettingPoliciesForGroupRequest {
+
+    // List of group ids whose setting policies are requested.
+    repeated int64 group_ids = 1;
+}
+
+message GetSettingPoliciesForGroupResponse {
+
+    // Mapping of GroupId -> List of settingPolicies.
+    map<int64, GroupSettingPolicies> setting_policies_by_group_id = 1;
+
+    message GroupSettingPolicies {
+        repeated SettingPolicy setting_policies = 1;
+    }
+}
+
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.
 service SettingPolicyService {
     // Create a setting policy
@@ -738,4 +754,7 @@ service SettingPolicyService {
 
     // Get setting policies associated with an entity
     rpc GetEntitySettingPolicies(GetEntitySettingPoliciesRequest) returns (GetEntitySettingPoliciesResponse);
+
+    // Return the setting policies associated with a group.
+    rpc GetSettingPoliciesForGroup(GetSettingPoliciesForGroupRequest) returns (GetSettingPoliciesForGroupResponse);
 }

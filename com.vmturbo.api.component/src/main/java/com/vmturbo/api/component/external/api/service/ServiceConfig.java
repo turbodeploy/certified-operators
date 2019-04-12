@@ -244,7 +244,9 @@ public class ServiceConfig {
                 communicationConfig.severityPopulator(),
                 communicationConfig.topologyProcessor(),
                 communicationConfig.supplyChainFetcher(),
-                searchUtil());
+                searchUtil(),
+                settingPolicyServiceBlockingStub(),
+                mapperConfig.settingsMapper());
     }
 
     @Bean

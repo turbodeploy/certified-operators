@@ -1,7 +1,10 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -35,6 +38,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse.GroupSettingPolicies;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -75,6 +81,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final ActionsServiceBlockingStub actionsServiceClient;
 
+
     private final long realtimeTopologyContextId;
 
     private final static Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
@@ -91,7 +98,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
-        this.actionsServiceClient = actionsServiceClient;
+        this.actionsServiceClient = Objects.requireNonNull(actionsServiceClient);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -103,7 +110,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                                     StreamObserver<CreateSettingPolicyResponse> responseObserver) {
         if (!request.hasSettingPolicyInfo()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Missing setting policy!").asException());
+                    .withDescription("Missing setting policy!").asException());
             return;
         }
 
@@ -116,10 +123,10 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             responseObserver.onCompleted();
         } catch (InvalidItemException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription(e.getMessage()).asException());
+                    .withDescription(e.getMessage()).asException());
         } catch (DuplicateNameException e) {
             responseObserver.onError(Status.ALREADY_EXISTS
-                .withDescription(e.getMessage()).asException());
+                    .withDescription(e.getMessage()).asException());
         }
     }
 
@@ -141,8 +148,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     settingStore.updateSettingPolicy(request.getId(), request.getNewInfo());
             cancelAutomationActions(policy);
             responseObserver.onNext(UpdateSettingPolicyResponse.newBuilder()
-                .setSettingPolicy(policy)
-                .build());
+                    .setSettingPolicy(policy)
+                    .build());
             responseObserver.onCompleted();
         } catch (DuplicateNameException e) {
             responseObserver.onError(Status.ALREADY_EXISTS
@@ -228,7 +235,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     }
 
     private boolean hasAutomationSetting(final SettingPolicy settingPolicy) {
-        return (settingPolicy!=null &&
+        return (settingPolicy != null &&
                 settingPolicy.getInfo().getSettingsList().stream()
                         .anyMatch(setting ->
                                 EntitySettingSpecs.isAutomationSetting(
@@ -243,7 +250,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                                  StreamObserver<GetSettingPolicyResponse> responseObserver) {
         if (!request.hasId() && !request.hasName()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Request must have one of ID and Name!").asException());
+                    .withDescription("Request must have one of ID and Name!").asException());
             return;
         }
 
@@ -307,7 +314,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                             setting.setEnumSettingValue(EnumSettingValue.newBuilder()
                                     .setValue(ActionMode.AUTOMATIC.toString())
                                     .build())
-                            .build();
+                                    .build();
                         }
                     }
                     responseObserver.onNext(newPolicyBuilder.build());
@@ -326,13 +333,13 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      */
     @Override
     public void uploadEntitySettings(final UploadEntitySettingsRequest request,
-            final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
+                                     final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
         if (!request.hasTopologyId() || !request.hasTopologyContextId()) {
             logger.error("Missing topologId {} or topologyContexId argument {}",
-                request.hasTopologyId(), request.hasTopologyContextId());
+                    request.hasTopologyId(), request.hasTopologyContextId());
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Missing topologyId and/or topologyContexId argument!")
-                .asException());
+                    .withDescription("Missing topologyId and/or topologyContexId argument!")
+                    .asException());
             return;
         }
 
@@ -348,7 +355,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      */
     @Override
     public void getEntitySettings(final GetEntitySettingsRequest request,
-                          final StreamObserver<GetEntitySettingsResponse> responseObserver) {
+                                  final StreamObserver<GetEntitySettingsResponse> responseObserver) {
         try {
             final Map<Long, Collection<SettingToPolicyId>> results = entitySettingStore.getEntitySettings(
                     request.getTopologySelection(),
@@ -377,28 +384,28 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             }
 
             results.forEach((oid, settings) -> respBuilder.addSettings(
-                SettingsForEntity.newBuilder()
-                    .setEntityId(oid)
-                    .addAllSettings(settings.stream()
-                            .map(setting -> {
-                                SettingToPolicyName.Builder settingToPolicyName =
-                                        SettingToPolicyName.newBuilder()
-                                                .setSetting(setting.getSetting());
-                                                String name = settingPolicyIdToNameMap.get(setting.getSettingPolicyId());
-                                                if (name != null) {
-                                                    settingToPolicyName.setSettingPolicyName(name);
-                                                }
-                                return settingToPolicyName.build();
-                            })
-                            .collect(Collectors.toList()))
-                    .build()));
+                    SettingsForEntity.newBuilder()
+                            .setEntityId(oid)
+                            .addAllSettings(settings.stream()
+                                    .map(setting -> {
+                                        SettingToPolicyName.Builder settingToPolicyName =
+                                                SettingToPolicyName.newBuilder()
+                                                        .setSetting(setting.getSetting());
+                                        String name = settingPolicyIdToNameMap.get(setting.getSettingPolicyId());
+                                        if (name != null) {
+                                            settingToPolicyName.setSettingPolicyName(name);
+                                        }
+                                        return settingToPolicyName.build();
+                                    })
+                                    .collect(Collectors.toList()))
+                            .build()));
 
             responseObserver.onNext(respBuilder.build());
             responseObserver.onCompleted();
         } catch (NoSettingsForTopologyException e) {
             logger.error("Topology not found for entity settings request: {}", e.getMessage());
             responseObserver.onError(Status.NOT_FOUND
-                .withDescription(e.getMessage()).asException());
+                    .withDescription(e.getMessage()).asException());
         }
     }
 
@@ -420,6 +427,30 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         entitySettingStore.getEntitySettingPolicies(request.getEntityOid())
                 .forEach(settingPolicy -> response.addSettingPolicies(settingPolicy));
+
+        responseStreamObserver.onNext(response.build());
+        responseStreamObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getSettingPoliciesForGroup(final GetSettingPoliciesForGroupRequest request,
+                                           final StreamObserver<GetSettingPoliciesForGroupResponse> responseStreamObserver) {
+
+        Map<Long, List<SettingPolicy>> groupIdToSettingPolicies =
+                settingStore.getSettingPoliciesForGroups(new HashSet<>(request.getGroupIdsList()));
+
+        GetSettingPoliciesForGroupResponse.Builder response =
+                GetSettingPoliciesForGroupResponse.newBuilder();
+
+        groupIdToSettingPolicies.entrySet()
+                .forEach(entry ->
+                        response.putSettingPoliciesByGroupId(entry.getKey(),
+                                GroupSettingPolicies.newBuilder()
+                                        .addAllSettingPolicies(entry.getValue())
+                                        .build()));
 
         responseStreamObserver.onNext(response.build());
         responseStreamObserver.onCompleted();

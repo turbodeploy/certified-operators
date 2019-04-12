@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -73,6 +74,8 @@ public class SettingStore implements Diagnosable {
 
     private final SettingPolicyValidator settingPolicyValidator;
 
+    private final GroupToSettingPolicyIndex groupToSettingPolicyIndex;
+
     /**
      * Create a new SettingStore.
      *
@@ -81,14 +84,21 @@ public class SettingStore implements Diagnosable {
      * @param identityProvider The identity provider used to assign OIDs.
      */
     public SettingStore(@Nonnull final SettingSpecStore settingSpecStore,
-            @Nonnull final DSLContext dslContext, @Nonnull final IdentityProvider identityProvider,
+            @Nonnull final DSLContext dslContext,
+            @Nonnull final IdentityProvider identityProvider,
             @Nonnull final SettingPolicyValidator settingPolicyValidator) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
-
-        // read the json config file, and create setting spec instances in memory
         this.settingPolicyValidator = Objects.requireNonNull(settingPolicyValidator);
+        // This makes a blocking call to the DB during object initialization.
+        // Since the amount of setting policies will be small, this shouldn't
+        // be a problem. If this assumption changes, this loading may have to be
+        // made async.
+        this.groupToSettingPolicyIndex =
+                new GroupToSettingPolicyIndex(
+                       this.getSettingPolicies(
+                                SettingPolicyFilter.newBuilder().build()));
     }
 
     /**
@@ -134,7 +144,10 @@ public class SettingStore implements Diagnosable {
                     SettingPolicyTypeConverter.typeToDb(type),
                     settingPolicyInfo.getTargetId());
                 context.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
-                return toSettingPolicy(jooqSettingPolicy);
+                SettingProto.SettingPolicy newSettingPolicy = toSettingPolicy(jooqSettingPolicy);
+                groupToSettingPolicyIndex.add(newSettingPolicy);
+                return newSettingPolicy;
+
             });
         } catch (DataAccessException e) {
             // Jooq will rethrow a DuplicateNameException thrown in the transactionResult call
@@ -381,7 +394,9 @@ public class SettingStore implements Diagnosable {
             throw new IllegalStateException("Failed to delete record.");
         }
 
-        return toSettingPolicy(record);
+        SettingProto.SettingPolicy deletedPolicy = toSettingPolicy(record);
+        groupToSettingPolicyIndex.remove(deletedPolicy);
+        return deletedPolicy;
     }
 
     private Stream<SettingProto.SettingPolicy> getSettingPolicies(
@@ -494,8 +509,9 @@ public class SettingStore implements Diagnosable {
             // got overwritten.
             throw new IllegalStateException("Failed to update record.");
         }
-        return toSettingPolicy(record);
-
+        SettingProto.SettingPolicy updatedPolicy = toSettingPolicy(record);
+        groupToSettingPolicyIndex.update(updatedPolicy);
+        return updatedPolicy;
     }
 
     @VisibleForTesting
@@ -529,9 +545,40 @@ public class SettingStore implements Diagnosable {
                 SettingPolicyTypeConverter.typeToDb(type),
                 settingPolicyInfo.getTargetId());
             context.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
+            groupToSettingPolicyIndex.update(settingPolicy);
         } catch (DataAccessException e) {
             throw new DataAccessException("Unable to store discovered setting policy " + settingPolicy, e);
         }
+    }
+
+    /**
+     * Return the SettingPolicies associated with the Groups.
+     *
+     * @param groupIds The set of group ids.
+     * @return Setting Policies associated with the group.
+     */
+    public Map<Long, List<SettingProto.SettingPolicy>> getSettingPoliciesForGroups(Set<Long> groupIds) {
+        Map<Long, Set<Long>> groupIdToSettingPolicyIds =
+                groupToSettingPolicyIndex.getSettingPolicyIdsForGroup(groupIds);
+
+        SettingPolicyFilter.Builder filter = SettingPolicyFilter.newBuilder();
+        groupIdToSettingPolicyIds.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet())
+                .forEach(id -> filter.withId(id));
+
+        Map<Long, SettingProto.SettingPolicy> settingPolicyIdToSettingPolicy =
+                getSettingPolicies(filter.build())
+                        .collect(Collectors.toMap(SettingProto.SettingPolicy::getId,
+                                Function.identity()));
+
+        return groupIds.stream().collect(Collectors.toMap(Function.identity(),
+            groupId -> groupIdToSettingPolicyIds.get(groupId)
+                    .stream()
+                    .map(id -> settingPolicyIdToSettingPolicy.get(id))
+                    .collect(Collectors.toList())));
+
     }
 
     /**
@@ -756,6 +803,7 @@ public class SettingStore implements Diagnosable {
      */
     private void deleteAllSettingPolicies() {
         dslContext.truncate(SETTING_POLICY).execute();
+        groupToSettingPolicyIndex.clear();
     }
 
     /**
@@ -781,6 +829,8 @@ public class SettingStore implements Diagnosable {
                 settingPolicyInfo.getTargetId());
             dslContext.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
         }
+
+        groupToSettingPolicyIndex.update(settingPolicies);
     }
 
     /**

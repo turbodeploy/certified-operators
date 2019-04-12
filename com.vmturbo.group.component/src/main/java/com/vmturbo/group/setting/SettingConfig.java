@@ -48,8 +48,10 @@ public class SettingConfig {
 
     @Bean
     public SettingStore settingStore() {
-        return new SettingStore(settingSpecsStore(), databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), settingPolicyValidator());
+        return new SettingStore(settingSpecsStore(),
+                databaseConfig.dsl(),
+                identityProviderConfig.identityProvider(),
+                settingPolicyValidator());
     }
 
     @Bean
@@ -90,4 +92,5 @@ public class SettingConfig {
     public EntitySettingStore entitySettingStore() {
         return new EntitySettingStore(realtimeTopologyContextId, settingStore());
     }
+
 }
