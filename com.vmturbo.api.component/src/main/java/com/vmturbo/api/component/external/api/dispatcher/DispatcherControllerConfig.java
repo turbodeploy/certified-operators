@@ -12,6 +12,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.api.component.controller.ProbesController;
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
+import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
@@ -42,7 +43,6 @@ import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
-import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.validators.TemplatesValidator;
 import com.vmturbo.api.xlcontroller.ClusterController;
 import com.vmturbo.api.xlcontroller.SAMLController;
