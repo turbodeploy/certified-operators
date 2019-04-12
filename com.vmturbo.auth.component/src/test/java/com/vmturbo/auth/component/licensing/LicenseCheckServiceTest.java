@@ -27,6 +27,7 @@ import reactor.core.publisher.Flux;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.component.licensing.LicenseManagerService.LicenseManagementEvent;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
@@ -46,6 +47,7 @@ import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.mail.MailConfigException;
 import com.vmturbo.components.common.mail.MailException;
 import com.vmturbo.components.common.mail.MailManager;
+import com.vmturbo.licensing.License;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Builder;
@@ -89,8 +91,13 @@ public class LicenseCheckServiceTest {
 
     private MutableFixedClock clock = new MutableFixedClock(Clock.systemUTC().instant(), ZoneId.systemDefault());
 
+    private License aggregateLicense;
+
     @Before
     public void setup() {
+        aggregateLicense = new License();
+        aggregateLicense.setNumInUseEntities(70);
+        aggregateLicense.setNumLicensedEntities(1000);
         licenseManagerService = mock(LicenseManagerService.class);
         final SearchServiceBlockingStub searchServiceClient =
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
@@ -159,7 +166,7 @@ public class LicenseCheckServiceTest {
                 .setExpirationDate(LocalDate.now().toString())
                 .setEmail(EMAIL)
                 .build();
-        licenseCheckService.publishNotification(false, Collections.singleton(license));
+        licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
         final long notificationTime = clock.millis();
         final Builder builder = SystemNotification.newBuilder();
         builder.setBroadcastId(1L)
@@ -180,26 +187,28 @@ public class LicenseCheckServiceTest {
      * Test when license was over limit, both system notification and email will be sent
      */
     @Test
-    public void testPublishNotificationLicenseOverLimit() throws CommunicationException, InterruptedException, MailException, MailConfigException {
+    public void testPublishNotificationLicenseOverLimit() throws CommunicationException,
+        InterruptedException, MailException, MailConfigException {
+        final String description = String.format(LicenseCheckService.LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
+            AuditLogUtils.getLocalIpAddress(), 70, 1000);
         final LicenseDTO license = LicenseDTO.newBuilder()
                 .setExpirationDate(LocalDate.now().plusDays(10L).toString())
                 .setEmail(EMAIL)
                 .build();
-        licenseCheckService.publishNotification(true, Collections.singleton(license));
+        licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
 
         final long notificationTime = clock.millis();
         final Builder builder = SystemNotification.newBuilder();
         builder.setBroadcastId(1L)
                 .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build())
-                .setDescription(LicenseCheckService.LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT)
+                .setDescription(description)
                 .setShortDescription(LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT)
                 .setSeverity(Severity.CRITICAL)
                 .setState(State.NOTIFY)
                 .setGenerationTime(notificationTime);
         verify(systemNotificationIMessageSender).sendMessage(builder.build());
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
-                LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT,
-                LicenseCheckService.LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT);
+                LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT, description);
     }
 
     /**
@@ -207,12 +216,13 @@ public class LicenseCheckServiceTest {
      * Since expired license overrides over limit.
      */
     @Test
-    public void testPublishNotificationLicenseExpiredAndOverLimit() throws CommunicationException, InterruptedException, MailException, MailConfigException {
+    public void testPublishNotificationLicenseExpiredAndOverLimit() throws CommunicationException,
+        InterruptedException, MailException, MailConfigException {
         final LicenseDTO license = LicenseDTO.newBuilder()
                 .setExpirationDate(LocalDate.now().toString())
                 .setEmail(EMAIL)
                 .build();
-        licenseCheckService.publishNotification(true, Collections.singleton(license));
+        licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
 
         final long notificationTime = clock.millis();
         final Builder builder = SystemNotification.newBuilder();
@@ -241,7 +251,7 @@ public class LicenseCheckServiceTest {
                 .setExpirationDate(LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS - 1).toString())
                 .setEmail(EMAIL)
                 .build();
-        licenseCheckService.publishNotification(true, Collections.singleton(license));
+        licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
 
         final long notificationTime = clock.millis();
         final Builder builder = SystemNotification.newBuilder();
@@ -267,12 +277,12 @@ public class LicenseCheckServiceTest {
                 .setExpirationDate(expirationDate)
                 .setEmail(EMAIL)
                 .build();
-        licenseCheckService.publishNotification(false, Collections.singleton(license));
+        licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
 
         final long notificationTime = clock.millis();
         final Builder builder = SystemNotification.newBuilder();
         final String description = String.format(LicenseCheckService.TURBONOMIC_LICENSE_WILL_EXPIRE,
-                expirationDate);
+                AuditLogUtils.getLocalIpAddress(), expirationDate);
 
         builder.setBroadcastId(1L)
                 .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder()
@@ -302,7 +312,8 @@ public class LicenseCheckServiceTest {
                 .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder()
                         .build())
                         .build())
-                .setDescription(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING)
+                .setDescription(String.format(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING,
+                    AuditLogUtils.getLocalIpAddress()))
                 .setShortDescription(LicenseCheckService.LICENSE_IS_MISSING)
                 .setSeverity(Severity.CRITICAL)
                 .setState(State.NOTIFY)

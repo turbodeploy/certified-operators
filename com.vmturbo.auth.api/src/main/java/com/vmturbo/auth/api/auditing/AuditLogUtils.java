@@ -109,7 +109,7 @@ public final class AuditLogUtils {
      *
      * @return local IP address if available otherwise fall back to "lookback".
      */
-    private static String getLocalIpAddress() {
+    public static String getLocalIpAddress() {
         try {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {

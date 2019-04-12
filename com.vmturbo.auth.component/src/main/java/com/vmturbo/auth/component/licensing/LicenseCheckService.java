@@ -24,6 +24,7 @@ import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.dto.license.ILicense;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.component.licensing.LicenseManagerService.LicenseManagementEvent;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceImplBase;
@@ -95,16 +96,27 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
     @VisibleForTesting
     public static final String LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT
-            = "Turbonomic license workload count is over limit, please update it";
+            = "It’s great to see you're getting so much value from Turbonomic! Your installation of" +
+        " Turbonomic instance %s is currently managing %d active" +
+        " workloads, while your license only covers %d workloads. Don't worry," +
+        " Turbonomic continues to manage all of your workloads without interruption. Unfortunately," +
+        " you cannot update your version or add new targets until you upgrade your license to cover" +
+        " all your workloads. To add more workloads to your license, contact your Turbonomic Inc." +
+        " sales representative or authorized dealer.";
 
     @VisibleForTesting
     public static final String WORKLOAD_COUNT_IS_OVER_LIMIT = "Workload count is over limit";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "Turbonomic license will expire on %s, please update it";
+    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "Your Turbonomic license on Turbonomic" +
+        " instance %s will expire tomorrow, %s. To keep using the full power of" +
+        " Turbonomic, be sure to install an updated license. To obtain a license, contact your Turbonomic" +
+        " Inc. sales representative or authorized dealer.";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Turbonomic license is missing, please update it";
+    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Turbonomic instance %s has no license, " +
+        "or your license has expired. Please install a valid license. To obtain a license, contact " +
+        "your Turbonomic Inc. sales representative or authorized dealer.";
 
     @VisibleForTesting
     public static final String LICENSE_IS_MISSING = "License is missing";
@@ -234,7 +246,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
             // if no licenses at this point, use the "no license" summary
             if (licenseDTOs.isEmpty()) {
-                notifyUI(TURBONOMIC_LICENSE_IS_MISSING,
+                notifyUI(String.format(TURBONOMIC_LICENSE_IS_MISSING, AuditLogUtils.getLocalIpAddress()),
                     LICENSE_IS_MISSING);
             } else {
                 // we have licenses -- convert them to model licenses, validate them, and merge them together.
@@ -242,7 +254,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
                 // get the workload count
                 boolean isOverLimit = populateWorkloadCount(aggregateLicense);
-                publishNotification(isOverLimit, licenseDTOs);
+                publishNotification(isOverLimit, licenseDTOs, aggregateLicense);
             }
         } catch (IOException ioe) {
             // error getting the licenses
@@ -314,10 +326,12 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
      * Publish notification to UI and license owner
      * @param isOverLimit is over workload license limit?
      * @param licenseDTOs collection of license DTOs
+     * @param aggregateLicense aggregated license
      */
     @VisibleForTesting
     void publishNotification(final boolean isOverLimit,
-                             @Nonnull final Collection<LicenseDTO> licenseDTOs) {
+                             @Nonnull final Collection<LicenseDTO> licenseDTOs,
+                             @Nonnull final License aggregateLicense) {
         licenseDTOs.forEach(licenseDTO -> {
                     final License license = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
                     if (license.isExpired()) {
@@ -327,12 +341,15 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                     }
                     if (isGoingToExpired(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
                         final String description = String.format(TURBONOMIC_LICENSE_WILL_EXPIRE,
-                                license.getExpirationDate());
+                                AuditLogUtils.getLocalIpAddress(), license.getExpirationDate());
                         notifyLicenseExpiration(description, description, license);
                     }
                     if (isOverLimit) {
-                        notifyLicenseExpiration(LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
-                                WORKLOAD_COUNT_IS_OVER_LIMIT, license);
+                        final String description = String.format(LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
+                            AuditLogUtils.getLocalIpAddress(),
+                            aggregateLicense.getNumInUseEntities(),
+                            aggregateLicense.getNumLicensedEntities());
+                        notifyLicenseExpiration(description, WORKLOAD_COUNT_IS_OVER_LIMIT, license);
                     }
                 }
         );
