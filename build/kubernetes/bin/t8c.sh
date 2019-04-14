@@ -309,20 +309,24 @@ then
   echo "######################################################################"
   echo "                 Helm Chart Installation                              "
   echo "######################################################################"
-  /usr/local/bin/helm init
-  /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
-  /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace} \
-                                                                 --set-string global.tag=${turboVersion} \
-                                                                 --set-string global.externalIP=${node} \
-                                                                 --set vcenter.enabled=true \
-                                                                 --set hyperv.enabled=true \
-                                                                 --set actionscript.enabled=true \
-                                                                 --set netapp.enabled=true \
-                                                                 --set pure.enabled=true \
-                                                                 --set oneview.enabled=true \
-                                                                 --set ucs.enabled=true \
-                                                                 --set hpe3par.enabled=true \
-                                                                 --set vmax.enabled=true \
-                                                                 --set vmm.enabled=true \
-                                                                 --set appdynamics.enabled=true
+   /usr/local/bin/helm init --client-only --skip-refresh
+   cp /opt/turbonomic/kubernetes/helm/offline/offline-repository.yaml /opt/turbonomic/.helm/repository/repositories.yaml
+   /usr/local/bin/helm init
+   /usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/yaml/helm/rbac_service_account.yaml
+   /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
+   /usr/local/bin/helm init --service-account tiller --upgrade
+   /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace} \
+                                                                    --set-string global.tag=${turboVersion} \
+                                                                    --set-string global.externalIP=${node} \
+                                                                    --set vcenter.enabled=true \
+                                                                    --set hyperv.enabled=true \
+                                                                    --set actionscript.enabled=true \
+                                                                    --set netapp.enabled=true \
+                                                                    --set pure.enabled=true \
+                                                                    --set oneview.enabled=true \
+                                                                    --set ucs.enabled=true \
+                                                                    --set hpe3par.enabled=true \
+                                                                    --set vmax.enabled=true \
+                                                                    --set vmm.enabled=true \
+                                                                    --set appdynamics.enabled=true
 fi
