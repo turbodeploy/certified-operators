@@ -310,7 +310,7 @@ then
   echo "                 Helm Chart Installation                              "
   echo "######################################################################"
    /usr/local/bin/helm init --client-only --skip-refresh
-   cp /opt/turbonomic/kubernetes/helm/offline/offline-repository.yaml /opt/turbonomic/.helm/repository/repositories.yaml
+   cp /opt/turbonomic/kubernetes/yaml/offline/offline-repository.yaml /opt/turbonomic/.helm/repository/repositories.yaml
    /usr/local/bin/helm init
    /usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/yaml/helm/rbac_service_account.yaml
    /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
