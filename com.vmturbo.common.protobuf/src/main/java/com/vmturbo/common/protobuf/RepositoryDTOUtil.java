@@ -1,11 +1,15 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
@@ -55,4 +59,18 @@ public class RepositoryDTOUtil {
                 .mapToInt(Integer::valueOf)
                 .sum();
     }
+
+
+    /**
+     * Utility function for creating a stream of topology entity dto's from an entity batch iterator.
+     * @param batchIterator
+     * @return
+     */
+    public static Stream<TopologyEntityDTO> topologyEntityStream(Iterator<EntityBatch> batchIterator) {
+
+        Iterable<EntityBatch> batchIterable = () -> batchIterator;
+        return StreamSupport.stream(batchIterable.spliterator(), false)
+                .flatMap(entityBatch -> entityBatch.getEntitiesList().stream());
+    }
+
 }

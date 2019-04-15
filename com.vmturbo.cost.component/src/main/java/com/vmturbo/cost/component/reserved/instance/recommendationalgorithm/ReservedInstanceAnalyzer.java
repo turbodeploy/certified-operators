@@ -23,14 +23,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -44,7 +46,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -219,14 +220,14 @@ public class ReservedInstanceAnalyzer {
             // What if repository is down? Should we keep re-trying until repository is up?
             // TODO: karthikt - fetch just the entities needed instead of getting all the
             // entities in the topology.
-            final RetrieveTopologyEntitiesResponse response =
+            Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
                     repositoryClient.retrieveTopologyEntities(
                             RetrieveTopologyEntitiesRequest.newBuilder()
                                     .setTopologyContextId(planId)
                                     .setTopologyType(TopologyType.SOURCE)
-                                    .build());
+                                    .build()));
             TopologyEntityCloudTopology cloudTopology =
-                    cloudTopologyFactory.newCloudTopology(response.getEntitiesList().stream());
+                    cloudTopologyFactory.newCloudTopology(entities);
 
             // Describes what kind of RIs can be considered for purchase
             final ReservedInstancePurchaseConstraints purchaseConstraints =

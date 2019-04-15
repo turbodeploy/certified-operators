@@ -20,9 +20,9 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -122,8 +122,7 @@ public class EntitiesCache {
                 .setTopologyType(TopologyType.SOURCE)
                 .addAllEntityOids(entities)
                 .build();
-            RetrieveTopologyEntitiesResponse response = repositoryService.retrieveTopologyEntities(getEntitiesrequest);
-            return response.getEntitiesList().stream()
+            return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(getEntitiesrequest))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         } catch (StatusRuntimeException ex) {
             logger.error("Failed to fetch entities due to exception : " + ex);

@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
@@ -21,13 +22,11 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Update reservation placement information after receive notification from Repository. It will call
@@ -158,9 +157,8 @@ public class ReservationPlacementHandler {
      */
     private List<TopologyEntityDTO> retrieveTopologyEntities(
             @Nonnull final RetrieveTopologyEntitiesRequest request) {
-        final RetrieveTopologyEntitiesResponse response =
-                repositoryService.retrieveTopologyEntities(request);
-        return response.getEntitiesList();
+        return RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(request))
+                .collect(Collectors.toList());
     }
 
     private Reservation updateReservationPlacement(

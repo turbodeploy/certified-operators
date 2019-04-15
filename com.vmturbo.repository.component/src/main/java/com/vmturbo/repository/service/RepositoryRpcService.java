@@ -3,14 +3,10 @@ package com.vmturbo.repository.service;
 import static com.vmturbo.components.common.ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS;
 import static com.vmturbo.components.common.ClassicEnumMapper.ENTITY_TYPE_MAPPINGS;
 import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNames;
-import static javaslang.API.$;
-import static javaslang.API.Case;
-import static javaslang.API.Match;
-import static javaslang.Patterns.Left;
-import static javaslang.Patterns.Right;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,18 +14,19 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -38,13 +35,13 @@ import javaslang.control.Either;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -95,13 +92,17 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
     private final PlanEntityStatsExtractor planEntityStatsExtractor;
 
+    private final int maxEntitiesPerChunk; // the max number of entities to send in a single message
+
     public RepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
                                 @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                 @Nonnull final GraphDBService graphDBService,
                                 @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
-                                @Nonnull final EntityStatsPaginator entityStatsPaginator) {
+                                @Nonnull final EntityStatsPaginator entityStatsPaginator,
+                                final int maxEntitiesPerChunk) {
         this(topologyLifecycleManager, topologyProtobufsManager, graphDBService,
-            paginationParamsFactory, entityStatsPaginator, new DefaultPlanEntityStatsExtractor());
+            paginationParamsFactory, entityStatsPaginator, new DefaultPlanEntityStatsExtractor(),
+                maxEntitiesPerChunk);
     }
 
     RepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
@@ -109,13 +110,15 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
             @Nonnull final GraphDBService graphDBService,
             @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
             @Nonnull final EntityStatsPaginator entityStatsPaginator,
-            @Nonnull final PlanEntityStatsExtractor planEntityStatsExtractor) {
+            @Nonnull final PlanEntityStatsExtractor planEntityStatsExtractor,
+            final int maxEntitiesPerChunk) {
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.topologyProtobufsManager = Objects.requireNonNull(topologyProtobufsManager);
         this.graphDBService = Objects.requireNonNull(graphDBService);
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
         this.planEntityStatsExtractor = Objects.requireNonNull(planEntityStatsExtractor);
+        this.maxEntitiesPerChunk = maxEntitiesPerChunk;
     }
 
     private boolean validateDeleteTopologyRequest(DeleteTopologyRequest request,
@@ -202,7 +205,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
     @Override
     public void retrieveTopologyEntities(RetrieveTopologyEntitiesRequest request,
-                                         StreamObserver<RetrieveTopologyEntitiesResponse> responseObserver) {
+                                         StreamObserver<EntityBatch> responseObserver) {
 
         if (!request.hasTopologyContextId() || !request.hasTopologyType()) {
             logger.error("Missing parameters for retrieve topology entities: " + request);
@@ -219,14 +222,20 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                         request.getTopologyId(), ImmutableSet.copyOf(request.getEntityOidsList()),
                         topologyType) :
                 graphDBService.retrieveRealTimeTopologyEntities(ImmutableSet.copyOf(request.getEntityOidsList()));
-        final RetrieveTopologyEntitiesResponse response = Match(result).of(
-                Case(Right($()), entities -> 
-                RetrieveTopologyEntitiesResponse.newBuilder()
-                     .addAllEntities(filterEntityByType(request, entities))
-                     .build()),
-                Case(Left($()), err -> RetrieveTopologyEntitiesResponse.newBuilder().build()));
-         responseObserver.onNext(response);
-         responseObserver.onCompleted();
+
+        Collection<TopologyEntityDTO> filteredEntities = result.isRight()
+                ? filterEntityByType(request, result.get())
+                : Collections.emptyList();
+        // send the results in batches, if needed
+        Iterators.partition(filteredEntities.iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
+            EntityBatch batch = EntityBatch.newBuilder()
+                    .addAllEntities(chunk)
+                    .build();
+            logger.debug("Sending entity batch of {} items ({} bytes)", batch.getEntitiesCount(), batch.getSerializedSize());
+            responseObserver.onNext(batch);
+        });
+
+        responseObserver.onCompleted();
     }
 
     private Collection<TopologyEntityDTO> filterEntityByType (RetrieveTopologyEntitiesRequest request,

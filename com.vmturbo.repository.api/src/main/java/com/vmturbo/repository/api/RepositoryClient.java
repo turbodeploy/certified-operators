@@ -3,6 +3,7 @@ package com.vmturbo.repository.api;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -13,16 +14,18 @@ import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * Sends commands to the repository using gRPC.
@@ -45,20 +48,22 @@ public class RepositoryClient {
     }
 
     /**
-     * Retrieve real time topology entities with provided OIDs
+     * Retrieve real time topology entities with provided OIDs.
      *
      * @param oids OIDs to retrieve topology entities
      * @param realtimeContextId real time context id
-     * @return RetrieveTopologyEntitiesResponse
+     * @return a stream of {@link TopologyEntityDTO} objects
      */
-    public RetrieveTopologyEntitiesResponse retrieveTopologyEntities(@Nonnull final List<Long> oids,
-                                                                              final long realtimeContextId) {
+    public Stream<TopologyEntityDTO> retrieveTopologyEntities(@Nonnull final List<Long> oids,
+                                                              final long realtimeContextId) {
         RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(oids)
                 .setTopologyContextId(realtimeContextId)
                 .setTopologyType(TopologyType.SOURCE)
                 .build();
-        return repositoryService.retrieveTopologyEntities(request);
+
+        Iterator<EntityBatch> batchIterator = repositoryService.retrieveTopologyEntities(request);
+        return RepositoryDTOUtil.topologyEntityStream(batchIterator);
     }
 
     public RepositoryOperationResponse deleteTopology(long topologyId,

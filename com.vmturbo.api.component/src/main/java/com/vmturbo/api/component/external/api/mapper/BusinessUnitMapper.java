@@ -10,15 +10,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -47,7 +48,6 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -209,10 +209,10 @@ public class BusinessUnitMapper {
     private Optional<TargetApiDTO> getTargetType(@Nonnull final RepositoryClient repositoryClient,
                                                  @Nonnull final ITargetsService targetsService,
                                                  final long associatedAccountId) {
-        final RetrieveTopologyEntitiesResponse response = repositoryClient
+        final Stream<TopologyEntityDTO> response = repositoryClient
                 .retrieveTopologyEntities(ImmutableList.of(associatedAccountId), realtimeTopologyContextId);
 
-        return response.getEntitiesList().stream()
+        return response
                 .findFirst()
                 .flatMap(topologyEntityDTO
                         -> topologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
@@ -316,7 +316,7 @@ public class BusinessUnitMapper {
                 .collect(Collectors.toList());
         final List<TopologyEntityDTO> topologyEntityDTOS = repositoryClient
                 .retrieveTopologyEntities(cloudServiceOids, realtimeTopologyContextId)
-                .getEntitiesList();
+                .collect(Collectors.toList());
 
         return searchResponse.getRawResults().stream()
                 .flatMap(apiDTO -> topologyEntityDTOS
@@ -405,7 +405,8 @@ public class BusinessUnitMapper {
                 .map(connectedEntity -> connectedEntity.getConnectedEntityId())
                 .collect(Collectors.toList());
         return oids.isEmpty() ? Collections.emptyList() :
-                repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId).getEntitiesList();
+                repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId)
+                .collect(Collectors.toList());
     }
 
 
@@ -441,17 +442,18 @@ public class BusinessUnitMapper {
         final List<Long> oids = baseApiDTOS.stream()
                 .map(baseApiDTO -> Long.parseLong(baseApiDTO.getUuid()))
                 .collect(Collectors.toList());
+        Stream<TopologyEntityDTO> entityStream = repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId);
+        final List<TopologyEntityDTO> entities = entityStream
+                .collect(Collectors.toList());
 
-        final RetrieveTopologyEntitiesResponse response = repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId);
-
-        if (response != null && response.getEntitiesList() != null && response.getEntitiesList().size() > 0) {
-            final long firstTopologyEntityOid = response.getEntitiesList().get(0).getOid();
+        if (entities.size() > 0) {
+            final long firstTopologyEntityOid = entities.get(0).getOid();
             final String type = getTargetType(repositoryClient, targetsService, firstTopologyEntityOid)
                     .map(targetApiDTO -> targetApiDTO.getType())
                     .orElse("UNKNOWN");
 
             return baseApiDTOS.stream()
-                    .flatMap(apiDTO -> response.getEntitiesList()
+                    .flatMap(apiDTO -> entities
                             .stream()
                             .filter(dto -> dto.getOid() == Long.parseLong(apiDTO.getUuid()))
                             .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(apiDTO, tpDto, normalize(type), targetsService))

@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -15,7 +14,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -29,24 +27,24 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -170,8 +168,8 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .putAllCouponsCoveredByRi(riUsage)
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
-                        .addAllEntities(entityMap.values()).build());
+                .thenReturn(Arrays.asList(EntityBatch.newBuilder()
+                        .addAllEntities(entityMap.values()).build()));
         store.updateProjectedRICoverageTableForPlan(projectedTopoId, topoInfo, entityRICoverage);
         final List<PlanProjectedReservedInstanceCoverageRecord> records = dsl
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).fetch();
@@ -248,8 +246,8 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .putAllCouponsCoveredByRi(riUsage)
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
-            .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
-                .addAllEntities(getEntityMap().values()).build());
+            .thenReturn(Arrays.asList(EntityBatch.newBuilder()
+                .addAllEntities(getEntityMap().values()).build()));
         Thread thread1 = new Thread(new Runnable() {
             @Override
             public void run() {

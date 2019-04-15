@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -78,8 +80,6 @@ public class EntityRetriever {
     public Optional<TopologyEntityDTO> retrieveTopologyEntity(final long entityId) {
         return repositoryClient.retrieveTopologyEntities(
                 Collections.singletonList(Long.valueOf(entityId)), realtimeTopologyContextId)
-                .getEntitiesList()
-                .stream()
                 .findFirst();
     }
 
@@ -89,8 +89,7 @@ public class EntityRetriever {
      * @param entities the entities to fetch data about
      * @return entity data corresponding to the provided entities
      */
-    public List<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        return repositoryClient.retrieveTopologyEntities(entities, realtimeTopologyContextId)
-                .getEntitiesList();
+    public Stream<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
+        return repositoryClient.retrieveTopologyEntities(entities, realtimeTopologyContextId);
     }
 }

@@ -1,10 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -13,31 +10,28 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Table;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
@@ -45,8 +39,6 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanc
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryListener;
-
-import net.bytebuddy.description.annotation.AnnotationDescription.Builder;
 
 public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
@@ -146,14 +138,13 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                                       @Nonnull List<EntityReservedInstanceCoverage> entityRICoverage) {
         // get plan projected topology entity DTO from repository
         long topologyContextId = topoInfo.getTopologyContextId();
-        Map<Long,TopologyEntityDTO> entityMap = repositoryClient
+        Map<Long,TopologyEntityDTO> entityMap = RepositoryDTOUtil.topologyEntityStream(repositoryClient
                 .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                         .setTopologyContextId(topoInfo.getTopologyContextId())
                         .setTopologyId(projectedTopologyId)
                         .setTopologyType(TopologyType.PROJECTED)
                         .addAllEntityType(entityTypeSet)
-                        .build())
-                        .getEntitiesList().stream()
+                        .build()))
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TopologyEntityDTO> allRegion = entityMap.values()
                 .stream().filter( v -> v.getEntityType() == EntityType.REGION_VALUE)

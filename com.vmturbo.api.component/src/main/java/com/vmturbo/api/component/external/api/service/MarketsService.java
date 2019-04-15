@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -20,7 +19,9 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,8 +29,6 @@ import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
-
-import com.google.common.collect.ImmutableList;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -45,9 +44,8 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.plan.orchestrator.api.PlanUtils;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -79,6 +77,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
@@ -86,6 +85,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -123,7 +123,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -132,12 +131,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 
 /**
  * Service implementation of Markets.
@@ -408,13 +407,13 @@ public class MarketsService implements IMarketsService {
         List<ServiceEntityApiDTO> serviceEntityApiDTOs = null;
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
-            RetrieveTopologyEntitiesResponse response =
+            Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
                     repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                             .setTopologyContextId(realtimeTopologyContextId)
                             .setTopologyType(TopologyType.SOURCE)
-                            .build());
+                            .build()));
 
-            List<TopologyEntityDTO> entitiesList = response.getEntitiesList();
+            List<TopologyEntityDTO> entitiesList = entities.collect(Collectors.toList());
             serviceEntityApiDTOs = marketMapper.seDtosFromTopoResponse(entitiesList);
         } else {
             OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
@@ -907,13 +906,12 @@ public class MarketsService implements IMarketsService {
         if (providers.size() < providerOids.size()) {
             final Set<Long> missingProviders = Sets.difference(providerOids, providers.keySet());
             // Retrieve missing providers and put them in the providers map
-            repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+            RepositoryDTOUtil.topologyEntityStream(repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                     .addAllEntityOids(missingProviders)
                     .setTopologyContextId(plan.getPlanId())
                     .setTopologyId(plan.getProjectedTopologyId())
                     .setTopologyType(TopologyType.PROJECTED)
-                    .build())
-                    .getEntitiesList().stream()
+                    .build()))
                     .forEach(dto -> providers.put(dto.getOid(), dto));
         }
 
@@ -1135,13 +1133,12 @@ public class MarketsService implements IMarketsService {
          * @param dataCenterIds
          */
         private List<String> fetchDataCenterNamesByOids(final List<String> dataCenterIds) {
-            return repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+            return RepositoryDTOUtil.topologyEntityStream(repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                     .addAllEntityOids(dataCenterIds.stream()
                             .map(Long::parseLong).collect(Collectors.toList()))
                     .setTopologyContextId(realtimeTopologyContextId)
                     .setTopologyType(TopologyType.SOURCE)
-                    .build())
-                    .getEntitiesList().stream()
+                    .build()))
                     .map(TopologyEntityDTO::getDisplayName)
                     .collect(Collectors.toList());
         }

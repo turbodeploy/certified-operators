@@ -10,13 +10,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper.MissingTopologyEntityException;
 import com.vmturbo.api.component.external.api.service.SearchService;
@@ -39,7 +40,6 @@ import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -117,17 +117,25 @@ public class BusinessUnitMapperTest {
 
     @Before
     public void setup() throws Exception {
-        final RetrieveTopologyEntitiesResponse response = RetrieveTopologyEntitiesResponse.newBuilder()
-            .addEntities(TopologyEntityDTO.newBuilder()
+        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
                 .setOid(ENTITY_OID)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                    DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-                    BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
-                .build())
-            .build();
-        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong())).thenReturn(response);
+                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+                .build();
+        Stream<TopologyEntityDTO> responseStream = Stream.of(TopologyEntityDTO.newBuilder()
+                .setOid(ENTITY_OID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
+                .build());
+
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenAnswer(i -> Stream.of(entity));
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(TARGET_UUID);
         targetApiDTO.setType(AWS);
@@ -210,7 +218,10 @@ public class BusinessUnitMapperTest {
 
     @Test(expected = MissingTopologyEntityException.class)
     public void testToDiscoveredBusinessUnitDTOWithException() throws Exception {
-        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, Mockito.mock(RepositoryClient.class));
+
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong())).thenReturn(Stream.empty());
+
+        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(searchService, targetsService, repositoryClient);
     }
 
 }

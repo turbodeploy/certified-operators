@@ -2,23 +2,24 @@ package com.vmturbo.repository.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
 import org.assertj.core.util.Lists;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,19 +27,20 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import io.grpc.Status.Code;
+import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -94,7 +96,7 @@ public class RepositoryRpcServiceTest {
 
     private RepositoryRpcService repoRpcService = new RepositoryRpcService(
             topologyLifecycleManager, topologyProtobufsManager, graphDBService,
-            paginationParamsFactory, entityStatsPaginator, planEntityStatsExtractor);
+            paginationParamsFactory, entityStatsPaginator, planEntityStatsExtractor, 10);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -122,7 +124,7 @@ public class RepositoryRpcServiceTest {
         verify(topologyLifecycleManager).deleteTopology(eq(new TopologyID(topologyContextId,
                 topologyId,
                 TopologyType.PROJECTED)));
-        Assert.assertEquals(repoResponse.getResponseCode(),
+        assertEquals(repoResponse.getResponseCode(),
                 RepositoryOperationResponseCode.OK);
     }
 
@@ -221,6 +223,43 @@ public class RepositoryRpcServiceTest {
                 .addAllEntityOids(Lists.newArrayList(1L))
                 .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.SOURCE)
                 .build());
+    }
+
+    @Test
+    public void testRetrieveTopologyEntitiesStreaming() {
+        // test that a response that should get chunked.
+        Collection<TopologyEntityDTO> manyEntities = new ArrayList<>();
+        // we configured the service for a batch size of 10, so let's send 11 entities.
+        int numEntities = 11;
+        for (int x = 0 ; x < numEntities ; x++) {
+            TopologyEntityDTO newEntity = TopologyEntityDTO.newBuilder()
+                    .setOid(x)
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setDisplayName(String.valueOf(x))
+                    .build();
+            manyEntities.add(newEntity);
+        }
+        when(graphDBService.retrieveTopologyEntities(Mockito.anyLong(), Mockito.anyLong(),
+                Mockito.anySet(), eq(TopologyType.SOURCE)))
+                .thenReturn(Either.right(manyEntities));
+        RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.SOURCE)
+                .build();
+        // call the service directly so we can monitor the response
+        StreamObserver<EntityBatch> responseStreamObserver = Mockito.spy(StreamObserver.class);
+        repoRpcService.retrieveTopologyEntities(request, responseStreamObserver);
+        verify(responseStreamObserver, times(2)).onNext(any());
+
+        // verify we get all entities in the final response too
+        Iterator<EntityBatch> response = repositoryService.retrieveTopologyEntities(request);
+        int totalEntities = 0;
+        while(response.hasNext()) {
+            totalEntities += response.next().getEntitiesCount();
+        }
+        assertEquals(numEntities, totalEntities);
+
     }
 
     @Test

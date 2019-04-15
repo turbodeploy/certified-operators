@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
@@ -15,9 +16,9 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -134,13 +135,13 @@ public class ReservationPlacementHandlerTest {
                 .addAllEntityOids(Collections.singletonList(3L))
                 .build();
         Mockito.when(repositoryServiceMole.retrieveTopologyEntities(entityRequest))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
+                .thenReturn(ImmutableList.of(EntityBatch.newBuilder()
                         .addEntities(reservationEntity)
-                        .build());
+                        .build()));
         Mockito.when(repositoryServiceMole.retrieveTopologyEntities(providerRequest))
-                .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()
+                .thenReturn(ImmutableList.of(EntityBatch.newBuilder()
                         .addEntities(providerEntity)
-                        .build());
+                        .build()));
         reservationPlacementHandler.updateReservations(contextId, topologyId);
         Mockito.verify(reservationDao, Mockito.times(1))
                 .updateReservationBatch(ImmutableSet.of(newReservation));

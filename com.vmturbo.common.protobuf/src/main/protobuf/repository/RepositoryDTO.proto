@@ -62,8 +62,9 @@ message RetrieveTopologyEntitiesRequest {
     }
 }
 
-// Response of retrieve topology entities.
-message RetrieveTopologyEntitiesResponse {
+// a batch of entities. The max number of entities in the batch is expected to be controlled by the
+// repositoryMaxEntitiesPerChunk property.
+message EntityBatch {
     // Returned topology entity dto which only contains partial fields. Even though it missing all
     // Market setting fields but we do not need them.
     repeated topology.TopologyEntityDTO entities = 1;
@@ -132,7 +133,7 @@ service RepositoryService {
 
     // Try to get topology entities from Repository, and note that the returned TopologyEntityDTO contains
     // only partial fields, because some fields not stored at ServiceEntityRepoDTO.
-    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (RetrieveTopologyEntitiesResponse);
+    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (stream EntityBatch);
 
     // Fetch the stats related to a given plan execution. The request includes a StatsFilter specifying
     // a startDate and endDate. If the startDate is in the past, then this call will include a
