@@ -1,13 +1,16 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ActivateActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.DeleteActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.MoveActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostActivateActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostDeleteActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostMoveActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostProvisionActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostResizeActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PostSuspendActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreActivateActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreDeleteActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreMoveActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreProvisionActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreResizeActionWorkflow;
@@ -102,6 +105,7 @@ public class ActionModeCalculator {
                 .put(ActionType.MOVE, MoveActionWorkflow)
                 .put(ActionType.PROVISION, ProvisionActionWorkflow)
                 .put(ActionType.RESIZE, ResizeActionWorkflow)
+                .put(ActionType.DELETE, DeleteActionWorkflow)
                 .build();
 
     /**
@@ -118,6 +122,7 @@ public class ActionModeCalculator {
             .put(ActionType.MOVE, PreMoveActionWorkflow)
             .put(ActionType.PROVISION, PreProvisionActionWorkflow)
             .put(ActionType.RESIZE, PreResizeActionWorkflow)
+            .put(ActionType.DELETE, PreDeleteActionWorkflow)
             .build();
 
     /**
@@ -134,6 +139,7 @@ public class ActionModeCalculator {
             .put(ActionType.MOVE, PostMoveActionWorkflow)
             .put(ActionType.PROVISION, PostProvisionActionWorkflow)
             .put(ActionType.RESIZE, PostResizeActionWorkflow)
+            .put(ActionType.DELETE, PostDeleteActionWorkflow)
             .build();
 
     /**
@@ -149,6 +155,7 @@ public class ActionModeCalculator {
                     .put(ProvisionActionWorkflow, EntitySettingSpecs.Provision)
                     .put(ResizeActionWorkflow, EntitySettingSpecs.Resize)
                     .put(SuspendActionWorkflow, EntitySettingSpecs.Suspend)
+                    .put(DeleteActionWorkflow, EntitySettingSpecs.Delete)
                     .build();
 
     /**
@@ -439,6 +446,8 @@ public class ActionModeCalculator {
                 return Stream.of(EntitySettingSpecs.Activate);
             case DEACTIVATE:
                 return Stream.of(EntitySettingSpecs.Suspend);
+            case DELETE:
+                return Stream.of(EntitySettingSpecs.Delete);
             case ACTIONTYPE_NOT_SET:
                 return Stream.empty();
         }

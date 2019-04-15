@@ -16,6 +16,7 @@ message Explanation {
        DeactivateExplanation deactivate = 4;
        ReconfigureExplanation reconfigure = 5;
        ProvisionExplanation provision = 6;
+       DeleteExplanation delete = 7;
    }
    // A list of explanations for move action.
     message MoveExplanation {
@@ -92,6 +93,12 @@ message Explanation {
 
     // Deactivate explanation will always be improve overall efficiency.
     message DeactivateExplanation {}
+
+   // Delete - right now used for wasted files only
+   message DeleteExplanation {
+       // The size of the file to delete (needed for ON_PREM only)
+       optional int64 size_kb = 1;
+   }
 
     // Reconfigure explanation contains the base type of the reconfigure commodity.
     message ReconfigureExplanation {
@@ -228,6 +235,15 @@ message Deactivate {
     repeated topology.CommodityType triggering_commodities = 2;
 }
 
+message Delete {
+    // The oid of the Storage or Storage Tier that the virtual volume that is wasted (for cloud)
+    // or the virtual volume which contains the wasted file (for on prem) is connected to.
+    optional ActionEntity target = 1;
+
+    // The path to the wasted file (on prem) or volume (cloud)
+    optional string file_path = 2;
+}
+
 // Represents an action to reconfigure an entity shopping list of a trader that contains a mix of
 // commodities no trader is able to provide.
 // An example of a Reconfigure action is when a VM is configured to run with some network (say "VLAN-1")
@@ -274,6 +290,7 @@ message ActionInfo {
         Resize resize = 4;
         Activate activate = 5;
         Deactivate deactivate = 6;
+        Delete delete = 7;
     }
 }
 
@@ -454,6 +471,9 @@ enum ActionType {
 
     // Deactivate an active service entity.
     DEACTIVATE = 8;
+
+    // Delete a wasted file associated with a Storage or StorageTier
+    DELETE = 9;
 }
 
 // The ActionState describes the current state of an action.

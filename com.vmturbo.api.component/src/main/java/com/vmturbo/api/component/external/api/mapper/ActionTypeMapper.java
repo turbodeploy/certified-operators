@@ -43,6 +43,7 @@ public class ActionTypeMapper {
                 .put(ActionDTO.ActionType.RESIZE, ActionType.RESIZE)
                 .put(ActionDTO.ActionType.ACTIVATE, ActionType.START)
                 .put(ActionDTO.ActionType.DEACTIVATE, ActionType.SUSPEND)
+                .put(ActionDTO.ActionType.DELETE, ActionType.DELETE)
                 .build();
 
     private ActionTypeMapper() {}

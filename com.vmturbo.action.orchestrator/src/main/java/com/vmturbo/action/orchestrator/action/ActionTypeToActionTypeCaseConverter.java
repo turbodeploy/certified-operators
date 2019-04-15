@@ -34,6 +34,7 @@ public class ActionTypeToActionTypeCaseConverter {
                      */
                     .put(ActionType.SUSPEND, ActionTypeCase.DEACTIVATE)
                     .put(ActionType.START, ActionTypeCase.ACTIVATE)
+                    .put(ActionType.DELETE, ActionTypeCase.DELETE)
                     .build();
 
     /**

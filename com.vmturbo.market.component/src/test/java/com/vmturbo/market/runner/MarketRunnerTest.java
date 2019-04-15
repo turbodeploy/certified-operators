@@ -125,11 +125,14 @@ public class MarketRunnerTest {
             final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
             when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+            final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
+                mock(WastedFilesAnalysisFactory.class);
 
             return new Analysis(topologyInfo, entities,
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                     Clock.systemUTC(), configBuilder.build(),
-                    cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+                    cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
+                    wastedFilesAnalysisFactory);
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 

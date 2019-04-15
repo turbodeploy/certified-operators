@@ -45,6 +45,8 @@ import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -575,12 +577,12 @@ public class ActionSpecMapperTest {
     public void testMapDeactivate() throws Exception {
         final long targetId = 1;
         final ActionInfo deactivateInfo = ActionInfo.newBuilder()
-                        .setDeactivate(Deactivate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
-                                        .addTriggeringCommodities(commodityCpu)
-                                        .addTriggeringCommodities(commodityMem))
-                        .build();
+            .setDeactivate(Deactivate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
+                .addTriggeringCommodities(commodityCpu)
+                .addTriggeringCommodities(commodityMem))
+            .build();
         Explanation deactivate = Explanation.newBuilder()
-                        .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
+            .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToDeactivateName = "EntityToDeactivate";
         final String className = "C0";
         final String prettyClassName = "C 0";
@@ -594,10 +596,38 @@ public class ActionSpecMapperTest {
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
-                        IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+            IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
+                CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
         assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
-                " " + entityToDeactivateName));
+            " " + entityToDeactivateName));
+    }
+
+    @Test
+    public void testMapDelete() throws Exception {
+        final long targetId = 1;
+        final String fileName = "foobar";
+        final String filePath = "/etc/local/" + fileName;
+        final ActionInfo deleteInfo = ActionInfo.newBuilder()
+            .setDelete(Delete.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
+                .setFilePath(filePath)
+                .build())
+            .build();
+        Explanation delete = Explanation.newBuilder()
+            .setDelete(DeleteExplanation.newBuilder().setSizeKb(2048l).build()).build();
+        final String entityToDelete = "EntityToDelete";
+        final String className = "C0";
+        final String prettyClassName = "C 0";
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+            .thenReturn(oidToEntityMap(entityApiDTO(entityToDelete, targetId, className)));
+
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            buildActionSpec(deleteInfo, delete), contextId);
+        assertEquals(entityToDelete, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
+        assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
+        assertThat(actionApiDTO.getDetails(), is("Delete wasted file '" + fileName + "' from " + prettyClassName +
+            " " + entityToDelete + " to free up 2 MB"));
     }
 
     /**

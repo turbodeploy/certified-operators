@@ -7,7 +7,6 @@ import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.MessageFormat;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
@@ -18,7 +17,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.StringJoiner;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -31,6 +29,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -64,8 +63,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -419,6 +419,10 @@ public class ActionSpecMapper {
                 break;
             case DEACTIVATE:
                 addDeactivateInfo(actionApiDTO, info.getDeactivate(), context);
+                break;
+            case DELETE:
+                addDeleteInfo(actionApiDTO, info.getDelete(),
+                    recommendation.getExplanation().getDelete(), context);
                 break;
             default: {
                 logger.info("Unhandled action, type: {}", info.getActionTypeCase().toString());
@@ -1054,6 +1058,39 @@ public class ActionSpecMapper {
             // we need to do it dynamically because also a "Delete" can be generated as action type
             CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, actionType.name().toLowerCase()),
             readableEntityTypeAndName(actionApiDTO.getTarget()));
+        actionApiDTO.setDetails(detailsMessage);
+    }
+
+    /**
+     * Add information related to a Delete action to the actionApiDTO.  Note that this currently only
+     * handles on prem wasted file delete actions.
+     *
+     * @param actionApiDTO the {@link ActionApiDTO} we are populating
+     * @param delete the {@link Delete} action info object that contains the basic delete action parameters
+     * @param deleteExplanation the {@link DeleteExplanation} that contains the details of the action
+     * @param context the {@link ActionSpecMappingContext}
+     * @throws UnknownObjectException
+     * @throws ExecutionException
+     * @throws InterruptedException
+     */
+    private void addDeleteInfo(@Nonnull final ActionApiDTO actionApiDTO,
+                               @Nonnull final Delete delete,
+                               @Nonnull final DeleteExplanation deleteExplanation,
+                               @Nonnull final ActionSpecMappingContext context)
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
+        final long targetEntityId = delete.getTarget().getId();
+        actionApiDTO.setTarget(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+        actionApiDTO.setCurrentEntity(
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+
+        actionApiDTO.setActionType(ActionType.DELETE);
+        // TODO need to give savings in terms of cost instead of file size for Cloud entities
+        String detailsMessage = MessageFormat.format("Delete wasted file ''{0}'' from {1}{2}",
+            delete.getFilePath().substring(delete.getFilePath().lastIndexOf('/') + 1),
+            readableEntityTypeAndName(actionApiDTO.getTarget()),
+            " to free up " + FileUtils
+                .byteCountToDisplaySize(deleteExplanation.getSizeKb() * FileUtils.ONE_KB));
         actionApiDTO.setDetails(detailsMessage);
     }
 

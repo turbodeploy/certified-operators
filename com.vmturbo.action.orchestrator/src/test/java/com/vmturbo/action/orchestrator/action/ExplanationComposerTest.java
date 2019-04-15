@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanat
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
@@ -160,11 +161,23 @@ public class ExplanationComposerTest {
     @Test
     public void testDeactivateExplanation() {
         ActionDTO.Action deactivate = ActionDTO.Action.newBuilder()
-                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
-                .setExplanation(Explanation.newBuilder()
-                    .setDeactivate(DeactivateExplanation.getDefaultInstance()))
-                        .build();
+            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setDeactivate(DeactivateExplanation.getDefaultInstance()))
+            .build();
 
         assertEquals("Improve infrastructure efficiency", ExplanationComposer.composeExplanation(deactivate));
+    }
+
+    @Test
+    public void testDeleteExplanation() {
+        ActionDTO.Action delete = ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.getDefaultInstance()).setImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setDelete(DeleteExplanation.getDefaultInstance()))
+            .build();
+
+        assertEquals("Idle or non-productive",
+            ExplanationComposer.composeExplanation(delete));
     }
 }

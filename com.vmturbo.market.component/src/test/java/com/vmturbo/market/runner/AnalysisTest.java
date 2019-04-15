@@ -27,7 +27,12 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -91,6 +96,15 @@ public class AnalysisTest {
 
     private final Clock mockClock = mock(Clock.class);
 
+    private final Action wastedFileAction = Action.newBuilder()
+        .setInfo(ActionInfo.newBuilder()
+            .setDelete(Delete.getDefaultInstance()))
+        .setExplanation(Explanation.newBuilder()
+            .setDelete(DeleteExplanation.getDefaultInstance()))
+        .setImportance(0.0d)
+        .setId(1234l).build();
+
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService, testSettingService);
@@ -112,16 +126,13 @@ public class AnalysisTest {
     }
 
     /**
-     * Test the {@link Analysis} constructor.
+     * Convenience method to get an Analysis based on an analysisConfig.
+     *
+     * @param analysisConfig configuration for the analysis
+     * @param topologySet set of TopologyEntityDTOs representing the topology
+     * @return Analysis
      */
-    @Test
-    public void testConstructor() {
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT,
-                    getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
-                .setIncludeVDC(true)
-                .build();
-
+    private Analysis getAnalysis(AnalysisConfig analysisConfig, Set<TopologyEntityDTO> topologySet) {
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
@@ -130,10 +141,37 @@ public class AnalysisTest {
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
+            mock(WastedFilesAnalysisFactory.class);
+        final WastedFilesAnalysis wastedFilesAnalysis = mock(WastedFilesAnalysis.class);
+        when(wastedFilesAnalysisFactory.newWastedFilesAnalysis(any(),any(), any(), any(), any()))
+            .thenReturn(wastedFilesAnalysis);
+        when(wastedFilesAnalysis.getState()).thenReturn(AnalysisState.SUCCEEDED);
+        when(wastedFilesAnalysis.getActions())
+            .thenReturn(Collections.singletonList(wastedFileAction));
 
-        final Analysis analysis = new Analysis(topologyInfo, Collections.emptySet(),
-                groupServiceClient, mockClock, analysisConfig,
-                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+        return new Analysis(topologyInfo, topologySet,
+            groupServiceClient, mockClock, analysisConfig,
+            cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
+            wastedFilesAnalysisFactory);
+    }
+
+    private Analysis getAnalysis(AnalysisConfig analysisConfig) {
+        return getAnalysis(analysisConfig, Collections.emptySet());
+    }
+
+        /**
+         * Test the {@link Analysis} constructor.
+         */
+    @Test
+    public void testConstructor() {
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT,
+                    getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                .setIncludeVDC(true)
+                .build();
+
+        final Analysis analysis = getAnalysis(analysisConfig);
 
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
@@ -154,18 +192,7 @@ public class AnalysisTest {
                 .setIncludeVDC(true)
                 .build();
 
-        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
-        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
-        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
-        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
-        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
-
-        final Analysis analysis  = new Analysis(topologyInfo, Collections.emptySet(),
-                groupServiceClient, mockClock, analysisConfig,
-                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+        final Analysis analysis = getAnalysis(analysisConfig);
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(analysis.getState(), AnalysisState.SUCCEEDED);
@@ -174,6 +201,7 @@ public class AnalysisTest {
 
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
+        assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedFileAction));
     }
 
     /**
@@ -189,18 +217,7 @@ public class AnalysisTest {
                 .setIncludeVDC(true)
                 .build();
 
-        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
-        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
-        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
-        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
-        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
-
-        final Analysis analysis  = new Analysis(topologyInfo, set,
-                groupServiceClient, mockClock, analysisConfig,
-                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+        final Analysis analysis  = getAnalysis(analysisConfig);
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(AnalysisState.FAILED, analysis.getState());
@@ -237,18 +254,7 @@ public class AnalysisTest {
                 .setIncludeVDC(true)
                 .build();
 
-        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
-        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
-        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
-        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
-        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
-
-        final Analysis analysis  = new Analysis(topologyInfo, Collections.emptySet(),
-                groupServiceClient, mockClock, analysisConfig,
-                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+        final Analysis analysis  = getAnalysis(analysisConfig);
         boolean first = analysis.execute();
         boolean second = analysis.execute();
         assertTrue(first);
@@ -263,18 +269,7 @@ public class AnalysisTest {
                 .setIncludeVDC(true)
                 .build();
 
-        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
-        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
-        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
-        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
-        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
-
-        final Analysis analysis  = new Analysis(topologyInfo, Collections.emptySet(),
-                groupServiceClient, mockClock, analysisConfig,
-                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+        final Analysis analysis  = getAnalysis(analysisConfig);
 
         analysis.execute();
         final ActionPlan actionPlan = analysis.getActionPlan().get();
@@ -345,18 +340,7 @@ public class AnalysisTest {
                 .setRightsizeUpperWatermark(0.8f)
                 .build();
 
-        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
-        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
-        when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
-        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
-        final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
-
-        Analysis analysis = Mockito.spy(new Analysis(topologyInfo, topologySet,
-                groupServiceClient, mockClock, analysisConfig,
-                cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory));
+        Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, topologySet));
 
         Mockito.doReturn(topologySet).when(analysis)
                 .getEntityDTOsInCluster(eq(ClusterInfo.Type.STORAGE));
@@ -371,6 +355,5 @@ public class AnalysisTest {
                 .build();
         assertEquals(type, fakeEntityDTO.getCommoditiesBoughtFromProvidersList().get(0)
                 .getCommodityBought(0).getCommodityType());
-
     }
 }

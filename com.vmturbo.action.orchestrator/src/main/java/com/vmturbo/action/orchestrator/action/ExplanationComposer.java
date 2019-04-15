@@ -11,12 +11,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableBiMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.google.common.collect.ImmutableBiMap;
+
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -24,12 +23,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -64,7 +63,7 @@ public class ExplanationComposer {
     public static final String INCREASE_RI_UTILIZATION =
             "Increase RI Utilization.";
     public static final String WASTED_COST = "Wasted Cost";
-
+    private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     /**
      * Private to prevent instantiation.
      */
@@ -133,6 +132,8 @@ public class ExplanationComposer {
                     default:
                         return ACTION_TYPE_ERROR;
                 }
+            case DELETE:
+                return buildDeleteExplanation(action);
             default:
                 return ACTION_TYPE_ERROR;
         }
@@ -275,6 +276,17 @@ public class ExplanationComposer {
             sb.append(commodityType).append(" congestion").append(targetClause);
         }
         return sb.toString();
+    }
+
+    /**
+     * Build a delete explanation.  For now, this only handles wasted files all of which have the
+     * same static explanation.
+     *
+     * @param action the delete action
+     * @return String giving the explanation for the action
+     */
+    private static String buildDeleteExplanation(ActionDTO.Action action) {
+        return DELETE_WASTED_FILES_EXPLANATION;
     }
 
     /**

@@ -20,7 +20,6 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -79,6 +78,8 @@ public interface AnalysisFactory {
 
         private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
 
+        private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
+
         private final CloudCostDataProvider cloudCostDataProvider;
 
         /**
@@ -101,6 +102,7 @@ public interface AnalysisFactory {
                   @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
                   @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                   @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
+                  @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
                   @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final Clock clock,
                   final float alleviatePressureQuoteFactor,
@@ -116,6 +118,7 @@ public interface AnalysisFactory {
             this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
             this.priceTableFactory = Objects.requireNonNull(marketPriceTableFactory);
             this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
+            this.wastedFilesAnalysisFactory = Objects.requireNonNull(wastedFilesAnalysisFactory);
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
@@ -143,7 +146,7 @@ public interface AnalysisFactory {
             return new Analysis(topologyInfo, topologyEntities,
                 groupServiceClient, clock,
                 configBuilder.build(), cloudTopologyFactory,
-                topologyCostCalculatorFactory, priceTableFactory);
+                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory);
         }
 
         /**

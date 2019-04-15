@@ -129,9 +129,16 @@ public enum EntitySettingSpecs {
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+        EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+            EntityType.CONTAINER_POD, EntityType.CONTAINER,
+            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Delete action automation mode.
+     */
+    Delete("delete", "Delete", Collections.emptyList(), SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER), nonExecutableActionMode(), true),
+
     /**
      * Provision action automation mode.
      */
@@ -470,10 +477,10 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when a suspend action is generated and executed.
      */
     SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
-            Collections.singletonList("automation"),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
-            string(), true),
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
 
     /**
      * Automation Policy for the Suspend pre workflow. The value is the name of an
@@ -493,6 +500,36 @@ public enum EntitySettingSpecs {
         Collections.singletonList("automation"),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Delete Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a delete action is generated and executed.
+     */
+    DeleteActionWorkflow("deleteActionWorkflow", "Delete Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Delete pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a delete action is executed.
+     */
+    PreDeleteActionWorkflow("preDeleteActionWorkflow", "Delete Pre Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
+        string(), true),
+
+    /**
+     * Automation Policy for the Delete post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a delete action is executed (whether successful or not).
+     */
+    PostDeleteActionWorkflow("postDeleteActionWorkflow", "Delete Post Workflow",
+        Collections.singletonList("automation"),
+        SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
         string(), true),
 
     /**

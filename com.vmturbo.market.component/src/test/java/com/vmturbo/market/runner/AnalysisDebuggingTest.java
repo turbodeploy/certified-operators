@@ -258,12 +258,15 @@ public class AnalysisDebuggingTest {
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
+            mock(WastedFilesAnalysisFactory.class);
 
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
             GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             Clock.systemUTC(),
-            analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory);
+            analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
+            wastedFilesAnalysisFactory);
         return analysis;
     }
 

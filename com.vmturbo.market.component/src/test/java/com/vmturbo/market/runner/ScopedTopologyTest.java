@@ -127,8 +127,8 @@ public class ScopedTopologyTest {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
             AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap())
-                .setIncludeVDC(INCLUDE_VDC)
-                .build();
+            .setIncludeVDC(INCLUDE_VDC)
+            .build();
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
@@ -139,15 +139,18 @@ public class ScopedTopologyTest {
         when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
+        final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
+            mock(WastedFilesAnalysisFactory.class);
 
         testAnalysis = new Analysis(topoogyInfo,
-                Collections.emptySet(),
-                groupServiceClient,
-                Clock.systemUTC(),
-                analysisConfig,
-                cloudTopologyFactory,
-                cloudCostCalculatorFactory,
-                priceTableFactory);
+            Collections.emptySet(),
+            groupServiceClient,
+            Clock.systemUTC(),
+            analysisConfig,
+            cloudTopologyFactory,
+            cloudCostCalculatorFactory,
+            priceTableFactory,
+            wastedFilesAnalysisFactory);
     }
 
     /**
@@ -259,6 +262,7 @@ public class ScopedTopologyTest {
         MarketNotificationSender serverApi = mock(MarketNotificationSender.class);
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
+        WastedFilesAnalysisFactory wastedFilesAnalysisFactory = mock(WastedFilesAnalysisFactory.class);
         TopologyCostCalculatorFactory topologyCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(topologyCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
@@ -294,7 +298,8 @@ public class ScopedTopologyTest {
                 when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
                 return new Analysis(topologyInfo, topologyDTOs,
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
-                        cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory);
+                        cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,
+                        wastedFilesAnalysisFactory);
             });
 
         Analysis analysis =

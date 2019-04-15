@@ -22,6 +22,7 @@
       "settings": [
         "move",
         "suspend",
+        "delete",
         "resize",
         "provision",
         "activate",
@@ -70,16 +71,19 @@
         "provisionActionWorkflow",
         "resizeActionWorkflow",
         "suspendActionWorkflow",
+        "deleteActionWorkflow",
         "preActivateActionWorkflow",
         "preMoveActionWorkflow",
         "preProvisionActionWorkflow",
         "preResizeActionWorkflow",
         "preSuspendActionWorkflow",
+        "preDeleteActionWorkflow",
         "postActivateActionWorkflow",
         "postMoveActionWorkflow",
         "postProvisionActionWorkflow",
         "postResizeActionWorkflow",
-        "postSuspendActionWorkflow"
+        "postSuspendActionWorkflow",
+        "postDeleteActionWorkflow"
       ]
     },
     "marketsettingsmanager": {

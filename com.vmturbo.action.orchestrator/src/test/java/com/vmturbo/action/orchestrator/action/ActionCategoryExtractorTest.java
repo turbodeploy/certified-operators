@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
@@ -151,7 +152,16 @@ public class ActionCategoryExtractorTest {
             DeactivateExplanation.getDefaultInstance()).build();
 
         assertThat(ActionCategoryExtractor.assignActionCategory(deactivate),
-                is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+            is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+    }
+
+    @Test
+    public void testDeleteCategory() {
+        Explanation delete = Explanation.newBuilder().setDelete(
+            DeleteExplanation.getDefaultInstance()).build();
+
+        assertThat(ActionCategoryExtractor.assignActionCategory(delete),
+            is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test

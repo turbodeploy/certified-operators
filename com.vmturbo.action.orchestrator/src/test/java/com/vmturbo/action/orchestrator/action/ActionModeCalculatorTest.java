@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -376,14 +377,47 @@ public class ActionModeCalculatorTest {
     @Test
     public void testNoSettingDeactivate() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setDeactivate(Deactivate.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))))
-                .build();
+            .setDeactivate(Deactivate.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(7L)
+                    .setType(1))))
+            .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.valueOf(EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault())));
+            is(ActionMode.valueOf(EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault())));
+    }
+
+    @Test
+    public void testSettingDelete() {
+        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
+            .setDelete(Delete.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(7L)
+                    .setType(1))))
+            .build();
+        when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
+            ImmutableMap.of(EntitySettingSpecs.Delete.getSettingName(),
+                Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue(ActionMode.AUTOMATIC.name()))
+                    .build()));
+        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
+            is(ActionMode.AUTOMATIC));
+    }
+
+    @Test
+    public void testNoSettingDelete() {
+        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
+            .setDelete(Delete.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(7L)
+                    .setType(1))))
+            .build();
+        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+            is(ActionMode.RECOMMEND));
     }
 
     @Test

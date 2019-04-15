@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -168,6 +169,8 @@ public class Analysis {
 
     private final MarketPriceTable marketPriceTable;
 
+    private final WastedFilesAnalysis wastedFilesAnalysis;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -187,7 +190,8 @@ public class Analysis {
                     @Nonnull final AnalysisConfig analysisConfig,
                     @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                     @Nonnull final TopologyCostCalculatorFactory cloudCostCalculatorFactory,
-                    @Nonnull final MarketPriceTableFactory priceTableFactory) {
+                    @Nonnull final MarketPriceTableFactory priceTableFactory,
+                    @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -214,6 +218,9 @@ public class Analysis {
             null,
             this.topologyCostCalculator.getCloudCostData(),
             CommodityIndex.newFactory());
+        this.wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(topologyInfo,
+            topologyDTOs, this.clock, topologyCostCalculator, marketPriceTable);
+
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -397,6 +404,9 @@ public class Analysis {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(actionPlanBuilder::addAction);
+            // TODO move wasted files action out of main analysis once we have a framework
+            // to support multiple analyses for the same topology ID
+            actionPlanBuilder.addAllAction(getWastedFilesActions());
             logger.info(logPrefix + "Completed successfully");
             processResultTime.observe();
             state = AnalysisState.SUCCEEDED;
@@ -908,5 +918,21 @@ public class Analysis {
      */
     public void setReplayActions(ReplayActions replayActions) {
         this.realtimeReplayActions = replayActions;
+    }
+
+    /**
+     * Get the WastedFilesAnalysis associated with this Analysis.
+     *
+     * @return {@link Collection} of actions representing the wasted files or volumes.
+     */
+    private Collection<Action> getWastedFilesActions() {
+        // only generate wasted files actions for the realtime market
+        if (!topologyInfo.hasPlanInfo()) {
+            wastedFilesAnalysis.execute();
+            if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {
+                return wastedFilesAnalysis.getActions();
+            }
+        };
+        return Collections.emptyList();
     }
 }

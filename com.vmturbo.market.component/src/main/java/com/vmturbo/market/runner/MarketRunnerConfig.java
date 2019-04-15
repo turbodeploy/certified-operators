@@ -36,6 +36,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.runner.AnalysisFactory.DefaultAnalysisFactory;
+import com.vmturbo.market.runner.WastedFilesAnalysisFactory.DefaultWastedFilesAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketCloudCostDataProvider;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
@@ -117,12 +118,18 @@ public class MarketRunnerConfig {
                 marketPriceTableFactory(),
                 cloudTopologyFactory(),
                 topologyCostCalculatorFactory(),
+                wastedFilesAnalysisFactory(),
                 marketCloudCostDataProvider(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
                 standardQuoteFactor,
                 liveMarketMoveCostFactor,
                 suspensionThrottlingPerCluster);
+    }
+
+    @Bean
+    public WastedFilesAnalysisFactory wastedFilesAnalysisFactory() {
+        return new DefaultWastedFilesAnalysisFactory();
     }
 
     @Bean

@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -112,6 +113,21 @@ public final class TopologyDTOUtil {
                 .map(e -> topology.get(e.getConnectedEntityId()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Return a list containing the oids of the connected entities of the given type.
+     *
+     * @param entity to start from
+     * @param connectedEntityType type of entity to search for
+     * @return list of oids of connected entities
+     */
+    public static Stream<Long> getOidsOfConnectedEntityOfType(
+        @Nonnull final TopologyEntityDTO entity, final int connectedEntityType) {
+        return entity.getConnectedEntityListList().stream()
+            .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
+                connectedEntityType)
+            .map(ConnectedEntity::getConnectedEntityId);
     }
 
     /**

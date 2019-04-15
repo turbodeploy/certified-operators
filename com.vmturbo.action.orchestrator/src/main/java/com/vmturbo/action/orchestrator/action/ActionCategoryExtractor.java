@@ -93,6 +93,8 @@ public class ActionCategoryExtractor {
                     default:
                         return ActionCategory.UNKNOWN;
                 }
+            case DELETE:
+                return ActionCategory.EFFICIENCY_IMPROVEMENT;
             default:
                 return ActionCategory.UNKNOWN;
         }

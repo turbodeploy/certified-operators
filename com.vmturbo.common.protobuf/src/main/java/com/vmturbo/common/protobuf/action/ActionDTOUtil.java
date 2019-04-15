@@ -121,7 +121,7 @@ public class ActionDTOUtil {
         }
     }
 
-                                                   /**
+    /**
      * Get the ID of the entity to the severity of which this action's importance
      * applies. This will be one of the entities involved in the action.
      *
@@ -158,6 +158,8 @@ public class ActionDTOUtil {
                 return actionInfo.getProvision().getEntityToClone().getId();
             case RECONFIGURE:
                 return actionInfo.getReconfigure().getTarget().getId();
+            case DELETE:
+                return actionInfo.getDelete().getTarget().getId();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
@@ -189,6 +191,8 @@ public class ActionDTOUtil {
                 return actionInfo.getActivate().getTarget();
             case DEACTIVATE:
                 return actionInfo.getDeactivate().getTarget();
+            case DELETE:
+                return actionInfo.getDelete().getTarget();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
@@ -278,6 +282,8 @@ public class ActionDTOUtil {
                 } else {
                     return Collections.singletonList(reconfigure.getTarget());
                 }
+            case DELETE:
+                return Collections.singletonList(action.getInfo().getDelete().getTarget());
             default:
                 throw new UnsupportedActionException(action);
         }
@@ -356,6 +362,8 @@ public class ActionDTOUtil {
                 return ActionType.ACTIVATE;
             case DEACTIVATE:
                 return ActionType.DEACTIVATE;
+            case DELETE:
+                return ActionType.DELETE;
             default:
                 return ActionType.NONE;
         }
