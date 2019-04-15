@@ -56,7 +56,9 @@ public class ActionScriptTestBase extends Assert {
     }
 
     protected void stopApacheSshd() throws IOException {
-        apacheSshd.stop();
+        if (apacheSshd != null) {
+            apacheSshd.stop();
+        }
     }
 
     protected static int startSystemSshd(String authKey) throws IOException {

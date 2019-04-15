@@ -3,6 +3,7 @@ package com.vmturbo.mediation.actionscript;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.BindException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -34,16 +35,19 @@ import com.google.common.io.Resources;
 public class ApacheSshdBuilder {
     private static final Logger logger = LogManager.getLogger(ApacheSshdBuilder.class);
 
-    private final int testPort;
+    // If port initially allocated is in-use by the time we try to use it, we'll try again this
+    // many times in order to avoid pointlessly failing the test
+    private final int MAX_START_RETRIES = 2;
+
+    private Integer testPort;
     private SshServer sshd;
     private static RandomFactory randomFactory = new SingletonRandomFactory(SecurityUtils.getRandomFactory());
 
     public ApacheSshdBuilder() throws IOException, GeneralSecurityException {
         this.sshd = ServerBuilder.builder().randomFactory(randomFactory).build();
-        // allocate service port
-        testPort = SocketUtils.findAvailableTcpPort();
-        logger.info("TCP Test Port for SSH: {}", testPort);
-        sshd.setPort(testPort);
+        // we don't allocate a port until we attempt to start the server, since we
+        // need to be able to retry if we hit the race condition where a free port
+        // is discovered but it's in use by the time we try to use it
         setupTestKeys();
     }
 
@@ -77,8 +81,23 @@ public class ApacheSshdBuilder {
     }
 
     public SshServer build() throws IOException {
-        sshd.start();
-        return sshd;
+        int retries = 0;
+        BindException bindException = null;
+        while (retries <= MAX_START_RETRIES) {
+            try {
+                // allocate service port
+                testPort = SocketUtils.findAvailableTcpPort();
+                sshd.setPort(testPort);
+                sshd.start();
+                return sshd;
+            } catch (BindException e) {
+                retries += 1;
+                bindException = e;
+            }
+        }
+        // must have hit retry limit - throw last caught BindException
+        logger.warn("Hit available-port race condition {} times, which should be extremely unlikely; giving up.", retries);
+        throw bindException;
     }
 
     /**
