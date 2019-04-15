@@ -572,30 +572,22 @@ public class BootstrapSupply {
             });
         }
         if (slList.size() == movableSlByMarket.size()) {
+            List<Trader> currentSuppliers = slList.stream().map(ShoppingList::getSupplier)
+                .collect(Collectors.toList());
             // check if all shopping lists have the same source and destination
             // the reason that the source and destination of a shopping list are the same might be
             // the shopping list doesn't need to be moved or
             // we need to do provision by supply to clone the source of this shopping list
-            boolean slWithDiffSrcAndDestExists = IntStream.range(0, slList.size())
-                .anyMatch(i -> slList.get(i).getSupplier() != traderList.get(i));
+            long numOfSlWithDiffSrcAndDest = IntStream.range(0, slList.size())
+                .filter(i -> currentSuppliers.get(i) != traderList.get(i)).count();
             // if all shopping lists have same source and destination,
             // then we don't need to generate a CompoundMove
             // if we don't add the following if statement,
             // then when all shopping lists have same source and destination,
             // a compound move with no constituent actions will be generated (OM-42701)
-            if (slWithDiffSrcAndDestExists) {
-                CompoundMove compoundMove = CompoundMove
-                    .createAndCheckCompoundMoveWithImplicitSources(economy, slList,
-                        traderList);
-                if (compoundMove != null) {
-                    boolean isDebugTrader = slList.get(0).getBuyer().isDebugEnabled();
-                    String buyerDebugInfo = slList.get(0).getBuyer().getDebugInfoNeverUseInCode();
-                    if (logger.isTraceEnabled() || isDebugTrader) {
-                        logger.info("New compound move was generated for trader "
-                            + buyerDebugInfo + ".");
-                    }
-                    provisionedRelatedActions.add(compoundMove.take());
-                }
+            if (numOfSlWithDiffSrcAndDest > 0) {
+                Placement.generateCompoundMoveOrMoveAction(
+                    economy, slList, currentSuppliers, traderList, provisionedRelatedActions, 0.0d);
             }
         }
         return provisionedRelatedActions;

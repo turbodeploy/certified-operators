@@ -40,7 +40,7 @@ public abstract class Trader implements Serializable {
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull List<@NonNull Long> cliques_ = new ArrayList<>();
+    private final @NonNull Set<@NonNull Long> cliques_ = new HashSet<>();
     private final @NonNull List<@NonNull ShoppingList> customers_ = new ArrayList<>();
     // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
     // market2, we use a setter and getter to set and get this field instead of putting it part of the constructor even though it should
@@ -52,8 +52,8 @@ public abstract class Trader implements Serializable {
 
     // Cached unmodifiable view of the commoditiesSold_ list.
     private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
-    // Cached unmodifiable view of the cliques_ list.
-    private final @NonNull List<@NonNull Long> unmodifiableCliques_ = Collections.unmodifiableList(cliques_);
+    // Cached unmodifiable view of the cliques_ set.
+    private final @NonNull Set<@NonNull Long> unmodifiableCliques_ = Collections.unmodifiableSet(cliques_);
     // Cached unmodifiable view of the customers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
     // This field specifies whether we want to print debug info for the trader
@@ -176,7 +176,7 @@ public abstract class Trader implements Serializable {
     }
 
     /**
-     * Returns an unmodifiable list of the k-partite cliques {@code this} trader is a member of.
+     * Returns an unmodifiable set of the k-partite cliques {@code this} trader is a member of.
      *
      * <p>
      *  There are situations when a buyer needs to buy a number of {@link ShoppingList}s from
@@ -196,21 +196,21 @@ public abstract class Trader implements Serializable {
      * </p>
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Long> getCliques(@ReadOnly Trader this) {
+    public @NonNull @ReadOnly Set<@NonNull Long> getCliques(@ReadOnly Trader this) {
         return unmodifiableCliques_;
     }
 
     /**
-     * Returns a modifiable list of the k-partite cliques {@code this} trader is a member of.
+     * Returns a modifiable set of the k-partite cliques {@code this} trader is a member of.
      *
      * <p>
-     *  This is a modifiable version of the list returned by {@link #getCliques()}.
+     *  This is a modifiable version of the set returned by {@link #getCliques()}.
      * </p>
      *
      * @see #getCliques()
      */
     @Pure
-    @NonNull @PolyRead List<@NonNull @PolyRead Long> getModifiableCliques(@PolyRead Trader this) {
+    @NonNull @PolyRead Set<@NonNull @PolyRead Long> getModifiableCliques(@PolyRead Trader this) {
         return cliques_;
     }
 

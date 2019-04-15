@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -20,6 +21,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -394,6 +397,15 @@ public class PlacementTest {
 
                 // 1 VM, 1 PM, 1 ST, 2 edges
 
+                // 1 VM, 2 PM, 2 ST, 2 edges
+                {{{{PM_SMALL,true,true,1.0,1.0},{ST_SMALL,true,true,1.0,1.0}}}, // 1 compoundMove
+                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
+                  {PM_S,{ 0.0, 0.0},{},{1L}},{ST_S,{ 0.0, 0.0},{},{0L,1L}}},
+                 {{{0,0,1},{3,4}}}},
+                {{{{PM_SMALL,true,true,1.0,1.0},{ST_SMALL,true,true,1.0,1.0}}}, // 2 moves
+                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
+                  {PM_S,{ 0.0, 0.0},{},{0L}},{ST_S,{ 0.0, 0.0},{},{0L}}},
+                 {{{0,0},{3}},{{0,1},{4}}}},
 
                 // 1 VM, 3 PMs, 3 STs, 2 edges
                 {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,true ,true,1.0,1.0}}}, // best share-nothing move. M1 would select 3,4 instead
@@ -415,7 +427,17 @@ public class PlacementTest {
                   {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{ 7.0, 7.0},{},{0L}},
                    {PM_S,{ 4.0, 4.0},{},{0L}},{ST_S,{ 3.0, 3.0},{},{0L,1L}},
                    {PM_S,{ 1.0, 1.0},{},{1L}},{ST_S,{ 6.0, 6.0},{},{1L}}},
-                  {{{0,0},{3}}}}
+                  {{{0,0},{3}}}},
+                 {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,true,true,1.0,1.0},{ST_SMALL,true,true,1.0,1.0}}}, // 1 compoundMove
+                  {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
+                   {ST_S,{10.0,10.0},{},{0L,1L}},{PM_S,{ 0.0, 0.0},{},{1L}},
+                   {ST_S,{ 0.0, 0.0},{},{0L,1L}},{ST_S,{ 0.0, 0.0},{},{1L}}},
+                  {{{0,0,1,2},{4,5,6}}}},
+                 {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,true,true,1.0,1.0},{ST_SMALL,true,true,1.0,1.0}}}, // 1 move, 1 compoundMove
+                  {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
+                   {ST_S,{10.0,10.0},{},{0L,1L}},{PM_S,{ 0.0, 0.0},{},{1L}},
+                   {ST_S,{ 0.0, 0.0},{},{1L}},{ST_S,{ 0.0, 0.0},{},{0L,1L}}},
+                  {{{0,2},{6}},{{0,0,1},{4,5}}}},
             };
 
             // Convert the multidimensional array to a list of test cases.
@@ -481,6 +503,7 @@ public class PlacementTest {
 
                     shoppingLists[bci][sli].setMovable((boolean)buyerConfigurations[bci][sli][1]);
                     if ((boolean)buyerConfigurations[bci][sli][2]) {
+                        // The supplier of the i-th shopping list is the i-th seller.
                         shoppingLists[bci][sli].move(e.getTraders().get(buyerConfigurations.length+sli));
                     }
 
@@ -499,10 +522,20 @@ public class PlacementTest {
                 for (int j = 1 ; j < moves[i][0].length ; ++j) {
                     shoppingListsToMove.add(shoppingLists[(int)moves[i][0][0]][(int)moves[i][0][j]]);
                 }
-
-                results[i] = CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
+                final int k = i;
+                // Decide whether to generate a move action or a compoundMove action.
+                if (moves[i][1].length >= 2 &&
+                    IntStream.range(0, moves[i][1].length).anyMatch(index -> Sets.intersection(
+                        new HashSet<>(Arrays.asList(sellerConfigurations[(int)moves[k][0][index + 1]][3])),
+                        new HashSet<>(Arrays.asList(sellerConfigurations[(int)moves[k][1][index] - 1][3])))
+                        .size() == 0)) {
+                    results[i] = CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
                         e, shoppingListsToMove, Stream.of(moves[i][1]).map(index ->
-                                e.getTraders().get((int)index)).collect(Collectors.toList()));
+                            e.getTraders().get((int)index)).collect(Collectors.toList()));
+                } else {
+                    results[i] = new Move(e, shoppingListsToMove.get(0), shoppingListsToMove.get(0).getSupplier(),
+                        e.getTraders().get((int)moves[i][1][0]));
+                }
             }
 
             return new Object[]{e,results};

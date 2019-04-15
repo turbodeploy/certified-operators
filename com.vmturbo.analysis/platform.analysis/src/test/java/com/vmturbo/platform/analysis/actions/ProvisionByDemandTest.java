@@ -10,8 +10,10 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -264,7 +266,7 @@ public class ProvisionByDemandTest {
 
     @Test
     public final void testTake_checkModelSellerWithCliques() {
-        List<Long> cliques = new ArrayList<>(Arrays.asList(0l));
+        Set<Long> cliques = new HashSet<>(Arrays.asList(0l));
         Economy e = new Economy();
         Basket b1 = new Basket(new CommoditySpecification(100));
         Basket b2 = new Basket(new CommoditySpecification(200));

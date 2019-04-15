@@ -17,6 +17,7 @@ import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.utility.SetTests;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -240,13 +241,13 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetCliques() {
-        ListTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42L);
-        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42L);
+        SetTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42L);
+        SetTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42L);
     }
 
     @Test
     public final void testGetModifiableCliques() {
-        ListTests.verifyModifiable(fixture_.getModifiableCliques(), 42L);
+        SetTests.verifyModifiable(fixture_.getModifiableCliques(), 42L);
     }
 
     @Test

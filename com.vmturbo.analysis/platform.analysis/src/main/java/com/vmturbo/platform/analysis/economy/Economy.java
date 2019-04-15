@@ -977,11 +977,11 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                     // use the cliques of the market
                     ? entry.getValue().getCliques().keySet()
                      // else if shopping list is placed
-                    : (new TreeSet<>(entry.getKey().getSupplier() != null
+                    : (entry.getKey().getSupplier() != null
                              // use clique that contain supplier
                             ? entry.getKey().getSupplier().getCliques()
                              // else there is no valid placement.
-                            : Collections.emptyList())))
+                            : Collections.<Long>emptySet()))
                 .reduce(Sets::intersection).orElse(Collections.emptySet());
     }
 

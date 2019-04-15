@@ -97,13 +97,13 @@ public class BootstrapSupplyTest {
 
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.PROVISION_BY_DEMAND, bootStrapActionList.get(0).getType());
-        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
+        assertEquals(ActionType.MOVE, bootStrapActionList.get(1).getType());
         ProvisionByDemand provisionByDemand = (ProvisionByDemand)bootStrapActionList.get(0);
-        List<Move> moves = ((CompoundMove)bootStrapActionList.get(1)).getConstituentMoves();
         assertEquals(sl1, provisionByDemand.getModelBuyer());
         assertEquals(pm1, provisionByDemand.getModelSeller());
+        Move move = (Move)bootStrapActionList.get(1);
         Move expect1 = new Move(economy, sl1, pm1, provisionByDemand.getProvisionedSeller());
-        assertTrue(expect1.equals(moves.get(0)));
+        assertTrue(expect1.equals(move));
     }
 
     /**
@@ -440,17 +440,15 @@ public class BootstrapSupplyTest {
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.PROVISION_BY_SUPPLY, bootStrapActionList.get(0).getType());
         assertEquals(TestUtils.CPU, ((ProvisionBySupply)bootStrapActionList.get(0)).getReason());
-        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
+        assertEquals(ActionType.MOVE, bootStrapActionList.get(1).getType());
         //Assert that the provision by supply was modelled off pm1
         ProvisionBySupply provisionBySupply = (ProvisionBySupply)bootStrapActionList.get(0);
         assertEquals(pm1, provisionBySupply.getModelSeller());
         //Assert compound move is for compute of VM1 or VM2 to move to newly provisioned PM
-        Action compoundMove = bootStrapActionList.get(1);
         Move expectedMove1 = new Move(economy, sl1, pm1, provisionBySupply.getProvisionedSeller());
         Move expectedMove2 = new Move(economy, sl2, pm1, provisionBySupply.getProvisionedSeller());
-        List<Move> moves = ((CompoundMove)compoundMove).getConstituentMoves();
-        assertEquals(moves.size(), 1);
-        assertTrue(moves.get(0).equals(expectedMove1) || moves.get(0).equals(expectedMove2));
+        Move move = (Move)bootStrapActionList.get(1);
+        assertTrue(move.equals(expectedMove1) || move.equals(expectedMove2));
     }
 
     /**

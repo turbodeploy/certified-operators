@@ -3,17 +3,22 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -400,7 +405,7 @@ public class Placement {
      * @param minimizer the {@link CliqueMinimizer}
      * @return a list of actions generated
      */
-public static List<Action> checkAndGenerateCompoundMoveActions(
+    public static List<Action> checkAndGenerateCompoundMoveActions(
                     Economy economy,
                     Trader buyer,
                    @NonNull CliqueMinimizer minimizer) {
@@ -423,16 +428,163 @@ public static List<Action> checkAndGenerateCompoundMoveActions(
                 List<Trader> bestSellers = minimizer.getBestSellers();
                 List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
                                 .collect(Collectors.toList());
-                CompoundMove compoundMove =
-                                    CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
-                                        economy, shoppingLists, currentSuppliers, bestSellers);
-                if (compoundMove != null) {
-                    actions.add(compoundMove.take().setImportance(currentTotalQuote - minimizer
-                            .getBestTotalQuote()));
-                }
+                double importance = currentTotalQuote - minimizer.getBestTotalQuote();
+                generateCompoundMoveOrMoveAction(
+                    economy, shoppingLists, currentSuppliers, bestSellers, actions, importance);
             }
         }
         return actions;
+    }
+
+    /**
+     * This method is used to decide whether we should generate move actions or compoundMove actions.
+     * This method consists of three steps:
+     *  1. Split all shoppingLists into two sets.
+     *     If a sl has common cliques between its currentSupplier and bestSeller, put it in list A.
+     *     If a sl does not have common cliques between its currentSupplier and bestSeller, put it in list B.
+     *  2. For each sl (sl1) in A with common cliques (c) between its currentSupplier and bestSeller and
+     *     its currentSupplier and bestSeller are different, we should generate a move action
+     *     if there exists a sl (sl2) in B without common cliques that satisfies the condition that
+     *     the size of the intersection of c and the currentSupplier of sl2 is greater than 0 and
+     *     the size of the intersection of c and the bestSeller of sl2 is greater than 0.
+     *  3. If the size of the rest of sls is 1, generate a move action for it.
+     *     Otherwise, generate a compoundMove action.
+     *  This method is suitable for both PM based and DS based bicliques.
+     *  E.g. Suppose a vm has two sls: sl1 moves from PM1 to PM2, sl2 moves from Storage1 to Storage2.
+     *           (BC-0)PM1----Storage1(BC-0)
+     *                    \    /
+     *                     \  /
+     *                      \/
+     *                      /\
+     *                     /  \
+     *                    /    \
+     *           (BC-0)PM2----Storage2(BC-0)
+     *       Step 1: PM1 and PM2 have common clique BC-0, put sl1 into list A.
+     *               Storage1 and Storage2 have common clique BC-0, put sl2 into list A.
+     *               At the end of step 1, A is of size 2 and B is of size 0.
+     *       Step 2: Since B is empty, there doesn't exist a sl in B that satisfies the condition.
+     *               We don't generate move action for sl1 or sl2.
+     *       Step 3: The rest of sls are sl1 and sl2. So we generate a compoundMove for them.
+     *  E.g. Suppose a vm has two sls: sl1 moves from PM1 to PM2, sl2 moves from Storage1 to Storage2.
+     *           (BC-0)PM1----Storage1(BC-0)
+     *                    \
+     *                     \
+     *                      \
+     *                       \
+     *                        \
+     *                         \
+     *           (BC-1)PM2----Storage2(BC-0,BC-1)
+     *       Step 1: PM1 and PM2 don't have common cliques, put sl1 into list B.
+     *               Storage1 and Storage2 have common cliques BC-0, put sl2 into list A.
+     *               At the end of step 1, A is of size 1 and B is of size 1.
+     *       Step 2: For sl2 (the only sl in list A), check if there exists a sl in list B that
+     *               satisfies the condition. sl1 is the only sl in list B in this case.
+     *               Since Storage1, Storage2 and PM1 have common clique BC-0 and Storage1, Storage2
+     *               and PM2 do not have common cliques, we don't generate a move action for sl2.
+     *       Step 3: The rest of sls are sl1 and sl2. So we generate a compoundMove for them.
+     * For more examples, see the review request for bug OM-44059.
+     *
+     * @param economy the economy
+     * @param shoppingLists list of shoppingLists
+     * @param currentSuppliers list of current suppliers of shoppingLists
+     * @param bestSellers list of future suppliers of shoppingLists
+     * @param actions list of actions
+     * @param importance importance of the action
+     */
+    public static void generateCompoundMoveOrMoveAction(Economy economy, List<ShoppingList> shoppingLists,
+        List<Trader> currentSuppliers, List<Trader> bestSellers, List<Action> actions, double importance) {
+        // step 1
+        int numOfOriginalActions = actions.size();
+        List<Integer> slsWithCommonCliques = new ArrayList<>(bestSellers.size());
+        List<Integer> slsWithoutCommonCliques = new ArrayList<>(bestSellers.size());
+        List<Set<Long>> commonCliques = new ArrayList<>(bestSellers.size());
+        // Count the number of sls without common cliques between the currentSupplier and bestSeller.
+        // Save the common cliques between the currentSupplier and bestSeller.
+        for (int i = 0; i < bestSellers.size(); i++) {
+            Set<Long> bestSellerCliques = bestSellers.get(i).getCliques();
+            Set<Long> currentSupplierCliques = currentSuppliers.get(i) != null ?
+                currentSuppliers.get(i).getCliques() : Collections.emptySet();
+            Set<Long> commonClique = Sets.intersection(bestSellerCliques, currentSupplierCliques);
+            commonCliques.add(commonClique);
+            if (commonClique.size() == 0) {
+                slsWithoutCommonCliques.add(i);
+            } else {
+                slsWithCommonCliques.add(i);
+            }
+        }
+
+        boolean isDebugTrader = shoppingLists.get(0).getBuyer().isDebugEnabled();
+        if (logger.isTraceEnabled() || isDebugTrader) {
+            logger.info("Index of shoppingList with common cliques: {}", slsWithCommonCliques);
+            logger.info("Index of shoppingList without common cliques: {}", slsWithoutCommonCliques);
+        }
+
+        // Check if we need to generate a move action for sls with common cliques.
+        int numOfMoveActions = 0;
+        for (Integer i : slsWithCommonCliques) {
+            if (currentSuppliers.get(i) == bestSellers.get(i)) {
+                continue;
+            }
+            // step 2
+            Set<Long> commonClique = commonCliques.get(i);
+            boolean generateMoveAction = slsWithoutCommonCliques.stream().anyMatch(j ->
+                Sets.intersection(commonClique, bestSellers.get(j).getCliques()).size() > 0 &&
+                Sets.intersection(commonClique, currentSuppliers.get(j).getCliques()).size() > 0);
+            // Generate a move action if
+            // all sources and destinations are in a common biclique or generateMoveAction is true.
+            if (slsWithoutCommonCliques.size() == 0 || generateMoveAction) {
+                actions.add(new Move(
+                    economy, shoppingLists.get(i), currentSuppliers.get(i), bestSellers.get(i))
+                    .take().setImportance(importance));
+                numOfMoveActions++;
+            } else {
+                slsWithoutCommonCliques.add(i);
+            }
+        }
+
+        // step 3
+        // Decide if we should generate a compoundMove action for sls in slsWithoutCommonCliques.
+        int numOfCompoundMoveActions = 0;
+        if (slsWithoutCommonCliques.size() > 1) {
+            CompoundMove compoundMove =
+                CompoundMove.createAndCheckCompoundMoveWithExplicitSources(economy,
+                    slsWithoutCommonCliques.stream().map(shoppingLists::get).collect(Collectors.toList()),
+                    slsWithoutCommonCliques.stream().map(currentSuppliers::get).collect(Collectors.toList()),
+                    slsWithoutCommonCliques.stream().map(bestSellers::get).collect(Collectors.toList()));
+            actions.add(compoundMove.take().setImportance(importance));
+            numOfCompoundMoveActions++;
+        } else if (slsWithoutCommonCliques.size() == 1) {
+            int i = slsWithoutCommonCliques.get(0);
+            actions.add(new Move(economy, shoppingLists.get(i), currentSuppliers.get(i), bestSellers.get(i))
+                .take().setImportance(importance));
+            numOfMoveActions++;
+        }
+
+        if (logger.isTraceEnabled() || isDebugTrader) {
+            String buyerDebugInfo = shoppingLists.get(0).getBuyer().getDebugInfoNeverUseInCode();
+            IntStream.range(numOfOriginalActions, numOfOriginalActions + numOfMoveActions).forEach(i ->
+                logger.info("A new Move from {} to {} is generated.",
+                    printTraderDetail(((Move) actions.get(i)).getSource()),
+                    printTraderDetail(((Move) actions.get(i)).getDestination())));
+            IntStream.range(numOfOriginalActions + numOfMoveActions, actions.size()).forEach(i ->
+                logger.info("A new CompoundMove from {} to {} is generated.",
+                    ((CompoundMove)actions.get(i)).getConstituentMoves().stream().map(move ->
+                        printTraderDetail(move.getSource())).collect(Collectors.toList()),
+                    ((CompoundMove)actions.get(i)).getConstituentMoves().stream().map(move ->
+                        printTraderDetail(move.getDestination())).collect(Collectors.toList())));
+            logger.info("{} Move, {} CompoundMove were generated for trader {}.",
+                numOfMoveActions, numOfCompoundMoveActions, buyerDebugInfo);
+        }
+    }
+
+    /**
+     * Return the debug info of trader if it's not null. Otherwise, return empty.
+     *
+     * @param trader The trader
+     * @return Trader info
+     */
+    public static String printTraderDetail(Trader trader) {
+        return Optional.ofNullable(trader).map(Trader::getDebugInfoNeverUseInCode).orElse("");
     }
 
     /**

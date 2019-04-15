@@ -499,8 +499,8 @@ public class Provision {
      */
     private static boolean doBuyerAndSellerShareCliques (
             Trader buyer, Trader seller , Economy economy) {
-        Set<Long> commonCliquesOfCustomer = new HashSet<>(economy.getCommonCliques(buyer));
-        Set<Long> inactiveTraderCliques = new HashSet<>(seller.getCliques());
+        Set<Long> commonCliquesOfCustomer = economy.getCommonCliques(buyer);
+        Set<Long> inactiveTraderCliques = seller.getCliques();
         commonCliquesOfCustomer.retainAll(inactiveTraderCliques);
         return !commonCliquesOfCustomer.isEmpty();
     }
