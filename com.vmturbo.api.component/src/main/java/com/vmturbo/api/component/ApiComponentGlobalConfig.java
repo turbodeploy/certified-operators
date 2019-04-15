@@ -91,7 +91,10 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .excludePathPatterns("/admin/versions")
             .excludePathPatterns("/users/me")
             .excludePathPatterns("/users/saml")
-            .excludePathPatterns("/health");
+            .excludePathPatterns("/health")
+            // exclude "/" so that redirection from "/" to "/app/index.html" works
+            // as defined in ExternalApiConfig
+            .excludePathPatterns("/");
     }
 
     @Bean
