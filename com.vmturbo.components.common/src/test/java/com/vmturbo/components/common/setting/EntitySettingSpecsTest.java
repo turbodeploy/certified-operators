@@ -126,6 +126,33 @@ public class EntitySettingSpecsTest {
     }
 
     /**
+     * Test the overprovision min, max and default values as set
+     */
+    @Test
+    public void testOverProvisionMinMaxDefault() {
+        EntitySettingSpecs memProvSpec = EntitySettingSpecs.MemoryOverprovisionedPercentage;
+        NumericSettingValueType memProvValType =
+                        memProvSpec.getSettingSpec().getNumericSettingValueType();
+        Assert.assertTrue(memProvValType.getMin() == 1f);
+        Assert.assertTrue(memProvValType.getMax() == 1000000f);
+        Assert.assertTrue(memProvValType.getDefault() == 1000f);
+
+        EntitySettingSpecs cpuProvSpec = EntitySettingSpecs.CpuOverprovisionedPercentage;
+        NumericSettingValueType cpuProvValType =
+                        cpuProvSpec.getSettingSpec().getNumericSettingValueType();
+        Assert.assertTrue(cpuProvValType.getMin() == 1f);
+        Assert.assertTrue(cpuProvValType.getMax() == 1000000f);
+        Assert.assertTrue(cpuProvValType.getDefault() == 30000f);
+
+        EntitySettingSpecs stProvSpec = EntitySettingSpecs.StorageOverprovisionedPercentage;
+        NumericSettingValueType stProvValType =
+                        stProvSpec.getSettingSpec().getNumericSettingValueType();
+        Assert.assertTrue(stProvValType.getMin() == 1f);
+        Assert.assertTrue(stProvValType.getMax() == 1000000f);
+        Assert.assertTrue(stProvValType.getDefault() == 200f);
+    }
+
+    /**
      * Asserts that the specified entity type is inside the policy setting scope.
      *
      * @param setting setting to examine (used for verbose output only)
