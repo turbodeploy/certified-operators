@@ -6,6 +6,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -57,6 +60,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
+import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
@@ -187,6 +191,7 @@ public class Analysis {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
         this.state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " Analysis " +
             topologyInfo.getTopologyContextId() + " with topology " +
@@ -203,9 +208,12 @@ public class Analysis {
         this.marketPriceTable = priceTableFactory.newPriceTable(
                 this.originalCloudTopology, this.topologyCostCalculator.getCloudCostData());
         this.converter = new TopologyConverter(topologyInfo,
-                analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
-                analysisConfig.getLiveMarketMoveCostFactor(),
-                this.marketPriceTable, null, this.topologyCostCalculator.getCloudCostData());
+            analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
+            analysisConfig.getLiveMarketMoveCostFactor(),
+            this.marketPriceTable,
+            null,
+            this.topologyCostCalculator.getCloudCostData(),
+            CommodityIndex.newFactory());
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -423,27 +431,34 @@ public class Analysis {
         // create fake entities to help construct markets in which sellers of a compute
         // or a storage cluster serve as market sellers
         Set<TopologyEntityDTO> fakeEntityDTOs = new HashSet<>();
-        Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.COMPUTE);
-        Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.STORAGE);
-        Set<String> clusterCommKeySet = new HashSet<>();
-        Set<String> dsClusterCommKeySet = new HashSet<>();
-        pmEntityDTOs.forEach(dto -> dto.getCommoditySoldListList().forEach(comm ->
-                {
-                    if (comm.getCommodityType().getType() == CommodityType.CLUSTER_VALUE) {
-                        clusterCommKeySet.add(comm.getCommodityType().getKey());
+        try {
+            Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.COMPUTE);
+            Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.STORAGE);
+            Set<String> clusterCommKeySet = new HashSet<>();
+            Set<String> dsClusterCommKeySet = new HashSet<>();
+            pmEntityDTOs.forEach(dto -> {
+                dto.getCommoditySoldListList().forEach(commSold -> {
+                    if (commSold.getCommodityType().getType() == CommodityType.CLUSTER_VALUE) {
+                        clusterCommKeySet.add(commSold.getCommodityType().getKey());
                     }
-                }));
-        dsEntityDTOs.forEach(dto -> dto.getCommoditySoldListList().forEach(comm ->
-                {
-                    if (comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
-                            && isRealStorageClusterCommodity(comm)) {
-                        dsClusterCommKeySet.add(comm.getCommodityType().getKey());
+                });
+            });
+            dsEntityDTOs.forEach(dto -> {
+                dto.getCommoditySoldListList().forEach(commSold -> {
+                    if (commSold.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
+                            && isRealStorageClusterCommodity(commSold)) {
+                        dsClusterCommKeySet.add(commSold.getCommodityType().getKey());
                     }
-                }));
-        clusterCommKeySet.forEach(key -> fakeEntityDTOs
+                });
+            });
+            clusterCommKeySet.forEach(key -> fakeEntityDTOs
                 .add(creatFakeDTOs(CommodityType.CLUSTER_VALUE, key)));
-        dsClusterCommKeySet.forEach(key -> fakeEntityDTOs
+            dsClusterCommKeySet.forEach(key -> fakeEntityDTOs
                 .add(creatFakeDTOs(CommodityType.STORAGE_CLUSTER_VALUE, key)));
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to get cluster members from group component due to: {}." +
+                " Not creating fake entity DTOs for suspension throttling.", e.getMessage());
+        }
 
         return fakeEntityDTOs.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid,
@@ -478,15 +493,15 @@ public class Analysis {
         groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
             .addTypeFilter(Type.CLUSTER)
             .setClusterFilter(ClusterFilter.newBuilder()
-                    .setTypeFilter(clusterInfo).build())
+                .setTypeFilter(clusterInfo).build())
             .build())
-        .forEachRemaining(grp -> {
-            for (long i : grp.getCluster().getMembers().getStaticMemberOidsList()) {
-                if (topologyDTOs.containsKey(i)) {
-                    entityDTOs.add(topologyDTOs.get(i));
+            .forEachRemaining(grp -> {
+                for (long i : grp.getCluster().getMembers().getStaticMemberOidsList()) {
+                    if (topologyDTOs.containsKey(i)) {
+                        entityDTOs.add(topologyDTOs.get(i));
+                    }
                 }
-            }
-        });
+            });
         return entityDTOs;
     }
 
@@ -499,8 +514,7 @@ public class Analysis {
      * @return true if it is for real cluster
      */
     private boolean isRealStorageClusterCommodity(TopologyDTO.CommoditySoldDTO comm) {
-        if (comm.getCommodityType()
-                        .getType() == CommodityType.STORAGE_CLUSTER_VALUE) {
+        if (comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE) {
             return !comm.getCommodityType().getKey().toLowerCase()
                     .startsWith(STORAGE_CLUSTER_WITH_GROUP) && !comm.getCommodityType().getKey()
                     .toLowerCase().startsWith(STORAGE_CLUSTER_ISO) && !comm.getCommodityType()

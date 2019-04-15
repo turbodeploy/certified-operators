@@ -76,11 +76,11 @@ public class ActionInterpreter {
     private final CloudEntityResizeTracker cert;
     private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
 
-    ActionInterpreter(CommodityConverter commodityConverter,
-                      Map<Long, ShoppingListInfo> shoppingListOidToInfos,
-                      CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
-                      Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
-                      Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
+    ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
+                      @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
+                      @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
+                      @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
+                      @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -457,10 +457,12 @@ public class ActionInterpreter {
                                         + resizeTO.getSpecification()));
         // Determine if this is a remove limit or a regular resize.
         final TopologyEntityDTO projectedEntity = projectedTopology.get(entityId).getEntity();
-        // find original commodity sold
-        Optional<CommoditySoldDTO> originalCommoditySold = projectedEntity.getCommoditySoldListList().stream()
-            .filter(comm -> comm.getCommodityType().equals(topologyCommodityType))
-            .findFirst();
+
+        // Find the CommoditySoldDTO for the resize commodity.
+        final Optional<CommoditySoldDTO> resizeCommSold =
+            projectedEntity.getCommoditySoldListList().stream()
+                .filter(commSold -> commSold.getCommodityType().equals(topologyCommodityType))
+                .findFirst();
         if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
             // If this is a VM and has a restricted capacity, we are going to assume it's a limit
             // removal. This logic seems like it could be fragile, in that limit may not be the
@@ -501,7 +503,7 @@ public class ActionInterpreter {
                             .setNewCapacity(0)
                             .setCommodityType(topologyCommodityType)
                             .setCommodityAttribute(CommodityAttribute.LIMIT);
-                        setHotAddRemove(resizeBuilder, originalCommoditySold);
+                        setHotAddRemove(resizeBuilder, resizeCommSold);
                         return resizeBuilder.build();
                     }
                     break;
@@ -513,7 +515,7 @@ public class ActionInterpreter {
                 .setNewCapacity(resizeTO.getNewCapacity())
                 .setOldCapacity(resizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodityType);
-        setHotAddRemove(resizeBuilder, originalCommoditySold);
+        setHotAddRemove(resizeBuilder, resizeCommSold);
         return resizeBuilder.build();
     }
 

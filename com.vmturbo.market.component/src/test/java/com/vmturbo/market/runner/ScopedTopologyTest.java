@@ -70,6 +70,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -162,7 +163,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyCluster1() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -180,7 +181,8 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
+                ccd, CommodityIndex.newFactory());
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -199,7 +201,8 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
+                ccd, CommodityIndex.newFactory());
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
@@ -219,7 +222,8 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
+                ccd, CommodityIndex.newFactory());
         // add an additional VM, which should be considered unplaced
         topologyDTOs.add(TopologyEntityDTO.newBuilder()
                 .setDisplayName("VM-unplaced")

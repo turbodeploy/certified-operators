@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -64,6 +65,9 @@ import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
+import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
+import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -208,21 +212,39 @@ public class TopologyConverter {
     private final Map<Long, EntityReservedInstanceCoverage> projectedReservedInstanceCoverage = Maps.newHashMap();
 
     /**
+     * Utility to track errors encountered during conversion.
+     */
+    private final ConversionErrorCounts conversionErrorCounts = new ConversionErrorCounts();
+
+    /**
+     * Index that keeps scaling factors applied during conversion TO market entities, to allow
+     * quick lookups to reverse scaling when converting FROM market entities.
+     */
+    private final CommodityIndex commodityIndex;
+
+    /**
      * A non-shop-together TopologyConverter.
      *
      * @param topologyInfo Information about the topology.
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             MarketPriceTable marketPriceTable,
-                             CloudCostData cloudCostData) {
+                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
-                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData);
-        this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
-                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap, cert, projectedReservedInstanceCoverage);
+        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.actionInterpreter = new ActionInterpreter(commodityConverter,
+            shoppingListOidToInfos,
+            cloudTc,
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap,
+            cert,
+            projectedReservedInstanceCoverage);
     }
 
     /**
@@ -234,14 +256,16 @@ public class TopologyConverter {
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable
      */
+    @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull final CloudCostData cloudCostData) {
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, liveMarketMoveCostFactor,
-            marketPriceTable, null, cloudCostData);
+            marketPriceTable, null, cloudCostData, commodityIndexFactory);
     }
 
     /**
@@ -261,7 +285,8 @@ public class TopologyConverter {
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              CommodityConverter commodityConverter,
-                             final CloudCostData cloudCostData) {
+                             final CloudCostData cloudCostData,
+                             final CommodityIndexFactory commodityIndexFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
@@ -269,12 +294,17 @@ public class TopologyConverter {
         isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
         this.commodityConverter = commodityConverter != null ?
                 commodityConverter : new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
-                    includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
+                    includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData);
+        this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap, cert, projectedReservedInstanceCoverage);
+                cloudTc,
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap,
+            cert,
+            projectedReservedInstanceCoverage);
     }
 
     @VisibleForTesting
@@ -283,7 +313,8 @@ public class TopologyConverter {
                              final float quoteFactor,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull CommodityConverter commodityConverter) {
+                             @Nonnull CommodityConverter commodityConverter,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor = quoteFactor;
@@ -293,8 +324,13 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, null);
+        this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
-                cloudTc, unmodifiableEntityOidToDtoMap, oidToProjectedTraderTOMap, cert, projectedReservedInstanceCoverage);
+                cloudTc,
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap,
+            cert,
+            projectedReservedInstanceCoverage);
     }
 
     private boolean isPlan() {
@@ -312,44 +348,49 @@ public class TopologyConverter {
         // TODO (roman, Jul 5 2018): We don't need to create a new entityOidToDto map.
         // We can have a helper class that will apply the skipped entity logic on the
         // original topology.
-        for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
-            int entityType = entity.getEntityType();
-            if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
-                || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
-                || !includeByType(entityType)) {
-                logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
-                        "entity state = {}", entity.getDisplayName(),
+        conversionErrorCounts.startPhase(Phase.CONVERT_TO_MARKET);
+        try {
+            for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
+                int entityType = entity.getEntityType();
+                if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
+                    || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
+                    || !includeByType(entityType)) {
+                    logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
+                            "entity state = {}", entity.getDisplayName(),
                         EntityType.forNumber(entity.getEntityType()), entity.getEntityState());
-                skippedEntities.put(entity.getOid(), entity);
-            } else {
-                entityOidToDto.put(entity.getOid(), entity);
-                if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
-                    // VMs and ContainerPods
-                    providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
-                        .stream()
-                        .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                        .map(CommoditiesBoughtFromProvider::getProviderId)
-                        .collect(Collectors.toSet()));
-                }
-                if (entity.getEntityType() == EntityType.REGION_VALUE) {
-                    List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                    skippedEntities.put(entity.getOid(), entity);
+                } else {
+                    entityOidToDto.put(entity.getOid(), entity);
+                    if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
+                        // VMs and ContainerPods
+                        providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
+                            .stream()
+                            .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                            .map(CommoditiesBoughtFromProvider::getProviderId)
+                            .collect(Collectors.toSet()));
+                    }
+                    if (entity.getEntityType() == EntityType.REGION_VALUE) {
+                        List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
-                    AZs.forEach(az -> azToRegionMap.put(az, entity));
-                } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                    List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
+                        AZs.forEach(az -> azToRegionMap.put(az, entity));
+                    } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                        List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
-                    List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                        List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.DATABASE_VALUE, topology);
-                    List<TopologyEntityDTO> dbss = TopologyDTOUtil.getConnectedEntitiesOfType(
+                        List<TopologyEntityDTO> dbss = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.DATABASE_SERVER_VALUE, topology);
-                    vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
-                    dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
-                    dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
-                    businessAccounts.add(entity);
+                        vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
+                        dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                        dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                        businessAccounts.add(entity);
+                    }
                 }
             }
+            return convertToMarket();
+        } finally {
+            conversionErrorCounts.endPhase();
         }
-        return convertToMarket();
     }
 
     @Nonnull
@@ -371,6 +412,7 @@ public class TopologyConverter {
                 .filter(comm -> CommodityConverter.isBicliqueCommodity(comm.getCommodityType()))
                 .forEach(comm -> edge(dto, comm));
             oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
+            commodityIndex.addEntity(dto);
             populateCommodityConsumesTable(dto);
         }
         // Create market tier traderTO builders
@@ -456,41 +498,46 @@ public class TopologyConverter {
                 @Nonnull final List<EconomyDTOs.TraderTO> projectedTraders,
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
                 @Nonnull final PriceIndexMessage priceIndexMessage, @Nonnull final CloudCostData cloudCostData) {
-        final Map<Long, PriceIndexMessagePayload> priceIndexByOid =
-            priceIndexMessage.getPayloadList().stream()
-                .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
-        logger.info("Converting projectedTraders to topologyEntityDTOs");
-        projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
-        relinquishCoupons(projectedTraders, cloudCostData);
-        final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
+        conversionErrorCounts.startPhase(Phase.CONVERT_FROM_MARKET);
+        try {
+            final Map<Long, PriceIndexMessagePayload> priceIndexByOid =
+                priceIndexMessage.getPayloadList().stream()
+                    .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
+            logger.info("Converting projectedTraders to topologyEntityDTOs");
+            projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
+            relinquishCoupons(projectedTraders, cloudCostData);
+            final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
                 projectedTraders.size());
-        for (TraderTO projectedTrader : projectedTraders) {
-            final Set<TopologyEntityDTO> projectedEntities =
+            for (TraderTO projectedTrader : projectedTraders) {
+                final Set<TopologyEntityDTO> projectedEntities =
                     traderTOtoTopologyDTO(projectedTrader, originalTopology);
-            for (TopologyEntityDTO projectedEntity : projectedEntities) {
-                final ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                for (TopologyEntityDTO projectedEntity : projectedEntities) {
+                    final ProjectedTopologyEntity.Builder projectedEntityBuilder =
                         ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
-                final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
-                if (priceIndex != null) {
-                    if (originalTopology.containsKey(projectedEntity.getOid())) {
-                        projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+                    final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
+                    if (priceIndex != null) {
+                        if (originalTopology.containsKey(projectedEntity.getOid())) {
+                            projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+                        }
+                        projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
                     }
-                    projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
-                }
 
-                projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
-            }
-            // Calculate projected RI Coverage
-            TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
-            Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
-            // original trader can be null in case of provisioned entity
-            if (originalTraderTO != null) {
-                originalRiCoverage = cloudCostData
+                    projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
+                }
+                // Calculate projected RI Coverage
+                TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
+                Optional<EntityReservedInstanceCoverage> originalRiCoverage = Optional.empty();
+                // original trader can be null in case of provisioned entity
+                if (originalTraderTO != null) {
+                    originalRiCoverage = cloudCostData
                         .getRiCoverageForEntity(originalTraderTO.getOid());
+                }
+                calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
             }
-            calculateProjectedRiCoverage(originalTraderTO, projectedTrader, originalRiCoverage);
+            return projectedTopologyEntities;
+        } finally {
+            conversionErrorCounts.endPhase();
         }
-        return projectedTopologyEntities;
     }
 
     /**
@@ -808,7 +855,8 @@ public class TopologyConverter {
                         commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
                     }
                 } else {
-                    commBoughtTOtoCommBoughtDTO(commBought, originalEntity).ifPresent(commList::add);
+                    commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), commBought)
+                        .ifPresent(commList::add);
                 }
             }
             topoDTOCommonBoughtGrouping.add(createCommoditiesBoughtFromProvider(sl, commList));
@@ -864,7 +912,7 @@ public class TopologyConverter {
                     .setOid(traderTO.getOid())
                     .setEntityState(entityState)
                     .setDisplayName(displayName)
-                    .addAllCommoditySoldList(retrieveCommSoldList(traderTO, originalEntity))
+                    .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
                     .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
                     .addAllConnectedEntityList(getConnectedEntities(traderTO))
                     .setAnalysisSettings(analysisSetting);
@@ -1095,15 +1143,12 @@ public class TopologyConverter {
      * Convert commodities sold by a trader to a list of {@link TopologyDTO.CommoditySoldDTO}.
      *
      * @param traderTO {@link TraderTO} whose commoditiesSold are to be converted into DTOs
-     * @param originalEntity the original TopologyEntityDTO corresponding to this DTO, if any, or null
      * @return list of {@link TopologyDTO.CommoditySoldDTO}s
      */
     private Set<TopologyDTO.CommoditySoldDTO> retrieveCommSoldList(
-            @Nonnull final TraderTO traderTO,
-            @Nullable final TopologyEntityDTO originalEntity) {
+            @Nonnull final TraderTO traderTO) {
         return traderTO.getCommoditiesSoldList().stream()
-                    .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(commoditySoldTO,
-                            originalEntity))
+                    .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO.getOid(), commoditySoldTO))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toSet());
@@ -1192,19 +1237,19 @@ public class TopologyConverter {
      *
      * @param commBoughtTO {@link CommodityBoughtTO} that is to be converted to
      * {@link TopologyDTO.CommodityBoughtDTO}
-     * @param originalEntity the original TopologyEntityDTO, used to look up the original scaleFactor,
-     *                       if any, for this commodity
      * @return {@link TopologyDTO.CommoditySoldDTO} that the trader sells
      */
     @Nonnull
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
-            @Nonnull final CommodityBoughtTO commBoughtTO, final TopologyEntityDTO originalEntity) {
+        final long traderOid, final long supplierOid,
+            @Nonnull final CommodityBoughtTO commBoughtTO) {
 
         float peak = commBoughtTO.getPeakQuantity();
         if (peak < 0) {
-            logger.error("Peak is negative: {} for commodity type {}", peak,
-                    commodityConverter.getCommodityName(commBoughtTO.getSpecification().getType()));
-            logger.trace("The entity with negative peak is {}", originalEntity);
+            conversionErrorCounts.recordError(ErrorCategory.PEAK_NEGATIVE,
+                commodityConverter.getCommodityName(commBoughtTO.getSpecification().getType()));
+            logger.trace("The entity with negative peak is {} (buying {} from {})",
+                traderOid, commBoughtTO, supplierOid);
             peak = 0;
         }
 
@@ -1212,7 +1257,8 @@ public class TopologyConverter {
 
         return commodityConverter.economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
-                    .setUsed(reverseScaleCommBought(commType, commBoughtTO.getQuantity(), originalEntity))
+                    .setUsed(reverseScaleCommBought(commBoughtTO.getQuantity(),
+                        commodityIndex.getCommBought(traderOid, supplierOid, commType)))
                     .setCommodityType(commType)
                     .setPeak(peakQuantity)
                     .build());
@@ -1257,6 +1303,7 @@ public class TopologyConverter {
                     entityType == EntityType.DATABASE_SERVER_VALUE) {
                 suspendable = false;
             }
+
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
                     createCommonTraderSettingsTOBuilder(
@@ -1446,7 +1493,7 @@ public class TopologyConverter {
         float moveCost = !isPlan() && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
                 && provider != null // this check is for testing purposes
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
-                        ? (float)(totalStorageAmountBought(buyerOid) / Units.KIBI)
+                        ? (float)(totalStorageAmountBought(buyer) / Units.KIBI)
                         : 0.0f;
         Set<CommodityDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
             .stream()
@@ -1517,11 +1564,10 @@ public class TopologyConverter {
         if (CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT.contains(providerEntityType)) {
             TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(entityOidToDto.get(buyerOid));
             List<CommoditySoldDTO> dcCommSoldList = region.getCommoditySoldListList().stream()
-                    .filter(c -> c.getCommodityType().getType()
-                            == CommodityDTO.CommodityType.DATACENTER_VALUE
-                            && c.getCommodityType().hasKey())
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                .filter(commSold -> commSold.getCommodityType().getType() ==
+                    CommodityDTO.CommodityType.DATACENTER_VALUE)
+                .filter(commSold -> commSold.getCommodityType().hasKey())
+                .collect(Collectors.toList());
             if (dcCommSoldList.size() != 1) {
                 logger.error("{} is selling {} DC Commodities - {}", region.getDisplayName(),
                         dcCommSoldList.size(), dcCommSoldList.stream().map(
@@ -1529,7 +1575,7 @@ public class TopologyConverter {
                                 .collect(Collectors.joining(",")));
                 return Optional.empty();
             }
-            CommoditySoldDTO dcCommSold = dcCommSoldList.get(0);
+            CommoditySoldDTO dcCommSold = dcCommSoldList.iterator().next();
             dcCommBought = CommodityDTOs.CommodityBoughtTO.newBuilder()
                     .setSpecification(commodityConverter.commoditySpecification(
                             dcCommSold.getCommodityType()))
@@ -1602,17 +1648,22 @@ public class TopologyConverter {
      * The total used value of storage amount commodities bought by a buyer,
      * summed over all the providers that it buys storage amount from.
      *
-     * @param buyerOid the OID of the buyer (presumably a VM)
+     * @param buyer the {@link TopologyEntityDTO} of the buyer (presumably a VM)
      * @return total used storage amount bought
      */
-    private double totalStorageAmountBought(long buyerOid) {
-        return entityOidToDto.get(buyerOid).getCommoditiesBoughtFromProvidersList().stream()
-            .filter(this::isStorage)
-            .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
-            .flatMap(List::stream)
-            .filter(this::isStorageAmount)
-            .mapToDouble(TopologyDTO.CommodityBoughtDTO::getUsed)
-            .sum();
+    private double totalStorageAmountBought(@Nonnull final TopologyEntityDTO buyer) {
+        final MutableDouble result = new MutableDouble(0);
+        buyer.getCommoditiesBoughtFromProvidersList().forEach(commsBoughtFromProvider -> {
+            if (isStorage(commsBoughtFromProvider)) {
+                commsBoughtFromProvider.getCommodityBoughtList().forEach(commodity -> {
+                    if (commodity.getCommodityType().getType() ==
+                            CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+                        result.add(commodity.getUsed());
+                    }
+                });
+            }
+        });
+        return result.doubleValue();
     }
 
     /**
@@ -1663,16 +1714,6 @@ public class TopologyConverter {
             }
         }
         return providerId;
-    }
-
-    /**
-     * Checks whether the commodity bought is a StorageAmount.
-     *
-     * @param comm a commodity bought
-     * @return whether the commodity type is StorageAmount
-     */
-    private boolean isStorageAmount(TopologyDTO.CommodityBoughtDTO comm) {
-        return comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE;
     }
 
     private CommodityDTOs.CommodityBoughtTO convertCommodityBought(
@@ -1783,24 +1824,20 @@ public class TopologyConverter {
      * Note that if the original CommoditySoldDTO has a 'scaleFactor', then
      * we reverse the scaling that had been done on the way in to the market.
      *
+     * @param traderOid The ID of the trader selling the commodity.
      * @param commSoldTO the market CommdditySoldTO to convert
-     * @param originalEntity the original {@link TopologyEntityDTO} XL model
-     *                       object received by market as part of the broadcast
-     *                       topology to analyze
      * @return a {@link CommoditySoldDTO} equivalent to the original.
      */
     @Nonnull
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
-            @Nonnull final CommoditySoldTO commSoldTO,
-            @Nullable final TopologyEntityDTO originalEntity) {
+            final long traderOid,
+            @Nonnull final CommoditySoldTO commSoldTO) {
 
         float peak = commSoldTO.getPeakQuantity();
         if (peak < 0) {
-            logger.error("Peak is negative: {} for commodity type {}", peak,
-                    commodityConverter.getCommodityName(commSoldTO.getSpecification().getType()));
-            if (originalEntity != null) {
-                logger.trace("The entity with negative peak is {}", originalEntity);
-            }
+            conversionErrorCounts.recordError(ErrorCategory.PEAK_NEGATIVE,
+                commodityConverter.getCommodityName(commSoldTO.getSpecification().getType()));
+            logger.trace("The entity with negative peak is {}", traderOid);
             peak = 0;
         }
 
@@ -1809,17 +1846,12 @@ public class TopologyConverter {
         return commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification())
                 .map(commType -> {
                     // find original sold commodity of same type from original entity
-                    Optional<CommoditySoldDTO> originalCommoditySold = originalEntity == null
-                        ? Optional.empty()
-                        : originalEntity.getCommoditySoldListList().stream()
-                            .filter(originalCommodity -> originalCommodity.getCommodityType().equals(commType))
-                            .findFirst();
+                    Optional<CommoditySoldDTO> originalCommoditySold =
+                        commodityIndex.getCommSold(traderOid, commType);
 
                     CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
-                        .setCapacity(reverseScaleCommSold(commSoldTO.getCapacity(), originalEntity,
-                            originalCommoditySold))
-                        .setUsed(reverseScaleCommSold(commSoldTO.getQuantity(), originalEntity,
-                            originalCommoditySold))
+                        .setCapacity(reverseScaleCommSold(commSoldTO.getCapacity(), originalCommoditySold))
+                        .setUsed(reverseScaleCommSold(commSoldTO.getQuantity(), originalCommoditySold))
                         .setPeak(peakQuantity)
                         .setMaxQuantity(commSoldTO.getMaxQuantity())
                         .setIsResizeable(commSoldTO.getSettings().getResizable())
@@ -1834,7 +1866,7 @@ public class TopologyConverter {
                     originalCommoditySold
                         .filter(CommoditySoldDTO::hasHotResizeInfo)
                         .map(CommoditySoldDTO::getHotResizeInfo)
-                        .ifPresent(hotResizeInfo -> commoditySoldBuilder.setHotResizeInfo(hotResizeInfo));
+                        .ifPresent(commoditySoldBuilder::setHotResizeInfo);
 
                     return commoditySoldBuilder.build();
                 });
@@ -1848,53 +1880,26 @@ public class TopologyConverter {
      * <p/>
      * Note that if there is a scale factor but that scale factor is zero, which should never happen,
      * we simply return the originalValue, i.e. we do _not_ return Inf or NaN.
-     * <p/>
-     * Note that to perform the reverse scale we must find the 'original' commodity by type.
-     * If are were multiple commodities of the same type, e.g. differentiated by 'key' values, in the
-     * original TopologyEntityDTO then this search will only find the first one. This is unavoidable
-     * as the CommoditySoldTO for the market does not record the 'key' value from the
-     * original commodity.
      *
      * @param valueToReverseScale the commodity value output from the market to
      *                            scale down (if there is a scaleFactor)
-     * @param originalEntity the input to the MarketAnalysis, used to look up the original
-     *                       commodity and find the 'scaleFactor', if any
-     *
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    private double reverseScaleCommSold(float valueToReverseScale,
-                                        @Nullable final TopologyEntityDTO originalEntity,
-                                        Optional<CommoditySoldDTO> originalCommoditySold) {
-        return originalCommoditySold
-            // look for the corresponding commodity on the original TopologyEntityDTO; also
-            // require that the original has a 'scalingFactor' set and is non-zero
-            .filter(originalCommodity -> originalCommodity.hasScalingFactor() &&
-                Math.abs(originalCommodity.getScalingFactor() - ZERO) > EPSILON)
-            .map(matchingCommodity -> {
-                // found the matching commodity - divide by scalingFactor
-                if (logger.isDebugEnabled()) {
-                    logger.debug("reverse scale sold comm {} for {} mkt val {}, factor {}, unscaled {}",
-                        matchingCommodity.getCommodityType(), originalEntity.getDisplayName(),
-                        valueToReverseScale, matchingCommodity.getScalingFactor(),
-                        valueToReverseScale / matchingCommodity.getScalingFactor());
-                }
-                // Creating valToReverseScale because valueToReverseScale has to be final
-                float valToReverseScale;
-                if (valueToReverseScale < 0) {
-                    logger.error("Value is negative: {} for commodity type {}", valueToReverseScale,
-                        matchingCommodity.getCommodityType());
-                    logger.trace("The entity with negative value is {}", originalEntity);
-                    valToReverseScale = 0;
-                } else {
-                    valToReverseScale = valueToReverseScale;
-                }
-                return valToReverseScale / matchingCommodity.getScalingFactor();
-
-            })
-            // either we didn't find the matching commodity, or the matching commodity had
-            // no 'scalingFactor', or the 'scalingFactor' was zero (and hence we could not divide)
-            .orElse((double) valueToReverseScale);
+    private double reverseScaleCommSold(final float valueToReverseScale,
+                                        @Nonnull final Optional<CommoditySoldDTO> originalCommSold) {
+        if (originalCommSold.isPresent()) {
+            // If it's unset, it will be 0.
+            double scalingFactor = originalCommSold.get().getScalingFactor();
+            // Scaling factor should be positive, and not an infinitely small value.
+            if (scalingFactor == 1.0 || (scalingFactor - EPSILON) <= 0) {
+                return valueToReverseScale;
+            } else {
+                return valueToReverseScale / scalingFactor;
+            }
+        } else {
+            return valueToReverseScale;
+        }
     }
 
     /**
@@ -1905,44 +1910,28 @@ public class TopologyConverter {
      * <p/>
      * Note that if there is a scale factor but that scale factor is zero, which should never happen,
      * we simply return the originalValue, i.e. we do _not_ return Inf or NaN.
-     * <p/>
-     * Note that to perform the reverse scale we must find the 'original' commodity by type.
-     * If are were multiple commodities of the same type, e.g. differentiated by 'key' values, in the
-     * original TopologyEntityDTO then this search will only find the first one. This is unavoidable
-     * as the CommoditySoldTO for the market does not record the 'key' value from the
-     * original commodity.
      *
-     * @param commType the type of commodity being processed, used to find the 'original'
-     *                 commodity value
      * @param valueToReverseScale the commodity value output from the market to
      *                            scale down (if there is a scaleFactor)
-     * @param originalEntity the input to the MarketAnalysis, used to look up the original
-     *                       commodity and find the 'scaleFactor', if any
+     * @param originalCommBought The original {@link CommodityBoughtDTO} if any.
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    private double reverseScaleCommBought(CommodityType commType, float valueToReverseScale,
-                                          @Nullable final TopologyEntityDTO originalEntity) {
-        if (originalEntity == null) {
+    private double reverseScaleCommBought(final float valueToReverseScale,
+                                          @Nonnull final Optional<CommodityBoughtDTO> originalCommBought) {
+        // Using if/else instead of .map() to avoid auto-boxing.
+        if (originalCommBought.isPresent()) {
+            // If unset, it will be 0.
+            double scalingFactor = originalCommBought.get().getScalingFactor();
+            // Scaling factor should be positive, and not an infinitely small value.
+            if (scalingFactor == 1.0 || (scalingFactor - EPSILON) <= 0) {
+                return valueToReverseScale;
+            } else {
+                return valueToReverseScale / scalingFactor;
+            }
+        } else {
             return valueToReverseScale;
         }
-        return originalEntity.getCommoditiesBoughtFromProvidersList().stream()
-                .flatMap(commoditiesBoughtFromProvider -> commoditiesBoughtFromProvider.getCommodityBoughtList().stream())
-                .filter(originalCommodity -> originalCommodity.getCommodityType().equals(commType) &&
-                        originalCommodity.hasScalingFactor() &&
-                        originalCommodity.getScalingFactor() != 0)
-                .findFirst()
-                .map(matchingCommodity -> {
-                    // found the matching commodity - divide by scalingFactor
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("reverse scale bought comm {} for {} mkt val {}, factor {}, unscaled {}",
-                                commType, originalEntity.getDisplayName(), valueToReverseScale,
-                                matchingCommodity.getScalingFactor(),
-                                valueToReverseScale / matchingCommodity.getScalingFactor());
-                    }
-                    return valueToReverseScale / matchingCommodity.getScalingFactor();
-                })
-                .orElse((double) valueToReverseScale);
     }
 
     @VisibleForTesting

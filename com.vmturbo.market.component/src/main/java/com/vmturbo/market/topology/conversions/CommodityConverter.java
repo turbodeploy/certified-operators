@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
@@ -45,16 +46,20 @@ public class CommodityConverter {
     private final BiCliquer dsBasedBicliquer;
     private int bcBaseType = -1;
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
+    private final ConversionErrorCounts conversionErrorCounts;
 
-    CommodityConverter(NumericIDAllocator commodityTypeAllocator,
-                       Map<String, CommodityType> commoditySpecMap,
-                       boolean includeGuaranteedBuyer, BiCliquer dsBasedBicliquer,
-                       Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable) {
+    CommodityConverter(@Nonnull final NumericIDAllocator commodityTypeAllocator,
+                       @Nonnull final Map<String, CommodityType> commoditySpecMap,
+                       final boolean includeGuaranteedBuyer,
+                       @Nonnull final BiCliquer dsBasedBicliquer,
+                       @Nonnull final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable,
+                       @Nonnull final ConversionErrorCounts conversionErrorCounts) {
         this.commodityTypeAllocator = commodityTypeAllocator;
         this.commoditySpecMap = commoditySpecMap;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.dsBasedBicliquer = dsBasedBicliquer;
         this.numConsumersOfSoldCommTable = numConsumersOfSoldCommTable;
+        this.conversionErrorCounts = conversionErrorCounts;
     }
 
     /**
@@ -108,6 +113,8 @@ public class CommodityConverter {
             used *= scalingFactor;
         }
         final int type = commodityType.getType();
+        final CommodityDTO.CommodityType sdkCommType =
+            CommodityDTO.CommodityType.forNumber(commodityType.getType());
         boolean resizable = topologyCommSold.getIsResizeable();
         boolean capacityNaN = Double.isNaN(topologyCommSold.getCapacity());
         boolean usedNaN = Double.isNaN(topologyCommSold.getUsed());
@@ -127,15 +134,18 @@ public class CommodityConverter {
         } else if (used > capacity) {
             if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
-                logger.error("Used > Capacity for " + commodityType
-                        + ". Used : " + used + ", Capacity : " + capacity
-                        + ", Capped used : " + cappedUsed
-                        + ". This is a mediation error and should be looked at.");
+                conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY_MEDIATION,
+                    sdkCommType == null ? "UNKNOWN" : sdkCommType.name());
+                logger.trace("Used > Capacity for {}. Used : {}, Capacity : {}, Capped used : {}." +
+                    " This is a mediation error and should be looked at.", commodityType,
+                    used, capacity, cappedUsed);
                 used = cappedUsed;
             } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
                     AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
-                logger.error("Used > Capacity for " + commodityType
-                        + ". Used : " + used + " and Capacity : " + capacity);
+                conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY, sdkCommType == null ?
+                    "UNKNOWN" : sdkCommType.name());
+                logger.trace("Used > Capacity for {}. Used : {} and Capacity : {}",
+                    commodityType, used, capacity);
             }
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
@@ -153,7 +163,9 @@ public class CommodityConverter {
         double maxQuantity = topologyCommSold.getMaxQuantity();
         float maxQuantityFloat = (float) maxQuantity;
         if (maxQuantity < 0) {
-            logger.warn("maxQuantity: {} is less than 0. Setting it 0.", maxQuantity);
+            conversionErrorCounts.recordError(ErrorCategory.MAX_QUANTITY_NEGATIVE,
+                sdkCommType == null ? "UNKNOWN" : sdkCommType.name());
+            logger.trace("maxQuantity: {} is less than 0. Setting it 0.", maxQuantity);
             maxQuantityFloat = 0;
         } else if (maxQuantityFloat < 0) {
             logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}.",

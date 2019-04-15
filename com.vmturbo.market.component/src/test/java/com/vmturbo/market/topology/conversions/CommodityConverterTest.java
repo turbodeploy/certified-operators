@@ -46,7 +46,7 @@ public class CommodityConverterTest {
 
         CommodityConverter converterToTest = new CommodityConverter(commodityTypeAllocator,
                 commoditySpecMap, includeGuaranteedBuyer,  dsBasedBicliquer,
-                numConsumersOfSoldCommTable);
+                numConsumersOfSoldCommTable, new ConversionErrorCounts());
         final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
                 .setOid(PM_OID)
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
