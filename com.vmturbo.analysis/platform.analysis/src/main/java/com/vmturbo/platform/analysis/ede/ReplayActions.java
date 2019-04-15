@@ -229,8 +229,7 @@ public class ReplayActions {
         for (Action deactivateAction : deactivateActions) {
             Deactivate oldAction = (Deactivate) deactivateAction;
             Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
-            if (newTrader != null && newTrader.getSettings().isSuspendable()
-                && newTrader.getState().isActive()) {
+            if (isEligibleforSuspensionReplay(newTrader, economy)) {
                 if (Suspension.getSuspensionsthrottlingconfig() == SuspensionsThrottlingConfig.CLUSTER) {
                     Suspension.makeCoSellersNonSuspendable(economy, newTrader);
                 }
@@ -251,6 +250,25 @@ public class ReplayActions {
         //reset the above set utilThreshold.
         suspensionInstance.adjustUtilThreshold(economy, false);
         return suspendActions;
+    }
+
+    /**
+     * Check for conditions that qualify trader (like trader state, sole provider etc.)
+     * for replay of suspension.
+     * @param trader to replay suspension for.
+     * @param economy to which trader belongs.
+     * @return true, if trader qualifies for replay of suspension.
+     */
+    private boolean isEligibleforSuspensionReplay(Trader trader, Economy economy) {
+        return trader != null
+            && trader.getSettings().isSuspendable()
+            && trader.getState().isActive()
+            // If trader is sole provider in any market, we don't want to replay the suspension.
+            // Consider scenario where we replay suspension for PM1 but there was a new placement policy
+            // for VM1 (currently on PM2) to move on PM1. We end recommending a reconfigure action because
+            // PM1 becomes inactive due to replay of suspension.
+            && economy.getMarketsAsSeller(trader).stream()
+                .noneMatch(market -> market.getActiveSellers().size() == 1);
     }
 
     /**
