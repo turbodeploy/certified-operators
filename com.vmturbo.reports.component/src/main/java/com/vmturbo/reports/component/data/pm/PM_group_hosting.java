@@ -11,22 +11,22 @@ import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.sql.utils.DbException;
 
 /**
- * Insert report data to vmtdb for PM_group_monthly_individual_cluster_summary template .
+ * For Host Group Summary on-demand report
  */
-public class PM_group_monthly_individual_cluster_summary extends GroupsGenerator implements ReportTemplate {
-
-    public PM_group_monthly_individual_cluster_summary(@Nonnull final GroupGeneratorDelegate groupGeneratorDelegate) {
-        super(groupGeneratorDelegate);
+public class PM_group_hosting extends GroupsGenerator implements ReportTemplate {
+    public PM_group_hosting(@Nonnull final GroupGeneratorDelegate delegate) {
+        super(delegate);
     }
 
     @Override
     public Optional<String> generateData(@Nonnull final ReportsDataContext context,
                                          @Nonnull Optional<Long> selectedGroup) throws DbException {
         if (selectedGroup.isPresent()) {
-            super.insertPMGroup(context, selectedGroup.get());
-            super.insertPMVMsRelationships(context, selectedGroup.get());
+            // this report requires an input parameter: "vm_group_name". It's used to retrieve member VMs.
+            // Currently we hardcoded the "fake_vm_group" as group name.
+            super.insertPMGroupAndVMRelationships(context, selectedGroup.get());
+            return super.insertPMGroup(context, selectedGroup.get());
         }
         return Optional.empty();
     }
-
 }

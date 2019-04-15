@@ -23,6 +23,19 @@
                 <property name="category">Unformatted</property>
             </structure>
         </scalar-parameter>
+        <scalar-parameter name="vm_group_name" id="2405">
+            <property name="valueType">static</property>
+            <property name="dataType">string</property>
+            <property name="distinct">true</property>
+            <simple-property-list name="defaultValue">
+                <value type="constant">VMs_Physical Environment\Master Cluster</value>
+            </simple-property-list>
+            <property name="paramType">simple</property>
+            <property name="controlType">text-box</property>
+            <structure name="format">
+                <property name="category">Unformatted</property>
+            </structure>
+        </scalar-parameter>
         <scalar-parameter name="selected_item_uuid" id="2963">
             <property name="valueType">static</property>
             <property name="isRequired">true</property>
@@ -92,10 +105,10 @@
 (select distinct 
   property_type
 from
-  (select property_type, max(avg_value) as max_value 
+  (select property_type, max(round(avg_value/capacity, 3)) as max_value
   from pm_stats_by_day
   where
-    property_subtype = 'utilization'
+    property_subtype = 'used'
     and snapshot_time = date_sub(date(now()), interval 1 day)
   group by property_type
   ) as max_prop_values
@@ -266,11 +279,11 @@ order by
   convert(avg_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as avg_used,
   convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as max_used
 from
-  (select * from pm_stats_by_day
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
   where 
   avg_value > 0.001
   and property_type = ?
-  and property_subtype in ('utilization', 'priceIndex')
+  and property_subtype in ('used', 'priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
   limit 20
@@ -1227,10 +1240,10 @@ order by
   max(if(property_type='NetThroughput',convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)),0)) as netthroughput_max_used
 
 from
-  (select uuid, property_type, property_subtype, capacity, avg_value, max_value from pm_stats_by_day
-  where 
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
+  where
   avg_value > 0.001
-  and property_subtype in ('utilization','priceIndex')
+  and property_subtype in ('used','priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
   ) as pm_stats_by_day,
@@ -1595,9 +1608,9 @@ group by
   max_value
 from
   (select member_uuid as uuid, display_name from pm_group_members where group_uuid = ?) as entities,
-  (select uuid, property_type, capacity, avg_value, max_value from pm_stats_by_day
+  (select uuid, property_type, capacity, round(avg_value/capacity, 3) as avg_value, round(max_value/capacity, 3) as max_value from pm_stats_by_day
   where 
-  property_subtype = 'utilization'
+  property_subtype = 'used'
   and snapshot_time = date_sub(date(now()), interval 1 day)
   ) as pm_stats_by_day
 where
@@ -2004,8 +2017,8 @@ order by
                     <property name="isOutput">false</property>
                 </structure>
                 <structure>
-                    <property name="name">pm_group_uuid</property>
-                    <property name="paramName">selected_item_uuid</property>
+                    <property name="name">vm_group_uuid</property>
+                    <property name="paramName">vm_group_name</property>
                     <property name="nativeName"></property>
                     <property name="dataType">string</property>
                     <property name="nativeDataType">-1</property>
@@ -2123,17 +2136,17 @@ order by
   convert(avg_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as avg_used,
   convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as max_used
 from
-  (select * from vm_stats_by_day
-  where 
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from vm_stats_by_day
+  where
   avg_value > 0.001
   and property_type = ?
-  and property_subtype in ('utilization', 'priceIndex')
+  and property_subtype in ('used', 'priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
   limit 20
   ) as vm_stats_by_day,
   (select member_uuid as uuid, display_name from vm_group_members where internal_name = 
-	  (select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where group_uuid=? limit 1)) 
+	  (select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where internal_name like CONCAT('%', ?, '%') limit 1))
   as entities
 where
   convert(vm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
@@ -2383,8 +2396,8 @@ order by
             <list-property name="columnHints"/>
             <list-property name="parameters">
                 <structure>
-                    <property name="name">pm_group_uuid</property>
-                    <property name="paramName">selected_item_uuid</property>
+                    <property name="name">vm_group_uuid</property>
+                    <property name="paramName">vm_group_name</property>
                     <property name="nativeName"></property>
                     <property name="dataType">string</property>
                     <property name="nativeDataType">-1</property>
@@ -2498,11 +2511,11 @@ select
   max_value
 from
   (select member_uuid as uuid, display_name from vm_group_members where internal_name = 
-  	(select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where group_uuid=? limit 1)) 
+  	(select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where internal_name like CONCAT('%', ?, '%') limit 1))
   	as entities,
-  (select uuid, property_type, capacity, avg_value, max_value from vm_stats_by_day
+  (select uuid, property_type, capacity, round(avg_value/capacity, 3) as avg_value, round(avg_value/capacity, 3) as max_value from vm_stats_by_day
   where 
-    property_subtype = 'utilization'
+    property_subtype = 'used'
     and snapshot_time = date_sub(date(now()), interval 1 day)
   ) as vm_stats_by_day
 where
@@ -2518,7 +2531,7 @@ where
   max_value/capacity as max_value
 from
   (select member_uuid as uuid, display_name from vm_group_members where internal_name = 
-  	(select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where group_uuid=? limit 1)) 
+  	(select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where internal_name like CONCAT('%', ?, '%') limit 1))
   	as entities,
   (select uuid, property_type, capacity, avg_value, max_value from vm_stats_by_day
   where 
@@ -2924,8 +2937,8 @@ order by
             <list-property name="columnHints"/>
             <list-property name="parameters">
                 <structure>
-                    <property name="name">pm_group_uuid</property>
-                    <property name="paramName">selected_item_uuid</property>
+                    <property name="name">vm_group_uuid</property>
+                    <property name="paramName">vm_group_name</property>
                     <property name="nativeName"></property>
                     <property name="dataType">string</property>
                     <property name="nativeDataType">-1</property>
@@ -3508,7 +3521,7 @@ order by
   max(if(property_type='StorageAccess',max_value,0)) as iops_max_used
 
  from
-  (select member_uuid as uuid, display_name from vm_group_members where internal_name = (select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where group_uuid=? limit 1)) as entities,
+  (select member_uuid as uuid, display_name from vm_group_members where internal_name = (select replace(internal_name, 'GROUP-PMs', 'GROUP-VMs') as uuid from entity_groups where internal_name like CONCAT('%', ?, '%') limit 1)) as entities,
   (select uuid, property_type, property_subtype, capacity, avg_value, max_value from vm_stats_by_day
   where 
   avg_value > 0.001

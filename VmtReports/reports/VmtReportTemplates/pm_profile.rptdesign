@@ -351,11 +351,11 @@
 	'PhysicalMachine' as class_name,
 	(select display_name from entities where uuid = ? order by id DESC limit 1) as instance_name,
 		property_type,
-		property_subtype,
+		if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype,
 		capacity,
-		avg_value as avg_property_value,
-		min_value as min_property_value,
-		max_value as max_property_value,
+		if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_property_value,
+		if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_property_value,
+		if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_property_value,
 		year(snapshot_time) as year_number,
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -708,9 +708,9 @@
 	'PhysicalMachine' as class_name,
 	(select display_name from entities where uuid = ? order by id DESC limit 1) as instance_name,
 		property_type,
-		property_subtype,
-		round(avg(avg_value)*100,1) as avg_property_value,
-		round(max(max_value)*100,1) as max_property_value,
+		replace(property_subtype, 'used', 'utilization') as 'property_subtype',
+		round(avg(avg_value/capacity)*100,1) as avg_property_value,
+		round(max(max_value/capacity)*100,1) as max_property_value,
 		year(snapshot_time) as year_number,
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -719,7 +719,7 @@
 		pm_stats_by_hour
 	where
 		uuid = ?
-		and property_subtype = 'utilization'
+		and property_subtype = 'used'
 		and date(snapshot_time) = date_sub(date(now()), interval 1 day)  
 group by 
   property_type, hour_number
@@ -1080,10 +1080,10 @@ order by
 	'PhysicalMachine' as class_name,
 	(select display_name from entities where uuid = ? order by id DESC limit 1) as instance_name,
 		property_type,
-		property_subtype,
-		avg_value as avg_property_value,
-		min_value as min_property_value,
-		max_value as max_property_value,
+		replace(property_subtype, 'used', 'utilization') as property_subtype,
+		round(avg_value/capacity, 3) as avg_property_value,
+		round(min_value/capacity, 3) as min_property_value,
+		round(max_value/capacity, 3) as max_property_value,
 		year(snapshot_time) as year_number,	
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -1092,7 +1092,7 @@ order by
 		pm_stats_by_day
 	where
 		snapshot_time between date_sub(date(now()), interval ? day) and date_sub(date(now()), interval 1 day)  
-		and property_subtype='utilization'
+		and property_subtype='used'
 		and (property_type in ('CPU','Mem') or property_type like 'Q%VCPU')
 		and uuid = ?]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>

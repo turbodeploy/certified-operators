@@ -11,22 +11,19 @@ import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.sql.utils.DbException;
 
 /**
- * Insert report data to vmtdb for PM_group_monthly_individual_cluster_summary template .
+ * For Host Top Bottom Capacity Grid Per Cluster
  */
-public class PM_group_monthly_individual_cluster_summary extends GroupsGenerator implements ReportTemplate {
-
-    public PM_group_monthly_individual_cluster_summary(@Nonnull final GroupGeneratorDelegate groupGeneratorDelegate) {
-        super(groupGeneratorDelegate);
+public class PM_group_pm_top_bottom_capacity_grid_per_cluster extends GroupsGenerator implements ReportTemplate {
+    public PM_group_pm_top_bottom_capacity_grid_per_cluster(@Nonnull final GroupGeneratorDelegate delegate) {
+        super(delegate);
     }
 
     @Override
     public Optional<String> generateData(@Nonnull final ReportsDataContext context,
                                          @Nonnull Optional<Long> selectedGroup) throws DbException {
         if (selectedGroup.isPresent()) {
-            super.insertPMGroup(context, selectedGroup.get());
-            super.insertPMVMsRelationships(context, selectedGroup.get());
+            return super.insertPMGroup(context, selectedGroup.get());
         }
         return Optional.empty();
     }
-
 }

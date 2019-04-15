@@ -388,9 +388,9 @@ from
 	) as groups
 natural join
 	(
-	select 
-		uuid, snapshot_time, property_type, property_subtype, capacity, avg_value, min_value, max_value 
-	from 
+	select
+	    uuid, snapshot_time, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value
+	from
 		pm_stats_by_day
 	where 
 		snapshot_time = date_sub(date(now()), interval 1 day)
@@ -405,8 +405,8 @@ group by
       <design:resultSetColumns>
         <design:resultColumnDefinitions>
           <design:attributes>
-            <design:name>class_name</design:name>
-            <design:position>1</design:position>
+              <design:name>class_name</design:name>
+              <design:position>1</design:position>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
             <design:scale>0</design:scale>
@@ -424,8 +424,8 @@ group by
         </design:resultColumnDefinitions>
         <design:resultColumnDefinitions>
           <design:attributes>
-            <design:name>instance_name</design:name>
-            <design:position>2</design:position>
+              <design:name>instance_name</design:name>
+              <design:position>2</design:position>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>80</design:precision>
             <design:scale>0</design:scale>
@@ -443,8 +443,8 @@ group by
         </design:resultColumnDefinitions>
         <design:resultColumnDefinitions>
           <design:attributes>
-            <design:name>property_type</design:name>
-            <design:position>3</design:position>
+              <design:name>property_type</design:name>
+              <design:position>3</design:position>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
             <design:scale>0</design:scale>
@@ -462,8 +462,8 @@ group by
         </design:resultColumnDefinitions>
         <design:resultColumnDefinitions>
           <design:attributes>
-            <design:name>property_subtype</design:name>
-            <design:position>4</design:position>
+              <design:name>property_subtype</design:name>
+              <design:position>4</design:position>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
             <design:scale>0</design:scale>
@@ -481,8 +481,8 @@ group by
         </design:resultColumnDefinitions>
         <design:resultColumnDefinitions>
           <design:attributes>
-            <design:name>avg_property_value</design:name>
-            <design:position>5</design:position>
+              <design:name>avg_property_value</design:name>
+              <design:position>5</design:position>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
             <design:scale>0</design:scale>
@@ -500,8 +500,8 @@ group by
         </design:resultColumnDefinitions>
         <design:resultColumnDefinitions>
           <design:attributes>
-            <design:name>min_property_value</design:name>
-            <design:position>6</design:position>
+              <design:name>min_property_value</design:name>
+              <design:position>6</design:position>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
             <design:scale>0</design:scale>
@@ -719,9 +719,9 @@ group by
             <xml-property name="queryText"><![CDATA[select 
 'PhysicalMachine' as class_name,
 property_type,
-property_subtype,
+replace(property_subtype, 'used', 'utilization') as property_subtype,
 capacity,
-round(avg(avg_value)*100,1) as avg_property_value,
+round(avg(avg_value/capacity)*100,1) as avg_property_value,
 year(snapshot_time) as year_number,
 date_format(snapshot_time,'%m') as month_number,
 date_format(snapshot_time,'%d') as day_number,
@@ -729,7 +729,7 @@ date_format(snapshot_time,'%H') as hour_number
 from
 pm_stats_by_hour_per_pm_group
 where
-property_subtype = 'utilization'
+property_subtype = 'used'
 and date(snapshot_time) = date_sub(date(now()), interval 1 day)
 and group_uuid = ?
 group by property_type, hour_number
@@ -1110,11 +1110,7 @@ natural join
 		snapshot_time,
 		uuid,
 		property_type,
-		property_subtype,
-		capacity,
-		avg_value,
-		min_value,
-		max_value,
+		if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value,
 		year(snapshot_time) as year_number,
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -1541,9 +1537,9 @@ from
 	) as group_members
 natural join
 	(
-	select 
-		uuid, snapshot_time, property_type, property_subtype, capacity, avg_value, min_value, max_value 
-	from 
+	select
+		uuid, snapshot_time, property_type, property_subtype, capacity, avg_value, min_value, max_value
+	from
 		pm_stats_by_day
 	where 
 		property_type = ('priceIndex')
@@ -16768,7 +16764,7 @@ function beforeDrawAxisLabel( axis, label, icsc )
                 Afwrm/BXju10jSl0vXI54pbbKIwTPy+hHUEdK9VqpdabZXbbruztp2HeSJWP6ilTrx9n7Korouphpe19
                 tSlZ7Pszx/xLqF18QNetrXR7aUWsGVVnHTJGXb0HA49vevVrHQ7K0sre3EKuIY1j3EcnAxmtC3t4baPy
                 7aGOJP7sahR+QqWlVxHOlCCskOhhfZylUqPmkz//2Q==
-            </property>
+</property>
         </structure>
         <structure>
             <property name="name">vmturbo_logo_rep.jpg</property>
@@ -16958,7 +16954,7 @@ function beforeDrawAxisLabel( axis, label, icsc )
                 QBAEAQBAEBy1Vv8ArD9/jvcfCxXbGlNhGzrXaeKyMQgCAIAgCAIAgCAIAgCA+m7OPhEgc4GP5QgRsKL0
                 RtDeF5dzyABvsE+ytM8Zvt93ym8ZsbI2MNj3OGrDowXMzsR+ofQgCAIAgCAIAgCAIAgCAIAgCAIAgCAI
                 AgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgP/2Q==
-            </property>
+</property>
         </structure>
     </list-property>
 </report>

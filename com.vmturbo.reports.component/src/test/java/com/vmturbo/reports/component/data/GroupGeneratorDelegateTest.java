@@ -4,6 +4,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,15 +22,20 @@ import com.google.common.collect.ImmutableMap;
 
 import javaslang.Tuple;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
 import com.vmturbo.sql.utils.DbException;
@@ -62,9 +68,11 @@ public class GroupGeneratorDelegateTest {
         final GetSupplyChainResponse response = GetSupplyChainResponse
             .newBuilder()
             .setSupplyChain(SupplyChain.newBuilder()
-                .addSupplyChainNodes(SupplyChainNode.newBuilder().build())
-                .build())
-            .build();
+                .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                    .putMembersByState(EntityState.POWERED_ON_VALUE,
+                        MemberList.newBuilder().addMemberOids(1L)
+                        .build()).build()).build()).build();
+
         Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
             .thenReturn(response);
         when(context.getGroupService()).thenReturn(GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
@@ -79,6 +87,8 @@ public class GroupGeneratorDelegateTest {
         Group group = Group.newBuilder().build();
         Map<Group, Long> groupToPK = ImmutableMap.of(group, 1L);
         when(newResults.getGroupToPK()).thenReturn(groupToPK);
+        Mockito.when(groupServiceMole.createTempGroup(any()))
+            .thenReturn(CreateTempGroupResponse.newBuilder().setGroup(group).build());
     }
 
     @After
@@ -132,4 +142,41 @@ public class GroupGeneratorDelegateTest {
         verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
         verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
     }
+
+    @Test
+    public void testInsertPMGroupRelationships() throws DbException {
+        groupGeneratorDelegate.insertPMGroupRelationships(context, 1L);
+        verify(context, times(2)).getGroupService();
+        verify(results).getGroupToPK();
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter , times(2)).cleanUpEntity_Assns(anyList());
+        verify(reportDBDataWriter).insertEntityAssns(any());
+        verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
+        verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
+    }
+
+    @Test
+    public void testInsertPMGroupAndVMRelationships() throws DbException {
+        groupGeneratorDelegate.insertPMGroupAndVMRelationships(context, 1L);
+        verify(context, times(4)).getGroupService();
+        verify(results).getGroupToPK();
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter , times(2)).cleanUpEntity_Assns(anyList());
+        verify(reportDBDataWriter).insertEntityAssns(any());
+        verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
+        verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
+    }
+
+    @Test
+    public void testInsertPMVMsRelationships() throws DbException {
+        groupGeneratorDelegate.insertPMVMsRelationships(context, 1L);
+        verify(context, times(2)).getGroupService();
+        verify(results).getGroupToPK();
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter , times(2)).cleanUpEntity_Assns(anyList());
+        verify(reportDBDataWriter).insertEntityAssns(any());
+        verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
+        verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
+    }
+
 }

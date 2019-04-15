@@ -25,6 +25,17 @@ abstract public class GroupsGenerator {
        return generatorDelegate.insertVMGroupRelationships(context, groupId);
     }
 
+    protected Optional<String> insertPMGroup(final @Nonnull ReportsDataContext context,
+                                             long groupId) throws DbException {
+        return generatorDelegate.insertPMGroupRelationships(context, groupId);
+    }
+
+    // return void because it's hardcoded to always use "fake_vm_group" name
+    protected void insertPMGroupAndVMRelationships(final @Nonnull ReportsDataContext context,
+                                             long groupId) throws DbException {
+        generatorDelegate.insertPMGroupAndVMRelationships(context, groupId);
+
+    }
 
     protected void insertPMGroups(final @Nonnull ReportsDataContext context) throws DbException {
         generatorDelegate.insertPMClusterRelationships(context);
@@ -32,5 +43,10 @@ abstract public class GroupsGenerator {
 
     protected void insertStorageGroups(final @Nonnull ReportsDataContext context) throws DbException {
         generatorDelegate.insertStorageClusterRelationships(context);
+    }
+
+    protected Optional<String> insertPMVMsRelationships(@Nonnull final ReportsDataContext context,
+                                                        final Long pmOid) throws DbException {
+        return generatorDelegate.insertPMVMsRelationships(context, pmOid);
     }
 }

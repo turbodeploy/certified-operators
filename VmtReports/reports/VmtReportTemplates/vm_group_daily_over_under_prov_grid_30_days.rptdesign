@@ -426,11 +426,11 @@ from
 	uuid,     
 	min(snapshot_time) as snapshot_time,     
 	property_type,     
-	REPLACE(property_subtype, "used", "utilization") as property_subtype,     
-	max(ROUND(avg_value/capacity, 3)) as avg_value,     
-	max(ROUND(max_value/capacity, 3)) as max_value,     
+	if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype,
+	max(if(property_subtype='used', round(avg_value/capacity, 3), avg_value)) as avg_value,
+	max(if(property_subtype='used', round(max_value/capacity, 3), max_value)) as max_value,
 	max(capacity)  as capacity,     
-	min(ROUND(min_value/capacity, 3)) as min_value   
+	min(if(property_subtype='used', round(min_value/capacity, 3), min_value)) as min_value
 from      
 	vm_stats_by_day   
 where     
@@ -1055,11 +1055,11 @@ from
 		uuid,     
 		min(snapshot_time) as snapshot_time,     
 		property_type,     
-		REPLACE(property_subtype, "used", "utilization") as property_subtype,    
-		max(ROUND(avg_value/capacity, 3)) as avg_value,     
-		max(ROUND(max_value/capacity, 3)) as max_value,     
+		if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype,
+		max(if(property_subtype='used', round(avg_value/capacity, 3), avg_value)) as avg_value,
+		max(if(property_subtype='used', round(max_value/capacity, 3), max_value)) as max_value,
 		max(capacity)  as capacity,     
-		min(ROUND(min_value/capacity, 3)) as min_value   
+		min(if(property_subtype='used', round(min_value/capacity, 3), min_value)) as min_value
 	from      
 		vm_stats_by_day   
 	where     
@@ -1709,11 +1709,11 @@ from
 	uuid,     
 	min(snapshot_time) as snapshot_time,     
 	property_type,     
-	REPLACE(property_subtype, "used", "utilization") as property_subtype,
-	max(ROUND(avg_value/capacity, 3)) as avg_value,
-	max(ROUND(max_value/capacity, 3)) as max_value,
+	if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype,
+	max(if(property_subtype='used', round(avg_value/capacity, 3), avg_value)) as avg_value,
+	max(if(property_subtype='used', round(max_value/capacity, 3), max_value)) as max_value,
 	max(capacity)  as capacity,     
-	min(ROUND(min_value/capacity, 3)) as min_value
+	min(if(property_subtype='used', round(min_value/capacity, 3), min_value)) as min_value
 	from      
 		vm_stats_by_day   
 	where     
@@ -2034,11 +2034,11 @@ from
 		uuid,     
 		min(snapshot_time) as snapshot_time,     
 		property_type,     
-		REPLACE(property_subtype, "used", "utilization") as property_subtype,
-		max(ROUND(avg_value/capacity, 3)) as avg_value,
-		max(ROUND(max_value/capacity, 3)) as max_value,
+		if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype,
+		max(if(property_subtype='used', round(avg_value/capacity, 3), avg_value)) as avg_value,
+		max(if(property_subtype='used', round(max_value/capacity, 3), max_value)) as max_value,
 		max(capacity)  as capacity,     
-		min(ROUND(min_value/capacity, 3)) as min_value
+		min(if(property_subtype='used', round(min_value/capacity, 3), min_value)) as min_value
 	from     
 		vm_stats_by_day   
 	where     
@@ -2345,8 +2345,8 @@ order by
             </list-property>
             <xml-property name="queryText"><![CDATA[select  	
 replace(group_name,'/','/ ') as group_name, 	
-avg(if(property_type = 'VCPU',ROUND(max_value/capacity, 3),0))*2 as avg_max_vcpu,
-avg(if(property_type = 'VMem',ROUND(max_value/capacity, 3),0))*2 as avg_max_vmem
+avg(if(property_type = 'VCPU',max_value,0))*2 as avg_max_vcpu,
+avg(if(property_type = 'VMem',max_value,0))*2 as avg_max_vmem
 from  	
 (select *
 from
@@ -2354,7 +2354,7 @@ from
 where
 	group_uuid = ?
 ) as vm_group_members,  	
-(select * 
+(select uuid, property_type, replace(property_subtype, 'used', 'utilization') as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value
 from 
 	vm_stats_by_day 		
 where 			

@@ -76,10 +76,10 @@
 (select distinct 
   property_type
 from
-  (select property_type, max(avg_value) as max_value 
-  from pm_stats_by_day_util
+  (select property_type, max(round(avg_value/capacity, 3)) as max_value
+  from pm_stats_by_day
   where
-    property_subtype = 'utilization'
+    property_subtype = 'used'
     and snapshot_time = date_sub(date(now()), interval 1 day)
   group by property_type
   ) as max_prop_values
@@ -318,19 +318,19 @@ order by
   convert(avg_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as avg_used,
   convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as max_used
 from
-  (select * from pm_stats_by_day_util 
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
   where 
   avg_value > 0.001
   and property_type = ?
-  and property_subtype in ('utilization', 'priceIndex')
+  and property_subtype in ('used', 'priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
-  ) as pm_stats_by_day_util,
+  ) as pm_stats_by_day,
   entities
 where
-  convert(pm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
+  convert(pm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
 group by 
-  pm_stats_by_day_util.uuid
+  pm_stats_by_day.uuid
 order by 
   util_avg_value DESC, display_name ASC
 limit 20]]></xml-property>
@@ -1664,18 +1664,18 @@ limit 20]]></xml-property>
   max(if(property_type='NetThroughput',convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)),0)) as netthroughput_max_used
 
 from
-  (select * from pm_stats_by_day
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
   where 
   avg_value > 0.001
-  and property_subtype in ('utilization','priceIndex')
+  and property_subtype in ('used','priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
-  ) as pm_stats_by_day_util,
+  ) as pm_stats_by_day,
   entities
 where
-  convert(pm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
+  convert(pm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
 group by 
-  pm_stats_by_day_util.uuid
+  pm_stats_by_day.uuid
 
 ]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -2040,14 +2040,14 @@ group by
   avg_value,
   max_value
 from
-  (select * from pm_stats_by_day_util 
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
   where 
-  property_subtype = 'utilization'
-  and snapshot_time = date_sub(date(now()), interval 1  day)
-  ) as pm_stats_by_day_util,
+  property_subtype = 'used'
+  and snapshot_time = date_sub(date(now()), interval 1 day)
+  ) as pm_stats_by_day,
   entities
 where
-  convert(pm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
+  convert(pm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
 order by
   display_name, avg_value DESC]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>

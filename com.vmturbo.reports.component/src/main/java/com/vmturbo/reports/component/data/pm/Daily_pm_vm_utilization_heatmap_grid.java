@@ -11,21 +11,18 @@ import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.sql.utils.DbException;
 
 /**
- * Insert report data to vmtdb for PM_group_monthly_individual_cluster_summary template .
+ * Insert report data to vmtdb for Daily_pm_vm_utilization_heatmap_grid template.
+ * This template doesn't need to generate data, skip registering it.
  */
-public class PM_group_monthly_individual_cluster_summary extends GroupsGenerator implements ReportTemplate {
+public class Daily_pm_vm_utilization_heatmap_grid extends GroupsGenerator implements ReportTemplate {
 
-    public PM_group_monthly_individual_cluster_summary(@Nonnull final GroupGeneratorDelegate groupGeneratorDelegate) {
+    public Daily_pm_vm_utilization_heatmap_grid(@Nonnull final GroupGeneratorDelegate groupGeneratorDelegate) {
         super(groupGeneratorDelegate);
     }
 
     @Override
     public Optional<String> generateData(@Nonnull final ReportsDataContext context,
                                          @Nonnull Optional<Long> selectedGroup) throws DbException {
-        if (selectedGroup.isPresent()) {
-            super.insertPMGroup(context, selectedGroup.get());
-            super.insertPMVMsRelationships(context, selectedGroup.get());
-        }
         return Optional.empty();
     }
 

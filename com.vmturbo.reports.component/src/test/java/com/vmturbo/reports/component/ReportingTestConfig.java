@@ -1,6 +1,7 @@
 package com.vmturbo.reports.component;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,12 +42,28 @@ import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
+import com.vmturbo.reports.component.data.ReportDBDataWriter;
 import com.vmturbo.reports.component.data.ReportTemplate;
 import com.vmturbo.reports.component.data.ReportsDataContext;
 import com.vmturbo.reports.component.data.ReportsDataGenerator;
+import com.vmturbo.reports.component.data.pm.Daily_cluster_30_days_avg_stats_vs_thresholds_grid;
 import com.vmturbo.reports.component.data.pm.Monthly_cluster_summary;
+import com.vmturbo.reports.component.data.pm.Monthly_summary;
+import com.vmturbo.reports.component.data.pm.PM_group_daily_pm_vm_utilization_heatmap_grid;
+import com.vmturbo.reports.component.data.pm.PM_group_hosting;
+import com.vmturbo.reports.component.data.pm.PM_group_monthly_individual_cluster_summary;
+import com.vmturbo.reports.component.data.pm.PM_group_pm_top_bottom_capacity_grid_per_cluster;
+import com.vmturbo.reports.component.data.pm.PM_group_profile;
+import com.vmturbo.reports.component.data.pm.PM_profile;
+import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid;
 import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid_30_days;
 import com.vmturbo.reports.component.data.vm.Daily_vm_rightsizing_advice_grid;
+import com.vmturbo.reports.component.data.vm.VM_group_30_days_vm_top_bottom_capacity_grid;
+import com.vmturbo.reports.component.data.vm.VM_group_daily_over_under_prov_grid_30_days;
+import com.vmturbo.reports.component.data.vm.VM_group_individual_monthly_summary;
+import com.vmturbo.reports.component.data.vm.VM_group_profile;
+import com.vmturbo.reports.component.data.vm.VM_group_profile_physical_resources;
+import com.vmturbo.reports.component.data.vm.VM_group_rightsizing_advice_grid;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.entities.EntitiesDaoImpl;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
@@ -126,16 +143,45 @@ public class ReportingTestConfig {
 
     @Bean
     public ReportsGenerator reportsGenerator() throws IOException {
+        final ReportsDataContext context = mock(ReportsDataContext.class);
+        final ReportDBDataWriter reportDBDataWriter = mock(ReportDBDataWriter.class);
+        when(context.getReportDataWriter()).thenReturn(reportDBDataWriter);
         return new ReportsGenerator(reportRunner(), templatesOrganizer(), reportInstanceDao(),
                 entitiesDao(), reportsOutputDir(), threadPool(), notificationSender(),
-                mailManager(), new ReportsDataGenerator(mock(ReportsDataContext.class), getReportMap()));
+                mailManager(), new ReportsDataGenerator(context, getReportMap()));
     }
 
     private Map<Long, ReportTemplate> getReportMap(){
         final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
-        return ImmutableMap.of(150L, new Daily_vm_rightsizing_advice_grid(delegate),
-            184L, new Daily_vm_over_under_prov_grid_30_days(delegate),
-            146L, new Monthly_cluster_summary(delegate));
+        return ImmutableMap.<Long, ReportTemplate>builder().
+            // VM related reports
+                put(150L, new Daily_vm_rightsizing_advice_grid(delegate)).
+                put(184L, new Daily_vm_over_under_prov_grid_30_days(delegate)).
+                put(148L, new Daily_vm_over_under_prov_grid(delegate)).
+
+            // PM related reports
+                put(146L, new Monthly_cluster_summary(delegate)).
+
+                put(147L, new Monthly_summary(delegate)).
+                put(14L, new PM_group_monthly_individual_cluster_summary(delegate)).
+
+            // both VM and PM
+                put(170L, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate)).
+
+            // on demand reprot
+                put(1L, new PM_group_profile(delegate)).
+                put(2L, new PM_profile(delegate)).
+                put(5L, new VM_group_profile(delegate)).
+                put(8L, new PM_group_hosting(delegate)).
+                put(9L, new VM_group_profile_physical_resources(delegate)).
+                put(10L, new VM_group_individual_monthly_summary(delegate)).
+                put(11L, new VM_group_daily_over_under_prov_grid_30_days(delegate)).
+                put(12L, new VM_group_30_days_vm_top_bottom_capacity_grid(delegate)).
+                put(15L, new PM_group_pm_top_bottom_capacity_grid_per_cluster(delegate)).
+                put(16L, new PM_group_daily_pm_vm_utilization_heatmap_grid(delegate)).
+                put(17L, new VM_group_rightsizing_advice_grid(delegate))
+
+            .build();
     }
 
     @Bean

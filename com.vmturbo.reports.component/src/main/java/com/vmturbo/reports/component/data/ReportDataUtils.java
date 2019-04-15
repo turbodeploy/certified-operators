@@ -230,7 +230,10 @@ public class ReportDataUtils {
     public enum MetaGroup {
         VMs("VMs", "GROUP-VMsByCluster"),
         PMs("PMs", "GROUP-PMsByCluster"),
-        Storages("Storage", "GROUP-STsByCluster");
+        Storages("Storage", "GROUP-STsByCluster"),
+        // it has "\\\\" as "groupPrefix" value because two are for escape, and other two are for SQL
+        // query: like GROUP-VMsByCluster_hostname\\fake_vm_group%
+        FAKE_VM_GROUP("FAKE_VMS", "GROUP-VMsByCluster_hostname\\\\fake_vm_group");
 
         private final String groupName;
         private final String groupPrefix;

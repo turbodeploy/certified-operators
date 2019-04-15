@@ -71,20 +71,20 @@
                     <property name="nativeDataType">12</property>
                 </structure>
             </list-property>
-            <xml-property name="queryText"><![CDATA[select * from 
-(select distinct 
+            <xml-property name="queryText"><![CDATA[select * from
+(select distinct
   property_type
 from
-  (select property_type, max(avg_value) as max_value 
-  from pm_stats_by_day_util 
+  (select property_type, max(round(avg_value/capacity, 3)) as max_value
+  from pm_stats_by_day
   where
-    property_subtype = 'utilization'
+    property_subtype = 'used'
     and snapshot_time = date_sub(date(now()), interval 1 day)
   group by property_type
   ) as max_prop_values
 where
   max_value > 0.001
-order by 
+order by
   property_type
 ) as other_props
 ]]></xml-property>
@@ -97,8 +97,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>property_type</design:name>
-              <design:position>1</design:position>
+            <design:name>property_type</design:name>
+            <design:position>1</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>108</design:precision>
@@ -290,7 +290,7 @@ order by
                     <property name="nativeDataType">8</property>
                 </structure>
             </list-property>
-            <xml-property name="queryText"><![CDATA[select 
+            <xml-property name="queryText"><![CDATA[select
   display_name,
   property_type,
   property_subtype,
@@ -300,19 +300,19 @@ order by
   convert(avg_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as avg_used,
   convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as max_used
 from
-  (select * from pm_stats_by_day_util
-  where 
+ (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
+  where
   avg_value > 0.001
   and property_type = ?
-  and property_subtype in ('utilization', 'priceIndex')
+  and property_subtype in ('used', 'priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
   limit 20
-  ) as pm_stats_by_day_util,
+  ) as pm_stats_by_day,
   entities
 where
-  convert(pm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
-order by 
+  convert(pm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
+order by
   avg_value DESC, property_type ASC
 ]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -324,8 +324,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>class_name</design:name>
-              <design:position>1</design:position>
+            <design:name>class_name</design:name>
+            <design:position>1</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
@@ -345,8 +345,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>instance_name</design:name>
-              <design:position>2</design:position>
+            <design:name>instance_name</design:name>
+            <design:position>2</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>80</design:precision>
@@ -366,8 +366,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>property_type</design:name>
-              <design:position>3</design:position>
+            <design:name>property_type</design:name>
+            <design:position>3</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
@@ -387,8 +387,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>property_subtype</design:name>
-              <design:position>4</design:position>
+            <design:name>property_subtype</design:name>
+            <design:position>4</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
@@ -408,8 +408,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>avg_property_value</design:name>
-              <design:position>5</design:position>
+            <design:name>avg_property_value</design:name>
+            <design:position>5</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
@@ -429,8 +429,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>min_property_value</design:name>
-              <design:position>6</design:position>
+            <design:name>min_property_value</design:name>
+            <design:position>6</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
@@ -450,8 +450,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>max_property_value</design:name>
-              <design:position>7</design:position>
+            <design:name>max_property_value</design:name>
+            <design:position>7</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
@@ -471,8 +471,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>year_number</design:name>
-              <design:position>8</design:position>
+            <design:name>year_number</design:name>
+            <design:position>8</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>4</design:precision>
@@ -492,8 +492,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>month_number</design:name>
-              <design:position>9</design:position>
+            <design:name>month_number</design:name>
+            <design:position>9</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>2</design:precision>
@@ -513,8 +513,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>day_number</design:name>
-              <design:position>10</design:position>
+            <design:name>day_number</design:name>
+            <design:position>10</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>2</design:precision>
@@ -1557,7 +1557,7 @@ order by
                     <property name="nativeDataType">8</property>
                 </structure>
             </list-property>
-            <xml-property name="queryText"><![CDATA[select 
+            <xml-property name="queryText"><![CDATA[select
   display_name,
   max(if(property_type='priceIndex',capacity,0)) as utilization_index_capacity,
   max(if(property_type='priceIndex',avg_value,0)) as utilization_index_avg_value,
@@ -1626,18 +1626,18 @@ order by
   max(if(property_type='NetThroughput',convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)),0)) as netthroughput_max_used
 
 from
-  (select uuid, property_type, property_subtype, capacity, avg_value, max_value from pm_stats_by_day_util 
-  where 
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from pm_stats_by_day
+  where
   avg_value > 0.001
-  and property_subtype in ('utilization','priceIndex')
+  and property_subtype in ('used','priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
-  ) as pm_stats_by_day_util,
+  ) as pm_stats_by_day,
   (select uuid, display_name from entities where creation_class='PhysicalMachine') as entities
 where
-  convert(pm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
-group by 
-  pm_stats_by_day_util.uuid
+  convert(pm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
+group by
+  pm_stats_by_day.uuid
 ]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
@@ -2002,13 +2002,13 @@ group by
   max_value
 from
   (select uuid, display_name from entities where creation_class='PhysicalMachine') as entities,
-  (select uuid, property_type, capacity, avg_value, max_value from pm_stats_by_day_util 
-  where 
-  property_subtype = 'utilization'
+  (select uuid, property_type, capacity, round(avg_value/capacity, 3) as avg_value, round(max_value/capacity, 3) as max_value from pm_stats_by_day
+  where
+  property_subtype = 'used'
   and snapshot_time = date_sub(date(now()), interval 1 day)
-  ) as pm_stats_by_day_util
+  ) as pm_stats_by_day
 where
-  convert(pm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
+  convert(pm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
 order by
   display_name, avg_value DESC]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -2549,7 +2549,7 @@ order by
                     <property name="nativeDataType">8</property>
                 </structure>
             </list-property>
-            <xml-property name="queryText"><![CDATA[select 
+            <xml-property name="queryText"><![CDATA[select
   display_name,
   property_type,
   property_subtype,
@@ -2559,19 +2559,19 @@ order by
   convert(avg_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as avg_used,
   convert(max_value*capacity/if(property_type like 'Q%VCPU',replace(replace(property_type,'Q',''),'VCPU',''),1.0),decimal(15,3)) as max_used
 from
-  (select * from vm_stats_by_day_util
-  where 
+  (select uuid, property_type, if(property_subtype='used', replace(property_subtype, 'used', 'utilization'), property_subtype) as property_subtype, capacity, if(property_subtype='used', round(avg_value/capacity, 3), avg_value) as avg_value, if(property_subtype='used', round(min_value/capacity, 3), min_value) as min_value, if(property_subtype='used', round(max_value/capacity, 3), max_value) as max_value from vm_stats_by_day
+  where
   avg_value > 0.001
   and property_type = ?
-  and property_subtype in ('utilization', 'priceIndex')
+  and property_subtype in ('used', 'priceIndex')
   and snapshot_time = date_sub(date(now()), interval 1 day)
   order by avg_value DESC, property_type ASC
   limit 20
-  ) as vm_stats_by_day_util,
+  ) as vm_stats_by_day,
   entities
 where
-  convert(vm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
-order by 
+  convert(vm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
+order by
   avg_value DESC, property_type ASC
 ]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -2583,8 +2583,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>class_name</design:name>
-              <design:position>1</design:position>
+            <design:name>class_name</design:name>
+            <design:position>1</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
@@ -2604,8 +2604,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>instance_name</design:name>
-              <design:position>2</design:position>
+            <design:name>instance_name</design:name>
+            <design:position>2</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>80</design:precision>
@@ -2625,8 +2625,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>property_type</design:name>
-              <design:position>3</design:position>
+            <design:name>property_type</design:name>
+            <design:position>3</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
@@ -2646,8 +2646,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>property_subtype</design:name>
-              <design:position>4</design:position>
+            <design:name>property_subtype</design:name>
+            <design:position>4</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>36</design:precision>
@@ -2667,8 +2667,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>avg_property_value</design:name>
-              <design:position>5</design:position>
+            <design:name>avg_property_value</design:name>
+            <design:position>5</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
@@ -2688,8 +2688,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>min_property_value</design:name>
-              <design:position>6</design:position>
+            <design:name>min_property_value</design:name>
+            <design:position>6</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
@@ -2709,8 +2709,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>max_property_value</design:name>
-              <design:position>7</design:position>
+            <design:name>max_property_value</design:name>
+            <design:position>7</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>17</design:precision>
@@ -2730,8 +2730,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>year_number</design:name>
-              <design:position>8</design:position>
+            <design:name>year_number</design:name>
+            <design:position>8</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>4</design:precision>
@@ -2751,8 +2751,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>month_number</design:name>
-              <design:position>9</design:position>
+            <design:name>month_number</design:name>
+            <design:position>9</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>2</design:precision>
@@ -2772,8 +2772,8 @@ order by
         <design:resultColumnDefinitions>
           <design:attributes>
             <design:identifier>
-              <design:name>day_number</design:name>
-              <design:position>10</design:position>
+            <design:name>day_number</design:name>
+            <design:position>10</design:position>
             </design:identifier>
             <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
             <design:precision>2</design:precision>
@@ -2930,7 +2930,7 @@ order by
                 </structure>
             </list-property>
             <xml-property name="queryText"><![CDATA[
-select * from 
+select * from
 (
 
 select
@@ -2941,16 +2941,16 @@ select
   max_value
 from
   (select uuid, display_name from entities where creation_class='VirtualMachine') as entities,
-  (select uuid, property_type, capacity, avg_value, max_value from vm_stats_by_day
-  where 
-    property_subtype = 'utilization'
+  (select uuid, property_type, capacity, round(avg_value/capacity, 3) as avg_value, round(max_value/capacity, 3) as max_value from vm_stats_by_day
+  where
+    property_subtype = 'used'
     and snapshot_time = date_sub(date(now()), interval 1 day)
-  ) as vm_stats_by_day_util
+  ) as vm_stats_by_day
 where
-  convert(vm_stats_by_day_util.uuid using utf8) = convert(entities.uuid using utf8)
-  
+  convert(vm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
+
   union
-  
+
   select
   display_name,
   property_type,
@@ -2960,7 +2960,7 @@ where
 from
   (select uuid, display_name from entities where creation_class='VirtualMachine') as entities,
   (select uuid, property_type, capacity, avg_value, max_value from vm_stats_by_day
-  where 
+  where
     property_type in ('StorageAccess','StorageLatency','Q2VCPU','Q4VCPU','Q8VCPU')
     and property_subtype = 'used'
     and snapshot_time = date_sub(date(now()), interval 1 day)
@@ -4182,7 +4182,7 @@ order by
                     <property name="nativeDataType">8</property>
                 </structure>
             </list-property>
-            <xml-property name="queryText"><![CDATA[select 
+            <xml-property name="queryText"><![CDATA[select
   display_name,
   max(if(property_type='priceIndex',capacity,0)) as utilization_index_capacity,
   max(if(property_type='priceIndex',avg_value,0)) as utilization_index_avg_value,
@@ -4201,7 +4201,7 @@ order by
   max(if(property_type='VCPU',max_value,0)) as cpu_max_value,
   max(if(property_type='VCPU',convert(avg_value*capacity,decimal(15,3)),0)) as cpu_avg_used,
   max(if(property_type='VCPU',convert(max_value*capacity,decimal(15,3)),0)) as cpu_max_used,
-  
+
   max(if(property_type='Q1VCPU',capacity,0)) as q1vcpu_capacity,
   max(if(property_type='Q1VCPU',convert(avg_value/capacity,decimal(15,3)),0)) as q1vcpu_avg_value,
   max(if(property_type='Q1VCPU',convert(max_value/capacity,decimal(15,3)),0)) as q1vcpu_max_value,
@@ -4241,13 +4241,13 @@ order by
  from
   (select uuid, display_name from entities where creation_class='VirtualMachine') as entities,
   (select uuid, property_type, property_subtype, capacity, avg_value, max_value from vm_stats_by_day
-  where 
+  where
   avg_value > 0.001
-  and 
+  and
   (
-  	(property_type in ('StorageLatency','StorageAccess') and property_subtype = 'used') 
+  	(property_type in ('StorageLatency','StorageAccess') and property_subtype = 'used')
   		or
-  	(property_type like 'Q%VCPU' and property_subtype = 'used') 
+  	(property_type like 'Q%VCPU' and property_subtype = 'used')
   		or
     (property_type not like 'Q%VCPU' and property_subtype in ('utilization','priceIndex'))
   )
@@ -4256,7 +4256,7 @@ order by
   ) as vm_stats_by_day
 where
   convert(vm_stats_by_day.uuid using utf8) = convert(entities.uuid using utf8)
-group by 
+group by
   vm_stats_by_day.uuid
 ]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -4690,7 +4690,7 @@ www.eclipse.org/birt/report/model/adapter/odaModel">
             <property name="marginRight">0.5in</property>
             <property name="paddingLeft">1pt</property>
             <property name="contentType">html</property>
-            <text-property name="content"><![CDATA[<center><h1 style="color:#7C7C7C; font-size:16pt;margin-top:12px;">Host/VM Utilization Heatmap for  
+            <text-property name="content"><![CDATA[<center><h1 style="color:#7C7C7C; font-size:16pt;margin-top:12px;">Host/VM Utilization Heatmap for
 <value-of>
 BirtDateTime.month(BirtDateTime.addDay(BirtDateTime.today(),-1))+"/"+
 BirtDateTime.day(BirtDateTime.addDay(BirtDateTime.today(),-1))+"/"+
@@ -4706,7 +4706,7 @@ BirtDateTime.year(BirtDateTime.addDay(BirtDateTime.today(),-1))
             <property name="marginBottom">10pt</property>
             <property name="marginRight">0.5in</property>
             <property name="contentType">html</property>
-            <text-property name="content"><![CDATA[<p style="margin-top:10px;">This report uses Utilization Index values to rank-order Hosts and VMs and indicate their loading levels using heat-map colors. Utilization Index is a composite loading factor that combines various resource utilization levels into a single value. 
+            <text-property name="content"><![CDATA[<p style="margin-top:10px;">This report uses Utilization Index values to rank-order Hosts and VMs and indicate their loading levels using heat-map colors. Utilization Index is a composite loading factor that combines various resource utilization levels into a single value.
 </p>
 ]]></text-property>
         </text>

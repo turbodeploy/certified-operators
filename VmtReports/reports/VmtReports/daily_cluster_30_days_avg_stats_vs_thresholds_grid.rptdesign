@@ -263,20 +263,20 @@
             </list-property>
             <xml-property name="queryText"><![CDATA[select max(group_type) as class_name,
   max(group_name) as instance_name,
-   replace(replace(replace(property_type,'VCPU',''),'Q','Rdy Q'),'Throughput','') as property_type,
-  max(property_subtype) as property_subtype,
-  avg(avg_value) as avg_property_value,
-  min(min_value) as min_property_value,
-  max(max_value) as max_property_value,
+  replace(replace(replace(property_type,'VCPU',''),'Q','Rdy Q'),'Throughput','') as property_type,
+  replace(property_subtype, max(property_subtype), 'utilization') as property_subtype,
+  avg(round(avg_value/capacity, 3)) as avg_property_value,
+  min(round(min_value/capacity, 3)) as min_property_value,
+  max(round(max_value/capacity, 3)) as max_property_value,
    date_format(snapshot_time, "%Y-%m-%d") as comp_date,
   snapshot_time as recorded_on
  from pm_stats_by_day_per_pm_group       
  where
   snapshot_time between date_sub(date(now()),interval 30 day) and date_sub(date(now()),interval 1 day)
-  and property_subtype = 'utilization' and internal_name like 'GROUP-PMsByCluster%' and uuid = member_uuid 
+  and property_subtype = 'used' and internal_name like 'GROUP-PMsByCluster%' and uuid = member_uuid 
   and uuid is not null
-  and group_name like 'PMs_%'
- group by 
+  and group_name != 'PMs'
+ group by
    group_uuid, property_type, snapshot_time;]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
@@ -676,18 +676,18 @@
             <xml-property name="queryText"><![CDATA[select max(group_type) as class_name,
   max(group_name) as instance_name,
   property_type,
-  max(property_subtype) as property_subtype,
-  avg(avg_value) as avg_property_value,
-  min(min_value) as min_property_value,
-  max(max_value) as max_property_value,
+  replace(property_subtype, max(property_subtype), 'utilization') as property_subtype,
+  avg(round(avg_value/capacity, 3)) as avg_property_value,
+  min(round(min_value/capacity, 3)) as min_property_value,
+  max(round(max_value/capacity, 3)) as max_property_value,
   date_format(snapshot_time, "%Y-%m-%d") as comp_date,
   snapshot_time as recorded_on
  from vm_stats_by_day_per_vm_group       
  where
   snapshot_time between date_sub(date(now()),interval 30 day) and date_sub(date(now()),interval 1 day)
-  and property_subtype = 'utilization' and internal_name like 'GROUP-VMsByCluster%' and uuid = member_uuid 
+  and property_subtype = 'used' and internal_name like 'GROUP-VMsByCluster%' and uuid = member_uuid 
   and uuid is not null
-  and group_name like 'VMs_%'
+  and group_name != 'VMs'
  group by 
    group_uuid, property_type, snapshot_time;]]></xml-property>
             <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>

@@ -14,6 +14,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.reporting.api.ReportingConstants;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
+import com.vmturbo.reports.component.data.ReportDataUtils.MetaGroup;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -40,6 +41,8 @@ public class ReportsDataGenerator {
      */
     public Optional<String> generateDataByRequest(final GenerateReportRequest request) {
         final long id = request.getTemplate().getId();
+        // Always need to clean up "fake_vm_group"
+        cleanUpFakeVmGroup();
         if (reportMap.containsKey(id)) {
             final Optional<Long> selectedUuid = (request.getParametersMap() != null &&
                 request.getParametersMap().containsKey(ReportingConstants.ITEM_UUID_PROPERTY)) ?
@@ -62,6 +65,12 @@ public class ReportsDataGenerator {
         }
         logger.info("The template id ({}) is not defined skip data generation.", id);
         return Optional.empty();
+    }
+
+    // Some report required tactical "fake_vm_group" in vmtdb to work propertly, but we don't want
+    // this group to show up in other reports.
+    private void cleanUpFakeVmGroup() {
+        context.getReportDataWriter().cleanGroup(MetaGroup.FAKE_VM_GROUP);
     }
 
     private static class Metrics {

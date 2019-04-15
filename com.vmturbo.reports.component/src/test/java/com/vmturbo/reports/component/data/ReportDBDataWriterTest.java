@@ -401,5 +401,23 @@ public class ReportDBDataWriterTest {
             .setExpressionType(expType).setExpressionValue(expValue).build();
     }
 
+    @Test
+    public void testCleanGroupFakeVmGroup() throws DbException {
+        final String FAKE_VM_GROUP = "fake_vm_group";
+        final Group group = getGroup(FAKE_VM_GROUP, FAKE_VM_GROUP);
+        EntitiesTableGeneratedId results = reportDBDataWriter.insertGroupIntoEntitiesTable(ImmutableList.of(group), MetaGroup.VMs);
+        assertNotNull(results.getDefaultGroupPK());
+        assertEquals(1, results.getGroupToPK().size());
+        Result<EntitiesRecord> resultGroup = dslContext.selectFrom(ENTITIES)
+            .where(ENTITIES.CREATION_CLASS.eq(GROUP)).fetch();
+        assertEquals(1, resultGroup.size());
+        assertEquals(FAKE_VM_GROUP, resultGroup.getValues(ENTITIES.DISPLAY_NAME).get(0));
+        reportDBDataWriter.cleanGroup(MetaGroup.FAKE_VM_GROUP);
+        resultGroup = dslContext.selectFrom(ENTITIES)
+            .where(ENTITIES.CREATION_CLASS.eq(GROUP)).fetch();
+        assertEquals(0, resultGroup.size());
+    }
+
+
 
 }

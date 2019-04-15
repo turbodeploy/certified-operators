@@ -4,6 +4,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Map;
 
@@ -35,6 +36,9 @@ public class ReportingDataGeneratorTest {
         reportsDataContext = mock(ReportsDataContext.class);
         reportMap = getReportMap();
         reportsDataGenerator = new ReportsDataGenerator(reportsDataContext, reportMap);
+        final ReportDBDataWriter reportDBDataWriter = mock(ReportDBDataWriter.class);
+        when(reportsDataContext.getReportDataWriter()).thenReturn(reportDBDataWriter);
+
     }
 
     @After
@@ -58,6 +62,7 @@ public class ReportingDataGeneratorTest {
             .setFormat(ReportOutputFormat.PDF.getLiteral())
             .setTemplate((ReportTemplateId.newBuilder().setId(151).setReportType(1).build()))
             .build();
+        reportsDataGenerator.generateDataByRequest(request);
         verify(daily_vm_rightsizing_advice_grid, never()).generateData(any(), any());
 
     }
