@@ -45,10 +45,17 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -104,12 +111,19 @@ public class SettingPoliciesServiceTest {
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
+    private final SettingServiceMole settingBackend = spy(new SettingServiceMole());
+
+    private SettingServiceBlockingStub settingServiceStub;
+
+
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyBackend);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyBackend,settingBackend);
 
     @Before
     public void setup() throws IOException {
-        settingsPoliciesService = new SettingsPoliciesService(settingsMapper,
+        settingServiceStub = SettingServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+
+        settingsPoliciesService = new SettingsPoliciesService(settingServiceStub, settingsMapper,
                 SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
 
         final SettingsManagerApiDTO mgr = new SettingsManagerApiDTO();
@@ -212,6 +226,8 @@ public class SettingPoliciesServiceTest {
     @Test
     public void testUpdatePolicySetDefault() throws Exception {
         final long id = 7;
+        String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
+        float defaultValue = GlobalSettingSpecs.RateOfResize.createSettingSpec().getNumericSettingValueType().getDefault();
         when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
                 .thenReturn(SCOPE_POLICY_INFO);
         when(settingPolicyBackend.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
@@ -223,9 +239,17 @@ public class SettingPoliciesServiceTest {
 
         when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
                 .thenReturn(RET_SP_DTO);
+        when(settingBackend.updateGlobalSetting(
+            UpdateGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(rateOfResizeSettingName)
+                .setNumericSettingValue(
+                    SettingDTOUtil.createNumericSettingValue(
+                        defaultValue))
+                .build())).thenReturn(UpdateGlobalSettingResponse.newBuilder().build());
         final SettingsPolicyApiDTO retDto =
                 settingsPoliciesService.editSettingsPolicy(Long.toString(id), true, inputPolicy);
         verify(settingPolicyBackend).resetSettingPolicy(any());
+        verify(settingBackend).updateGlobalSetting(any());
         assertEquals(retDto, RET_SP_DTO);
     }
 

@@ -1096,7 +1096,7 @@ public class SettingsMapper {
                     isVmEntityType(policy.getInfo().getEntityType()));
     }
 
-    private static boolean isVmEntityType(int entityType) {
+    public static boolean isVmEntityType(int entityType) {
         return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
     }
 

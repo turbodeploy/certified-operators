@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 
+import io.grpc.Channel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -40,8 +41,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRespon
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+
 
 /**
  * Implement SettingsPolicies API services.
@@ -56,12 +64,17 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
+    private final SettingServiceBlockingStub settingService;
+
     private final SettingsMapper settingsMapper;
 
-    public SettingsPoliciesService(@Nonnull final SettingsMapper settingsMapper,
+
+    public SettingsPoliciesService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub, @Nonnull final SettingsMapper settingsMapper,
                                    @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub) {
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
         this.settingPolicyService = settingPolicyServiceBlockingStub;
+        this.settingService = settingServiceBlockingStub;
+
     }
 
     /**
@@ -189,10 +202,23 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         try {
             if (setDefault) {
                 final ResetSettingPolicyResponse response =
-                        settingPolicyService.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
-                                .setSettingPolicyId(id)
-                                .build());
+                    settingPolicyService.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
+                        .setSettingPolicyId(id)
+                        .build());
                 editedPolicy = response.getSettingPolicy();
+
+                if (settingsMapper.isVmEntityType(response.getSettingPolicy().getInfo().getEntityType())) {
+                    String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
+                    float defaultValue = GlobalSettingSpecs.RateOfResize.createSettingSpec().getNumericSettingValueType().getDefault();
+                    settingService.updateGlobalSetting(
+                        UpdateGlobalSettingRequest.newBuilder()
+                            .setSettingSpecName(rateOfResizeSettingName)
+                            .setNumericSettingValue(
+                                SettingDTOUtil.createNumericSettingValue(
+                                    defaultValue))
+                            .build());
+                }
+
             } else {
                 final SettingPolicyInfo policyInfo =
                         settingsMapper.convertEditedInputPolicy(id, settingPolicy);

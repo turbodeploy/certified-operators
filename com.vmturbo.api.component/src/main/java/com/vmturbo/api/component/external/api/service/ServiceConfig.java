@@ -412,7 +412,7 @@ public class ServiceConfig {
 
     @Bean
     public SettingsPoliciesService settingsPoliciesService() {
-        return new SettingsPoliciesService(mapperConfig.settingsMapper(),
+        return new SettingsPoliciesService(communicationConfig.settingRpcService(), mapperConfig.settingsMapper(),
                 settingPolicyServiceBlockingStub());
     }
 
