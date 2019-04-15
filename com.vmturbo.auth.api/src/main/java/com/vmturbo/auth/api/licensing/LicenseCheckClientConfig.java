@@ -8,6 +8,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
@@ -20,6 +21,7 @@ import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.Star
 /**
  * Configures a {@link LicenseCheckClient} for use in your component.
  */
+@Configuration
 @Lazy
 @Import({BaseKafkaConsumerConfig.class})
 public class LicenseCheckClientConfig {

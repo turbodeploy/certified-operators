@@ -6,9 +6,11 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
@@ -16,9 +18,11 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.api.component.external.api.interceptor.LicenseInterceptor;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.interceptors.TelemetryInterceptor;
 import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
 
@@ -28,6 +32,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
  */
 @Configuration
 @EnableWebMvc
+@Import({LicenseCheckClientConfig.class})
 public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
 
     @Value("${identityGeneratorPrefix}")
@@ -38,6 +43,9 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
 
     @Value("${build-number.build}")
     private String buildNumber;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     /**
      * Add a new instance of the {@link GsonHttpMessageConverter} to the list of available {@link HttpMessageConverter}s in use.
@@ -66,6 +74,24 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(telemetryInterceptor()).addPathPatterns("/**");
+        // license interceptor which validates current license for every request except for some
+        // endpoints which should be allowed even license is invalid
+        registry.addInterceptor(licenseInterceptor())
+            .addPathPatterns("/**")
+            .excludePathPatterns("/login")
+            .excludePathPatterns("/logout")
+            .excludePathPatterns("/licenses/**")
+            .excludePathPatterns("/license/**")
+            .excludePathPatterns("/checkInit")
+            .excludePathPatterns("/initAdmin")
+            .excludePathPatterns("/users/administrator/reset")
+            .excludePathPatterns("/cluster/proactive/initialized")
+            .excludePathPatterns("/cluster/proactive/enabled")
+            .excludePathPatterns("/cluster/isXLEnabled")
+            .excludePathPatterns("/admin/versions")
+            .excludePathPatterns("/users/me")
+            .excludePathPatterns("/users/saml")
+            .excludePathPatterns("/health");
     }
 
     @Bean
@@ -93,6 +119,16 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TelemetryInterceptor telemetryInterceptor() {
         return new TelemetryInterceptor(versionInfo());
+    }
+
+    /**
+     * Create a license interceptor to check if current license is valid or not.
+     *
+     * @return A {@link LicenseInterceptor} instance.
+     */
+    @Bean
+    public LicenseInterceptor licenseInterceptor() {
+        return new LicenseInterceptor(licenseCheckClientConfig.licenseCheckClient());
     }
 
     /**
