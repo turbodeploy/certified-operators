@@ -220,14 +220,14 @@ public enum EntitySettingSpecs {
      */
     CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 1000000f, 30000f), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f), true),
     /**
      * Memory overprovisioned in percents.
      */
     MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage",
             "Memory Overprovisioned Percentage",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 1000000f, 1000f), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f), true),
 
     /**
      * Storage amount overprovisioned factor in percents.
@@ -236,7 +236,7 @@ public enum EntitySettingSpecs {
             "Storage Overprovisioned Percentage",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
-            numeric(1f, 1000000f, 200f), true),
+            numeric(1f, 1000f, 200f), true),
     /**
      * Desired utilization target.
      */
@@ -712,7 +712,7 @@ public enum EntitySettingSpecs {
      */
     EntitySettingSpecs(@Nonnull String name, @Nonnull String displayName,
             @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
-            @Nonnull Set<EntityType> entityTypeScope, @Nonnull SettingDataStructure<?> dataStructure,
+            @Nonnull Set<EntityType> entityTypeScope, @Nonnull SettingDataStructure dataStructure,
             boolean allowGlobalDefault) {
         this.name = Objects.requireNonNull(name);
         this.displayName = Objects.requireNonNull(displayName);
