@@ -2,20 +2,16 @@ package com.vmturbo.topology.processor.topology;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -24,15 +20,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.historical.Conversions;
-import com.vmturbo.topology.processor.historical.HistoricalCommodityInfo;
 import com.vmturbo.topology.processor.historical.HistoricalInfo;
 import com.vmturbo.topology.processor.historical.HistoricalInfoRecord;
 import com.vmturbo.topology.processor.historical.HistoricalServiceEntityInfo;
+import com.vmturbo.topology.processor.historical.HistoricalCommodityInfo;
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
+import com.vmturbo.topology.processor.historical.Conversions;
+import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
  * Editor to calculate the correct used and peak values for the commodities,
@@ -166,7 +162,7 @@ public class HistoricalEditor {
                 Iterator<HistoricalCommodityInfo> iterSold = histSoldInfoList.iterator();
                 while (iterSold.hasNext()) {
                     HistoricalCommodityInfo histSoldInfo = iterSold.next();
-                    if (!histSoldInfo.getExisting()) {
+                    if (histSoldInfo.getExisting() == false) {
                         iterSold.remove();
                     }
                 }
@@ -176,7 +172,7 @@ public class HistoricalEditor {
                 Iterator<HistoricalCommodityInfo> iterBought = histBoughtInfoList.iterator();
                 while (iterBought.hasNext()) {
                     HistoricalCommodityInfo histBoughtInfo = iterBought.next();
-                    if (!histBoughtInfo.getExisting()) {
+                    if (histBoughtInfo.getExisting() == false) {
                         iterBought.remove();
                     }
                 }
@@ -226,7 +222,7 @@ public class HistoricalEditor {
             for (CommoditySoldDTO.Builder commSold : entityBuilder.getCommoditySoldListBuilderList()) {
                 if (!accessCommodities.contains(commSold.getCommodityType().getType())) {
                     HistoricalCommodityInfo histSoldInfo = new HistoricalCommodityInfo();
-                    histSoldInfo.setCommodityTypeAndKey(commSold.getCommodityType());
+                    histSoldInfo.setCommodityTypeId(commSold.getCommodityType().getType());
                     histSoldInfo.setHistoricalUsed(-1.0f);
                     histSoldInfo.setHistoricalPeak(-1.0f);
                     histSoldInfo.setSourceId(-1);
@@ -243,10 +239,11 @@ public class HistoricalEditor {
             for (CommoditySoldDTO.Builder commSold : entityBuilder.getCommoditySoldListBuilderList()) {
                 if (!accessCommodities.contains(commSold.getCommodityType().getType())) {
                     histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
+                    int commType = commSold.getCommodityType().getType();
                     boolean isMatched = false;
                     for (int i = 0; i < histSoldInfoList.size(); i++) {
                         HistoricalCommodityInfo histSoldInfo = histSoldInfoList.get(i);
-                        if (histSoldInfo.getCommodityTypeAndKey().equals(commSold.getCommodityType())) {
+                        if (histSoldInfo.getCommodityTypeId() == commType) {
                             histSoldInfo.setMatched(true);
                             isMatched = true;
                             break;
@@ -254,7 +251,7 @@ public class HistoricalEditor {
                     }
                     if (!isMatched) {
                         HistoricalCommodityInfo histSoldInfo = new HistoricalCommodityInfo();
-                        histSoldInfo.setCommodityTypeAndKey(commSold.getCommodityType());
+                        histSoldInfo.setCommodityTypeId(commType);
                         histSoldInfo.setHistoricalUsed(-1.0f);
                         histSoldInfo.setHistoricalPeak(-1.0f);
                         histSoldInfo.setSourceId(-1);
@@ -294,9 +291,9 @@ public class HistoricalEditor {
                 List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
                 for (int i = 0; i < histSoldInfoList.size(); i++) {
                     HistoricalCommodityInfo histSoldInfo = histSoldInfoList.get(i);
-                    if (histSoldInfo.getCommodityTypeAndKey().equals(commodityType.getType())) {
+                    if (histSoldInfo.getCommodityTypeId() == commodityType.getType()) {
                         commSoldFound = true;
-                        if (histSoldInfo.getMatched()) {
+                        if (histSoldInfo.getMatched() == true) {
                             float usedHistWeight = histSeInfo.getUsedHistoryWeight();
                             float peakHistWeight = histSeInfo.getPeakHistoryWeight();
                             if (histSoldInfo.getHistoricalUsed() > 0) {
@@ -357,7 +354,7 @@ public class HistoricalEditor {
                     for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
                         if (!accessCommodities.contains(commBought.getCommodityType().getType())) {
                             HistoricalCommodityInfo histBoughtInfo = new HistoricalCommodityInfo();
-                            histBoughtInfo.setCommodityTypeAndKey(commBought.getCommodityType());
+                            histBoughtInfo.setCommodityTypeId(commBought.getCommodityType().getType());
                             histBoughtInfo.setHistoricalUsed(-1.0f);
                             histBoughtInfo.setHistoricalPeak(-1.0f);
                             histBoughtInfo.setSourceId(sourceId);
@@ -382,13 +379,14 @@ public class HistoricalEditor {
                     }
                     for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
                         if (!accessCommodities.contains(commBought.getCommodityType().getType())) {
+                            int commType = commBought.getCommodityType().getType();
                             boolean isMatched = false;
                             List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
                             for (int i = 0; i < histBoughtInfoList.size(); i++) {
                                 HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
-                                if (commBought.getCommodityType().equals(commBought.getCommodityType()) &&
-                                    (histBoughtInfo.getSourceId() == sourceId) &&
-                                    !histBoughtInfo.getMatched()) {
+                                if ((histBoughtInfo.getCommodityTypeId() == commType) &&
+                                        (histBoughtInfo.getSourceId() == sourceId) &&
+                                        (histBoughtInfo.getMatched() == false)) {
                                     histBoughtInfo.setMatched(true);
                                     histBoughtInfoList.set(i, histBoughtInfo);
                                     histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
@@ -398,7 +396,7 @@ public class HistoricalEditor {
                             }
                             if (!isMatched) {
                                 HistoricalCommodityInfo histBoughtInfo = new HistoricalCommodityInfo();
-                                histBoughtInfo.setCommodityTypeAndKey(commBought.getCommodityType());
+                                histBoughtInfo.setCommodityTypeId(commType);
                                 histBoughtInfo.setHistoricalUsed(-1.0f);
                                 histBoughtInfo.setHistoricalPeak(-1.0f);
                                 histBoughtInfo.setSourceId(sourceId);
@@ -440,9 +438,10 @@ public class HistoricalEditor {
                 List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
                 for (int i = 0; i < histBoughtInfoList.size(); i++) {
                     HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
-                    if (histBoughtInfo.getCommodityTypeAndKey().equals(topoCommBought.getCommodityType()) &&
-                        (histBoughtInfo.getSourceId() == sourceId) &&
-                        histBoughtInfo.getMatched() && !histBoughtInfo.getExisting()) {
+                    if ((histBoughtInfo.getCommodityTypeId() == topoCommBought.getCommodityType().getType()) &&
+                            (histBoughtInfo.getSourceId() == sourceId) &&
+                            (histBoughtInfo.getMatched() == true) &&
+                            (histBoughtInfo.getExisting() == false)) {
                         commBoughtFound = true;
                         float usedHistWeight = histSeInfo.getUsedHistoryWeight();
                         float peakHistWeight = histSeInfo.getPeakHistoryWeight();
@@ -474,10 +473,11 @@ public class HistoricalEditor {
                     int indexMatching = -1; // the index of the previous commodity to be matched in histBoughtInfoList
                     for (int i = 0; i < histBoughtInfoList.size(); i++) {
                         HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
-                        if (histBoughtInfo.getCommodityTypeAndKey().equals(topoCommBought.getCommodityType()) &&
-                            !histBoughtInfo.getMatched() && !histBoughtInfo.getExisting()) {
+                        if ((histBoughtInfo.getCommodityTypeId() == topoCommBought.getCommodityType().getType()) &&
+                                (histBoughtInfo.getMatched() == false) &&
+                                (histBoughtInfo.getExisting() == false)) {
                             if ((Math.abs(histBoughtInfo.getHistoricalUsed() + 1.0f) < E) &&
-                                (Math.abs(histBoughtInfo.getHistoricalPeak() + 1.0f) < E)) {
+                                    (Math.abs(histBoughtInfo.getHistoricalPeak() + 1.0f) < E)) {
                                 // It is a new commodity
                                 numberNew++;
                                 if (histBoughtInfo.getSourceId() == sourceId) {
@@ -517,11 +517,12 @@ public class HistoricalEditor {
                         // Don't match
                         for (int i = 0; i < histBoughtInfoList.size(); i++) {
                             HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
-                            if (histBoughtInfo.getCommodityTypeAndKey().equals(topoCommBought.getCommodityType()) &&
-                                (Math.abs(histBoughtInfo.getHistoricalUsed() + 1.0f) < E) &&
-                                (Math.abs(histBoughtInfo.getHistoricalPeak() + 1.0f) < E) &&
-                                (histBoughtInfo.getSourceId() == sourceId) &&
-                                !histBoughtInfo.getMatched() && !histBoughtInfo.getExisting()) {
+                            if ((histBoughtInfo.getCommodityTypeId() == topoCommBought.getCommodityType().getType()) &&
+                                    (Math.abs(histBoughtInfo.getHistoricalUsed() + 1.0f) < E) &&
+                                    (Math.abs(histBoughtInfo.getHistoricalPeak() + 1.0f) < E) &&
+                                    (histBoughtInfo.getSourceId() == sourceId) &&
+                                    (histBoughtInfo.getMatched() == false) &&
+                                    (histBoughtInfo.getExisting() == false)) {
                                 histBoughtInfo.setHistoricalUsed(usedQuantity);
                                 histBoughtInfo.setHistoricalPeak(peakQuantity);
                                 histBoughtInfo.setExisting(true);
@@ -535,7 +536,9 @@ public class HistoricalEditor {
                 }
                 topoCommBought.setHistoricalUsed(usedQuantity);
                 topoCommBought.setHistoricalPeak(peakQuantity);
+
             }
         }
+
     }
 }

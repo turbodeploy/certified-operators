@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.util.LinkedList;
 import java.util.List;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -97,8 +99,8 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                     // into more of a linked-list format so that there is better type safety.
                     LOGGER.info("Executing stage {}", stage.getClass().getSimpleName());
                     final StageResult result = stage.execute(curStageInput);
-                    curStageInput = result.getResult();
-                    pipelineSummary.endStage(result.status());
+                    curStageInput = result.result;
+                    pipelineSummary.endStage(result.status);
                 } catch (PipelineStageException | RuntimeException e) {
                     final String message = "Topology pipeline failed at stage " +
                             stage.getClass().getSimpleName() + " with error: " + e.getMessage();

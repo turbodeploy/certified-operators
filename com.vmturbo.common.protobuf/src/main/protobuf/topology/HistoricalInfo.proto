@@ -4,8 +4,6 @@ package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
 
-import "topology/TopologyDTO.proto";
-
 // This message will contain information about the used and peak values for all commodities
 // sold and bought by the service entities from the previous market cycle (historical values).
 // These values will be used in each market cycle to smooth the respective values we get from
@@ -34,7 +32,7 @@ message HistoricalInfoDTO {
 
         message HistoricalCommInfoDTO {
             // The type of the commodity
-            optional CommodityType comm_type = 1;
+            optional int32 comm_type_id = 1;
 
             // The historical used value
             optional float hist_used = 2;
