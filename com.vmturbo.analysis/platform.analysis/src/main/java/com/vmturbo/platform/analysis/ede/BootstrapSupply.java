@@ -25,6 +25,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -35,6 +36,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
@@ -609,11 +611,22 @@ public class BootstrapSupply {
     private static Trader provisionOrActivateTrader(Trader sellerThatFits,
                         Market market, List<Action> actions, Economy economy,
                         CommoditySpecification commSpec) {
-        Action action;
-        Trader newSeller;
+        Action action = null;
+        Trader newSeller = null;
         // clone one of the sellers or reactivate an inactive seller that the VM can fit in
         if (sellerThatFits.getState() == TraderState.ACTIVE) {
+            if (GuaranteedBuyerHelper.initiateGuaranteedBuyerCommoditiesResizeCheck(sellerThatFits)) {
+                for (Map.Entry<ShoppingList, Market> marketEntry :
+                    economy.getMarketsAsBuyer(sellerThatFits).entrySet()) {
+                    if (marketEntry.getKey().getSupplier().getBasketSold().contains(commSpec)) {
+                        action = new ProvisionBySupply(economy, marketEntry.getKey().getSupplier(),
+                                        commSpec).take();
+                        break;
+                    }
+                }
+            } else {
             action = new ProvisionBySupply(economy, sellerThatFits, commSpec).take();
+            }
             actions.add(action);
             newSeller = ((ProvisionBySupply)action).getProvisionedSeller();
             actions.addAll(((ProvisionBySupply)action).getSubsequentActions());
@@ -788,8 +801,10 @@ public class BootstrapSupply {
                                     findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
                     Trader provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
                             allActions, economy, commoditySpecWithInfiniteQuote);
+                    if (market.getActiveSellersAvailableForPlacement().contains(provisionedSeller)) {
                     allActions.add(new Move(economy, sl, provisionedSeller).take()
                             .setImportance(Double.POSITIVE_INFINITY));
+                    }
                 } else {
                     @NonNull Trader buyer = sl.getBuyer();
                     if (logger.isTraceEnabled() || buyer.isDebugEnabled()) {
@@ -816,7 +831,7 @@ public class BootstrapSupply {
      * @param economy economy in which current seller and shopping list exist.
      * @return commWithInfQuote commodity that led to infinite quote if any.
      */
-     private static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
+     public static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
                     ShoppingList sl, Economy economy) {
         Trader traderToInspect = chooseSellerToAskQuotes(sellerThatFits, sl);
         if (traderToInspect == null) {
@@ -934,7 +949,10 @@ public class BootstrapSupply {
         List<Trader> activeSellerThatCanAcceptNewCustomers = market.getActiveSellersAvailableForPlacement();
         // Return if there are active sellers and none of them are cloneable
         if (!activeSellerThatCanAcceptNewCustomers.isEmpty() && activeSellerThatCanAcceptNewCustomers.stream()
-                        .filter(seller -> seller.getSettings().isCloneable()).count() == 0) {
+            .filter(seller -> (seller.getSettings().isCloneable()
+            || (GuaranteedBuyerHelper.initiateGuaranteedBuyerCommoditiesResizeCheck(seller)
+             && GuaranteedBuyerHelper.doesProviderOfSellerSellCommodity(seller, shoppingList, economy))))
+            .count() == 0) {
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info("There are no active sellers available to place "
                             + buyerDebugInfo + ".");
@@ -1040,8 +1058,11 @@ public class BootstrapSupply {
         }
         for (Trader seller : candidateSellers) {
             // pick the first candidate seller that can fit the demand
-            if (seller.getSettings().isCloneable()
-                    && ProvisionUtils.canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
+            if ((seller.getSettings().isCloneable()
+                && ProvisionUtils.canBuyerFitInSeller(buyerShoppingList, seller, economy))
+                || (GuaranteedBuyerHelper.initiateGuaranteedBuyerCommoditiesResizeCheck(seller)
+                && GuaranteedBuyerHelper.doesProviderOfSellerSellCommodity(seller,
+                                buyerShoppingList, economy))) {
                 return seller;
             }
         }

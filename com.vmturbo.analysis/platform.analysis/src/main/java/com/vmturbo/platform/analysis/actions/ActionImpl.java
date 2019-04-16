@@ -22,6 +22,8 @@ public class ActionImpl implements Action {
 
     private boolean executable_ = true;
 
+    private boolean extractAction_ = false;
+
     private ActionType type_;
 
     @Override
@@ -127,5 +129,13 @@ public class ActionImpl implements Action {
         return null;
     }
 
+    @Override
+    public boolean isExtractAction() {
+        return extractAction_;
+    }
 
+    @Override
+    public void setExtractAction(boolean extractAction) {
+        extractAction_ = extractAction;
+    }
 }

@@ -23,6 +23,9 @@ public interface Action {
    // Methods
     boolean setExecutable(boolean executable);
     boolean isExecutable();
+    boolean isExtractAction();
+    void setExtractAction(boolean extractAction);
+
 
     ActionType getType();
 
