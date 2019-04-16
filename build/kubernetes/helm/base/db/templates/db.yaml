@@ -14,20 +14,6 @@ spec:
     requests:
       storage: 500Gi
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    zone: secure
-    io.kompose.service: mysql-log
-  name: mysql-log
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -87,8 +73,7 @@ spec:
         persistentVolumeClaim:
           claimName: mysql-data
       - name: mysql-log
-        persistentVolumeClaim:
-          claimName: mysql-log
+        emptyDir: {}
       - name: mysql-tmp
         emptyDir: {}
       - name: mysqld-run
