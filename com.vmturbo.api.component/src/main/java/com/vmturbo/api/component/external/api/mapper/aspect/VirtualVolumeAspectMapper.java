@@ -521,11 +521,12 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
 
         // find region for the volume and set it in VirtualDiskApiDTO
         final TopologyEntityDTO region = regionByVolumeId.get(volume.getOid());
-        BaseApiDTO regionDTO = new BaseApiDTO();
-        regionDTO.setUuid(String.valueOf(region.getOid()));
-        regionDTO.setDisplayName(region.getDisplayName());
-        virtualDiskApiDTO.setDataCenter(regionDTO);
-
+        if (region != null) {
+            BaseApiDTO regionDTO = new BaseApiDTO();
+            regionDTO.setUuid(String.valueOf(region.getOid()));
+            regionDTO.setDisplayName(region.getDisplayName());
+            virtualDiskApiDTO.setDataCenter(regionDTO);
+        }
         // set storage tier
         final TopologyEntityDTO storageTier = storageTierByVolumeId.get(volumeId);
         if (storageTier != null) {
