@@ -18,6 +18,7 @@ import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionApprovalResponse;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -142,8 +143,8 @@ public class RemoteMediationImpl implements IRemoteMediation {
 
     @Nonnull
     @Override
-    public List<ActionErrorDTO> approveActions(@Nonnull SdkTarget target,
-            @Nonnull Collection<ActionExecutionDTO> actionItems) throws InterruptedException {
+    public ActionApprovalResponse approveActions(@Nonnull SdkTarget target,
+                                                 @Nonnull Collection<ActionExecutionDTO> actionItems) throws InterruptedException {
         throw new NotImplementedException("Feature is not implemented for in XL now");
     }
 
