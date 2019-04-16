@@ -23,9 +23,3 @@ build/packer.io/turbonomic_xl
 
 # Reviewboard config (avoid committing customizations)
 .reviewboardrc
-
-# Local .terraform directories
-**/.terraform/*
-# .tfstate files
-*.tfstate
-*.tfstate.*

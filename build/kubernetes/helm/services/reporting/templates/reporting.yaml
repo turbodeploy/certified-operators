@@ -83,8 +83,6 @@ spec:
   {{- end -}}
 {{- end }}
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
       volumes:
       - name: reporting
         persistentVolumeClaim:
