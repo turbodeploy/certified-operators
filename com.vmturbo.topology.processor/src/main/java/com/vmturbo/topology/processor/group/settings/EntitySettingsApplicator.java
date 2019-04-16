@@ -169,6 +169,7 @@ public class EntitySettingsApplicator {
     /**
      * Settings applicator, that requires multiple settings to be processed.
      */
+    @FunctionalInterface
     private interface SettingApplicator {
         /**
          * Applies settings to the specified entity.
