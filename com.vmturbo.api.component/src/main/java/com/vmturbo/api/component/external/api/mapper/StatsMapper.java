@@ -378,7 +378,6 @@ public class StatsMapper {
     /**
      * Create a {@link GetAveragedEntityStatsRequest} for a group of UUIDs.
      *
-     *
      * @param entityIds gather stats for the entities with these IDs.
      * @param statApiInput a {@link StatApiInputDTO} specifying query options for this /stats query
      * @param globalTempGroupEntityType a optional entity type of a global temp group. if present, means
@@ -399,6 +398,28 @@ public class StatsMapper {
         // market stats table. The related entity type should get set in the stats filter.
         if (!globalTempGroupEntityType.isPresent()) {
             entityStatsRequest.addAllEntities(entityIds);
+            // If globalTempGroupEntityType is not present, get the relatedEntityType from the
+            // statistics in the given inputDTO and set to entityStatsRequest. Print a warn message
+            // if more than one entity type is requested as we always request for stats of one certain
+            // entity type, and select the first data from the statistic list as the relatedEntityType.
+            // TODO (OM-45015): This is a workaround for a specific issue, where we wanted to return
+            // limited stats based on the relatedEntityType for the global scope. We need to properly
+            // handle relatedEntityTypes for all stats requests.
+            if (statApiInput != null && statApiInput.getStatistics() != null) {
+                Set<String> relatedEntityTypeSet = statApiInput.getStatistics().stream()
+                    .map(StatApiInputDTO::getRelatedEntityType)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+                if (relatedEntityTypeSet.size() > 1) {
+                    logger.warn("More than one entity type is requested for statistics. Select " +
+                        "the first one as the relatedEntityType set to entityStatsRequest.");
+                }
+                String relatedEntityType = relatedEntityTypeSet.stream().findFirst().orElse(null);
+                entityStatsRequest.setRelatedEntityType(relatedEntityType);
+            }
+        } else {
+            entityStatsRequest.setRelatedEntityType(
+                ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
         }
         return entityStatsRequest.build();
     }

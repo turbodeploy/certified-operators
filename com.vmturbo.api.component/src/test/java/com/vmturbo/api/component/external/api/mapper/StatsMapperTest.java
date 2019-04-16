@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -76,6 +77,7 @@ public class StatsMapperTest {
     public static final String CSP = "CSP";
     public static final String AWS = "AWS";
     public static final String COST_COMPONENT = "costComponent";
+    private static final String VIRTUAL_MACHINE = "VirtualMachine";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -431,12 +433,13 @@ public class StatsMapperTest {
                 statsMapper.toAveragedEntityStatsRequest(uuids, period, Optional.empty());
         assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
         assertThat(request.getFilter(), is(STATS_FILTER));
+        assertTrue(request.getRelatedEntityType().isEmpty());
     }
 
     @Test
     public void testAveragedEntityStatsRequestWithTempGroupType() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        final Optional<Integer> tempGroupType = Optional.of(1284);
+        final Optional<Integer> tempGroupType = Optional.of(10);
         when(statsMapper.newPeriodStatsFilter(period, tempGroupType)).thenReturn(STATS_FILTER);
 
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
@@ -445,11 +448,12 @@ public class StatsMapperTest {
                 statsMapper.toAveragedEntityStatsRequest(uuids, period, tempGroupType);
         assertTrue(request.getEntitiesList().isEmpty());
         assertThat(request.getFilter(), is(STATS_FILTER));
+        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
     }
 
     @Test
     public void testAveragedEntityStatsRequestWithNullPeriod() {
-        final Optional<Integer> tempGroupType = Optional.of(1284);
+        final Optional<Integer> tempGroupType = Optional.of(10);
         when(statsMapper.newPeriodStatsFilter(null, tempGroupType)).thenReturn(STATS_FILTER);
 
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
@@ -458,6 +462,23 @@ public class StatsMapperTest {
                 statsMapper.toAveragedEntityStatsRequest(uuids, null, tempGroupType);
         assertTrue(request.getEntitiesList().isEmpty());
         assertThat(request.getFilter(), is(STATS_FILTER));
+        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
+    }
+
+    @Test
+    public void testAveragedEntityStatsRequestWithStatistics() {
+        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
+        when(statsMapper.newPeriodStatsFilter(statPeriodApiInputDTO,
+            Optional.empty())).thenReturn(STATS_FILTER);
+        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setRelatedEntityType(VIRTUAL_MACHINE);
+        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request =
+            statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
+                Optional.empty());
+        assertTrue(request.getEntitiesList().isEmpty());
+        assertThat(request.getFilter(), is(STATS_FILTER));
+        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
     }
 
     /**
