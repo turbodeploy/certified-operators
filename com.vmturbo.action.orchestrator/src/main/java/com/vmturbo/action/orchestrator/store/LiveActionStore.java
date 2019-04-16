@@ -520,7 +520,7 @@ public class LiveActionStore implements ActionStore {
     public Map<Long, ActionView> getActionViews() {
         Map<Long, ActionView> currentActionViews;
         synchronized (actionsLock) {
-            currentActionViews = actions.values().stream()
+            currentActionViews = getActions().values().stream()
                 .collect(Collectors.toMap(ActionView::getId, Function.identity()));
         }
         return Collections.unmodifiableMap(currentActionViews);
@@ -538,7 +538,7 @@ public class LiveActionStore implements ActionStore {
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
         List<ActionView> otherActionList;
         synchronized (actionsLock) {
-            otherActionList = actions.values().stream()
+            otherActionList = getActions().values().stream()
                     .filter(action -> !isSucceededorFailed(action))
                     .filter(action -> isEndDateAfterRecommendationTime(action, endDate))
                     .collect(Collectors.toList());

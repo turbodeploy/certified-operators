@@ -148,8 +148,8 @@ public class ReservedInstanceAnalyzer {
      * @param priceTableStore Provides price information for RIs and on-demand instances.
      * @param computeTierDemandStatsStore Provides historical data for instances.
      * @param cloudTopologyFactory Cloud topology factory.
+     * @param actionsSender used to broadcast the actions.
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
-     * @param topologyContextId topology contextId.
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
@@ -192,6 +192,7 @@ public class ReservedInstanceAnalyzer {
                             .build();
         } else {
             actionPlan = result.createActionPlan();
+            result.persistResults();
         }
         actionsSender.notifyActionsRecommended(actionPlan);
     }

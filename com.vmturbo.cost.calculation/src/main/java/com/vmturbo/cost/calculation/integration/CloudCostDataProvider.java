@@ -1,7 +1,9 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -108,16 +110,31 @@ public interface CloudCostDataProvider {
             return Optional.ofNullable(riBoughtDataById.get(riBoughtId));
         }
 
+        /**
+         * This will return a read only collection of {@link ReservedInstanceData} representing
+         * all the existing RIs in the inventory. This will be used in real time analysis.
+         *
+         * @return Collection of {@link ReservedInstanceData} representing the existing RIs.
+         */
         @Nonnull
         public Collection<ReservedInstanceData> getExistingRiBought() {
             return Collections.unmodifiableCollection(riBoughtDataById.values());
         }
 
+        /**
+         * This will return a read only collection of {@link ReservedInstanceData} representing
+         * all the existing RIs in the inventory and the Buy RI recommendations. This will be used
+         * during Optimize Cloud Plans.
+         *
+         * @return Read only Collection of {@link ReservedInstanceData} representing the existing
+         * RIs bought and the Buy RI recommendations
+         */
         @Nonnull
         public Collection<ReservedInstanceData> getAllRiBought() {
-            Collection<ReservedInstanceData> riData = riBoughtDataById.values();
-            riData.addAll(buyRIBoughtDataById.values());
-            return Collections.unmodifiableCollection(riData);
+            List<ReservedInstanceData> allRiData = new ArrayList<>();
+            allRiData.addAll(riBoughtDataById.values());
+            allRiData.addAll(buyRIBoughtDataById.values());
+            return Collections.unmodifiableCollection(allRiData);
         }
 
         /**
