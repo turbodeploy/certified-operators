@@ -490,6 +490,14 @@ services:
 #      service: mediation-aix-prod
 #    mem_limit: 2048M
 #    depends_on: *clustermgrdep
+#
+#  mediation-horizon:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-horizon-prod
+#    mem_limit: 2048M
+#    depends_on: *clustermgrdep
+
 
   mediation-actionscript:
     extends:

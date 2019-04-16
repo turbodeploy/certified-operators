@@ -330,6 +330,7 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../com.vmturbo.mediation.horizon.component</module>
             </modules>
         </profile>
 
@@ -633,6 +634,13 @@
         </profile>
 
         <profile>
+            <id>mediation-horizon</id>
+            <modules>
+                <module>../com.vmturbo.mediation.horizon.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -714,6 +722,7 @@
                 <module>../com.vmturbo.mediation.cloud.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
+                <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
@@ -887,6 +896,7 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../versioning</module>
 
                 <!-- Mediation container with all the probes inside. -->

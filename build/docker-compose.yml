@@ -1142,6 +1142,21 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_HYPERFLEX_MEM_LIMIT_MB}M
 
+  mediation-horizon:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.horizon.component
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_HORIZON_PORT}"
+    - "${MEDIATION_HORIZON_DEBUG_PORT}"
+    environment:
+      component_type: mediation-horizon
+      instance_id: mediation-horizon-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HORIZON_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_MB}M
+
   mediation:
     extends:
       file: common-services.yml

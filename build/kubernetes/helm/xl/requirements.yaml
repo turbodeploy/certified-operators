@@ -257,3 +257,7 @@ dependencies:
     repository: file://../probes/mediation-xtremio
     version: 0.1.0
     condition: xtremio.enabled
+  - name: mediation-horizon
+    repository: file://../probes/mediation-horizon
+    version: 0.1.0
+    condition: horizon.enabled
