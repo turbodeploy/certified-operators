@@ -33,7 +33,7 @@ import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;

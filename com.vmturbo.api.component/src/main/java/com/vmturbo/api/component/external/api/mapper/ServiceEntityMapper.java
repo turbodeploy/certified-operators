@@ -204,7 +204,7 @@ public class ServiceEntityMapper {
 
         //tags
         seDTO.setTags(
-            topologyEntityDTO.getTagsMap().entrySet().stream()
+            topologyEntityDTO.getTags().getTagsMap().entrySet().stream()
                 .collect(
                     Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getValuesList())));
 

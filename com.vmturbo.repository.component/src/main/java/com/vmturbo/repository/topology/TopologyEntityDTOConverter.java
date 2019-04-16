@@ -75,7 +75,7 @@ class TopologyEntityDTOConverter {
         se.setUuid(String.valueOf(t.getOid()));
         se.setState(UIEntityState.fromEntityState(t.getEntityState()).getValue());
         se.setTags(new HashMap<>());
-        t.getTagsMap().forEach((key, value) -> se.getTags().put(key, value.getValuesList()));
+        t.getTags().getTagsMap().forEach((key, value) -> se.getTags().put(key, value.getValuesList()));
 
         // Commodities bought list
         List<CommoditiesBoughtRepoFromProviderDTO> commoditiesBoughtRepoFromProviderDTOList =

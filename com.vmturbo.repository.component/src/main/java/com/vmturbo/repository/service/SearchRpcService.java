@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.result.ResultsConverter;
@@ -300,10 +301,12 @@ public class SearchRpcService extends SearchServiceImplBase {
             StreamObserver<SearchTagsResponse> responseObserver) {
         try {
             responseObserver.onNext(
-                    SearchTagsResponse.newBuilder()
-                            .putAllTags(
-                                searchHandler.searchTags(getLiveDatabaseName(), request))
-                            .build());
+                SearchTagsResponse.newBuilder()
+                    .setTags(
+                        Tags.newBuilder()
+                            .putAllTags(searchHandler.searchTags(getLiveDatabaseName(), request))
+                            .build())
+                    .build());
             responseObserver.onCompleted();
         } catch (Throwable e) {
             responseObserver.onError(

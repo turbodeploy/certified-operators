@@ -1,0 +1,15 @@
+syntax = "proto2";
+package tag;
+
+option java_package = "com.vmturbo.common.protobuf.tag";
+
+// Tags for entities and groups are multimaps that map string-valued
+// keys to string-valued values. A key can be mapped to more than
+// one values.
+message Tags {
+    map<string, TagValuesDTO> tags = 1;
+}
+
+message TagValuesDTO {
+    repeated string values = 1;
+}

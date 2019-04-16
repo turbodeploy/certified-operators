@@ -109,7 +109,7 @@ public class TagsService implements ITagsService {
         }
 
         // convert to desired format
-        return TagsMapper.convertTagsToApi(response.getTagsMap());
+        return TagsMapper.convertTagsToApi(response.getTags().getTagsMap());
     }
 
     /**

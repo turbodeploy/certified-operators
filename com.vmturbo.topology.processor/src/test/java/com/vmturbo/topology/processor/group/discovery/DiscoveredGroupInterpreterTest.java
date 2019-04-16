@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,6 +32,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
@@ -39,7 +41,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
@@ -50,6 +54,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.Expressi
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.PropertyDoubleList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.PropertyStringList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.DefaultPropertyFilterConverter;
@@ -232,6 +237,24 @@ public class DiscoveredGroupInterpreterTest {
                 .setConstraintId("constraint")
                 .setConstraintName("name"))
             .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .addEntityProperties(
+                EntityProperty.newBuilder()
+                    .setNamespace(SdkToTopologyEntityConverter.TAG_NAMESPACE)
+                    .setName("key")
+                    .setValue("value1")
+                    .build())
+            .addEntityProperties(
+                EntityProperty.newBuilder()
+                    .setNamespace("ignore")
+                    .setName("key")
+                    .setValue("value3")
+                    .build())
+            .addEntityProperties(
+                EntityProperty.newBuilder()
+                    .setNamespace(SdkToTopologyEntityConverter.TAG_NAMESPACE)
+                    .setName("key")
+                    .setValue("value2")
+                    .build())
             .build();
         final GroupInterpretationContext context =
             new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
@@ -241,6 +264,11 @@ public class DiscoveredGroupInterpreterTest {
         assertEquals(DISPLAY_NAME, clusterInfo.get().getDisplayName());
         assertEquals(1, clusterInfo.get().getMembers().getStaticMemberOidsCount());
         assertEquals(1, clusterInfo.get().getMembers().getStaticMemberOids(0));
+        assertEquals(1, clusterInfo.get().getTags().getTagsCount());
+        final TagValuesDTO tagValuesDTO = clusterInfo.get().getTags().getTagsOrThrow("key");
+        assertEquals(2, tagValuesDTO.getValuesCount());
+        final Set<String> tagValues = tagValuesDTO.getValuesList().stream().collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of("value1", "value2"), tagValues);
     }
 
     @Test

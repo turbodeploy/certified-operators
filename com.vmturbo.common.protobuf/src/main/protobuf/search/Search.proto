@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.search";
 import "common/EnvironmentTypeEnum.proto";
 import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
+import "tag/Tag.proto";
 
 // A search definition that needs to be performed on a topology, represented as a DAG.
 message SearchParameters {
@@ -326,7 +327,7 @@ message SearchTagsRequest {
 // response to a SearchTagsRequest
 message SearchTagsResponse {
     // A list of matched tags.
-    map<string, topology.TopologyEntityDTO.TagValuesDTO> tags = 1;
+    optional .tag.Tags tags = 1;
 
     optional common.PaginationResponse pagination_response = 2;
 }

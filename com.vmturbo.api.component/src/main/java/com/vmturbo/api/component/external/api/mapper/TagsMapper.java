@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.entity.TagApiDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 
 /**
  * Utility class to convert tags from XL to API format.

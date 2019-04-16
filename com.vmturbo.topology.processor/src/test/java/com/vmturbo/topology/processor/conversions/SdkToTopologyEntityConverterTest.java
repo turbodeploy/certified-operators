@@ -21,13 +21,13 @@ import com.google.common.collect.Maps;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.builders.EntityBuilders;
@@ -90,7 +90,7 @@ public class SdkToTopologyEntityConverterTest {
         assertEquals(50.0, P2VCPUCommoditySold.get().getEffectiveCapacityPercentage(), 0.0);
 
         // check tags of the VM
-        final Map<String, TagValuesDTO> vmTags = vmTopologyDTO.getTagsMap();
+        final Map<String, TagValuesDTO> vmTags = vmTopologyDTO.getTags().getTagsMap();
         assertEquals(3, vmTags.size());
         final List<String> valuesForKey1 = vmTags.get("key1").getValuesList();
         final List<String> valuesForKey2 = vmTags.get("key2").getValuesList();

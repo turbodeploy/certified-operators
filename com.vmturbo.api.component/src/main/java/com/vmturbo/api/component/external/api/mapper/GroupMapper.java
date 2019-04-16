@@ -487,7 +487,7 @@ public class GroupMapper {
         return outputDTO;
     }
 
-                                     /**
+   /**
      * Converts from {@link Group} to {@link GroupApiDTO}.
      *
      * @param group The {@link Group} object

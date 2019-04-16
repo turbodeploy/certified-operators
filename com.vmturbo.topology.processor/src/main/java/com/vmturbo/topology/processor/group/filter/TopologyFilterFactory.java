@@ -245,7 +245,7 @@ public class TopologyFilterFactory {
         // currently only entity tags is a property of type map
         if (propertyName.equals(TAGS_TYPE_PROPERTY_NAME)) {
             return new PropertyFilter(te ->
-                te.getTopologyEntityDtoBuilder().getTagsMap().entrySet().stream()
+                te.getTopologyEntityDtoBuilder().getTags().getTagsMap().entrySet().stream()
                         .anyMatch(e ->
                                 e.getKey().equals(mapCriteria.getKey()) &&
                                 e.getValue().getValuesList().stream().anyMatch(valueFilter)));

@@ -8,6 +8,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -34,6 +35,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -42,6 +44,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersCase;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
@@ -171,6 +174,12 @@ class DiscoveredGroupInterpreter {
             logger.warn("Unable to parse cluster member list: {}", sdkDTO.getMemberList());
             return Optional.empty();
         }
+
+        final Tags.Builder tagsBuilder = Tags.newBuilder();
+        SdkToTopologyEntityConverter.extractTags(sdkDTO.getEntityPropertiesList()).entrySet()
+                .forEach(e -> tagsBuilder.putTags(e.getKey(), e.getValue().build()));
+        builder.setTags(tagsBuilder.build());
+
         return Optional.of(builder);
     }
 
@@ -238,7 +247,10 @@ class DiscoveredGroupInterpreter {
                 return Optional.empty();
         }
 
-        // TODO: What to do with entityProperties?
+        final Tags.Builder tagsBuilder = Tags.newBuilder();
+        SdkToTopologyEntityConverter.extractTags(sdkDTO.getEntityPropertiesList()).entrySet()
+                .forEach(e -> tagsBuilder.putTags(e.getKey(), e.getValue().build()));
+        builder.setTags(tagsBuilder.build());
 
         return Optional.of(builder);
     }

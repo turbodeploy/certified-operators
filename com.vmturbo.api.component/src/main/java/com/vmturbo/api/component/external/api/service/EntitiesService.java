@@ -583,7 +583,8 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
         return
-            TagsMapper.convertTagsToApi(searchUtil.getTopologyEntityDTO(Long.valueOf(s)).getTagsMap());
+            TagsMapper.convertTagsToApi(
+                    searchUtil.getTopologyEntityDTO(Long.valueOf(s)).getTags().getTagsMap());
     }
 
     @Override

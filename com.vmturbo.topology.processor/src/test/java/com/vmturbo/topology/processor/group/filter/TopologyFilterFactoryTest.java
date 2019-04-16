@@ -35,9 +35,10 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
@@ -651,6 +652,7 @@ public class TopologyFilterFactoryTest {
     }
 
     private TopologyEntity createEntityWithTags(Map<String, TagValuesDTO> tagsMap) {
-        return topologyEntity(TopologyEntityDTO.newBuilder().putAllTags(tagsMap));
+        return topologyEntity(
+                TopologyEntityDTO.newBuilder().setTags(Tags.newBuilder().putAllTags(tagsMap).build()));
     }
 }

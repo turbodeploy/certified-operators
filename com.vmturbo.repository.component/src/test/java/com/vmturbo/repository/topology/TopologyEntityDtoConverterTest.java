@@ -240,9 +240,9 @@ public class TopologyEntityDtoConverterTest {
         assertEquals(expectedState, seRepoDTO.getState());
 
         // compare tags
-        assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTagsMap().size());
-        seRepoDTO.getTags().forEach((key, value) -> assertEquals(value,
-                seTopoDTO.getTagsMap().get(key).getValuesList()));
+        assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTags().getTagsMap().size());
+        seRepoDTO.getTags().forEach((key, value) ->
+                assertEquals(value, seTopoDTO.getTags().getTagsMap().get(key).getValuesList()));
 
         // compare virtual machine info
         if (seRepoDTO.getVirtualMachineInfoRepoDTO() != null) {

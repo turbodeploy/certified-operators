@@ -8,10 +8,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.mapping.UIEnvironmentType;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -55,10 +56,10 @@ public class ServiceEntityRepoDTOConverter {
 
         final Map<String, List<String>> tags = serviceEntityRepoDTO.getTags();
         if (tags != null) {
-            tags.forEach((key, value) -> topologyEntityBuilder.putTags(key,
-                    TagValuesDTO.newBuilder()
-                            .addAllValues(value)
-                            .build()));
+            final Tags.Builder tagsBuilder = Tags.newBuilder();
+            tags.forEach((key, value) ->
+                tagsBuilder.putTags(key, TagValuesDTO.newBuilder().addAllValues(value).build()));
+            topologyEntityBuilder.setTags(tagsBuilder.build());
         }
 
         final List<CommoditySoldRepoDTO> soldCommodities = serviceEntityRepoDTO.getCommoditySoldList();

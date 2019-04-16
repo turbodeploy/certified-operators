@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.group";
 import "common/EnvironmentTypeEnum.proto";
 import "search/Search.proto";
 import "setting/Setting.proto";
+import "tag/Tag.proto";
 
 // A group is a set of entities that can be treated collectively for the
 // purpose of settings, policies, statistics, and other operations.
@@ -119,6 +120,9 @@ message GroupInfo {
 
     // User friendly name. Typically used for discovered groups.
     optional string display_name = 7;
+
+    // Tags. Used for discovered groups.
+    optional .tag.Tags tags = 8;
 }
 
 message TempGroupInfo {
@@ -167,6 +171,9 @@ message ClusterInfo {
 
     // User friendly name. Typically used for discovered clusters.
     optional string display_name = 7;
+
+    // Tags. Used for discovered clusters.
+    optional .tag.Tags tags = 8;
 }
 
 // The properties of a nested group.

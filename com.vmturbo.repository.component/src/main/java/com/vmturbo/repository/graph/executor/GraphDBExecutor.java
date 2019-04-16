@@ -10,7 +10,7 @@ import com.arangodb.ArangoDBException;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;

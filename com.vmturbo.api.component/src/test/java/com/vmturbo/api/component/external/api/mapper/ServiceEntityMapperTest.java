@@ -5,9 +5,10 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.components.common.mapping.EnvironmentTypeMapper;
 import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -36,7 +37,12 @@ public class ServiceEntityMapperTest {
                 .setEntityType(entityType.getNumber())
                 .setEntityState(entityState)
                 .setEnvironmentType(environmentType)
-                .putTags(tagKey, TagValuesDTO.newBuilder().addValues(tagValue).build())
+                .setTags(
+                        Tags.newBuilder()
+                                .putTags(
+                                        tagKey,
+                                        TagValuesDTO.newBuilder().addValues(tagValue).build())
+                                .build())
                 .build();
 
         final ServiceEntityApiDTO serviceEntityApiDTO =

@@ -34,6 +34,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
@@ -43,7 +45,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -450,7 +451,7 @@ public class SdkToTopologyEntityConverter {
             .setEntityState(entityState)
             .setAnalysisSettings(analysisSettingsBuilder)
             .putAllEntityPropertyMap(entityPropertyMap)
-            .putAllTags(entityTags)
+            .setTags(Tags.newBuilder().putAllTags(entityTags).build())
             .addAllCommoditySoldList(soldList)
             .addAllCommoditiesBoughtFromProviders(boughtList)
             .addAllConnectedEntityList(connectedToList);
@@ -754,19 +755,7 @@ public class SdkToTopologyEntityConverter {
      */
     @Nonnull
     private static Map<String, TagValuesDTO> extractTags(@Nonnull CommonDTO.EntityDTOOrBuilder dto) {
-        final Map<String, TagValuesDTO.Builder> entityTags = new HashMap<>();
-
-        // find tags under entity_properties
-        // note that the namespace is used only to distinguish which properties are tags
-        // and does not appear in the output
-        dto.getEntityPropertiesList()
-                .stream()
-                .filter(entityProperty -> TAG_NAMESPACE.equals(entityProperty.getNamespace()))
-                .forEach(entityProperty -> {
-                    // insert new tag
-                    entityTags.computeIfAbsent(entityProperty.getName(), k -> TagValuesDTO.newBuilder())
-                        .addValues(entityProperty.getValue());
-                });
+        final Map<String, TagValuesDTO.Builder> entityTags = extractTags(dto.getEntityPropertiesList());
 
         // find VM annotations
         if (dto.hasVirtualMachineData()) {
@@ -780,5 +769,32 @@ public class SdkToTopologyEntityConverter {
         // call build on all TagValuesDTO builders
         return entityTags.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build()));
+    }
+
+    /**
+     * Extract tags from a list of {@link EntityProperty} objects.
+     * For any triplet (namespace, key, value) that appears under
+     * this list, the pair (key, value) is a tag iff the namespace is equal
+     * to the string constant {@link #TAG_NAMESPACE}.
+     *
+     * @param entityProperties a list of {@link EntityProperty} objects.
+     * @return the corresponding tags.
+     */
+    @Nonnull
+    public static Map<String, TagValuesDTO.Builder> extractTags(
+            @Nonnull List<EntityProperty> entityProperties) {
+        final Map<String, TagValuesDTO.Builder> result = new HashMap<>();
+
+        // find tags under entity_properties
+        // note that the namespace is used only to distinguish which properties are tags
+        // and does not appear in the output
+        entityProperties.stream()
+                .filter(entityProperty -> TAG_NAMESPACE.equals(entityProperty.getNamespace()))
+                .forEach(entityProperty -> {
+                    // insert new tag
+                    result.computeIfAbsent(entityProperty.getName(), k -> TagValuesDTO.newBuilder())
+                            .addValues(entityProperty.getValue());
+                });
+        return result;
     }
 }
