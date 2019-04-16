@@ -1,13 +1,15 @@
 package com.vmturbo.topology.processor.historical;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+
 /**
  * This class keeps information for the historical used and peak values of a
  * commodity sold or bought by a service entity.
  */
 public class HistoricalCommodityInfo {
 
-    // The type of the commodity
-    private int commodityTypeId;
+    // The type and key of the commodity
+    private CommodityType commodityTypeAndKey;
 
     // The historical used value
     private float historicalUsed;
@@ -27,8 +29,8 @@ public class HistoricalCommodityInfo {
     public HistoricalCommodityInfo() {
     }
 
-    public int getCommodityTypeId() {
-        return commodityTypeId;
+    public CommodityType getCommodityTypeAndKey() {
+        return commodityTypeAndKey;
     }
 
     public float getHistoricalUsed() {
@@ -51,8 +53,8 @@ public class HistoricalCommodityInfo {
         return existing;
     }
 
-    public void setCommodityTypeId(int commodityTypeId) {
-        this.commodityTypeId = commodityTypeId;
+    public void setCommodityTypeAndKey(CommodityType commodityTypeAndKey) {
+        this.commodityTypeAndKey = commodityTypeAndKey;
     }
 
     public void setHistoricalUsed(float historicalUsed) {

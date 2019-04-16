@@ -15,6 +15,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -25,6 +26,16 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 @TestPropertySource(properties = {"originalSchemaName=topology_processor"})
 
 public class HistoricalUtilizationDatabaseTest {
+
+    private static final CommodityType SOLD_COMMODITY_TYPE = CommodityType.newBuilder()
+        .setType(1234)
+        .setKey("2333")
+        .build();
+
+    private static final CommodityType BOUGHT_COMMODITY_TYPE = CommodityType.newBuilder()
+        .setType(5678)
+        .setKey("666")
+        .build();
 
     @Autowired
     protected TestSQLDatabaseConfig dbConfig;
@@ -46,7 +57,7 @@ public class HistoricalUtilizationDatabaseTest {
 
         // Creating HistoricalCommodityInfo for sold commodities
         HistoricalCommodityInfo soldCommInfo = new HistoricalCommodityInfo();
-        soldCommInfo.setCommodityTypeId(1234);
+        soldCommInfo.setCommodityTypeAndKey(SOLD_COMMODITY_TYPE);
         soldCommInfo.setHistoricalUsed(10);
         soldCommInfo.setHistoricalPeak(20);
         soldCommInfo.setSourceId(123);
@@ -55,7 +66,7 @@ public class HistoricalUtilizationDatabaseTest {
 
         // Creating HistoricalCommodityInfo for bought commodities
         HistoricalCommodityInfo boughtCommInfo = new HistoricalCommodityInfo();
-        boughtCommInfo.setCommodityTypeId(5678);
+        boughtCommInfo.setCommodityTypeAndKey(BOUGHT_COMMODITY_TYPE);
         boughtCommInfo.setHistoricalUsed(30);
         boughtCommInfo.setHistoricalPeak(40);
         boughtCommInfo.setSourceId(456);
@@ -104,7 +115,7 @@ public class HistoricalUtilizationDatabaseTest {
 
         HistoricalCommodityInfo resultSoldCommInfo = resultSeInfo.getHistoricalCommoditySold().get(0);
         assertNotNull(resultSoldCommInfo);
-        assertEquals(1234, soldCommInfo.getCommodityTypeId());
+        assertEquals(SOLD_COMMODITY_TYPE, soldCommInfo.getCommodityTypeAndKey());
         assertEquals(10, soldCommInfo.getHistoricalUsed(), 0.00001);
         assertEquals(20, soldCommInfo.getHistoricalPeak(), 0.00001);
         assertEquals(123, soldCommInfo.getSourceId());
@@ -113,7 +124,7 @@ public class HistoricalUtilizationDatabaseTest {
 
         HistoricalCommodityInfo resultBoughtCommInfo = resultSeInfo.getHistoricalCommodityBought().get(0);
         assertNotNull(resultBoughtCommInfo);
-        assertEquals(5678, boughtCommInfo.getCommodityTypeId());
+        assertEquals(BOUGHT_COMMODITY_TYPE, boughtCommInfo.getCommodityTypeAndKey());
         assertEquals(30, boughtCommInfo.getHistoricalUsed(), 0.00001);
         assertEquals(40, boughtCommInfo.getHistoricalPeak(), 0.00001);
         assertEquals(456, boughtCommInfo.getSourceId());

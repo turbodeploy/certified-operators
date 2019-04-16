@@ -11,7 +11,7 @@ public class Conversions {
 
     public static HistoricalCommodityInfo convertFromDto(HistoricalCommInfoDTO source) {
         HistoricalCommodityInfo histCommInfo = new HistoricalCommodityInfo();
-        histCommInfo.setCommodityTypeId(source.getCommTypeId());
+        histCommInfo.setCommodityTypeAndKey(source.getCommType());
         histCommInfo.setHistoricalUsed(source.getHistUsed());
         histCommInfo.setHistoricalPeak(source.getHistPeak());
         histCommInfo.setSourceId(source.getSourceId());
@@ -45,7 +45,7 @@ public class Conversions {
 
     public static HistoricalCommInfoDTO convertToDto(HistoricalCommodityInfo source) {
         return HistoricalCommInfoDTO.newBuilder()
-                .setCommTypeId(source.getCommodityTypeId())
+                .setCommType(source.getCommodityTypeAndKey())
                 .setHistUsed(source.getHistoricalUsed())
                 .setHistPeak(source.getHistoricalPeak())
                 .setSourceId(source.getSourceId())
