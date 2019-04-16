@@ -663,15 +663,20 @@ public class SettingsMapperTest {
         weeklyUnspecified.setRecurrence(weeklyRec);
         settingsPolicyApiDTO.setSchedule(weeklyUnspecified);
 
+        // Because no day of the week was specified, the day of the week will
+        // be set based on the start timestamp.  We need to convert the start time
+        // to a day of the week
+        final DateTime startDateTime = new DateTime(startTimestamp);
+        final int weekdayNumber = startDateTime.dayOfWeek().get();
+
         final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
         verifyBasicSchedule(schedule);
         assertTrue(schedule.hasPerpetual());
         assertTrue(schedule.hasWeekly());
-        assertEquals(schedule.getWeekly().getDaysOfWeekList(),
-                Collections.singletonList(Schedule.DayOfWeek.TUESDAY));
-
+        assertEquals(1, schedule.getWeekly().getDaysOfWeekCount());
+        assertEquals(weekdayNumber, schedule.getWeekly().getDaysOfWeek(0).getNumber());
     }
 
     @Test
@@ -732,12 +737,19 @@ public class SettingsMapperTest {
         settingsPolicyApiDTO.setSchedule(monthlyUnspecified);
 
         final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+
+        // Because no day of the month was specified, the day of the month will
+        // be set based on the start timestamp.
+        final DateTime startDateTime = new DateTime(startTimestamp);
+        final int dayOfMonth = startDateTime.getDayOfMonth();
+
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
         verifyBasicSchedule(schedule);
         assertTrue(schedule.hasPerpetual());
         assertTrue(schedule.hasMonthly());
-        assertEquals(schedule.getMonthly().getDaysOfMonthList(), Collections.singletonList(30));
+        assertEquals(1, schedule.getMonthly().getDaysOfMonthCount());
+        assertEquals(dayOfMonth, schedule.getMonthly().getDaysOfMonth(0));
     }
 
     @Test
@@ -979,12 +991,21 @@ public class SettingsMapperTest {
         final SettingsPolicyApiDTO retDto =
                 policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
+
+        // Because no day of the week was specified, the day of the week will
+        // be set based on the start timestamp.  We need to convert the start time
+        // to a day of the week
+        final DateTime startDateTime = new DateTime(startTimestamp);
+        // Also the api and the internal day representations are different
+        final int weekdayNumber = startDateTime.dayOfWeek().get() == Schedule.DayOfWeek.SUNDAY_VALUE ? 1
+                : startDateTime.dayOfWeek().get() + 1;
+
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
         assertEquals(scheduleApiDTO.getEndDate(), null);
         assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.WEEKLY);
-        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfWeek(),
-                Collections.singletonList(DayOfWeek.Tue));
+        assertEquals(1, scheduleApiDTO.getRecurrence().getDaysOfWeek().size());
+        assertEquals(weekdayNumber, scheduleApiDTO.getRecurrence().getDaysOfWeek().get(0).getValue());
     }
 
     @Test
@@ -1034,11 +1055,17 @@ public class SettingsMapperTest {
         final SettingsPolicyApiDTO retDto =
                 policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
 
+        // Because no day of the month was specified, the day of the month will
+        // be set based on the start timestamp.
+        final DateTime startDateTime = new DateTime(startTimestamp);
+        final int dayOfMonth = startDateTime.getDayOfMonth();
+
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
         assertEquals(scheduleApiDTO.getEndDate(), null);
         assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.MONTHLY);
-        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfMonth(), Collections.singletonList(30));
+        assertEquals(1, scheduleApiDTO.getRecurrence().getDaysOfMonth().size());
+        assertEquals(dayOfMonth, scheduleApiDTO.getRecurrence().getDaysOfMonth().get(0).intValue());
     }
 
     @Test
