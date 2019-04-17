@@ -10,11 +10,11 @@
             {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
-            {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "vmsByState"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag"},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
-            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"},
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"},
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"}
         ]
@@ -23,7 +23,7 @@
     "VirtualDataCenter" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vdcsByName"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "vdcsByTag"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vdcsByTag"}
         ]
     },
 
@@ -32,8 +32,8 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
-            {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "pmsByState"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag"},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsByStorage"},
             {"inputType": "*", "elements": "Switch:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsBySwitch"},
             {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "pmsByMem"},
@@ -52,8 +52,8 @@
             {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES", "filterCategory": "entity", "filterType": "storageByVMs"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
-            {"inputType": "*", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"},
             {"inputType": "*", "elements": "storageInfoRepoDTO.local", "filterCategory": "property", "filterType": "storageWithLocalSupport"}
         ]
@@ -88,16 +88,16 @@
     "Database" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag"},
-            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag"},
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid"}
         ]
     },
 
     "DatabaseServer" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag"},
-            {"inputType": "*", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag"},
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid"}
         ]
     },
 
@@ -108,7 +108,7 @@
     "DataCenter": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "datacentersByName"},
-            {"inputType": "*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag"}
         ]
     },
 

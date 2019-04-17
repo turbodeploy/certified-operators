@@ -38,6 +38,7 @@ public class SearchMapperTest {
         PropertyFilter fooSearch = SearchMapper.nameFilter(FOO);
         assertEquals("displayName", fooSearch.getPropertyName());
         assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
+        assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
     }
 
     @Test
@@ -45,7 +46,7 @@ public class SearchMapperTest {
         PropertyFilter fooSearch = SearchMapper.nameFilter(FOO, false, false);
         assertEquals("displayName", fooSearch.getPropertyName());
         assertEquals("^" + FOO + "$", fooSearch.getStringFilter().getStringPropertyRegex());
-        assertFalse(fooSearch.getStringFilter().getMatch());
+        assertEquals(0, fooSearch.getStringFilter().getOptionsCount());
     }
 
     @Test
@@ -57,16 +58,25 @@ public class SearchMapperTest {
     }
 
     @Test
-    public void testPropertyFilter() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilter(BAR, FOO);
+    public void testRegexPropertyFilter() {
+        PropertyFilter fooBar = SearchMapper.stringPropertyFilterRegex(BAR, FOO);
         assertEquals(BAR, fooBar.getPropertyName());
         assertEquals("^" + FOO + "$", fooBar.getStringFilter().getStringPropertyRegex());
     }
 
     @Test
+    public void testPropertyFilter() {
+        PropertyFilter fooBar = SearchMapper.stringPropertyFilterExact(BAR, Collections.singletonList(FOO));
+        assertEquals(BAR, fooBar.getPropertyName());
+        assertEquals(1, fooBar.getStringFilter().getOptionsCount());
+        assertEquals(FOO, fooBar.getStringFilter().getOptions(0));
+        assertFalse(fooBar.getStringFilter().hasStringPropertyRegex());
+    }
+
+    @Test
     public void testStringFilterNoDoublePrefix() {
         assertThat(
-            SearchMapper.stringFilter("^val", true, false).getStringPropertyRegex(),
+            SearchMapper.stringFilterRegex("^val", true, false).getStringPropertyRegex(),
             // No extra "^" prefix.
             is("^val$"));
     }
@@ -74,7 +84,7 @@ public class SearchMapperTest {
     @Test
     public void testStringFilterNoDoubleSuffix() {
         assertThat(
-            SearchMapper.stringFilter("val$", true, false).getStringPropertyRegex(),
+            SearchMapper.stringFilterRegex("val$", true, false).getStringPropertyRegex(),
             // No extra "$" suffix.
             is("^val$"));
     }
@@ -91,7 +101,7 @@ public class SearchMapperTest {
 
     @Test
     public void testSearchProperty() {
-        PropertyFilter fooBar = SearchMapper.stringPropertyFilter(BAR, FOO);
+        PropertyFilter fooBar = SearchMapper.stringPropertyFilterRegex(BAR, FOO);
         SearchFilter searchFilter = SearchMapper.searchFilterProperty(fooBar);
         assertEquals(fooBar, searchFilter.getPropertyFilter());
     }
@@ -148,31 +158,54 @@ public class SearchMapperTest {
      */
     @Test
     public void testMapFilter() {
-        final PropertyFilter filter1 = SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=B");
+        final PropertyFilter filter1 = SearchMapper.mapPropertyFilterForMultimapsExact("Prop", "AA=B", true);
         assertTrue(filter1.hasMapFilter());
         assertEquals("Prop", filter1.getPropertyName());
         assertEquals("AA", filter1.getMapFilter().getKey());
         assertEquals(1, filter1.getMapFilter().getValuesCount());
         assertEquals("B", filter1.getMapFilter().getValues(0));
+        assertTrue(filter1.getMapFilter().getPositiveMatch());
+        assertFalse(filter1.getMapFilter().hasRegex());
 
         final PropertyFilter filter2 =
-                SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=BB|AA=CC");
+                SearchMapper.mapPropertyFilterForMultimapsExact("Prop", "AA=BB|AA=CC", false);
         assertTrue(filter2.hasMapFilter());
         assertEquals("Prop", filter2.getPropertyName());
         assertEquals("AA", filter2.getMapFilter().getKey());
         assertEquals(2, filter2.getMapFilter().getValuesCount());
         assertTrue(filter2.getMapFilter().getValuesList().contains("BB"));
         assertTrue(filter2.getMapFilter().getValuesList().contains("CC"));
+        assertFalse(filter2.getMapFilter().getPositiveMatch());
+        assertFalse(filter2.getMapFilter().hasRegex());
 
-        final PropertyFilter filter3 = SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=");
+        final PropertyFilter filter3 = SearchMapper.mapPropertyFilterForMultimapsExact("Prop", "AA=", true);
         assertTrue(filter3.hasMapFilter());
         assertEquals("Prop", filter3.getPropertyName());
         assertEquals("AA", filter3.getMapFilter().getKey());
         assertEquals(0, filter3.getMapFilter().getValuesCount());
+        assertFalse(filter3.getMapFilter().hasRegex());
 
-        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=B|DD"));
-        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=BB|C=D"));
-        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimaps("Prop", "=B|foo=DD"));
+        final PropertyFilter filter4 =
+                SearchMapper.mapPropertyFilterForMultimapsRegex("Prop", "k", ".*", false);
+        assertTrue(filter4.hasMapFilter());
+        assertEquals("Prop", filter4.getPropertyName());
+        assertEquals("k", filter4.getMapFilter().getKey());
+        assertEquals(0, filter4.getMapFilter().getValuesCount());
+        assertEquals("^.*$", filter4.getMapFilter().getRegex());
+        assertFalse(filter4.getMapFilter().getPositiveMatch());
+
+        final PropertyFilter filter5 =
+                SearchMapper.mapPropertyFilterForMultimapsRegex("Prop", "k", ".*", true);
+        assertTrue(filter5.hasMapFilter());
+        assertEquals("Prop", filter5.getPropertyName());
+        assertEquals("k", filter5.getMapFilter().getKey());
+        assertEquals(0, filter5.getMapFilter().getValuesCount());
+        assertEquals("^.*$", filter5.getMapFilter().getRegex());
+        assertTrue(filter5.getMapFilter().getPositiveMatch());
+
+        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimapsExact("Prop", "AA=B|DD", false));
+        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimapsExact("Prop", "AA=BB|C=D", false));
+        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimapsExact("Prop", "=B|foo=DD", false));
     }
 
     private void assertIsEmptyMapFilter(PropertyFilter filter) {
@@ -180,5 +213,16 @@ public class SearchMapperTest {
         assertEquals("Prop", filter.getPropertyName());
         assertEquals("", filter.getMapFilter().getKey());
         assertEquals(0, filter.getMapFilter().getValuesCount());
+    }
+
+    @Test
+    public void testStateFilter() {
+        final PropertyFilter propertyFilter = SearchMapper.stateFilter("a|b|c", true);
+        assertEquals(SearchMapper.STATE_PROPERTY, propertyFilter.getPropertyName());
+        assertFalse(propertyFilter.getStringFilter().hasStringPropertyRegex());
+        assertEquals(3, propertyFilter.getStringFilter().getOptionsCount());
+        assertEquals("a", propertyFilter.getStringFilter().getOptions(0));
+        assertEquals("b", propertyFilter.getStringFilter().getOptions(1));
+        assertEquals("c", propertyFilter.getStringFilter().getOptions(2));
     }
 }

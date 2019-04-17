@@ -1,6 +1,7 @@
 package com.vmturbo.repository.search;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -198,10 +199,33 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
 
             case STRING_FILTER:
                 final StringFilter stringFilter = propertyFilter.getStringFilter();
-                stringBuilder.append(String.format("FILTER %s REGEX_TEST(%s, \"%s\", %s)\n",
-                            stringFilter.getMatch() ? "" : "NOT", objectNameAql,
-                            stringFilter.getStringPropertyRegex(),
-                            stringFilter.getCaseSensitive() ? "false" : "true"));
+                if (stringFilter.hasStringPropertyRegex()) {
+                    stringBuilder.append(
+                            String.format(
+                                    "FILTER %s REGEX_TEST(%s, \"%s\", %s)\n",
+                                    stringFilter.getPositiveMatch() ? "" : "NOT", objectNameAql,
+                                    stringFilter.getStringPropertyRegex(),
+                                    stringFilter.getCaseSensitive() ? "false" : "true"));
+                } else {
+                    // if the comparison is not case-sensitive, then the AQL function should be
+                    // applied to all the strings involved
+                    final Function<String, String> caseSensitivityFunction =
+                            stringFilter.getCaseSensitive() ? (x->x) : (x -> "LOWER(" + x + ")");
+
+                    final String objectNameAqlToFind = caseSensitivityFunction.apply(objectNameAql);
+                    final String listOfOptions =
+                            "[" +
+                            stringFilter.getOptionsList().stream()
+                                    .map(x -> "\"" + x + "\"")
+                                    .map(caseSensitivityFunction)
+                                    .collect(Collectors.joining(", ")) +
+                            "]";
+                    stringBuilder.append(
+                        String.format(
+                            "FILTER %s%s IN %s\n",
+                            objectNameAqlToFind,
+                            stringFilter.getPositiveMatch() ? "" : " NOT", listOfOptions));
+                }
                 break;
 
             case NUMERIC_FILTER:
@@ -219,10 +243,11 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                     // Match the case as well - entity type is driven by enum.
                     PropertyFilter pf = PropertyFilter.newBuilder()
                             .setPropertyName(propertyName)
-                            .setStringFilter(StringFilter.newBuilder()
-                                    .setStringPropertyRegex('^' + RepoObjectType.mapEntityType(
-                                            Math.toIntExact(numericFilter.getValue())) + '$')
-                                    .setMatch(true)
+                            .setStringFilter(
+                                StringFilter.newBuilder()
+                                    .addOptions(
+                                        RepoObjectType.mapEntityType(
+                                            Math.toIntExact(numericFilter.getValue())))
                                     .setCaseSensitive(true)
                                     .build())
                             .build();
@@ -236,29 +261,94 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                 break;
 
             case MAP_FILTER:
+                // map filter
                 final MapFilter mapFilter = propertyFilter.getMapFilter();
+
+                // list of values to check for exact string matches
                 final List<String> values = mapFilter.getValuesList();
+
+                // pattern for regex matching of values
+                final String regex = mapFilter.hasRegex() ? mapFilter.getRegex() : "";
+
+                // key
                 final String key = mapFilter.getKey();
 
-                // construct AQL filter for (multi)-map search
-                // the value filter depends on whether this is a map or a multimap
-                // the value in a map entry is a single string, while in multimap is an array
-                if (values == null || values.isEmpty()) {
-                    stringBuilder.append(String.format("FILTER \"%s\" IN ATTRIBUTES(%s.%s)",
-                            key,
-                            objectName,
-                            propertyName));
+                // should the filter be a negation of the condition
+                final boolean negation = !mapFilter.getPositiveMatch();
+
+                // AQL condition to filter with (ignoring negation)
+                final String condition;
+
+                // construct AQL condition for (multi)-map search
+                if (values.isEmpty()) {
+                    if (regex.isEmpty()) {
+                        // empty values list and empty regex
+                        // this filter only checks for the existence of the key
+                        // for example (assume the attribute name is "key" and the property name is "tags"):
+                        //   "key" IN ATTRIBUTES(object.tags)
+                        // in the case of negation, the filter checks for the
+                        // non-existence of the key
+                        condition =
+                            String.format("\"%s\" IN ATTRIBUTES(%s.%s)", key, objectName, propertyName);
+                    } else {
+                        // empty values list and non-empty regex
+                        // this filter checks for pattern matching of (one of the) value(s)
+                        // under the key with the given regex
+
+                        //   multimap: object.tags["key"] ANY =~ "^.*$"
+                        if (mapFilter.getIsMultimap()) {
+                            // pattern match on all the items of a list of strings
+                            // the list of all matching items should be constructed first
+                            // then we check if the list is empty
+                            // for example assume the attribute name is "key", the property name is "tags",
+                            // and the regex is "^.*$".  the condition should be
+                            //   LENGTH(
+                            //     FILTER object.tags["key"] != null
+                            //     FOR tagValue IN object.tags["key"]
+                            //     FILTER tagValue =~ "^.*$"
+                            //     RETURN tagValue) == 0
+                            final String allTags =
+                                String.format("%s.%s[\"%s\"]", objectName, propertyName, key);
+                            final String listOfMatches =
+                                String.format(
+                                    "FILTER %s != null FOR tagValue IN %s FILTER tagValue =~ \"%s\" RETURN tagValue",
+                                    allTags, allTags, regex);
+                            condition = String.format("LENGTH(%s)>0", listOfMatches);
+                        } else {
+                            // pattern match on a single entity
+                            // for example assume the attribute name is "key", the property name is "tags",
+                            // and the regex is "^.*$".  the condition should be
+                            //   object.tags["key"] =~ "^.*$"
+                            condition =
+                                String.format(
+                                    "%s.%s[\"%s\"] =~ \"%s\"",
+                                    objectName, propertyName, key, regex);
+                        }
+                    }
                 } else {
-                    // turn the list of values to an AQL string representation of that list
+                    // non-empty values list.  regex is ignored
+                    // this filter checks for exact string matching of (one of the) value(s)
+                    // under the key with one of the items in the given list
+                    // for example (assume the attribute name is "key", the property name is "tags",
+                    // and the values list contains the strings "a" and "b"):
+                    //   normal map: object.tags["key"] IN ["a", "b"]
+                    //   multimap: object.tags["key"] ANY IN ["a", "b"]
                     final String valuesInQuotes =
                             values.stream().map(x -> "\"" + x + "\"").collect(Collectors.joining(", "));
-                    stringBuilder.append(String.format("FILTER %s.%s[\"%s\"] %s %s",
-                            objectName,
-                            propertyName,
-                            key,
-                            mapFilter.getIsMultimap() ? "ANY IN" : "IN",
-                            "[" + valuesInQuotes + "]"));
+                    condition =
+                        String.format(
+                            "%s.%s[\"%s\"] %s %s",
+                            objectName, propertyName, key, mapFilter.getIsMultimap() ? "ANY IN" : "IN",
+                            "[" + valuesInQuotes + "]");
                 }
+
+                // turn the condition into an AQL filter
+                // add negation, if mapFilter specifies it
+                stringBuilder
+                        .append("FILTER ")
+                        .append(negation ? "!(" : "")
+                        .append(condition)
+                        .append(negation ? ")" : "");
                 break;
 
             case LIST_FILTER:

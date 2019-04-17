@@ -1,6 +1,6 @@
 package com.vmturbo.repository.search;
 
-import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
+import static com.vmturbo.repository.search.SearchTestUtil.makeRegexStringFilter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,14 +56,14 @@ public class SearchIntegration {
         final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("DataCenter", true))
+                        .setStringFilter(makeRegexStringFilter("DataCenter", true))
                         .build())));
         final AQLRepr repr2 = new AQLRepr(List.of(
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1)));
         final AQLRepr repr3 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("displayName")
-                        .setStringFilter(makeStringFilter("20", false))
+                        .setStringFilter(makeRegexStringFilter("20", false))
                         .build())));
         final SearchStage<SearchComputationContext, Collection<String>, Collection<String>> s1 =
                 () -> new ArangoDBSearchComputation(repr1.toAQL());
@@ -201,14 +201,14 @@ public class SearchIntegration {
         final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("PhysicalMachine", true))
+                        .setStringFilter(makeRegexStringFilter("PhysicalMachine", true))
                         .build())));
         final AQLRepr repr2 = new AQLRepr(List.of(
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1)));
         final AQLRepr repr3 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("displayName")
-                        .setStringFilter(makeStringFilter("#", false))
+                        .setStringFilter(makeRegexStringFilter("#", false))
                         .build())));
 
         SearchHandler searchHandler = new SearchHandler(graphDefinition,

@@ -1,11 +1,14 @@
 package com.vmturbo.repository.search;
 
-import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
+import static com.vmturbo.repository.search.SearchTestUtil.makeRegexStringFilter;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableList;
 
 import javaslang.collection.List;
 
@@ -22,12 +25,22 @@ import com.vmturbo.repository.graph.executor.AQLs;
 import com.vmturbo.repository.search.AQLRepr.AQLPagination;
 
 public class AQLReprTest {
+    private static final String MAP_PROPERTY_NAME = "tags";
+    private static final String MAP_KEY_NAME = "key";
+    private static final String MAP_REGEX = "^.*$";
+    private static final String MAP_FULL_REFERENCE_TO_VALUES =
+            "service_entity." + MAP_PROPERTY_NAME + "[\"" + MAP_KEY_NAME + "\"]";
+
+    private static final String ENTITY_TYPE = "entityType";
+    private static final String DISPLAY_NAME = "displayName";
+    private static final String VIRTUAL_MACHINE = "VirtualMachine";
+
     @Test
     public void testMultiplePropertiesToAQL() {
         final Filter<PropertyFilterType> typeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("VirtualMachine", true))
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(makeRegexStringFilter(VIRTUAL_MACHINE, true))
                         .build());
 
         final Filter<PropertyFilterType> capacityFilter = Filter.propertyFilter(
@@ -41,8 +54,8 @@ public class AQLReprTest {
 
         final Filter<PropertyFilterType> nameFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("displayName")
-                        .setStringFilter(makeStringFilter(".*foo", false))
+                        .setPropertyName(DISPLAY_NAME)
+                        .setStringFilter(makeRegexStringFilter(".*foo", false))
                         .build());
 
         final AQLRepr repr = new AQLRepr(List.of(typeFilter, capacityFilter, nameFilter));
@@ -71,8 +84,8 @@ public class AQLReprTest {
     public void testCondTraversal() {
         final Filter<PropertyFilterType> typeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("VirtualMachine", true))
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(makeRegexStringFilter(VIRTUAL_MACHINE, true))
                         .build());
         final Filter<TraversalFilterType> condTraversal =
                 Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER, typeFilter);
@@ -91,8 +104,8 @@ public class AQLReprTest {
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 3);
         final Filter<PropertyFilterType> typeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("VirtualMachine", true))
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(makeRegexStringFilter(VIRTUAL_MACHINE, true))
                         .build());
         final Filter<PropertyFilterType> capacityFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
@@ -116,8 +129,8 @@ public class AQLReprTest {
     public void testCondTraversalWithOtherFilters() {
         final Filter<PropertyFilterType> typeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("VirtualMachine", true))
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(makeRegexStringFilter(VIRTUAL_MACHINE, true))
                         .build());
         final Filter<TraversalFilterType> condTraversal =
                 Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER, typeFilter);
@@ -131,8 +144,8 @@ public class AQLReprTest {
                         .build());
         final Filter<PropertyFilterType> nameFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("displayName")
-                        .setStringFilter(makeStringFilter(".*foo", false))
+                        .setPropertyName(DISPLAY_NAME)
+                        .setStringFilter(makeRegexStringFilter(".*foo", false))
                         .build());
 
         final AQLRepr repr = new AQLRepr(List.of(condTraversal, nameFilter, capacityFilter));
@@ -151,8 +164,8 @@ public class AQLReprTest {
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 3);
         final Filter<PropertyFilterType> typeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("VirtualMachine", true))
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(makeRegexStringFilter(VIRTUAL_MACHINE, true))
                         .build());
 
         new AQLRepr(List.of(typeFilter, hopTraversal));
@@ -162,13 +175,13 @@ public class AQLReprTest {
     public void testAQLPagination() {
         final Filter<PropertyFilterType> typeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("VirtualMachine", true))
+                        .setPropertyName(ENTITY_TYPE)
+                        .setStringFilter(makeRegexStringFilter(VIRTUAL_MACHINE, true))
                         .build());
         final Filter<PropertyFilterType> nameFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
-                        .setPropertyName("displayName")
-                        .setStringFilter(makeStringFilter(".*foo", false))
+                        .setPropertyName(DISPLAY_NAME)
+                        .setStringFilter(makeRegexStringFilter(".*foo", false))
                         .build());
         final AQLPagination aqlPagination =
                 new AQLPagination(SearchOrderBy.ENTITY_NAME, true, 20, Optional.of(20L));
@@ -190,10 +203,8 @@ public class AQLReprTest {
                         .setObjectFilter(ObjectFilter.newBuilder()
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("type")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("^VMem$")
-                                                .setMatch(true)
-                                                .build())
+                                        .setStringFilter(
+                                            SearchTestUtil.makeRegexStringFilter("^VMem$", false))
                                         .build())
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("capacity")
@@ -226,10 +237,8 @@ public class AQLReprTest {
                         .setObjectFilter(ObjectFilter.newBuilder()
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("type")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("^VMem$")
-                                                .setMatch(true)
-                                                .build())
+                                        .setStringFilter(
+                                               SearchTestUtil.makeRegexStringFilter("^VMem$", false))
                                         .build())
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("providerOid")
@@ -258,29 +267,25 @@ public class AQLReprTest {
                 .setObjectFilter(ObjectFilter.newBuilder()
                         .addFilters(PropertyFilter.newBuilder()
                                 .setPropertyName("guestOsType")
-                                .setStringFilter(StringFilter.newBuilder()
-                                        .setStringPropertyRegex("Linux")
-                                        .setMatch(true)
-                                        .build())
+                                .setStringFilter(
+                                        SearchTestUtil.makeListStringFilter(
+                                                Collections.singletonList("Linux"), true))
                                 .build())
                         .build())
                 .build();
 
         String actualAql = SearchDTOConverter.convertPropertyFilter(filter).get().toAQLString();
         assertThat(actualAql).isEqualTo(
-                "FILTER  REGEX_TEST(service_entity.virtualMachineInfoRepoDTO.guestOsType, \"Linux\", true)\n"
+                "FILTER service_entity.virtualMachineInfoRepoDTO.guestOsType IN [\"Linux\"]\n"
         );
     }
 
     @Test
     public void testFilterByDisplayName() {
         PropertyFilter filter = PropertyFilter.newBuilder()
-                .setPropertyName("displayName")
-                .setStringFilter(StringFilter.newBuilder()
-                        .setStringPropertyRegex("abc")
-                        .setMatch(true)
-                        .setCaseSensitive(true)
-                        .build())
+                .setPropertyName(DISPLAY_NAME)
+                .setStringFilter(
+                        SearchTestUtil.makeRegexStringFilter("abc", true))
                 .build();
 
         String actualAql = SearchDTOConverter.convertPropertyFilter(filter).get().toAQLString();
@@ -335,11 +340,9 @@ public class AQLReprTest {
         PropertyFilter filter = PropertyFilter.newBuilder()
                 .setPropertyName("providers")
                 .setListFilter(ListFilter.newBuilder()
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex("23456")
-                                .setMatch(true)
-                                .setCaseSensitive(false)
-                                .build())
+                        .setStringFilter(
+                                SearchTestUtil.makeListStringFilter(
+                                        ImmutableList.of("23456", "78901"), false))
                         .build())
                 .build();
         String actualAql = SearchDTOConverter.convertPropertyFilter(filter).get().toAQLString();
@@ -347,7 +350,7 @@ public class AQLReprTest {
                 "FILTER HAS(service_entity, \"providers\")\n" +
                 "FILTER LENGTH(\n" +
                 "FOR providers IN service_entity.providers\n" +
-                "FILTER  REGEX_TEST(providers, \"23456\", true)\n" +
+                "FILTER LOWER(providers) IN [LOWER(\"23456\"), LOWER(\"78901\")]\n" +
                 "RETURN 1\n" +
                 ") > 0\n"
         );
@@ -379,10 +382,9 @@ public class AQLReprTest {
                         .setObjectFilter(ObjectFilter.newBuilder()
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("departmentName")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("development")
-                                                .setMatch(true)
-                                                .build())
+                                        .setStringFilter(
+                                                SearchTestUtil.makeListStringFilter(
+                                                        Collections.singletonList("development"), false))
                                         .build())
                                 .addFilters(PropertyFilter.newBuilder()
                                         .setPropertyName("teams")
@@ -390,10 +392,10 @@ public class AQLReprTest {
                                                 .setObjectFilter(ObjectFilter.newBuilder()
                                                         .addFilters(PropertyFilter.newBuilder()
                                                                 .setPropertyName("teamName")
-                                                                .setStringFilter(StringFilter.newBuilder()
-                                                                        .setStringPropertyRegex("ui")
-                                                                        .setMatch(true)
-                                                                        .build())
+                                                                .setStringFilter(
+                                                                        SearchTestUtil.makeListStringFilter(
+                                                                            Collections.singletonList("ui"),
+                                                                            false))
                                                                 .build())
                                                         .addFilters(PropertyFilter.newBuilder()
                                                                 .setPropertyName("size")
@@ -414,11 +416,11 @@ public class AQLReprTest {
                 "FILTER HAS(service_entity, \"departments\")\n" +
                 "FILTER LENGTH(\n" +
                 "FOR departments IN service_entity.departments\n" +
-                "FILTER  REGEX_TEST(departments.departmentName, \"development\", true)\n" +
+                "FILTER LOWER(departments.departmentName) IN [LOWER(\"development\")]\n" +
                 "FILTER HAS(departments, \"teams\")\n" +
                 "FILTER LENGTH(\n" +
                 "FOR teams IN departments.teams\n" +
-                "FILTER  REGEX_TEST(teams.teamName, \"ui\", true)\n" +
+                "FILTER LOWER(teams.teamName) IN [LOWER(\"ui\")]\n" +
                 "FILTER teams.size > 5\n" +
                 "RETURN 1\n" +
                 ") > 0\n" +
@@ -442,11 +444,10 @@ public class AQLReprTest {
                                         .setObjectFilter(ObjectFilter.newBuilder()
                                                 .addFilters(PropertyFilter.newBuilder()
                                                         .setPropertyName("name")
-                                                        .setStringFilter(StringFilter.newBuilder()
-                                                                .setStringPropertyRegex("Jack")
-                                                                .setMatch(true)
-                                                                .build())
-                                                        .build())
+                                                        .setStringFilter(
+                                                                SearchTestUtil.makeListStringFilter(
+                                                                    Collections.singletonList("Jack"),
+                                                                    false)))
                                                 .addFilters(PropertyFilter.newBuilder()
                                                         .setPropertyName("mother")
                                                         .setObjectFilter(ObjectFilter.newBuilder()
@@ -469,10 +470,147 @@ public class AQLReprTest {
                 "FILTER HAS(service_entity.father, \"friends\")\n" +
                 "FILTER LENGTH(\n" +
                 "FOR friends IN service_entity.father.friends\n" +
-                "FILTER  REGEX_TEST(friends.name, \"Jack\", true)\n" +
+                "FILTER LOWER(friends.name) IN [LOWER(\"Jack\")]\n" +
                 "FILTER friends.mother.age > 40\n" +
                 "RETURN 1\n" +
                 ") > 0\n"
         );
+    }
+
+    /**
+     * Translation of negative list string filter.
+     */
+    @Test
+    public void testCaseSensitiveNegativeListStringFilter() {
+        final PropertyFilter propertyFilter =
+                PropertyFilter.newBuilder()
+                    .setPropertyName("property")
+                    .setStringFilter(
+                            StringFilter.newBuilder()
+                                .addOptions("xyz")
+                                .addOptions("abc")
+                                .setPositiveMatch(false)
+                                .setCaseSensitive(true)
+                                .build())
+                    .build();
+        final String actualAql =
+                SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo("FILTER service_entity.property NOT IN [\"xyz\", \"abc\"]\n");
+    }
+
+    /**
+     * Translation of negative regex string filter.
+     */
+    @Test
+    public void testNegativeRegexStringFilter() {
+        final PropertyFilter propertyFilter =
+                PropertyFilter.newBuilder()
+                        .setPropertyName("property")
+                        .setStringFilter(
+                                StringFilter.newBuilder()
+                                        .setStringPropertyRegex("^a.*$")
+                                        .setPositiveMatch(false)
+                                        .build())
+                        .build();
+        final String actualAql =
+                SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo("FILTER NOT REGEX_TEST(service_entity.property, \"^a.*$\", true)\n");
+    }
+
+    /**
+     * Translation of empty map filter.
+     */
+    @Test
+    public void testEmptyMapFilter() {
+        final PropertyFilter propertyFilter =
+            wrapMapFilterIntoPropertyFilter(mapFilterBuilderWithKey().build());
+        final String actualAql =
+            SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo(
+            "FILTER \"" + MAP_KEY_NAME + "\" IN ATTRIBUTES(service_entity." + MAP_PROPERTY_NAME + ")");
+    }
+
+    /**
+     * Translation of a map filter for normal maps that
+     * pattern-matches against a regular expression
+     * and negates the result.
+     */
+    @Test
+    public void testRegexMapFilter() {
+        final PropertyFilter propertyFilter =
+                wrapMapFilterIntoPropertyFilter(
+                        mapFilterBuilderWithKey()
+                                .setRegex(MAP_REGEX)
+                                .setIsMultimap(false)
+                                .setPositiveMatch(false)
+                                .build()
+                );
+        final String actualAql =
+                SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo(
+                "FILTER !(" + MAP_FULL_REFERENCE_TO_VALUES + " =~ \"" + MAP_REGEX + "\")");
+    }
+
+    /**
+     * Translation of a map filter for multimaps that
+     * pattern-matches against a regular expression.
+     */
+    @Test
+    public void testRegexMultiMapFilter() {
+        final PropertyFilter propertyFilter =
+                wrapMapFilterIntoPropertyFilter(
+                        mapFilterBuilderWithKey().setRegex(MAP_REGEX).setIsMultimap(true).build());
+        final String actualAql =
+                SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo(
+            "FILTER LENGTH(FILTER " + MAP_FULL_REFERENCE_TO_VALUES + " != null FOR tagValue IN " +
+            MAP_FULL_REFERENCE_TO_VALUES + " FILTER tagValue =~ \"" + MAP_REGEX + "\" RETURN tagValue)>0");
+    }
+
+    /**
+     * Translation of a map filter for normal maps that
+     * checks for an exact string match against a list of values
+     */
+    @Test
+    public void testExactMapFilter() {
+        final PropertyFilter propertyFilter =
+                wrapMapFilterIntoPropertyFilter(
+                        mapFilterBuilderWithKey()
+                                .addValues("a")
+                                .addValues("b")
+                                .setIsMultimap(false)
+                                .build());
+        final String actualAql =
+                SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo(
+                "FILTER " + MAP_FULL_REFERENCE_TO_VALUES + " IN [\"a\", \"b\"]");
+    }
+
+    /**
+     * Translation of a map filter for multimaps that
+     * checks for an exact string match against a list of values
+     */
+    @Test
+    public void testExactMultiMapFilter() {
+        final PropertyFilter propertyFilter =
+                wrapMapFilterIntoPropertyFilter(
+                        mapFilterBuilderWithKey()
+                                .addValues("a")
+                                .addValues("b")
+                                .setIsMultimap(true)
+                                .build());
+        final String actualAql =
+                SearchDTOConverter.convertPropertyFilter(propertyFilter).get().toAQLString();
+        assertThat(actualAql).isEqualTo(
+                "FILTER " + MAP_FULL_REFERENCE_TO_VALUES + " ANY IN [\"a\", \"b\"]");
+    }
+
+    private MapFilter.Builder mapFilterBuilderWithKey() {
+        return MapFilter.newBuilder().setKey(MAP_KEY_NAME);
+    }
+
+    private PropertyFilter wrapMapFilterIntoPropertyFilter(MapFilter mapFilter) {
+        return
+            PropertyFilter.newBuilder().setPropertyName(MAP_PROPERTY_NAME).setMapFilter(mapFilter).build();
     }
 }

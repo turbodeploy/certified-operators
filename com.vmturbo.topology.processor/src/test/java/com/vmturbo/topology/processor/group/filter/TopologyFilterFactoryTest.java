@@ -209,7 +209,7 @@ public class TopologyFilterFactoryTest {
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
                 .setPropertyName("displayName")
                 .setStringFilter(StringFilter.newBuilder()
-                        .setMatch(false)
+                        .setPositiveMatch(false)
                         .setStringPropertyRegex("f.*")
                 ))
             .build();
@@ -231,7 +231,7 @@ public class TopologyFilterFactoryTest {
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("state")
                         .setStringFilter(StringFilter.newBuilder()
-                                .setMatch(true)
+                                .setPositiveMatch(true)
                                 .setStringPropertyRegex("ACTIVE")))
                 .build();
 
@@ -253,7 +253,7 @@ public class TopologyFilterFactoryTest {
                         .setPropertyName("state")
                         .setStringFilter(StringFilter.newBuilder()
                                 // Match set to false, so "ACTIVE" entities shouldn't match.
-                                .setMatch(false)
+                                .setPositiveMatch(false)
                                 .setStringPropertyRegex("ACTIVE")))
                 .build();
 
@@ -277,7 +277,7 @@ public class TopologyFilterFactoryTest {
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("state")
                         .setStringFilter(StringFilter.newBuilder()
-                                .setMatch(true)
+                                .setPositiveMatch(true)
                                 .setStringPropertyRegex("AcTivE")
                                 // Ignore case sensitive flag.
                                 .setCaseSensitive(true)))
@@ -297,7 +297,7 @@ public class TopologyFilterFactoryTest {
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("environmentType")
                         .setStringFilter(StringFilter.newBuilder()
-                                .setMatch(true)
+                                .setPositiveMatch(true)
                                 .setStringPropertyRegex("CLOUD")))
                 .build();
 
@@ -319,7 +319,7 @@ public class TopologyFilterFactoryTest {
                         .setPropertyName("environmentType")
                         .setStringFilter(StringFilter.newBuilder()
                                 // Match set to false, so "CLOUD" entities shouldn't match.
-                                .setMatch(false)
+                                .setPositiveMatch(false)
                                 .setStringPropertyRegex("CLOUD")))
                 .build();
 
@@ -343,7 +343,7 @@ public class TopologyFilterFactoryTest {
                 .setPropertyFilter(Search.PropertyFilter.newBuilder()
                         .setPropertyName("environmentType")
                         .setStringFilter(StringFilter.newBuilder()
-                                .setMatch(true)
+                                .setPositiveMatch(true)
                                 .setStringPropertyRegex("cLoUD")
                                 // Ignore case sensitive flag.
                                 .setCaseSensitive(true)))
@@ -406,7 +406,7 @@ public class TopologyFilterFactoryTest {
             .setPropertyFilter(Search.PropertyFilter.newBuilder()
                     .setPropertyName("oid")
                     .setStringFilter(StringFilter.newBuilder()
-                            .setMatch(false)
+                            .setPositiveMatch(false)
                             .setStringPropertyRegex("1234")
                     )
             ).build();

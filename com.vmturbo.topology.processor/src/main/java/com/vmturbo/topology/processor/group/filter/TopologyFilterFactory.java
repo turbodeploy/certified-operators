@@ -161,7 +161,7 @@ public class TopologyFilterFactory {
                 return new PropertyFilter(stringPredicate(
                     stringCriteria.getStringPropertyRegex(),
                     entity -> entity.getTopologyEntityDtoBuilder().getDisplayName(),
-                    !stringCriteria.getMatch(),
+                    !stringCriteria.getPositiveMatch(),
                     stringCriteria.getCaseSensitive()
                 ));
             // Support oid either as a string or as a numeric filter.
@@ -170,7 +170,8 @@ public class TopologyFilterFactory {
                     // the string regex is an oid and can be represented as a numeric equals filter.
                     return new PropertyFilter(longPredicate(
                             Long.valueOf(stringCriteria.getStringPropertyRegex()),
-                            stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                            stringCriteria.getPositiveMatch() ?
+                                ComparisonOperator.EQ : ComparisonOperator.NE,
                             TopologyEntity::getOid
                     ));
                 } else {
@@ -179,7 +180,7 @@ public class TopologyFilterFactory {
                     return new PropertyFilter(stringPredicate(
                             stringCriteria.getStringPropertyRegex(),
                             entity -> String.valueOf(entity.getOid()),
-                            !stringCriteria.getMatch(),
+                            !stringCriteria.getPositiveMatch(),
                             stringCriteria.getCaseSensitive()
                     ));
                 }
@@ -200,7 +201,8 @@ public class TopologyFilterFactory {
                 }
                 // It's more efficient to compare the numeric value of the enum.
                 return new PropertyFilter(intPredicate(targetState.toEntityState().getNumber(),
-                        stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                        stringCriteria.getPositiveMatch() ?
+                            ComparisonOperator.EQ : ComparisonOperator.NE,
                         entity -> entity.getEntityState().getNumber()));
             case "environmentType":
                 final UIEnvironmentType targetType =
@@ -218,7 +220,7 @@ public class TopologyFilterFactory {
                 // It's more efficient to compare the numeric value of the enum.
                 return targetType.toEnvType()
                     .map(envType -> new PropertyFilter(intPredicate(envType.getNumber(),
-                        stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                        stringCriteria.getPositiveMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
                         entity -> entity.getEnvironmentType().getNumber())))
                     // If we're not looking for a specific environment type, all entities match.
                     .orElseGet(() -> new PropertyFilter((entity) -> true));
@@ -335,7 +337,7 @@ public class TopologyFilterFactory {
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
                                         topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                                                 .getVirtualMachine().getGuestOsInfo().getGuestOsName(),
-                                !stringFilter.getMatch(),
+                                !stringFilter.getPositiveMatch(),
                                 stringFilter.getCaseSensitive()).test(entity));
                     case VM_INFO_NUM_CPUS:
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
@@ -371,7 +373,7 @@ public class TopologyFilterFactory {
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
                                                 String.valueOf(topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                                                         .getStorage().getIsLocal()),
-                                        !stringFilter.getMatch(),
+                                        !stringFilter.getPositiveMatch(),
                                         stringFilter.getCaseSensitive()).test(entity));
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
@@ -406,7 +408,7 @@ public class TopologyFilterFactory {
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
                                                 topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                                                         .getPhysicalMachine().getVendor(),
-                                        !stringFilter.getMatch(),
+                                        !stringFilter.getPositiveMatch(),
                                         stringFilter.getCaseSensitive()).test(entity));
 
                     case PM_INFO_CPU_MODEL:
@@ -419,7 +421,7 @@ public class TopologyFilterFactory {
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
                                                 topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                                                         .getPhysicalMachine().getCpuModel(),
-                                        !stringFilter.getMatch(),
+                                        !stringFilter.getPositiveMatch(),
                                         stringFilter.getCaseSensitive()).test(entity));
 
                     case PM_INFO_MODEL:
@@ -432,7 +434,7 @@ public class TopologyFilterFactory {
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
                                                 topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                                                         .getPhysicalMachine().getModel(),
-                                        !stringFilter.getMatch(),
+                                        !stringFilter.getPositiveMatch(),
                                         stringFilter.getCaseSensitive()).test(entity));
 
                     case PM_INFO_TIMEZONE:
@@ -445,7 +447,7 @@ public class TopologyFilterFactory {
                                 stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
                                                 topologyEntity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                                                         .getPhysicalMachine().getTimezone(),
-                                        !stringFilter.getMatch(),
+                                        !stringFilter.getPositiveMatch(),
                                         stringFilter.getCaseSensitive()).test(entity));
 
                     default:

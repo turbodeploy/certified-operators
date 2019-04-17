@@ -97,7 +97,7 @@ public class DiscoveredGroupInterpreterTest {
         assertEquals("prop", filter.getPropertyName());
         assertTrue(filter.hasStringFilter());
         assertEquals("val", filter.getStringFilter().getStringPropertyRegex());
-        assertTrue(filter.getStringFilter().getMatch());
+        assertTrue(filter.getStringFilter().getPositiveMatch());
     }
 
     @Test

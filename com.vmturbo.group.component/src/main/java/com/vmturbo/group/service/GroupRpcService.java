@@ -626,7 +626,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             final StringFilter strFilter = propFilter.getNameFilter();
             final Pattern pattern = Pattern.compile(strFilter.getStringPropertyRegex(),
                 strFilter.getCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE);
-            final Predicate<Group> thisFilterPredicate = strFilter.getMatch() ?
+            final Predicate<Group> thisFilterPredicate = strFilter.getPositiveMatch() ?
                 group -> pattern.matcher(GroupProtoUtil.getGroupDisplayName(group)).find() :
                 group -> !pattern.matcher(GroupProtoUtil.getGroupDisplayName(group)).find();
             return thisFilterPredicate;
@@ -936,7 +936,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         StringFilter clusterSpecifierFilter = inputFilter.getClusterMembershipFilter().getClusterSpecifier().getStringFilter();
         NameFilter nf = NameFilter.newBuilder()
                 .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
-                .setNegateMatch(!clusterSpecifierFilter.getMatch())
+                .setNegateMatch(!clusterSpecifierFilter.getPositiveMatch())
                 .build();
         logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
         Set<Long> matchingClusterMembers = groupStore.getAll().stream()

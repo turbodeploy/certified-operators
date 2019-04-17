@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -689,10 +688,10 @@ public class StatsService implements IStatsService {
     private StatApiDTO getNumWorkloadStatSnapshot() {
         CountEntitiesRequest request = CountEntitiesRequest.newBuilder()
             .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchMapper.stringPropertyFilter("entityType",
+                .setStartingFilter(SearchMapper.stringPropertyFilterRegex("entityType",
                     "^VirtualMachine$|^DatabaseServer$|^Database$"))
                 .addSearchFilter(SearchFilter.newBuilder()
-                    .setPropertyFilter(SearchMapper.stringPropertyFilter("environmentType",
+                    .setPropertyFilter(SearchMapper.stringPropertyFilterRegex("environmentType",
                         "CLOUD"))))
             .build();
         float numCloudVMs = (float) searchServiceClient.countEntities(request).getEntityCount();

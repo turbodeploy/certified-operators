@@ -724,14 +724,14 @@ public class SearchService implements ISearchService {
         groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
                 .setNameFilter(NameFilter.newBuilder()
                         .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
-                        .setNegateMatch(!clusterSpecifierFilter.getMatch()))
+                        .setNegateMatch(!clusterSpecifierFilter.getPositiveMatch()))
                 .addTypeFilter(Type.CLUSTER)
                 .build())
             .flatMap(groupAndMembers -> groupAndMembers.members().stream())
             .distinct()
             .forEach(oid -> sj.add(Long.toString(oid)));
         return SearchFilter.newBuilder()
-            .setPropertyFilter(SearchMapper.stringPropertyFilter("oid", sj.toString()))
+            .setPropertyFilter(SearchMapper.stringPropertyFilterRegex("oid", sj.toString()))
             .build();
     }
 

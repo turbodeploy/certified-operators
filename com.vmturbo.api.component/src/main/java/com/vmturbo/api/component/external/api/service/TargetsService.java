@@ -1058,7 +1058,6 @@ public class TargetsService implements ITargetsService {
             .setPropertyName("targetIds")
             .setListFilter(ListFilter.newBuilder()
                 .setStringFilter(StringFilter.newBuilder()
-                    .setMatch(true)
                     .setStringPropertyRegex(targetUuid)
                     .build())
                 .build())

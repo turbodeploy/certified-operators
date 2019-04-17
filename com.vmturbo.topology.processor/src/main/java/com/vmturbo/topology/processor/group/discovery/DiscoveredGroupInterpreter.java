@@ -511,7 +511,7 @@ class DiscoveredGroupInterpreter {
                         case NOT_EQUAL_TO:
                             builder.setStringFilter(StringFilter.newBuilder()
                                     .setStringPropertyRegex(selectionSpec.getPropertyValueString())
-                                    .setMatch(false));
+                                    .setPositiveMatch(false));
                             break;
                         case CONTAINS:
                             builder.setStringFilter(StringFilter.newBuilder()
@@ -520,7 +520,7 @@ class DiscoveredGroupInterpreter {
                         case NOT_CONTAINS:
                             builder.setStringFilter(StringFilter.newBuilder()
                                     .setStringPropertyRegex(".*" + selectionSpec.getPropertyValueString() + ".*")
-                                    .setMatch(false));
+                                    .setPositiveMatch(false));
                             break;
                         case REGEX:
                             builder.setStringFilter(StringFilter.newBuilder()

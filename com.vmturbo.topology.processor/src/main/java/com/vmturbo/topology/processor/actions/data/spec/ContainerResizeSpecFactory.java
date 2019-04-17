@@ -121,7 +121,7 @@ public class ContainerResizeSpecFactory {
                         .setPropertyName(SpecSearchUtil.OID)
                         .setStringFilter(StringFilter.newBuilder()
                                 .setStringPropertyRegex(Long.toString(containerId))
-                                .setMatch(true)
+                                .setPositiveMatch(true)
                                 .setCaseSensitive(false))
                         .build())
                 // traverse PRODUCES relationship (Container produces commodities that applications

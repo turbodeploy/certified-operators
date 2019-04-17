@@ -1,6 +1,6 @@
 package com.vmturbo.repository.search;
 
-import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
+import static com.vmturbo.repository.search.SearchTestUtil.makeRegexStringFilter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
@@ -26,13 +26,13 @@ public class AQLReprFuserTest {
         final Filter<PropertyFilterType> entityTypeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("DataCenter", true))
+                        .setStringFilter(makeRegexStringFilter("DataCenter", true))
                         .build());
 
         final Filter<PropertyFilterType> stateFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("state")
-                        .setStringFilter(makeStringFilter("RUNNING", true))
+                        .setStringFilter(makeRegexStringFilter("RUNNING", true))
                         .build());
 
         final Filter<TraversalFilterType> traversalHopFilter = Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1);
@@ -40,7 +40,7 @@ public class AQLReprFuserTest {
         final Filter<PropertyFilterType> displayNameFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("displayName")
-                        .setStringFilter(makeStringFilter("20", true))
+                        .setStringFilter(makeRegexStringFilter("20", true))
                         .build());
 
         final Filter<PropertyFilterType> capacityFilter = Filter.propertyFilter(
@@ -75,13 +75,13 @@ public class AQLReprFuserTest {
         final Filter<PropertyFilterType> entityTypeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("DataCenter", true))
+                        .setStringFilter(makeRegexStringFilter("DataCenter", true))
                         .build());
 
         final Filter<PropertyFilterType> stateFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("state")
-                        .setStringFilter(makeStringFilter("RUNNING", true))
+                        .setStringFilter(makeRegexStringFilter("RUNNING", true))
                         .build());
         final Filter<TraversalFilterType> traversalHopFilter = Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1);
         final Filter<TraversalFilterType> traversalCondFilter = Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER, entityTypeFilter);
@@ -106,13 +106,13 @@ public class AQLReprFuserTest {
         final Filter<PropertyFilterType> entityTypeFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("entityType")
-                        .setStringFilter(makeStringFilter("DataCenter", true))
+                        .setStringFilter(makeRegexStringFilter("DataCenter", true))
                         .build());
 
         final Filter<PropertyFilterType> stateFilter = Filter.propertyFilter(
                 PropertyFilter.newBuilder()
                         .setPropertyName("state")
-                        .setStringFilter(makeStringFilter("RUNNING", true))
+                        .setStringFilter(makeRegexStringFilter("RUNNING", true))
                         .build());
         final Optional<PaginationParameters> paginationParameters = Optional.of(PaginationParameters.newBuilder()
                 .setCursor("20")

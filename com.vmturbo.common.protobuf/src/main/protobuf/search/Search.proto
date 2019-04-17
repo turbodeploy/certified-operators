@@ -122,17 +122,27 @@ message PropertyFilter {
         ObjectFilter object_filter = 6;
     }
 
+    // Property filter for strings. It can be used in two ways:
+    // (1) it maps string-valued properties against a regex
+    // (2) it checks if a string-valued property is contained in a given list of string
+    // Which of the above is used depends on what data is given. A valid message
+    // should contain either a regex or a list of options, but not both.
+    // The reason this is not implemented with a oneof protobuf message is for
+    // backward compatibility
     message StringFilter {
-        // Regular expression used against the property's value.
+        // Regular expression to be matched used against the property'sGroupMapper value
+        // (use (1) of the filter).
         optional string string_property_regex = 1;
 
-        // If true, the regex should match.
-        // If false, the regex should NOT match.
-        optional bool match = 2 [default = true];
+        // If false, then negate the result
+        optional bool positive_match = 2 [default = true];
 
-        // If true, the case of the letters should match.
-        // False by default (i.e. case insensitive by default)
+        // If true, the case of the letters should match
         optional bool case_sensitive = 3 [default = false];
+
+        // List of strings: the string-valued property must be contained here
+        // (use (2) of the filter)
+        repeated string options = 4;
     }
 
     message NumericFilter {
@@ -143,25 +153,31 @@ message PropertyFilter {
         optional int64 value = 2;
     }
 
-    // this is a filter for properties whose value is a map from strings to strings
-    // for example, assume that the tags of an entity map key "user" to values { "peter", "paul" }.
-    // then, a map filter with key "user" and value "peter" will accept the entity.
-    // on the other hand, (key = "department", value = "paul") or (key = "user", value = "john")
-    // will reject the entity.
-    // if no value is specified, then the entity will be accepted if and only if the key exists.
-    // if multiple values are given, then the entity will be accepted if at least one of the values matches.
+    // This is a filter for properties whose value is a map from strings to strings.
+    // Key matching is exact string matching.
+    // Value matching can be either exact string matching or regex matching.
+    // Value matching can also be negated.
     message MapFilter {
-        // string checked against the tag key
-        // the value in this field must much one of the tag keys of the entity
+        // String checked against the tag key
+        // The value in this field must much one of the tag keys of the entity
         optional string key = 1;
 
-        // strings checked against the tag value
-        // one of the strings in this field must match one of the tag values of the entity
-        // if empty, this field is ignored
+        // Strings checked against the tag value
+        // one of the strings in this field must match
+        // one of the tag values of the entity exactly
+        // If empty, this field is ignored
         repeated string values = 2;
 
         // True iff this is a multimap (multiple values per key are possible)
         optional bool is_multimap = 3 [default = true];
+
+        // If non-empty, it is a regex that values are mapped against.
+        // If non-empty, then field "values" should be empty.
+        // If empty, then it is ignored.
+        optional string regex = 4;
+
+        // If false, then negate the result
+        optional bool positive_match = 6 [default = true];
     }
 
     // This is a filter for property whose value is a list of elements. The elements can be one of

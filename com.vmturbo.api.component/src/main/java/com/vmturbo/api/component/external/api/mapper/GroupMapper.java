@@ -128,6 +128,8 @@ public class GroupMapper {
     public static final String LESS_THAN = "LT";
     public static final String GREATER_THAN_OR_EQUAL = "GTE";
     public static final String LESS_THAN_OR_EQUAL = "LTE";
+    public static final String REGEX_MATCH = "RXEQ";
+    public static final String REGEX_NO_MATCH = "RXNEQ";
 
     // map from the comparison string to the ComparisonOperator enum
     private static final Map<String, ComparisonOperator> COMPARISON_STRING_TO_COMPARISON_OPERATOR =
@@ -166,16 +168,32 @@ public class GroupMapper {
                     //TODO: the expression value coming from the UI is currently unsanitized.
                     // It is assumed that the tag keys and values do not contain characters such as = and |.
                     // This is reported as a JIRA issue OM-39039.
-                    final PropertyFilter tagsFilter =
-                            SearchMapper.mapPropertyFilterForMultimaps(TAGS, context.getFilter().getExpVal());
-                    return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
+                    final String operator = context.getFilter().getExpType();
+                    final boolean positiveMatch = isPositiveMatchingOperator(operator);
+                    if (isRegexOperator(operator)) {
+                        // regex match is required
+                        // break input into key and value
+                        final String[] keyval = context.getFilter().getExpVal().split("=");
+                        final String key = keyval[0];
+                        final String value = keyval[1];
+                        final PropertyFilter tagsFilter =
+                                SearchMapper.mapPropertyFilterForMultimapsRegex(
+                                        TAGS, key, value, positiveMatch);
+                        return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
+                    } else {
+                        // exact match is required
+                        final PropertyFilter tagsFilter =
+                                SearchMapper.mapPropertyFilterForMultimapsExact(
+                                        TAGS, context.getFilter().getExpVal(), positiveMatch);
+                        return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
+                    }
                 });
         filterTypesToProcessors.put(
                 StringConstants.CLUSTER,
                 context -> {
                     ClusterMembershipFilter clusterFilter =
                             SearchMapper.clusterFilter(
-                                SearchMapper.nameFilter(
+                                SearchMapper.nameFilterExact(
                                     context.getFilter().getExpVal(),
                                     context.getFilter().getExpType().equals(EQUAL),
                                     context.getFilter().getCaseSensitive()));
@@ -534,7 +552,7 @@ public class GroupMapper {
             })
             .map(nameFilter -> {
                 GroupPropertyFilter propertyFilter = GroupPropertyFilter.newBuilder()
-                    .setNameFilter(SearchMapper.stringFilter(
+                    .setNameFilter(SearchMapper.stringFilterRegex(
                         nameFilter.getExpVal(), nameFilter.getExpType().equals(EQUAL), nameFilter.getCaseSensitive()))
                     .build();
                 return propertyFilter;
@@ -562,7 +580,7 @@ public class GroupMapper {
                         final StringFilter nameFilter = propFilter.getNameFilter();
                         FilterApiDTO filterApiDTO = new FilterApiDTO();
                         filterApiDTO.setExpVal(nameFilter.getStringPropertyRegex());
-                        filterApiDTO.setExpType(nameFilter.getMatch() ? EQUAL : NOT_EQUAL);
+                        filterApiDTO.setExpType(nameFilter.getPositiveMatch() ? EQUAL : NOT_EQUAL);
                         filterApiDTO.setCaseSensitive(nameFilter.getCaseSensitive());
                         switch (groupInfo.getCluster()) {
                             case COMPUTE:
@@ -695,7 +713,7 @@ public class GroupMapper {
             searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType(), firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
-            searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(nameQuery)));
+            searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilterExact(nameQuery)));
         }
         parametersBuilder.addAllSearchFilter(searchFilters.build());
         parametersBuilder.setSourceFilterSpecs(toFilterSpecs(filter));
@@ -770,10 +788,32 @@ public class GroupMapper {
         // for example: targetIds[]
         if (left == right) {
             switch (inputType) {
+                case "s":
+                case "s|*":
+                case "*|s":
                 case "*":
-                    // string comparison
-                    listFilter.setStringFilter(SearchMapper.stringFilter(filter.getExpVal(),
-                        filter.getExpType().equals(EQUAL), filter.getCaseSensitive()));
+                    // string matching
+                    // the input types "s" and "*" represent exact string matching
+                    // and regex matching respectively.  their combination allows for both.
+                    // all cases are treated in the same way here (the distinction is only
+                    // helpful to the UI side).  we can distinguish the cases by looking at
+                    // the operator
+                    final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
+                    final boolean regex = isRegexOperator(filter.getExpType());
+                    if (regex) {
+                        listFilter.setStringFilter(
+                            SearchMapper.stringFilterRegex(
+                                filter.getExpVal(),
+                                positiveMatch,
+                                false));
+                    } else {
+                        listFilter.setStringFilter(
+                            SearchMapper.stringFilterExact(
+                                Arrays.stream(filter.getExpVal().split("\\|"))
+                                        .collect(Collectors.toList()),
+                                positiveMatch,
+                                false));
+                    }
                     break;
                 case "#":
                     // numeric comparison
@@ -827,7 +867,9 @@ public class GroupMapper {
                 } else if (criteria.contains("=")) {
                     // if no # provided, it means string by default, for example: "type=VMem"
                     String[] keyValue = criteria.split("=");
-                    objectFilter.addFilters(SearchMapper.stringPropertyFilter(keyValue[0], keyValue[1]));
+                    objectFilter.addFilters(
+                        SearchMapper.stringPropertyFilterExact(
+                            keyValue[0], Collections.singletonList(keyValue[1]), true, false));
                 } else {
                     // if no "=", it means this is final field, whose comparison operator and value
                     // are provided by UI in FilterApiDTO, for example: capacity
@@ -860,10 +902,35 @@ public class GroupMapper {
         String lastField = nestedFields[nestedFields.length - 1];
         PropertyFilter currentFieldPropertyFilter;
         switch (inputType) {
+            case "s":
+            case "s|*":
+            case "*|s":
             case "*":
-                // string comparison
-                currentFieldPropertyFilter = SearchMapper.stringPropertyFilter(lastField,
-                        filter.getExpVal(), filter.getExpType().equals(EQUAL), filter.getCaseSensitive());
+                // string matching
+                // the input types "s" and "*" represent exact string matching
+                // and regex matching respectively.  their combination allows for both.
+                // all cases are treated in the same way here (the distinction is only
+                // helpful to the UI side).  we can distinguish the cases by looking at
+                // the operator
+                final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
+                final boolean regex = isRegexOperator(filter.getExpType());
+
+                if (regex) {
+                    currentFieldPropertyFilter =
+                        SearchMapper.stringPropertyFilterRegex(
+                            lastField,
+                            filter.getExpVal(),
+                            positiveMatch,
+                            filter.getCaseSensitive());
+                } else {
+                    currentFieldPropertyFilter =
+                        SearchMapper.stringPropertyFilterExact(
+                            lastField,
+                            Arrays.stream(filter.getExpVal().split("\\|"))
+                                    .collect(Collectors.toList()),
+                            positiveMatch,
+                            filter.getCaseSensitive());
+                }
                 break;
             case "#":
                 // numeric comparison
@@ -886,6 +953,14 @@ public class GroupMapper {
                     .build();
         }
         return currentFieldPropertyFilter;
+    }
+
+    private static boolean isRegexOperator(@Nonnull String operator) {
+        return operator.equals(REGEX_MATCH) || operator.equals(REGEX_NO_MATCH);
+    }
+
+    private static boolean isPositiveMatchingOperator(@Nonnull String operator) {
+        return operator.equals(REGEX_MATCH) || operator.equals(EQUAL);
     }
 
     /**

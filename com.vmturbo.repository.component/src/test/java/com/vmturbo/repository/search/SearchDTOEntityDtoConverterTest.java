@@ -162,7 +162,7 @@ public class SearchDTOEntityDtoConverterTest {
         // expect that the regex will be anchored to match the full string
         // numeric filter for entity type is converted to string filter
         assertThat(SearchDTOConverter.toAqlRepr(searchParameters).get(0).toAQL().toString())
-                .contains("FILTER  REGEX_TEST(service_entity.entityType, \"^VirtualMachine$\", false)");
+                .contains("FILTER service_entity.entityType IN [\"VirtualMachine\"]");
     }
 
     @Test(expected = IllegalArgumentException.class)

@@ -99,7 +99,7 @@ public class StorageProvisionSpecFactory {
                         .setPropertyName(SpecSearchUtil.OID)
                         .setStringFilter(StringFilter.newBuilder()
                                 .setStringPropertyRegex(Long.toString(storageId))
-                                .setMatch(true)
+                                .setPositiveMatch(true)
                                 .setCaseSensitive(false))
                         .build())
                 // traverse PRODUCES relationship (Storage produces a storage access commodity that
@@ -123,7 +123,7 @@ public class StorageProvisionSpecFactory {
                                 .setPropertyName(SpecSearchUtil.DISPLAY_NAME)
                                 .setStringFilter(StringFilter.newBuilder()
                                         .setStringPropertyRegex(NON_EMPTY_REGEX)
-                                        .setMatch(true))))
+                                        .setPositiveMatch(true))))
                 .build();
 
         return SpecSearchUtil.searchTopologyEntityDTOs(

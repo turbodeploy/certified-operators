@@ -376,7 +376,9 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         @Nonnull String endEntityType) {
         return SearchParameters.newBuilder()
             // start from storage tier oid
-            .setStartingFilter(SearchMapper.stringPropertyFilter(GroupMapper.OID, startOid))
+            .setStartingFilter(
+                    SearchMapper.stringPropertyFilterExact(
+                            GroupMapper.OID, Collections.singletonList(startOid)))
             // traverse CONNECTED_FROM
             .addSearchFilter(SearchFilter.newBuilder()
                 .setTraversalFilter(TraversalFilter.newBuilder()

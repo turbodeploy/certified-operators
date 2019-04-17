@@ -1,6 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -77,8 +80,8 @@ public class SearchMapper {
      * @param value the value to search for
      * @return a property filter
      */
-    public static PropertyFilter stringPropertyFilter(String propName, String value) {
-        return stringPropertyFilter(propName, value, true, false);
+    public static PropertyFilter stringPropertyFilterRegex(String propName, String value) {
+        return stringPropertyFilterRegex(propName, value, true, false);
     }
 
     /**
@@ -93,42 +96,94 @@ public class SearchMapper {
      * @return a property filter
      */
     @Nonnull
-    public static PropertyFilter stringPropertyFilter(@Nonnull final String propName,
-                                                      @Nonnull final String value,
-                                                      final boolean match,
-                                                      final boolean caseSensitive) {
+    public static PropertyFilter stringPropertyFilterRegex(@Nonnull final String propName,
+                                                           @Nonnull final String value,
+                                                           final boolean match,
+                                                           final boolean caseSensitive) {
         return PropertyFilter.newBuilder()
             .setPropertyName(propName)
-            .setStringFilter(stringFilter(value, match, caseSensitive))
+            .setStringFilter(stringFilterRegex(value, match, caseSensitive))
             .build();
     }
 
     /**
-     * Create a {@link StringFilter} for a particular search regex.
-     * The resulting regex will attempt to match the whole regex against the value of the property
-     * - i.e. if the regex is "Val" it will only match "Val", not "Valerion" or "aVal".
+     * Create a {@link StringFilter} for a particular search.
+     * The resulting filter will attempt to match the given value
+     * with that in the corresponding entity property.
      *
-     * @param regex The regex to search for. This should be a regex.
-     * @param match If true, the property should match.
-     * @return A {@link SearchFilter}.
+     * @param regex The value to search for.
+     * @param positiveMatch If true, the value of the entity property should match.
+     *                       If false, the value of the entity property  should not match
+     * @return A {@link SearchFilter} with the above described properties.
      */
     @Nonnull
-    public static StringFilter stringFilter(@Nonnull final String regex,
-                                            final boolean match,
-                                            final boolean caseSensitive) {
-        // It's generally harmless to double-up on the "^" prefix or the "$" suffix, but we avoid
-        // doing so for clarity.
-        //
-        // Note - surrounding all input regexes with "^" and "$" may slightly alter the meaning
-        // of complex regex's, but we take that risk since we expect property regex's to be fairly
-        // straightforward.
-        final String prefix = regex.startsWith("^") ? "" : "^";
-        final String suffix = regex.endsWith("$") ? "" : "$";
+    public static StringFilter stringFilterRegex(
+            @Nonnull final String regex,
+            final boolean positiveMatch,
+            final boolean caseSensitive) {
+        // in regular expression mapping, we add prefixes and suffixes
+        // that Arango understands, to avoid matching only part of the value
         return StringFilter.newBuilder()
-            .setStringPropertyRegex(prefix + regex + suffix)
-            .setMatch(match)
+            .setStringPropertyRegex(makeFullArangoRegex(regex))
+            .setPositiveMatch(positiveMatch)
             .setCaseSensitive(caseSensitive)
             .build();
+    }
+
+    /**
+     * Create a property filter for exact string matching.
+     *
+     * @param propName property name to use for the search
+     * @param values the list of values to search for
+     * @return a property filter
+     */
+    public static PropertyFilter stringPropertyFilterExact(String propName, Collection<String> values) {
+        return stringPropertyFilterExact(propName, values, true, false);
+    }
+
+    /**
+     * Create a property filter for exact string matching.
+     * If match is false, negates the result of the filter. That is, the search results
+     * will include objects that do not match, rather than those that do.
+     *
+     * @param propName property name to use for the search
+     * @param values the value to search for
+     * @param match If true, the property should match. If false, should return true only
+     *              when the match fails.
+     * @return a property filter
+     */
+    @Nonnull
+    public static PropertyFilter stringPropertyFilterExact(
+            @Nonnull final String propName,
+            @Nonnull final Collection<String> values,
+            final boolean match,
+            final boolean caseSensitive) {
+        return PropertyFilter.newBuilder()
+                .setPropertyName(propName)
+                .setStringFilter(stringFilterExact(values, match, caseSensitive))
+                .build();
+    }
+
+    /**
+     * Create a {@link StringFilter} for a particular exact match search.
+     * The resulting filter will attempt to find the value of the corresponding entity
+     * property in the provided list of values
+     *
+     * @param valuesToMatch The value to search for.
+     * @param positiveMatch If true, the value of the entity property should match.
+     *                      If false, the value of the entity property should not match
+     * @return A {@link SearchFilter} with the above described properties.
+     */
+    @Nonnull
+    public static StringFilter stringFilterExact(
+            @Nonnull final Collection<String> valuesToMatch,
+            final boolean positiveMatch,
+            final boolean caseSensitive) {
+        return StringFilter.newBuilder()
+                .addAllOptions(valuesToMatch)
+                .setPositiveMatch(positiveMatch)
+                .setCaseSensitive(caseSensitive)
+                .build();
     }
 
     /**
@@ -158,26 +213,29 @@ public class SearchMapper {
     }
 
     /**
-     * Create a map filter for the specified property name and specified expression field coming from the UI.
+     * Create a map filter for the specified property name and
+     * specified expression field coming from the UI.
      *
-     * The form of the value of the expression field is expected to be "k=v1|k=v2|...", where k is the key
-     * and v1, v2, ... are the possible values.  If the expression does not conform to the expected format,
+     * The form of the value of the expression field is expected to be
+     * "k=v1|k=v2|...", where k is the key and v1, v2, ... are the possible values.
+     * If the expression does not conform to the expected format,
      * then a filter with empty key and values fields is generated.
      *
-     * TODO: the expression value coming from the UI is currently unsanitized.  It is assumed that the tag
-     * keys and values do not contain the characters '=' and '|'.  This is reported as a JIRA issue OM-39039.
+     * TODO: the expression value coming from the UI is currently unsanitized.
+     * It is assumed that the tag keys and values do not contain the characters
+     * '=' and '|'.  This is reported as a JIRA issue OM-39039.
      *
-     * The filter created allows for multimap properties.  The values of Such properties are maps,
-     * in which multiple values may correspond to a single key.  For example key "user" may be mapped
-     * to both values "peter" and "paul".
-     *
+     * The filter created allows for multimap properties.  The values of such
+     * properties are maps, in which multiple values may correspond to a single key.
+     * For example key "user" -> ["peter" and "paul"].
      *
      * @param propName property name to use for the search.
      * @param expField expression field coming from the UI.
+     * @param positiveMatch if false, then negate the result of the filter.
      * @return the property filter.
      */
-    public static PropertyFilter mapPropertyFilterForMultimaps(
-            @Nonnull String propName, @Nonnull String expField
+    public static PropertyFilter mapPropertyFilterForMultimapsExact(
+            @Nonnull String propName, @Nonnull String expField, boolean positiveMatch
     ) {
         final String[] keyValuePairs = expField.split("\\|");
         String key = null;
@@ -200,25 +258,82 @@ public class SearchMapper {
         }
 
         final PropertyFilter result =
-                PropertyFilter
-                    .newBuilder()
+                PropertyFilter.newBuilder()
                     .setPropertyName(propName)
                     .setMapFilter(
                         MapFilter.newBuilder()
                             .setKey(key == null ? "" : key)
                             .addAllValues(values)
-                            .build()
-                    ).build();
+                            .setPositiveMatch(positiveMatch)
+                            .build())
+                    .build();
         logger.debug("Property filter constructed: {}", result);
 
         return result;
     }
 
+    /**
+     * Create a map filter for the specified property name
+     * and specified regex coming from the UI.
+     *
+     * This filter should match values to the regex expression.
+     *
+     * TODO: the expression value coming from the UI is currently unsanitized.
+     * It is assumed that the tag keys and values do not contain the characters '=' and '|'.
+     * This is reported as a JIRA issue OM-39039.
+     *
+     * The filter created allows for multimap properties.  The values of such
+     * properties are maps, in which multiple values may correspond to a single key.
+     * For example key "user" -> ["peter" and "paul"].
+     *
+     * @param key property name to use for the search.
+     * @param regex expression field coming from the UI.
+     * @param positiveMatch if false, then negate the result of the filter.
+     * @return the property filter.
+     */
+    public static PropertyFilter mapPropertyFilterForMultimapsRegex(
+            @Nonnull String propName, @Nonnull String key, @Nonnull String regex, boolean positiveMatch) {
+        final PropertyFilter result =
+            PropertyFilter.newBuilder()
+                    .setPropertyName(propName)
+                    .setMapFilter(
+                            MapFilter.newBuilder()
+                                    .setKey(key)
+                                    .setRegex(makeFullArangoRegex(regex))
+                                    .setPositiveMatch(positiveMatch)
+                                    .build())
+                    .build();
+        logger.debug("Property filter constructed: {}", result);
+
+        return result;
+    }
+
+    /**
+     * Regex matching in ArangoDB's query language will match any part
+     * of the candidate string to the regex pattern. To force matching
+     * of the full string, one needs the regex to start with "^" (matches
+     * "start of string" in AQL) and end with "$" (matches "end of string"
+     * in AQL). This method wraps a regex so that it represents
+     * full-length string matching in AQL.
+     *
+     * @param regex an AQL regular expression.
+     * @return a regex that will make only full matches in AQL.
+     */
+    @Nonnull
+    private static String makeFullArangoRegex(@Nonnull String regex) {
+        final String prefix = regex.startsWith("^") ? "" : "^";
+        final String suffix = regex.endsWith("$") ? "" : "$";
+        return prefix + regex + suffix;
+    }
+
+    @Nonnull
     private static PropertyFilter emptyMapPropertyFilter(String propName) {
         return
-            PropertyFilter.newBuilder().setPropertyName(propName).setMapFilter(
-                MapFilter.newBuilder().setKey("").build()
-            ).build();
+            PropertyFilter.newBuilder()
+                .setPropertyName(propName)
+                .setMapFilter(
+                    MapFilter.newBuilder().setKey("").build())
+                .build();
     }
 
     /**
@@ -233,6 +348,36 @@ public class SearchMapper {
 
     /**
      * Creates a property filter that searches for entity by their display name.
+     * The display name is given as an exact match.
+     *
+     * @param displayName the display name to use for the search
+     * @return a property filter
+     */
+    public static PropertyFilter nameFilterExact(String displayName) {
+        return nameFilterExact(displayName, true, false);
+    }
+
+    /**
+     * Creates a property filter that searches for entity by their display name.
+     *
+     * @param displayName the display name to use for the search
+     * @param match If true, the property should match. If false, should return true only
+     *              when the match fails.
+     * @return a property filter
+     */
+    public static PropertyFilter nameFilterExact(
+            @Nonnull final String displayName,
+            final boolean match,
+            final boolean caseSensitive) {
+        return
+            stringPropertyFilterExact(
+                DISPLAY_NAME_PROPERTY, Collections.singleton(displayName), match, caseSensitive);
+    }
+
+    /**
+     * Creates a property filter that searches for entity by their display name.
+     * The display name is given as a regular expression.
+     *
      * @param displayName the display name to use for the search
      * @return a property filter
      */
@@ -250,19 +395,22 @@ public class SearchMapper {
     public static PropertyFilter nameFilter(@Nonnull final String displayName,
                                             final boolean match,
                                             final boolean caseSensitive) {
-        return stringPropertyFilter(DISPLAY_NAME_PROPERTY, displayName, match, caseSensitive);
+        return stringPropertyFilterRegex(DISPLAY_NAME_PROPERTY, displayName, match, caseSensitive);
     }
 
     /**
      * Creates a property filter that searches for entities by their state.
-     * @param state the entity state to use for the search
+     * @param state the entity states to use for the search, separated by |
      * @param match If true, the property should match. If false, should return true only
      *              when the match fails.
      * @return a property filter
      */
     @Nonnull
     public static PropertyFilter stateFilter(@Nonnull String state, boolean match) {
-        return stringPropertyFilter(STATE_PROPERTY, state, match, false);
+        return
+            stringPropertyFilterExact(
+                    STATE_PROPERTY, Arrays.stream(state.split("\\|")).collect(Collectors.toList()),
+                    match, false);
     }
 
     /**
@@ -272,7 +420,7 @@ public class SearchMapper {
      * @return the filter.
      */
     public static PropertyFilter idFilter(long oid) {
-        return stringPropertyFilter(OID, Long.toString(oid));
+        return stringPropertyFilterExact(OID, Collections.singleton(Long.toString(oid)));
     }
 
     /**
