@@ -71,6 +71,7 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -370,6 +371,7 @@ public class MarketsService implements IMarketsService {
     public ActionPaginationResponse getActionsByMarketUuid(String uuid,
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
+        handleInvalidCases(inputDto.getStartTime(),inputDto.getEndTime());
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         // for realtime markets, if the user is restricted by a scope, then add an oid filter to the
         // request. For plans, there is no filtering.
@@ -1003,6 +1005,43 @@ public class MarketsService implements IMarketsService {
      */
     public void setStatsService(@Nonnull StatsService statsService) {
         this.statsService = Objects.requireNonNull(statsService);
+    }
+
+    /**
+     * Handles invalid cases for the given startTime and endTime period and throws
+     * IllegalArgumentException when those cases happen. The cases are:
+     * <ul>
+     *    <li>If startTime is in the future.</li>
+     *    <li>If endTime precedes startTime.</li>
+     *    <li>If endTime only was passed.</li>
+     * <ul/>
+     *
+     * @param startTime A DateTime string representing actions start Time query in the format
+     *                  defined in {@link DateTimeUtil}
+     * @param endTime  A DateTime string representing actions end Time query in the format
+     *                  defined in {@link DateTimeUtil}
+     */
+    private void handleInvalidCases(@Nullable final String startTime,
+                                    @Nullable final String endTime) {
+        if (startTime != null && !startTime.isEmpty()) {
+            Long startTimeLong = DateTimeUtil.parseTime(startTime);
+            if (startTimeLong > DateTimeUtil.parseTime(DateTimeUtil.getNow())) {
+                // startTime is in the future.
+                throw new IllegalArgumentException("startTime " + startTime +
+                    " can't be in the future");
+            }
+            if (endTime != null && !endTime.isEmpty()) {
+                Long endTimeLong = DateTimeUtil.parseTime(endTime);
+                if (endTimeLong <  startTimeLong) {
+                    // endTime is before startTime
+                    throw new IllegalArgumentException("startTime " + startTime +
+                        " must precede endTime " + endTime);
+                }
+            }
+        } else if (endTime != null && !endTime.isEmpty()) {
+            // endTime only was passed.
+            throw new IllegalArgumentException("startTime is required along with endTime");
+        }
     }
 
     /**

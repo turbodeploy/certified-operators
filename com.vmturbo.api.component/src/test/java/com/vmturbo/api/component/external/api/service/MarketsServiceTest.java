@@ -69,6 +69,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
@@ -78,6 +79,7 @@ import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -277,6 +279,35 @@ public class MarketsServiceTest {
         assertEquals(TEST_SCENARIO_ID, Long.parseLong(resp.getScenario().getUuid()));
         // note that the market status comes from the StatusNotification enum
         assertThat(resp.getState(), is(StatusNotification.Status.CREATED.name()));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenFutureStartTime() throws Exception {
+        final MarketsService service = testConfig.marketsService();
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
+        String futureDate = DateTimeUtil.addDays(currentDateTime,2);
+        actionDTO.setStartTime(futureDate);
+        service.getActionsByMarketUuid("Market",actionDTO,null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenStartTimeAfterEndTime() throws Exception {
+        final MarketsService service = testConfig.marketsService();
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        String currentDateTime = DateTimeUtil.getNow();
+        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime),2);
+        actionDTO.setStartTime(futureDate);
+        actionDTO.setEndTime(currentDateTime);
+        service.getActionsByMarketUuid("Market",actionDTO,null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenEndTimeOnly() throws Exception {
+        final MarketsService service = testConfig.marketsService();
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        actionDTO.setEndTime(DateTimeUtil.getNow());
+        service.getActionsByMarketUuid("Market",actionDTO,null);
     }
 
     /**
