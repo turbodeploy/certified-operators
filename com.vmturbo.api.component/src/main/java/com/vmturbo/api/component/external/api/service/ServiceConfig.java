@@ -246,7 +246,8 @@ public class ServiceConfig {
                 communicationConfig.supplyChainFetcher(),
                 searchUtil(),
                 settingPolicyServiceBlockingStub(),
-                mapperConfig.settingsMapper());
+                mapperConfig.settingsMapper(),
+                targetService());
     }
 
     @Bean

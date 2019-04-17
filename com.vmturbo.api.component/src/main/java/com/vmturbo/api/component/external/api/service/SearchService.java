@@ -61,7 +61,6 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -107,10 +106,8 @@ import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 /**
  * Service entry points to search the Repository.
@@ -319,20 +316,8 @@ public class SearchService implements ISearchService {
 
             // expand to include the supplychain for the 'scopes', some of which may be groups or
             // clusters, and derive a list of ServiceEntities
-            Set<String> scopeServiceEntityIds = Sets.newHashSet(scopes);
-            SupplychainApiDTO supplychain = supplyChainFetcherFactory.newApiDtoFetcher()
-                    .topologyContextId(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR).oid())
-                    .addSeedUuids(scopeServiceEntityIds)
-                    .entityTypes(types)
-                    .apiEnvironmentType(environmentType)
-                    .includeHealthSummary(false)
-                    .entityDetailType(EntityDetailType.entity)
-                    .fetch();
-            supplychain.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
-                if (types != null && types.contains(entityType)) {
-                    scopeServiceEntityIds.addAll(supplychainEntryDTO.getInstances().keySet());
-                }
-            });
+            Set<String> scopeServiceEntityIds = groupsService.expandUuids(Sets.newHashSet(scopes),
+                types, environmentType).stream().map(String::valueOf).collect(Collectors.toSet());
 
             // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
             entitiesResult = serviceEntities.stream()
@@ -408,8 +393,8 @@ public class SearchService implements ISearchService {
     @Override
     public SearchPaginationResponse getMembersBasedOnFilter(String query,
                                                             GroupApiDTO inputDTO,
-                                                            SearchPaginationRequest paginationRequest)  {
-
+                                                            SearchPaginationRequest paginationRequest)
+                throws OperationFailedException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // what sort of search is this
         final List<? extends BaseApiDTO> result;
@@ -446,7 +431,8 @@ public class SearchService implements ISearchService {
      */
     private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO,
                                                                 @Nullable String nameQuery,
-                                                                @Nonnull SearchPaginationRequest paginationRequest) {
+                                                                @Nonnull SearchPaginationRequest paginationRequest)
+                throws OperationFailedException {
         final List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery)
                 .stream()
@@ -460,12 +446,15 @@ public class SearchService implements ISearchService {
                 .map(ImmutableSet::copyOf)
                 .orElse(ImmutableSet.of());
         final boolean isGlobalScope = containsGlobalScope(scopeList);
-        final Set<Long> expandedIds = groupExpander.expandUuids(scopeList);
-        final List<Long> allEntityOids = new ArrayList<>();
-        if (!expandedIds.isEmpty() && !isGlobalScope) {
-            allEntityOids.addAll(expandedIds);
+        final List<String> entityTypes = inputDTO.getClassName() == null
+            ? Collections.emptyList() : Collections.singletonList(inputDTO.getClassName());
+        final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes, null);
+        if (!isGlobalScope && expandedIds.isEmpty()) {
+            // return empty response since there is no related entities in given scope
+            return paginationRequest.allResultsResponse(Collections.emptyList());
         }
-
+        // use empty set for global scope so it fetches all
+        final Set<Long> allEntityOids = isGlobalScope ? Collections.emptySet() : expandedIds;
         final Map<Long, String> targetIdToProbeType = fetchTargetIdToProbeTypeMap();
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()

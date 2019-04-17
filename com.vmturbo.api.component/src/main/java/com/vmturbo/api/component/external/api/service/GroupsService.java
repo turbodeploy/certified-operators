@@ -1,9 +1,13 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
+import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.VIRTUAL_DATACENTER;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -25,7 +30,9 @@ import org.springframework.validation.Errors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
@@ -36,7 +43,9 @@ import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequ
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -46,12 +55,12 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -81,6 +90,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -118,6 +128,9 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -134,6 +147,14 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  **/
 public class GroupsService implements IGroupsService {
 
+    /**
+     * Map Entity types to be expanded to the RelatedEntityType to retrieve. The entity is a
+     * grouping entity in classic.
+     */
+    private static final Map<Integer, List<String>> GROUPING_ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+        EntityType.DATACENTER_VALUE, ImmutableList.of(PHYSICAL_MACHINE.getValue()),
+        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(VIRTUAL_DATACENTER.getValue())
+    );
 
     private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
             "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
@@ -191,6 +212,8 @@ public class GroupsService implements IGroupsService {
 
     private final SettingsMapper settingsMapper;
 
+    private final TargetsService targetsService;
+
     private final Logger logger = LogManager.getLogger();
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -212,7 +235,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final SearchUtil searchUtil,
                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
-                  @Nonnull final SettingsMapper settingsMapper) {
+                  @Nonnull final SettingsMapper settingsMapper,
+                  @Nonnull final TargetsService targetsService) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
@@ -233,6 +257,7 @@ public class GroupsService implements IGroupsService {
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.searchUtil = Objects.requireNonNull(searchUtil);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
+        this.targetsService = Objects.requireNonNull(targetsService);
     }
 
     /**
@@ -284,8 +309,54 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<?> getEntitiesByGroupUuid(String uuid) throws Exception {
-        // for now, return all entities
-        throw ApiUtils.notImplementedInXL();
+        // check if scope is real time market, return all entities in the market
+        if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(uuid)) {
+            return Lists.newArrayList(repositoryApi.getSearchResults("",
+                SearchMapper.SEARCH_ALL_TYPES, MarketMapper.MARKET, null, null));
+        }
+
+        final Set<Long> leafEntities;
+        // first check if it's group
+        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
+        if (groupAndMembers.isPresent()) {
+            leafEntities = Sets.newHashSet(groupAndMembers.get().entities());
+        } else if (targetsService.isTarget(uuid)) {
+            // check if it's target
+            leafEntities = expandUuids(Collections.singleton(uuid), Collections.emptyList(), null);
+        } else {
+            // check if scope is entity, if not, throw exception
+            Search.Entity entity = searchUtil.fetchEntity(uuid).orElseThrow(() ->
+                new UnsupportedOperationException("Scope: " + uuid + " is not supported"));
+            // check if supported grouping entity
+            if (!GROUPING_ENTITY_TYPES_TO_EXPAND.containsKey(entity.getType())) {
+                throw new UnsupportedOperationException("Entity: " + uuid + " is not supported");
+            }
+            leafEntities = expandUuids(Collections.singleton(uuid),
+                GROUPING_ENTITY_TYPES_TO_EXPAND.get(entity.getType()), null);
+        }
+
+        // Special handling for the empty member list, because passing empty to repositoryApi returns all entities.
+        if (leafEntities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Get entities from the repository component
+        final Map<Long, Optional<ServiceEntityApiDTO>> entities =
+            repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(leafEntities).build());
+
+        int missingEntities = 0;
+        final List<ServiceEntityApiDTO> results = new ArrayList<>();
+        for (Optional<ServiceEntityApiDTO> optEntity : entities.values()) {
+            if (optEntity.isPresent()) {
+                results.add(optEntity.get());
+            } else {
+                missingEntities++;
+            }
+        }
+        if (missingEntities > 0) {
+            logger.warn("{} entities from scope {} not found in repository.", missingEntities, uuid);
+        }
+        return results;
     }
 
     @Override
@@ -1051,5 +1122,89 @@ public class GroupsService implements IGroupsService {
                         .build());
             return response.getTopologyEntityDtosList();
         }
+    }
+
+    /**
+     * Expand the given scope uuids to entities of related types. This is intended to achieve parity
+     * with classic, where there are objects which are EntitiesProvider or Grouping entity, such as
+     * Target, DataCenter, VirtualDataCenter, etc. These entities are supported in Search API and
+     * getEntitiesByGroupUuid in classic.
+     *
+     * Currently the following scopes are supported:
+     * <ul>
+     * <li>target: entities discovered by the target</li>
+     * <li>entity(dc/vdc/...): return related entities (vms if relatedEntityType is VirtualMachine)</li>
+     * <li>group: return entities which are related to the leaf entities in the group</li>
+     * <li>Market": return empty, caller of this function should handle this case</li>
+     *</ul>
+     *
+     * Note: For most of the cases, scopeUuids will contain just one element. It will take more
+     * time if more uuids are provided as scope.
+     * @param scopeUuids set of oid strings passed in as scopes
+     * @param relatedEntityTypes types of related entities to expand to
+     * @param environmentType the type of the environment type to include
+     * @return set of entity oids belonging to the given scopes
+     */
+    @Nonnull
+    public Set<Long> expandUuids(@Nonnull Set<String> scopeUuids,
+                                 @Nullable List<String> relatedEntityTypes,
+                                 @Nullable EnvironmentType environmentType)
+                throws OperationFailedException {
+        // return empty immediately if "Market" exists
+        if (scopeUuids.contains(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
+            return Collections.emptySet();
+        }
+
+        final Set<Long> result = new HashSet<>();
+        // since the given scopeUuids can be heterogeneous, we should divide them into different groups
+        // one for targets, the other for entities or groups (which will be used as seeds to fetch
+        // related entities in supply chain)
+        final Set<String> targetUuids = new HashSet<>();
+        final Set<String> seedUuids = new HashSet<>();
+        scopeUuids.forEach(scopeUuid -> {
+            if (targetsService.isTarget(scopeUuid)) {
+                targetUuids.add(scopeUuid);
+            } else {
+                seedUuids.add(scopeUuid);
+            }
+        });
+
+        // if there are targets in scopes, add entities discovered by that target, these entities
+        // should not be added to seedUuids since they are all the entities for the target
+        if (!targetUuids.isEmpty()) {
+            final List<Search.Entity> targetEntities = new ArrayList<>();
+            for (String uuid : targetUuids) {
+                targetEntities.addAll(targetsService.getTargetEntities(uuid));
+            }
+            final Set<Integer> relatedEntityTypesInt = relatedEntityTypes == null
+                ? Collections.emptySet()
+                : relatedEntityTypes.stream()
+                    .map(ServiceEntityMapper::fromUIEntityType)
+                    .collect(Collectors.toSet());
+            final Predicate<Search.Entity> filterByType = relatedEntityTypesInt.isEmpty()
+                ? entity -> true
+                : entity -> relatedEntityTypesInt.contains(entity.getType());
+            result.addAll(targetEntities.stream()
+                .filter(filterByType)
+                .map(Search.Entity::getOid)
+                .collect(Collectors.toSet()));
+        }
+
+        // use seedUuids (entity + group) to find entities of related type using supply chain
+        if (!seedUuids.isEmpty()) {
+            final Map<String, SupplyChainNode> supplyChainForScope =
+                supplyChainFetcherFactory.newNodeFetcher()
+                    .topologyContextId(realtimeTopologyContextId)
+                    .addSeedUuids(seedUuids)
+                    .entityTypes(relatedEntityTypes)
+                    .apiEnvironmentType(environmentType)
+                    .fetch();
+            final Set<Long> relatedEntityOids = supplyChainForScope.values().stream()
+                .flatMap(supplyChainNode -> RepositoryDTOUtil.getAllMemberOids(supplyChainNode).stream())
+                .collect(Collectors.toSet());
+            result.addAll(relatedEntityOids);
+        }
+
+        return result;
     }
 }

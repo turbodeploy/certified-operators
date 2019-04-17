@@ -778,7 +778,7 @@ public class StatsService implements IStatsService {
             final SearchPaginationResponse searchResponse =
                     searchService.getMembersBasedOnFilter("", groupApiDTO, searchPaginationRequest);
             return searchResponse != null ? searchResponse.getRawResults() : Collections.emptyList();
-        } catch (InvalidOperationException e) {
+        } catch (InvalidOperationException | OperationFailedException e) {
             logger.error("Failed to search Cloud service");
         }
         return Collections.emptyList();

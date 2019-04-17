@@ -363,7 +363,8 @@ public class SearchServiceTest {
             ApiTestUtils.mockApiDTOFetcherBuilder(mockSupplychainApiDto);
         when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(mockOperationBuilder);
 
-        when(groupExpander.expandUuids(eq(scopesSet))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
+        when(groupsService.expandUuids(eq(Sets.newHashSet(scopes)), eq(types), eq(null)))
+            .thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 
         ApiTestUtils.mockRealtimeId(UuidMapper.UI_REAL_TIME_MARKET_STR, 777777, uuidMapper);
 

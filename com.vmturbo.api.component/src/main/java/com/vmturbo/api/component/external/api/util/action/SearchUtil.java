@@ -40,6 +40,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -291,5 +294,25 @@ public class SearchUtil {
                     entityUuids.stream().map(Object::toString).collect(Collectors.toList()))
                 .entityTypes(relatedEntityTypes)
                 .fetchEntityIds();
+    }
+
+    /**
+     * Fetch the entity for the given string uuid from repository.
+     *
+     * @param uuid string id
+     * @return entity or empty if not existing
+     */
+    public Optional<Search.Entity> fetchEntity(@Nonnull String uuid) {
+        try {
+            long entityOid = Long.valueOf(uuid);
+            List<Search.Entity> entities = searchServiceRpc.searchEntities(
+                SearchEntitiesRequest.newBuilder()
+                    .addEntityOid(entityOid)
+                    .setPaginationParams(PaginationParameters.newBuilder().setLimit(1).build())
+                    .build()).getEntitiesList();
+            return entities.isEmpty() ? Optional.empty() : Optional.of(entities.get(0));
+        } catch (StatusRuntimeException | NumberFormatException e) {
+            return Optional.empty();
+        }
     }
 }

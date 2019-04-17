@@ -61,6 +61,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -1027,10 +1028,32 @@ public class TargetsService implements ITargetsService {
      * @throws OperationFailedException
      */
     private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
-        throws OperationFailedException{
-
+                throws OperationFailedException{
         final String targetUuid = targetDTO.getUuid();
         final String targetType = targetDTO.getType();
+
+        // targetIdToProbeType is needed to fill discoveredBy attribute of the entities.
+        Map<Long, String> targetIdToProbeType = new HashMap<>();
+        targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
+        List<ServiceEntityApiDTO> targetEntities = getTargetEntities(targetUuid).stream()
+            .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
+            .collect(Collectors.toList());
+
+        // Severity isn't part of searchEntities response, hence the following line.
+        severityPopulator.populate(realtimeTopologyContextId, targetEntities);
+
+        return targetEntities;
+    }
+
+    /**
+     * Gets the entities that belong to the given target.
+     *
+     * @param targetUuid uuid of the target
+     * @return A list of ServiceEntityApiDTO of the target's entities
+     * @throws OperationFailedException
+     */
+    public List<Search.Entity> getTargetEntities(@Nonnull String targetUuid)
+            throws OperationFailedException{
         final PropertyFilter filter = PropertyFilter.newBuilder()
             .setPropertyName("targetIds")
             .setListFilter(ListFilter.newBuilder()
@@ -1049,22 +1072,22 @@ public class TargetsService implements ITargetsService {
             .setPaginationParams(PaginationParameters.newBuilder().setLimit(Integer.MAX_VALUE)
                 .build())
             .build();
-
-        // targetIdToProbeType is needed to fill discoveredBy attribute of the entities.
-        Map<Long, String> targetIdToProbeType = new HashMap<>();
-        targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
-        List<ServiceEntityApiDTO> targetEntities;
         try {
-            targetEntities = searchServiceRpc.searchEntities(request).getEntitiesList().stream()
-                .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
-                .collect(Collectors.toList());
-
-            // Severity isn't part of searchEntities response, hence the following line.
-            severityPopulator.populate(realtimeTopologyContextId, targetEntities);
-
+            return searchServiceRpc.searchEntities(request).getEntitiesList();
         } catch (StatusRuntimeException e) {
             throw new OperationFailedException("Retrieval of target entities failed", e);
         }
-        return targetEntities;
+    }
+
+    /**
+     * Check if the object related to the given uuid is a target.
+     */
+    public boolean isTarget(@Nonnull String uuid) {
+        try {
+            topologyProcessor.getTarget(Long.valueOf(uuid));
+            return true;
+        } catch (CommunicationException | TopologyProcessorException | NumberFormatException e) {
+            return false;
+        }
     }
 }

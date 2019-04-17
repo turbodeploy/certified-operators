@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -33,21 +34,24 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.SearchUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -88,12 +92,17 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 public class GroupsServiceTest {
@@ -137,6 +146,12 @@ public class GroupsServiceTest {
     @Mock
     private ActionStatsQueryExecutor actionStatsQueryExecutor;
 
+    @Mock
+    private TargetsService targetsService;
+
+    @Mock
+    private SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
 
@@ -167,7 +182,6 @@ public class GroupsServiceTest {
         final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final PaginationMapper paginationMapper = new PaginationMapper();
-        final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
         final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
         final SearchUtil searchUtil =
                 new SearchUtil(
@@ -196,7 +210,8 @@ public class GroupsServiceTest {
                 supplyChainFetcherFactory,
                 searchUtil,
                 settingPolicyServiceBlockingStub,
-                settingsMapper);
+                settingsMapper,
+                targetsService);
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);
@@ -578,5 +593,71 @@ public class GroupsServiceTest {
         assertEquals(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name(), groupApiDTO.getClassName());
         assertEquals("2", groupApiDTO.getUuid());
         assertThat(groupApiDTO.getSeverity(), is(Severity.NORMAL.name()));
+    }
+
+    @Test
+    public void testExpandUuidsMarket() throws Exception {
+        Set<Long> expandedIds = groupsService.expandUuids(
+            Sets.newHashSet(UuidMapper.UI_REAL_TIME_MARKET_STR, "12"), null, null);
+        assertThat(expandedIds, is(empty()));
+    }
+
+    @Test
+    public void testExpandUuidsTarget() throws Exception {
+        String target1 = "1";
+        String target2 = "2";
+        long entityId11 = 11;
+        long entityId12 = 12;
+        long entityId21 = 21;
+        Entity entity11 = Entity.newBuilder().setOid(entityId11).setType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+        Entity entity12 = Entity.newBuilder().setOid(entityId12).setType(EntityType.PHYSICAL_MACHINE_VALUE).build();
+        Entity entity21 = Entity.newBuilder().setOid(entityId21).setType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+        when(targetsService.isTarget(target1)).thenReturn(true);
+        when(targetsService.isTarget(target2)).thenReturn(true);
+        when(targetsService.getTargetEntities(target1)).thenReturn(
+            Lists.newArrayList(entity11, entity12));
+        when(targetsService.getTargetEntities(target2)).thenReturn(
+            Lists.newArrayList(entity21));
+
+        // without related entity type
+        Set<Long> expandedIds = groupsService.expandUuids(Sets.newHashSet(target1, target2), null, null);
+        assertThat(expandedIds, containsInAnyOrder(entityId11, entityId12, entityId21));
+
+        // with related entity type
+        expandedIds = groupsService.expandUuids(Sets.newHashSet(target1, target2),
+            Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.getValue()), null);
+        assertThat(expandedIds, containsInAnyOrder(entityId11, entityId21));
+    }
+
+    @Test
+    public void testExpandUuidsGroup() throws Exception {
+        String groupId11 = "11";
+        long vm1 = 11;
+        long vm2 = 12;
+        long pm1 = 21;
+        when(targetsService.isTarget(groupId11)).thenReturn(false);
+
+        // expand a VM group, provide no entity type and expect to get all vms in the group
+        SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
+                ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.getValue(), SupplyChainNode.newBuilder()
+                    .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(vm1).addMemberOids(vm2).build())
+                    .build()));
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+
+        Set<Long> expandedIds = groupsService.expandUuids(Sets.newHashSet(groupId11), null, null);
+        assertThat(expandedIds, containsInAnyOrder(vm1, vm2));
+
+        // expand a VM group, provide PM entity type and expect to get all related PMs in the group
+        fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
+            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.getValue(), SupplyChainNode.newBuilder()
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                    .addMemberOids(pm1).build())
+                .build()));
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+
+        expandedIds = groupsService.expandUuids(Sets.newHashSet(groupId11),
+            Lists.newArrayList(UIEntityType.PHYSICAL_MACHINE.getValue()), null);
+        assertThat(expandedIds, containsInAnyOrder(pm1));
     }
 }
