@@ -182,6 +182,8 @@ public class DockerEnvironment {
             .put("MEDIATION_TETRATION_DEBUG_PORT", "8000")
             .put("MEDIATION_HYPERFLEX_PORT", "8080")
             .put("MEDIATION_HYPERFLEX_DEBUG_PORT", "8000")
+            .put("MEDIATION_HORIZON_PORT", "8080")
+            .put("MEDIATION_HORIZON_DEBUG_PORT", "8000")
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
             .put("DB_MEM_PCT_FOR_BUFFER_POOL", "80")
@@ -298,6 +300,8 @@ public class DockerEnvironment {
             .put("MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB", "512")
             .put("MEDIATION_ACTIONSCRIPT_XMX_MB", "384")
             .put("MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_HORIZON_XMX_MB", "384")
+            .put("MEDIATION_HORIZON_MEM_LIMIT_MB", "512")
                 // KAFKA PROPERTIES
             .put("KAFKA_LOG_RETENTION_HRS", "24")
             .put("KAFKA_MAX_MESSAGE_BYTES", "67108864")
@@ -370,6 +374,7 @@ public class DockerEnvironment {
             .put("MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_HORIZON_SYSTEM_PROPERTIES", "")
             .build();
 
     /**
