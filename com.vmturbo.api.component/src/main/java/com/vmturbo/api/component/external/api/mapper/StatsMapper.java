@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -414,7 +415,7 @@ public class StatsMapper {
                     logger.warn("More than one entity type is requested for statistics. Select " +
                         "the first one as the relatedEntityType set to entityStatsRequest.");
                 }
-                String relatedEntityType = relatedEntityTypeSet.stream().findFirst().orElse(null);
+                String relatedEntityType = relatedEntityTypeSet.stream().findFirst().orElse(StringUtils.EMPTY);
                 entityStatsRequest.setRelatedEntityType(relatedEntityType);
             }
         } else {

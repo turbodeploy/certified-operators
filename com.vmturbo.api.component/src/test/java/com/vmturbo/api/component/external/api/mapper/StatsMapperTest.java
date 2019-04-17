@@ -481,6 +481,21 @@ public class StatsMapperTest {
         assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
     }
 
+    @Test
+    public void testAveragedEntityStatsRequestWithoutRelatedEntityType() {
+        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
+        when(statsMapper.newPeriodStatsFilter(statPeriodApiInputDTO,
+            Optional.empty())).thenReturn(STATS_FILTER);
+        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request =
+            statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
+                Optional.empty());
+        assertTrue(request.getEntitiesList().isEmpty());
+        assertThat(request.getFilter(), is(STATS_FILTER));
+        assertTrue(request.getRelatedEntityType().isEmpty());
+    }
+
     /**
      * "1M" is one month as defined in {@link DateTimeUtil}.
      * The unit tests for {@link DateTimeUtil} is covered in OpsMgr, here we just verify it doesn't
