@@ -34,6 +34,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -689,5 +690,109 @@ public class DiscoveredGroupInterpreterTest {
 
         context.popVisitedGroup();
         assertFalse(context.inCycle());
+    }
+
+    @Test
+    public void testGroupOfStorageCluster() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("storage1", 1L, "storage2", 2L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.STORAGE);
+        Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.STORAGE);
+        when(store.getEntity(1L))
+            .thenReturn(Optional.of(entity1));
+        when(store.getEntity(2L))
+            .thenReturn(Optional.of(entity2));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+        final GroupDTO parentGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName("parent")
+            .setMemberList(MembersList.newBuilder()
+                .addMember("storageClusterId1")
+                .addMember("storage1"))
+            .build();
+        final GroupDTO childGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                .setConstraintType(ConstraintType.CLUSTER)
+                .setConstraintId("storageClusterId1")
+                .setConstraintName("storageClusterName1"))
+            .setMemberList(MembersList.newBuilder()
+                .addMember("storage2"))
+            .build();
+
+        final Collection<InterpretedGroup> interpretedGroups =
+            converter.interpretSdkGroupList(Arrays.asList(childGroup, parentGroup), TARGET_ID);
+        assertThat(interpretedGroups.size(), is(2));
+
+        final Map<String, InterpretedGroup> groupsByGroupName = interpretedGroups.stream()
+                .collect(Collectors.toMap(
+                    group -> GroupProtoUtil.extractId(group.getOriginalSdkGroup()),
+                    Function.identity()));
+        // verify that storage cluster's member is added to parent group's member list
+        assertThat(groupsByGroupName.get(parentGroup.getGroupName()).getStaticMembers(),
+            containsInAnyOrder(1L, 2L));
+        assertThat(groupsByGroupName.get(childGroup.getConstraintInfo().getConstraintId())
+                .getStaticMembers(), containsInAnyOrder(2L));
+    }
+
+    @Test
+    public void testBuyersSellersGroupWithSameConstraintId() {
+        final EntityStore store = mock(EntityStore.class);
+        when(store.getTargetEntityIdMap(TARGET_ID))
+            .thenReturn(Optional.of(ImmutableMap.of("vm1", 1L, "pm1", 2L)));
+        Entity entity1 = mock(Entity.class);
+        when(entity1.getEntityType()).thenReturn(EntityType.STORAGE);
+        Entity entity2 = mock(Entity.class);
+        when(entity2.getEntityType()).thenReturn(EntityType.STORAGE);
+        when(store.getEntity(1L))
+            .thenReturn(Optional.of(entity1));
+        when(store.getEntity(2L))
+            .thenReturn(Optional.of(entity2));
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store,
+            mock(PropertyFilterConverter.class));
+
+        final String CONSTRAINT_ID = "1234";
+        final GroupDTO sellersGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                .setConstraintType(ConstraintType.BUYER_SELLER_AFFINITY)
+                .setConstraintId(CONSTRAINT_ID)
+                .setConstraintName("GROUP-DRS-1"))
+            .setMemberList(MembersList.newBuilder()
+                .addMember("pm1"))
+            .build();
+        final GroupDTO buyersGroup = GroupDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setDisplayName(DISPLAY_NAME)
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                .setConstraintType(ConstraintType.BUYER_SELLER_AFFINITY)
+                .setConstraintId(CONSTRAINT_ID)
+                .setConstraintName("GROUP-DRS-2")
+                .setIsBuyer(true))
+            .setMemberList(MembersList.newBuilder()
+                .addMember("vm1"))
+            .build();
+
+        final Collection<InterpretedGroup> interpretedGroups =
+            converter.interpretSdkGroupList(Arrays.asList(buyersGroup, sellersGroup), TARGET_ID);
+        // verify that both buyer and seller groups are interpreted correctly
+        assertThat(interpretedGroups.size(), is(2));
+
+        final Map<Integer, String> groupIdByEntityType = interpretedGroups.stream()
+            .map(group -> group.getDtoAsGroup().get())
+            .collect(Collectors.toMap(GroupInfo.Builder::getEntityType, GroupInfo.Builder::getName));
+        // verify that id is prefixed for both buyer and seller group
+        assertThat(groupIdByEntityType.get(EntityType.VIRTUAL_MACHINE_VALUE), is(
+            GroupProtoUtil.BUYERS_GROUP_ID_PREFIX + CONSTRAINT_ID));
+        assertThat(groupIdByEntityType.get(EntityType.PHYSICAL_MACHINE_VALUE), is(
+            GroupProtoUtil.SELLERS_GROUP_ID_PREFIX + CONSTRAINT_ID));
     }
 }

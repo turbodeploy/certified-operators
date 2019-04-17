@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -18,13 +19,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
  * Miscellaneous utilities for messages defined in group/GroupDTO.proto.
@@ -32,6 +34,26 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class GroupProtoUtil {
 
     public final static String GROUP_KEY_SEP = "-";
+
+    /**
+     * Prefix for buyers group id of placement constraint
+     */
+    public static final String BUYERS_GROUP_ID_PREFIX =  "BG-";
+
+    /**
+     * Prefix for sellers group id of placement constraint
+     */
+    public static final String SELLERS_GROUP_ID_PREFIX = "SG-";
+
+    /**
+     * Set of placement related constraints types
+     */
+    private static final Set<ConstraintType> PLACEMENT_CONSTRAINT_TYPES = ImmutableSet.of(
+        ConstraintType.BUYER_BUYER_AFFINITY,
+        ConstraintType.BUYER_BUYER_ANTI_AFFINITY,
+        ConstraintType.BUYER_SELLER_AFFINITY,
+        ConstraintType.BUYER_SELLER_ANTI_AFFINITY
+    );
 
     /**
      * @param name The name to compare with the filter.
@@ -180,24 +202,63 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Give a {@link CommonDTO.GroupDTO}, and extract its name properly. This function will be used
-     * by both discovered group and discovered policy. Because for discovered group and discovered
-     * policy, they should have exactly same logic to create group name if they have related.
-     * Otherwise, discovered policy will not been created.
+     * Given a {@link CommonDTO.GroupDTO}, extract its id properly. "group_name" is preferred if
+     * if it is available. If not, then it falls back to "constraint_id". For some special
+     * placement constraint types, there may be two groups (buyer group and seller group) with
+     * same constraint_id. So a prefix is appended in this case.
+     *
+     * This function is used when creating discovered groups and populating group members. The id
+     * included in the parent group's members list is the "constraint_id" (not constraint_name)
+     * for cluster (host/storage) group, and "group_name" for other types of groups. It assumes that
+     * placement constraint groups are not members of other groups, which is true as far as now. If
+     * this assumption changes, the membership may not be populated correctly due to the prefix.
      *
      * @param sdkDTO a {@link CommonDTO.GroupDTO}
-     * @return a group name.
+     * @return the group id used for membership.
      */
     @Nonnull
-    public static String extractName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+    public static String extractId(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
         if (sdkDTO.hasGroupName()) {
             return sdkDTO.getGroupName();
-        } else if (sdkDTO.hasConstraintInfo() && sdkDTO.getConstraintInfo().hasConstraintName()) {
-            return sdkDTO.getConstraintInfo().getConstraintName();
-        } else {
-            throw new IllegalArgumentException(
-                    "GroupName or ConstraintName must be present in groupDTO");
+        } else if (sdkDTO.hasConstraintInfo()) {
+            final ConstraintInfo constraintInfo = sdkDTO.getConstraintInfo();
+            if (constraintInfo.hasConstraintId()) {
+                // add prefix for placement constraint groups, since buyer group and seller group
+                // have same constraint id
+                if (PLACEMENT_CONSTRAINT_TYPES.contains(constraintInfo.getConstraintType())) {
+                    final String prefix = constraintInfo.getIsBuyer()
+                        ? BUYERS_GROUP_ID_PREFIX : SELLERS_GROUP_ID_PREFIX;
+                    return prefix + constraintInfo.getConstraintId();
+                } else {
+                    // use constraint id for other types, since it will be unique in the probe
+                    return constraintInfo.getConstraintId();
+                }
+            }
         }
+
+        throw new IllegalArgumentException("GroupName or ConstraintId must be present in groupDTO");
+    }
+
+    /**
+     * Give a {@link CommonDTO.GroupDTO}, and extract its displayName properly. For cluster, the
+     * displayName may not be set, we use constraint_name as displayName in this case. Otherwise,
+     * use group_name.
+     *
+     * @param sdkDTO a {@link CommonDTO.GroupDTO}
+     * @return group displayName.
+     */
+    @Nonnull
+    public static String extractDisplayName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+        if (sdkDTO.hasDisplayName()) {
+            return sdkDTO.getDisplayName();
+        }
+
+        if (sdkDTO.hasConstraintInfo()) {
+            return sdkDTO.getConstraintInfo().getConstraintName();
+        }
+
+        // fall back to extractId if none above is available
+        return extractId(sdkDTO);
     }
 
     /**
@@ -214,8 +275,7 @@ public class GroupProtoUtil {
     @Nonnull
     public static String discoveredIdFromName(@Nonnull final CommonDTO.GroupDTO group,
                                               @Nonnull final long targetId) {
-        return createGroupCompoundKey(extractName(group), group.getEntityType(),
-                targetId);
+        return createGroupCompoundKey(extractId(group), group.getEntityType(), targetId);
     }
 
     /**
