@@ -261,7 +261,7 @@ public class Placement {
                         < currentQuote * buyer.getSettings().getQuoteFactor()) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
-                savings = 0;
+                savings = Double.MAX_VALUE;
                 if (isDebugTrader) {
                     if (shoppingList.getSupplier() != null) {
                         logger.info("{" + buyerDebugInfo + "} The infinite quote is from supplier: "
@@ -276,7 +276,11 @@ public class Placement {
             placementResults = PlacementResults.forSingleAction(move.take().setImportance(savings));
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
-                myMarket.setPlacementSavings(myMarket.getPlacementSavings() + savings);
+                double placementSavings = myMarket.getPlacementSavings() + savings;
+                if (Double.isInfinite(placementSavings)) {
+                    placementSavings = Double.MAX_VALUE;
+                }
+                myMarket.setPlacementSavings(placementSavings);
                 if (logger.isDebugEnabled()
                              && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
                     logger.debug("Total savings exceeds base expenses for buyer while shopping " +
