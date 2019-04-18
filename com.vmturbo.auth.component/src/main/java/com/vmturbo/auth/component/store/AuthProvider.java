@@ -1062,8 +1062,15 @@ public class AuthProvider {
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nonnull ActiveDirectoryDTO createActiveDirectory(final @Nonnull ActiveDirectoryDTO inputDTO) {
         String domain = inputDTO.getDomainName() == null ? "" : inputDTO.getDomainName();
-        String url = createLoginProviderURI(inputDTO.getLoginProviderURI(), inputDTO.isSecure());
-
+        String url = inputDTO.getLoginProviderURI() == null ? "" : inputDTO.getLoginProviderURI();
+        // In case the provider URL is empty, we use domain for AD servers lookup.
+        if (!url.isEmpty()) {
+            if (inputDTO.isSecure()) {
+                url = "ldaps://" + url + ":636/";
+            } else {
+                url = "ldap://" + url + ":389/";
+            }
+        }
         // We set a non-null array to AD groups here, so that later we can avoid the null checks.
         ActiveDirectoryDTO result = new ActiveDirectoryDTO(domain, url, inputDTO.isSecure(),
                                                            new ArrayList<>());
@@ -1076,55 +1083,6 @@ public class AuthProvider {
         // designate the empty list.
         result.setGroups(null);
         return result;
-    }
-
-    /**
-     * Create LDAP login provider url based on the url provided by user. It will prepend a default
-     * protocol prefix or append a default port postfix if the input url doesn't have it.
-     *
-     * @param inputUrl ldap url provided by user
-     * @param isSecure whether or not to use secure connection
-     * @return LDAP url used for AD authentication
-     */
-    public String createLoginProviderURI(@Nullable String inputUrl, boolean isSecure) {
-        if (inputUrl == null) {
-            // In case the provider URL is empty, we use domain for AD servers lookup.
-            return "";
-        }
-
-        // default protocol prefix and port postfix based on secure flag
-        final String defaultProtocolPrefix = isSecure ? "ldaps://" : "ldap://";
-        final String defaultPortPostfix = isSecure ? ":636" : ":389";
-
-        if (inputUrl.contains("://")) {
-            // protocol is already provided
-            final String[] parts = inputUrl.split("://");
-            if (parts.length != 2) {
-                // invalid ldap url since there is more than 1 "://"
-                throw new IllegalArgumentException("Invalid LDAP url: " + inputUrl);
-            }
-
-            if (parts[1].contains(":")) {
-                // port is provided, use user-provided port
-                // e.g. "ldap://ad.foo.com:3268"
-                return defaultProtocolPrefix + parts[1];
-            } else {
-                // port is not provided, append a port number
-                // e.g. "ldap://ad.foo.com"
-                return defaultProtocolPrefix + parts[1] + defaultPortPostfix;
-            }
-        } else {
-            // protocol is not provided
-            if (inputUrl.contains(":")) {
-                // port is provided, prepend a protocol prefix
-                // e.g. "ad.foo.com:3268"
-                return defaultProtocolPrefix + inputUrl;
-            } else {
-                // none of port or protocol is provided, prepend protocol and append port
-                // e.g. "ad.foo.com"
-                return defaultProtocolPrefix + inputUrl + defaultPortPostfix;
-            }
-        }
     }
 
     /**

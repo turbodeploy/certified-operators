@@ -4,65 +4,34 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.vmturbo.auth.api.authentication.AuthenticationException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+
+import com.vmturbo.auth.api.authorization.AuthorizationException;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.MapKeyValueStore;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Table;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import com.vmturbo.auth.api.authentication.AuthenticationException;
-import com.vmturbo.auth.api.authorization.AuthorizationException;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
-import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
-import com.vmturbo.components.crypto.CryptoFacility;
-import com.vmturbo.kvstore.KeyValueStore;
-import com.vmturbo.kvstore.MapKeyValueStore;
-
 /**
  * The KVBackedILocalAuthStoreTest tests the KV-backed Auth store.
  */
 public class KVBackedILocalAuthStoreTest {
-
-    // <inputUrl, secure, expectedUrl>: expected LDAP url based on user input url and secure flag
-    private static final Table<String, Boolean, String> EXPECTED_LDAP_URL =
-        new ImmutableTable.Builder<String, Boolean, String>()
-            // user doesn't provide protocol or port number
-            .put("ad.foo.com", true, "ldaps://ad.foo.com:636")
-            .put("ad.foo.com", false, "ldap://ad.foo.com:389")
-
-            // user provides full url
-            .put("ldap://ad.foo.com:3268", true, "ldaps://ad.foo.com:3268")
-            .put("ldap://ad.foo.com:3268", false, "ldap://ad.foo.com:3268")
-
-            // user only provides protocol
-            .put("ldaps://ad.foo.com", true, "ldaps://ad.foo.com:636")
-            .put("ldap://ad.foo.com", false, "ldap://ad.foo.com:389")
-
-            // user provides wrong protocol
-            .put("ldap://ad.foo.com", true, "ldaps://ad.foo.com:636")
-            .put("ldaps://ad.foo.com", false, "ldap://ad.foo.com:389")
-
-            // user only provides default port number
-            .put("ad.foo.com:636", true, "ldaps://ad.foo.com:636")
-            .put("ad.foo.com:389", false, "ldap://ad.foo.com:389")
-
-            // user only provides non-default port number
-            .put("ad.foo.com:3268", true, "ldaps://ad.foo.com:3268")
-            .put("ad.foo.com:3268", false, "ldap://ad.foo.com:3268")
-            .build();
 
     /**
      * The KV prefix.
@@ -396,19 +365,5 @@ public class KVBackedILocalAuthStoreTest {
         store.unlock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null,
                                      ImmutableList.of("ADMIN", "USER")));
         Assert.assertNotNull(store.authenticate("user0", "password0"));
-    }
-
-    @Test
-    public void testLDAPInputUrlWithProtocolAndPortNumber() {
-        KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore);
-
-        EXPECTED_LDAP_URL.cellSet().forEach(cell ->
-            Assert.assertEquals(
-                "Expecting: " + cell.getValue() + " for given url: "+ cell.getRowKey() +
-                    " and secure flag: " + cell.getColumnKey(),
-                cell.getValue(),
-                store.createLoginProviderURI(cell.getRowKey(), cell.getColumnKey()))
-        );
     }
 }
