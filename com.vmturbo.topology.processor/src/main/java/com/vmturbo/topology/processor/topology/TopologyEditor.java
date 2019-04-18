@@ -94,6 +94,23 @@ public class TopologyEditor {
                              @Nonnull final TopologyInfo topologyInfo,
                              @Nonnull final GroupResolver groupResolver) {
 
+        // Set shopTogether to false for all entities, so SNM is not performed by default.
+        // 1. For full scope custom plan,
+        //    since shopTogether is false for all entities, we will not perform SNM on any entities.
+        // 2. For add workload plans (VM template),
+        //    the new entities created later from VM template will shop together by default,
+        //    which means we will perform SNM on those new entities.
+        // 3. For add workload plans (VM copy),
+        //    the new entities created later from VM copy have the same settings as the VM copy.
+        //    Since shopTogether is false for VM copy, shopTogether is also false for new entities,
+        //    which means we will not perform SNM on those new entities.
+        // 4. For hardware refresh plans,
+        //    shopTogether will be reset to true later for all consumers of an entity to be replaced,
+        //    which means we will perform SNM on those consumers.
+        // Related story: OM-44989
+        topology.forEach((oid, entity) ->
+            entity.getEntityBuilder().getAnalysisSettingsBuilder().setShopTogether(false));
+
         final Map<Long, Long> entityAdditions = new HashMap<>();
         final Set<Long> entitiesToRemove = new HashSet<>();
         final Set<Long> entitiesToReplace = new HashSet<>();

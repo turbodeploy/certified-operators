@@ -158,6 +158,9 @@ public class TemplateConverterFactory {
             .filter(topology::containsKey)
             .map(entityOid -> {
                 final TopologyEntity.Builder entityBuilder = topology.get(entityOid);
+                // Set shopTogether to true for all consumers of an entity to be replaced.
+                entityBuilder.getConsumers().forEach(consumer ->
+                    consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setShopTogether(true));
                 final TopologyEntityDTO.Builder topologyEntityBuilder =
                     TemplatesConverterUtils.generateTopologyEntityBuilder(template);
                 topologyEntityBuilder

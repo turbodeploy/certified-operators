@@ -371,6 +371,10 @@ public class TopologyEntity implements JournalableEntity<TopologyEntity> {
             return associatedTopologyEntity.getTopologyEntityDtoBuilder();
         }
 
+        public ArrayList<TopologyEntity> getConsumers() {
+            return consumers;
+        }
+
         public TopologyEntity build() {
             // Trim the arrays to their capacity to reduce memory consumption since
             // the consumers and providers will not be modified after the entity has been built.
