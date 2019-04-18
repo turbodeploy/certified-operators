@@ -562,7 +562,12 @@ public class TopologyEntitiesHandlerTest {
             // Asserts
             assertEquals(1, results.getActionsCount());
             List<ActionTO> actions = results.getActionsList();
-            MoveTO move = actions.get(0).getMove();
+            MoveTO move;
+            if (isVMShopTogether) {
+                move = actions.get(0).getCompoundMove().getMoves(0);
+            } else {
+                move = actions.get(0).getMove();
+            }
             assertEquals(slToMove.getOid(), move.getShoppingListToMove());
             assertEquals(m1LargeTrader.getOid(), move.getSource());
             assertEquals(m1MediumTrader.getOid(), move.getDestination());
