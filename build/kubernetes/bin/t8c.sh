@@ -5,8 +5,16 @@
 # Purpose: Setup a kubernetes environment with T8s xl components
 # Tools:  Kubespray, Heketi, GlusterFs
 
+# Set the ip address for a single node setup.  Multinode should have the
+# ip values set manually in /opt/local/etc/turbo.conf
+singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
+sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
+
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
+
+# Update the yaml files to run offline
+/opt/local/bin/offlineUpdate.sh
 
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/authorized_keys ]
@@ -119,6 +127,8 @@ sed -i "s/${helm_enabled}/${helm_enabled_group}/g" ${inventoryPath}/group_vars/k
 ansible-playbook -i inventory/turbocluster/hosts.ini -b --become-user=root cluster.yml
 # Check on ansible status and exit out if there are any failures.
 ansibleStatus=$?
+# Reset the kubespray yaml back to the original source
+pushd /opt/kubespray/; for i in $(find . -name *.online); do j=$(echo $i | sed 's/.online//'); cp $j $i;done;popd
 if [ "X${ansibleStatus}" == "X0" ]
 then
   echo ""

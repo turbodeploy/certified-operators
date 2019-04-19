@@ -4,14 +4,14 @@
 
 source /opt/local/etc/turbo.conf
 
-/usr/local/bin/kubeadm reset -f
-systemctl stop etcd
-rm -rf /var/lib/etcd/member/
-rm -rf /etc/ssl/etcd/ssl/*
-rm -rf /etc/kubernetes/ssl/*
-cd /etc/; for i in `grep -lr 10.0.2.15 *`; do sed -i "s/10.0.2.15/${node}/g" $i; done
-rm -rf /root/.kube/
-rm -rf /opt/turbonomic/.kube/
+sudo /usr/local/bin/kubeadm reset -f
+sudo systemctl stop etcd
+sudo rm -rf /var/lib/etcd/member
+sudo rm -rf /etc/ssl/etcd/ssl
+sudo rm -rf /etc/kubernetes/ssl
+pushd /etc/; for i in `sudo grep -lr 10.10.168.137 *`; do sudo sed -i "s/10.10.168.137/${node}/g" $i; done; popd
+sudo rm -rf /root/.kube
+sudo rm -rf /opt/turbonomic/.kube
 
 cp /opt/kubespray/roles/download/tasks/download_container.yml /opt/kubespray/roles/download/tasks/download_container.yml.online
 sed -i '/- facts/a\
