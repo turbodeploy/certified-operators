@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -94,19 +93,23 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
         logger.info("Registration message received from " + serverEndpoint);
 
-        final Set<ProbeInfo> newProbes = new HashSet<>();
+        // Register the transport handlers before registering the probes, so that
+        // we still receive connection errors that happen while the probe store is saving
+        // the probe info.
+        //
+        // Note: This should be safe, because we expect the probe to be resilient to receiving a
+        // request to remove a probe while it's still processing that probe's addition.
+        registerTransportHandlers(serverEndpoint);
+
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
-                if (probeStore.registerNewProbe(probeInfo, serverEndpoint)) {
-                    newProbes.add(probeInfo);
-                }
+                probeStore.registerNewProbe(probeInfo, serverEndpoint);
                 logger.info("Transport has been registered");
             } catch (ProbeException e) {
                 logger.error("Probe " + probeInfo.getProbeType() + " from " + serverEndpoint
                                 + " failed to register", e);
             }
         }
-        registerTransportHandlers(serverEndpoint);
     }
 
     /**
@@ -193,7 +196,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
      */
     protected void processContainerClose(
                     ITransport<MediationServerMessage, MediationClientMessage> endpoint) {
-        logger.debug(() -> "container closed: " + endpoint
+        logger.info(() -> "container closed: " + endpoint
                         + ". Unregistering it from probe storage...");
         probeStore.removeTransport(endpoint);
 
