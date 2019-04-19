@@ -9,7 +9,7 @@ sudo systemctl stop etcd
 sudo rm -rf /var/lib/etcd/member
 sudo rm -rf /etc/ssl/etcd/ssl
 sudo rm -rf /etc/kubernetes/ssl
-pushd /etc/; for i in `sudo grep -lr 10.10.168.137 *`; do sudo sed -i "s/10.10.168.137/${node}/g" $i; done; popd
+pushd /etc/; for i in `sudo grep -lr 10.0.2.15 *`; do sudo sed -i "s/10.0.2.15/${node}/g" $i; done; popd
 sudo rm -rf /root/.kube
 sudo rm -rf /opt/turbonomic/.kube
 
