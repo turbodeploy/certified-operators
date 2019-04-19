@@ -220,11 +220,10 @@ public class StagesTest {
         final DiscoveredSettingPolicyScanner scanner = mock(DiscoveredSettingPolicyScanner.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
 
-        when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
 
         final ScanDiscoveredSettingPoliciesStage scannerStage =
                 new ScanDiscoveredSettingPoliciesStage(scanner, uploader);
-        assertThat(scannerStage.execute(stitchingContext).getResult(), is(Collections.emptyMap()));
+        scannerStage.passthrough(stitchingContext);
         verify(scanner).scanForDiscoveredSettingPolicies(eq(stitchingContext), eq(uploader));
     }
 

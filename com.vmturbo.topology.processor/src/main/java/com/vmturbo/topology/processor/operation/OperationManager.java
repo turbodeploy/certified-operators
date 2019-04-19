@@ -20,7 +20,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.vmturbo.matrix.component.external.MatrixInterface;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -32,6 +31,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -58,7 +58,6 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
-import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
@@ -981,15 +980,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 // the topological information will be inconsistent. (ie if the entities are placed in the
                 // entityStore but the discoveredGroupUploader throws an exception, the entity and group
                 // information will be inconsistent with each other because we do not roll back on failure.
-                entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
-                        response.getEntityDTOList());
+                entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, response.getEntityDTOList());
                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                 discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(targetId,
                         response.getEntityProfileList(), response.getDeploymentProfileList(),
                         response.getEntityDTOList());
                 discoveredWorkflowUploader.setTargetWorkflows(targetId,
                         response.getWorkflowList());
-                DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
+                DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
                 derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                 discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
                         response.getNonMarketEntityDTOList(), response.getCostDTOList(),

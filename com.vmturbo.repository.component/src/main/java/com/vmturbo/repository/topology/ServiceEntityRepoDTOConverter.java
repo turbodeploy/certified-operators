@@ -87,6 +87,11 @@ public class ServiceEntityRepoDTOConverter {
                             .collect(Collectors.toList()));
         }
 
+        if (serviceEntityRepoDTO.getEntityPipelineErrorsRepoDTO() != null) {
+            topologyEntityBuilder.setPipelineErrors(
+                serviceEntityRepoDTO.getEntityPipelineErrorsRepoDTO().toProtobuf());
+        }
+
         // TODO: collapse separate typeSpecific InfoRepoDTO fields into a single field
         TypeSpecificInfoRepoDTO typeSpecificInfoRepoDTO = null;
         if (serviceEntityRepoDTO.getApplicationInfoRepoDTO() != null) {

@@ -9,8 +9,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -151,6 +154,22 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return The ID of the target that discovered this {@link StitchingEntity}.
      */
     long getTargetId();
+
+    /**
+     * Get the stitching errors encountered by this specific entity during stitching.
+     * <p>
+     * Note: if you want to get the total errors encountered by this entity and any merged entities,
+     * use {@link StitchingEntity#entityErrors()}.
+     */
+    @Nonnull
+    StitchingErrors getStitchingErrors();
+
+    /**
+     * Record an error that this entity encountered during any part of stitching.
+     *
+     * @param errorCode The code of the error.
+     */
+    void recordError(@Nonnull final StitchingErrorCode errorCode);
 
     /**
      * Get the time that the data for this entity was last updated.
@@ -320,5 +339,24 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
             .withMergeFromTargetIds(getMergeInformation().stream()
                 .map(StitchingMergeInformation::getTargetId))
             .lastUpdatedAt(getLastUpdatedTime());
+    }
+
+    /**
+     * Get a {@link EntityPipelineErrors} object representing the stitching errors encountered by
+     * this entity. Note - other stages further down the topology pipeline may edit this errors
+     * message to add non-stitching related error information.
+     *
+     * @return If this entity had stitching errors, returns an optional {@link EntityPipelineErrors}
+     *         with a non-zero value in {@link EntityPipelineErrors#getStitchingErrors()}.
+     *         Otherwise, returns an empty optional.
+     */
+    @Nonnull
+    default StitchingErrors combinedEntityErrors() {
+        final StitchingErrors combinedError = new StitchingErrors();
+        combinedError.add(getStitchingErrors());
+        getMergeInformation().stream()
+            .map(StitchingMergeInformation::getError)
+            .forEach(combinedError::add);
+        return combinedError;
     }
 }

@@ -19,6 +19,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -345,10 +346,14 @@ public class StitchingContext {
          * If multiple entities have the same OID, we log it as an error and pick one to use at random.
          */
         return stitchingGraph.entities()
-            .collect(Collectors.toMap(
-                TopologyStitchingEntity::getOid,
-                stitchingEntity -> TopologyEntity.newBuilder(SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity)
-                    .setOrigin(Origin.newBuilder().setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()))),
+            .collect(Collectors.toMap(TopologyStitchingEntity::getOid,
+                stitchingEntity -> {
+                    final TopologyEntityDTO.Builder builder =
+                        SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity)
+                            .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()));
+                    return TopologyEntity.newBuilder(builder);
+                },
                 (oldValue, newValue) -> {
                     logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
                     return oldValue;

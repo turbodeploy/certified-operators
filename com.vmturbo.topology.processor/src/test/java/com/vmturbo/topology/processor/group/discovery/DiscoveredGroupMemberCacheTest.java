@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache.DiscoveredGroupMembers;
 
@@ -93,7 +94,7 @@ public class DiscoveredGroupMemberCacheTest {
 
         final DiscoveredGroupMemberCache cache = new DiscoveredGroupMemberCache(groups);
         final List<InterpretedGroup> members = cache
-            .groupsContaining(new StitchingMergeInformation(DiscoveredGroupConstants.PLACEHOLDER_GROUP_MEMBER, 123L))
+            .groupsContaining(new StitchingMergeInformation(DiscoveredGroupConstants.PLACEHOLDER_GROUP_MEMBER, 123L, StitchingErrors.none()))
             .map(DiscoveredGroupMembers::getAssociatedGroup)
             .collect(Collectors.toList());
 
@@ -115,7 +116,7 @@ public class DiscoveredGroupMemberCacheTest {
 
         final DiscoveredGroupMemberCache cache = new DiscoveredGroupMemberCache(groups);
         final List<InterpretedGroup> members = cache
-            .groupsContaining(new StitchingMergeInformation(DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_MEMBER, 456L))
+            .groupsContaining(new StitchingMergeInformation(DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_MEMBER, 456L, StitchingErrors.none()))
             .map(DiscoveredGroupMembers::getAssociatedGroup)
             .collect(Collectors.toList());
 

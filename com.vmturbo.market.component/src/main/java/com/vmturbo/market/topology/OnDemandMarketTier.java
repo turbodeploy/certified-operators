@@ -7,9 +7,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.map.UnmodifiableMap;
-
-import com.vmturbo.common.protobuf.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 

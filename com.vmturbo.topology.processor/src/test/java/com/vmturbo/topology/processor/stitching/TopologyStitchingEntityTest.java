@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -91,7 +93,7 @@ public class TopologyStitchingEntityTest {
     public void testMergeFromTargetIds() {
         assertThat(pm.getMergeInformation(), is(empty()));
 
-        pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L));
+        pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L, StitchingErrors.none()));
 
         assertEquals(1, pm.getMergeInformation().size());
         assertEquals(123456L, pm.getMergeInformation().get(0).getTargetId());
@@ -102,26 +104,26 @@ public class TopologyStitchingEntityTest {
     public void testMergeFromTargetIdsDuplicate() {
         assertThat(pm.getMergeInformation(), is(empty()));
 
-        pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L));
-        pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L));
+        pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L, StitchingErrors.none()));
+        pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L, StitchingErrors.none()));
 
         assertEquals(1, pm.getMergeInformation().size());
     }
 
     @Test
     public void testAddAllMergeFromTargetIds() {
-        pm.addAllMergeInformation(Arrays.asList(new StitchingMergeInformation(999L, 123L),
-            new StitchingMergeInformation(999L, 456L)));
+        pm.addAllMergeInformation(Arrays.asList(new StitchingMergeInformation(999L, 123L, StitchingErrors.none()),
+            new StitchingMergeInformation(999L, 456L, StitchingErrors.none())));
 
-        assertThat(pm.getMergeInformation(), containsInAnyOrder(new StitchingMergeInformation(999L, 123L),
-            new StitchingMergeInformation(999L, 456L)));
+        assertThat(pm.getMergeInformation(), containsInAnyOrder(new StitchingMergeInformation(999L, 123L, StitchingErrors.none()),
+            new StitchingMergeInformation(999L, 456L, StitchingErrors.none())));
     }
 
     @Test
     public void testHasMergeInformation() {
         assertFalse(pm.hasMergeInformation());
 
-        pm.addMergeInformation(new StitchingMergeInformation(999L, 123L));
+        pm.addMergeInformation(new StitchingMergeInformation(999L, 123L, StitchingErrors.none()));
         assertTrue(pm.hasMergeInformation());
     }
 
@@ -129,19 +131,36 @@ public class TopologyStitchingEntityTest {
     public void testDiscoveryOrigin() {
         assertThat(pm.buildDiscoveryOrigin().getDiscoveringTargetIdsList(), contains(pm.getTargetId()));
 
-        pm.addMergeInformation(new StitchingMergeInformation(123L, 5555L));
+        pm.addMergeInformation(new StitchingMergeInformation(123L, 5555L, StitchingErrors.none()));
         assertThat(pm.buildDiscoveryOrigin().getDiscoveringTargetIdsList(),
             containsInAnyOrder(pm.getTargetId(), 5555L));
     }
 
     @Test
     public void testDiscoveryOriginDuplicateTargets() {
-        pm.addMergeInformation(new StitchingMergeInformation(999L, pm.getTargetId()));
-        pm.addMergeInformation(new StitchingMergeInformation(456L, pm.getTargetId()));
+        pm.addMergeInformation(new StitchingMergeInformation(999L, pm.getTargetId(), StitchingErrors.none()));
+        pm.addMergeInformation(new StitchingMergeInformation(456L, pm.getTargetId(), StitchingErrors.none()));
 
         // Merging information from multiple entities for the same target down to a single entity
         // (shouldn't happen) should only result in a single targetId in the list.
         assertThat(pm.buildDiscoveryOrigin().getDiscoveringTargetIdsList(), contains(pm.getTargetId()));
+    }
+
+    @Test
+    public void testCombinedErrors() {
+        final StitchingErrors stitchingErrors1 = new StitchingErrors();
+        stitchingErrors1.add(StitchingErrorCode.INVALID_COMM_BOUGHT);
+
+        final StitchingErrors stitchingErrors2 = new StitchingErrors();
+        stitchingErrors2.add(StitchingErrorCode.INCONSISTENT_KEY);
+
+        pm.recordError(StitchingErrorCode.INVALID_COMM_SOLD);
+        pm.addMergeInformation(new StitchingMergeInformation(999L, pm.getTargetId(), stitchingErrors1));
+        pm.addMergeInformation(new StitchingMergeInformation(456L, pm.getTargetId(), stitchingErrors2));
+
+        final StitchingErrors combinedErrors = pm.combinedEntityErrors();
+        assertTrue(combinedErrors.contains(StitchingErrorCode.INVALID_COMM_SOLD,
+            StitchingErrorCode.INVALID_COMM_BOUGHT, StitchingErrorCode.INCONSISTENT_KEY));
     }
 
     @Test
@@ -162,7 +181,7 @@ public class TopologyStitchingEntityTest {
 
     @Test
     public void testSnapshot() {
-        pm.addMergeInformation(new StitchingMergeInformation(9911L, 9090L));
+        pm.addMergeInformation(new StitchingMergeInformation(9911L, 9090L, StitchingErrors.none()));
         final TopologyStitchingEntity snapshotCopy = (TopologyStitchingEntity)pm.snapshot();
 
         // Should be comparison equal but not reference equal

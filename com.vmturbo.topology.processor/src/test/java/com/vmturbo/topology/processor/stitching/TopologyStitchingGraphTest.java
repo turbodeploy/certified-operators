@@ -23,20 +23,29 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 public class TopologyStitchingGraphTest {
+
+    private final StitchingEntityData validEntity = stitchingData(EntityDTO.newBuilder()
+        .setId("valid-provider")
+        .setDisplayName("valid-provider")
+        .setEntityType(EntityType.VIRTUAL_MACHINE));
 
     /**
      * 4   5
@@ -67,6 +76,116 @@ public class TopologyStitchingGraphTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     @Test
+    public void testInvalidCommBought() {
+        final CommodityBought validCommBought = CommodityBought.newBuilder()
+            .setProviderId(validEntity.getLocalId())
+            .addBought(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.MEM))
+            .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addCommoditiesBought(CommodityBought.newBuilder()
+                .setProviderId("bad provider"))
+            .addCommoditiesBought(validCommBought)
+            .addCommoditiesBought(CommodityBought.newBuilder()
+                .setProviderId("another bad provider")));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_COMM_BOUGHT));
+        assertThat(resEntity.getEntityBuilder().getCommoditiesBoughtList(),
+            containsInAnyOrder(validCommBought));
+    }
+
+    @Test
+    public void testInvalidCommBoughtSubdivision() {
+        final CommodityBought validCommBought = CommodityBought.newBuilder()
+            .setProviderId(validEntity.getLocalId())
+            .addBought(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.MEM))
+            .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addCommoditiesBought(CommodityBought.newBuilder()
+                .setProviderId(validEntity.getLocalId())
+                .setSubDivision(SubDivisionData.newBuilder()
+                    .setSubDivisionId("bad subdivision")))
+            .addCommoditiesBought(validCommBought)
+            .addCommoditiesBought(CommodityBought.newBuilder()
+                .setProviderId(validEntity.getLocalId())
+                .setSubDivision(SubDivisionData.newBuilder()
+                    .setSubDivisionId("another bad subdivision"))));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_COMM_BOUGHT));
+        assertThat(resEntity.getEntityBuilder().getCommoditiesBoughtList(),
+            containsInAnyOrder(validCommBought));
+    }
+
+    @Test
+    public void testInvalidCommSold() {
+        final CommodityDTO validCommSold = CommodityDTO.newBuilder()
+            .setCommodityType(CommodityType.MEM)
+            .setUsed(10)
+            .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.DSPM_ACCESS)
+                .setKey("PhysicalMachine::bad provider"))
+            .addCommoditiesSold(validCommSold)
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.DSPM_ACCESS)
+                .setKey("PhysicalMachine::another bad provider")));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_COMM_SOLD));
+        assertThat(resEntity.getEntityBuilder().getCommoditiesSoldList(),
+            containsInAnyOrder(validCommSold));
+    }
+
+    @Test
+    public void testInvalidLayeredOver() {
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addLayeredOver("bad layered over")
+            .addLayeredOver(validEntity.getLocalId())
+            .addLayeredOver("another bad layered over"));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_LAYERED_OVER));
+        assertThat(resEntity.getEntityBuilder().getLayeredOverList(),
+            containsInAnyOrder(validEntity.getLocalId()));
+    }
+
+    @Test
+    public void testInvalidConsistsOf() {
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addConsistsOf("bad consists of")
+            .addConsistsOf(validEntity.getLocalId())
+            .addConsistsOf("another bad consists of"));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_CONSISTS_OF));
+        assertThat(resEntity.getEntityBuilder().getConsistsOfList(),
+            containsInAnyOrder(validEntity.getLocalId()));
+    }
+
+
+    @Test
     public void testBuildConstructionEmptyMap() {
         final TopologyStitchingGraph graph = new TopologyStitchingGraph(50);
         assertEquals(0, graph.entityCount());
@@ -93,19 +212,23 @@ public class TopologyStitchingGraphTest {
             "5", entity5
         );
 
-        expectedException.expect(IllegalArgumentException.class);
-        newStitchingGraph(topologyMap);
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
+        assertEquals(4, graph.entityCount());
+        assertTrue(graph.getEntity(entity4.getEntityDtoBuilder()).get().getStitchingErrors()
+            .contains(StitchingErrorCode.INVALID_COMM_BOUGHT, StitchingErrorCode.INCONSISTENT_KEY));
     }
 
     @Test
     public void testEntityBuyingFromEntityNotPresent() {
         // Entity 1 buys from entity 2, but entity 2 is not present.
-        final Map<String,StitchingEntityData> topologyMap = ImmutableMap.of(
-            "1", stitchingData("1", Collections.singletonList("2"))
-        );
+        final StitchingEntityData entity = stitchingData("1", Collections.singletonList("2"));
 
-        expectedException.expect(IllegalArgumentException.class);
-        newStitchingGraph(topologyMap);
+        final Map<String,StitchingEntityData> topologyMap = ImmutableMap.of("1", entity);
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
+        assertTrue(graph.getEntity(entity.getEntityDtoBuilder()).get().getStitchingErrors()
+            .contains(StitchingErrorCode.INVALID_COMM_BOUGHT));
+
     }
 
     @Test
@@ -539,7 +662,7 @@ public class TopologyStitchingGraphTest {
         public StitchingDataAllowingTargetChange(@Nonnull final EntityDTO.Builder entityDtoBuilder,
                                                  final long targetId,
                                                  final long oid) {
-            super(entityDtoBuilder, targetId, oid, 0, false);
+            super(entityDtoBuilder, targetId, oid, 0, true);
         }
 
         public StitchingEntityData forTarget(final long targetId) {
@@ -549,5 +672,12 @@ public class TopologyStitchingGraphTest {
                 .lastUpdatedTime(0)
                 .build();
         }
+    }
+
+    private EntityDTO.Builder entityBuilder() {
+        return EntityDTO.newBuilder()
+            .setId("target-entity")
+            .setDisplayName("target-entity")
+            .setEntityType(EntityType.VIRTUAL_MACHINE);
     }
 }

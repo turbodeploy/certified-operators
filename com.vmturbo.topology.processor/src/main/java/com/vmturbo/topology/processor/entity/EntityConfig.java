@@ -30,8 +30,8 @@ public class EntityConfig {
     @Bean
     public EntityStore entityStore() {
         return new EntityStore(targetConfig.targetStore(),
-                identityProviderConfig.identityProvider(),
-                clockConfig.clock());
+            identityProviderConfig.identityProvider(),
+            clockConfig.clock());
     }
 
     @Bean

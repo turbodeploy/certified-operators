@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -92,15 +91,15 @@ public class TopologyProcessorDiagnosticsHandler {
     private final Logger logger = LogManager.getLogger();
 
     TopologyProcessorDiagnosticsHandler(
-        @Nonnull final TargetStore targetStore,
-        @Nonnull final PersistentIdentityStore targetPersistentIdentityStore,
-        @Nonnull final Scheduler scheduler,
-        @Nonnull final EntityStore entityStore,
-        @Nonnull final ProbeStore probeStore,
-        @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
-        @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
-        @Nonnull final IdentityProvider identityProvider,
-        @Nonnull final DiagnosticsWriter diagnosticsWriter) {
+            @Nonnull final TargetStore targetStore,
+            @Nonnull final PersistentIdentityStore targetPersistentIdentityStore,
+            @Nonnull final Scheduler scheduler,
+            @Nonnull final EntityStore entityStore,
+            @Nonnull final ProbeStore probeStore,
+            @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+            @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
+            @Nonnull final IdentityProvider identityProvider,
+            @Nonnull final DiagnosticsWriter diagnosticsWriter) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -484,11 +483,11 @@ public class TopologyProcessorDiagnosticsHandler {
     private void restoreEntities(final long targetId, final long lastUpdatedTime,
                                 @Nonnull final List<String> serializedEntities) {
         logger.info("Restoring " + serializedEntities.size() + " entities for target " + targetId);
-        Map<Long, EntityDTO> entitiesMap = Maps.newHashMap();
-        serializedEntities.stream()
+        final Map<Long, EntityDTO> identifiedEntityDTOs = serializedEntities.stream()
             .map(IdentifiedEntityDTO::fromJson)
-            .forEach(dto -> entitiesMap.put(dto.getOid(), dto.getEntity()));
-        entityStore.entitiesRestored(targetId, lastUpdatedTime, entitiesMap);
+            .collect(Collectors.toMap(IdentifiedEntityDTO::getOid, IdentifiedEntityDTO::getEntity));
+
+        entityStore.entitiesRestored(targetId, lastUpdatedTime, identifiedEntityDTOs);
         logger.info("Done Restoring entities for target " + targetId);
     }
 

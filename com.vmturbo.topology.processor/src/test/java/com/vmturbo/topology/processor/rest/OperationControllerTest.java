@@ -13,7 +13,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.matrix.component.TheMatrix;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,10 +44,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
+import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;

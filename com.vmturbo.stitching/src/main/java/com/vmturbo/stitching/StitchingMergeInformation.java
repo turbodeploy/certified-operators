@@ -5,6 +5,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Objects;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
+
 /**
  * Information about an entity that was merged onto an entity.
  *
@@ -16,6 +18,7 @@ import com.google.common.base.Objects;
 public class StitchingMergeInformation {
     private final long oid;
     private final long targetId;
+    private final StitchingErrors error;
 
     /**
      * Create {@link StitchingMergeInformation} associated with a particular entity.
@@ -23,7 +26,7 @@ public class StitchingMergeInformation {
      * @param entity The entity whose {@link StitchingMergeInformation} should be tracked.
      */
     public StitchingMergeInformation(@Nonnull final StitchingEntity entity) {
-        this(entity.getOid(), entity.getTargetId());
+        this(entity.getOid(), entity.getTargetId(), entity.getStitchingErrors());
     }
 
     /**
@@ -33,9 +36,10 @@ public class StitchingMergeInformation {
      * @param oid The oid of the entity.
      * @param targetId The id of the target that discvoered the entity with the given oid.
      */
-    public StitchingMergeInformation(final long oid, final long targetId) {
+    public StitchingMergeInformation(final long oid, final long targetId, final StitchingErrors errorCode) {
         this.oid = oid;
         this.targetId = targetId;
+        this.error = errorCode;
     }
 
     /**
@@ -51,6 +55,11 @@ public class StitchingMergeInformation {
         return targetId;
     }
 
+    @Nonnull
+    public StitchingErrors getError() {
+        return error;
+    }
+
     @Override
     public String toString() {
         return formatOidAndTarget(oid, targetId);
@@ -63,15 +72,18 @@ public class StitchingMergeInformation {
         }
 
         final StitchingMergeInformation smi = (StitchingMergeInformation)other;
+        // Deliberately exclude the errors.
         return oid == smi.oid && targetId == smi.targetId;
     }
 
     @Override
     public int hashCode() {
+        // Deliberately exclude the errors.
         return Objects.hashCode(oid, targetId);
     }
 
+    @Nonnull
     public static String formatOidAndTarget(final long oid, final long targetId) {
-        return "(oid-" + oid + " " + "tgt-" + targetId + ")";
+        return "(oid-" + oid + " " + "tgt-" + targetId +")";
     }
 }

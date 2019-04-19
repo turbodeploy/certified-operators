@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf;
+package com.vmturbo.common.protobuf.topology;
 
 import java.util.List;
 import java.util.Map;
@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

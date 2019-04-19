@@ -33,7 +33,8 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -1304,18 +1305,23 @@ public class TopologyConverter {
                 suspendable = false;
             }
 
+            final StitchingErrors stitchingErrors = StitchingErrors.fromProtobuf(topologyDTO);
+            final boolean controllable = topologyDTO.getAnalysisSettings().getControllable() &&
+                // If there were stitching errors, it's risky to control this entity.
+                stitchingErrors.isNone();
+
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
                     createCommonTraderSettingsTOBuilder(
                             topologyDTO, unmodifiableEntityOidToDtoMap, isAlleviatePressurePlan);
-            settingsBuilder.setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
-                    .setControllable(topologyDTO.getAnalysisSettings().getControllable())
+            settingsBuilder.setClonable(clonable && controllable)
+                    .setControllable(controllable)
                     // cloud providers do not come here. We will hence be setting this to true just for
                     // on-prem storages
                     .setCanSimulateAction(topologyDTO.getEntityType() == EntityType.STORAGE_VALUE)
                     .setSuspendable(suspendable)
                     .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
-                                              && topologyDTO.getAnalysisSettings().getControllable())
+                                              && controllable)
                     .setIsEligibleForResizeDown(isPlan() ||
                             topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()

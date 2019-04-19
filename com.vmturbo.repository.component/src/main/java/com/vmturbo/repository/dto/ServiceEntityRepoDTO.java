@@ -49,6 +49,8 @@ public class ServiceEntityRepoDTO {
     // see ScopedEntity.targetIds for why we use string for targetIds here
     private List<String> targetIds;
 
+    private EntityPipelineErrorsRepoDTO entityPipelineErrorsRepoDTO;
+
     // TODO: consider having only one of these with a supertype - any entity will have at most one
     private ApplicationInfoRepoDTO applicationInfoRepoDTO;
     private DatabaseInfoRepoDTO databaseInfoRepoDTO;
@@ -270,6 +272,14 @@ public class ServiceEntityRepoDTO {
         this.businessAccountInfoRepoDTO = businessAccountInfoRepoDTO;
     }
 
+    public EntityPipelineErrorsRepoDTO getEntityPipelineErrorsRepoDTO() {
+        return entityPipelineErrorsRepoDTO;
+    }
+
+    public void setEntityPipelineErrorsRepoDTO(final EntityPipelineErrorsRepoDTO entityPipelineErrorsRepoDTO) {
+        this.entityPipelineErrorsRepoDTO = entityPipelineErrorsRepoDTO;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -344,6 +354,7 @@ public class ServiceEntityRepoDTO {
                 ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO +
                 ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO +
                 ", businessAccountInfoRepoDTO=" + businessAccountInfoRepoDTO +
+                ", entityPipelineErrorsRepoDTO=" + entityPipelineErrorsRepoDTO +
                 '}';
     }
 }

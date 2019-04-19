@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -18,11 +17,14 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
+
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
@@ -31,8 +33,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -43,7 +43,6 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
@@ -65,14 +64,11 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
-import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
@@ -294,13 +290,8 @@ public class Stages {
      * See {@link com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage}.
      * <p>
      * This stage only happens in the live topology broadcast.
-     * <table>
-     * <tr><th>Stage Input</th><td>{@link StitchingContext}</td></tr>
-     * <tr><th nowrap="nowrap">Stage Output</th><td>The topology (which is a map of entity id -> Entity builder) created from the StitchingContext</td></tr>
-     * </table>
      */
-    public static class ScanDiscoveredSettingPoliciesStage
-        extends Stage<StitchingContext, Map<Long, TopologyEntity.Builder>> {
+    public static class ScanDiscoveredSettingPoliciesStage extends PassthroughStage<StitchingContext> {
 
         private static final Logger logger = LogManager.getLogger();
 
@@ -315,7 +306,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@Nonnull final StitchingContext stitchingContext) {
+        public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
             Status status;
             try {
                 settingPolicyScanner.scanForDiscoveredSettingPolicies(stitchingContext,
@@ -328,9 +319,7 @@ public class Stages {
                 // exception occurs, log a warning and continue.
                 status = Status.withWarnings(e.getMessage());
             }
-
-            return StageResult.withResult(stitchingContext.constructTopology())
-                .andStatus(status);
+            return status;
         }
     }
 
@@ -1080,8 +1069,20 @@ public class Stages {
                 journal.flushRecorders();
             });
 
+            // The number of entities that have errors.
+            // Note that this will only be "valid" after the iterator is consumed.
+            final MutableInt numEntitiesWithErrors = new MutableInt(0);
             final Iterator<TopologyEntityDTO> entities = input.entities()
-                .map(topologyEntity -> topologyEntity.getTopologyEntityDtoBuilder().build())
+                .map(topologyEntity -> {
+                    final TopologyEntityDTO entity = topologyEntity.getTopologyEntityDtoBuilder().build();
+                    if (!StitchingErrors.fromProtobuf(entity).isNone()) {
+                        // Incrementing the error count as a side-effect of the map is not ideal,
+                        // but we don't want to take another pass through entities just to count
+                        // the ones with errors.
+                        numEntitiesWithErrors.increment();
+                    }
+                    return entity;
+                })
                 .iterator();
             try {
                 final TopologyBroadcastInfo broadcastInfo;
@@ -1102,6 +1103,11 @@ public class Stages {
                 if (broadcastInfo.getEntityCount() == 0) {
                     return StageResult.withResult(broadcastInfo)
                             .andStatus(Status.withWarnings("No entities broadcast."));
+                } else if (numEntitiesWithErrors.intValue() > 0) {
+                    // There were some entities with stitching (or other pipeline) errors.
+                    return StageResult.withResult(broadcastInfo)
+                        .andStatus(Status.withWarnings("Broadcast " + broadcastInfo.getEntityCount() +
+                            " entities. " + numEntitiesWithErrors.intValue() + " of them had pipeline errors."));
                 } else {
                     return StageResult.withResult(broadcastInfo)
                             .andStatus(Status.success("Broadcast " + broadcastInfo.getEntityCount() + " entities."));

@@ -10,6 +10,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
@@ -88,6 +90,17 @@ public class TestStitchingEntity implements StitchingEntity {
 
     @Override
     public long getTargetId() {
+        throw new IllegalStateException();
+    }
+
+    @Nonnull
+    @Override
+    public StitchingErrors getStitchingErrors() {
+        return StitchingErrors.none();
+    }
+
+    @Override
+    public void recordError(@Nonnull final StitchingErrorCode errorCode) {
         throw new IllegalStateException();
     }
 

@@ -333,8 +333,8 @@ public class EntityStore {
     public void entitiesDiscovered(final long probeId,
                                    final long targetId,
                                    @Nonnull final List<EntityDTO> entityDTOList)
-        throws IdentityUninitializedException, IdentityMetadataMissingException,
-                IdentityProviderException {
+            throws IdentityUninitializedException, IdentityMetadataMissingException,
+                    IdentityProviderException {
 
         final Map<Long, EntityDTO> entitiesById =
             assignIdsToEntities(probeId, targetId, entityDTOList);

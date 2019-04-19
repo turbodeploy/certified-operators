@@ -9,7 +9,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import com.vmturbo.matrix.component.TheMatrix;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,12 +32,13 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -251,12 +251,12 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public OperationManager operationManager() {
 
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
-                                    remoteMediation(), topologyProcessorNotificationSender(),
-                                    entityRepository(), groupRecorder(), workflowRecorder(),
-                                    cloudCostUploadRecorder(),
-                                    discoveredTemplatesUploader(), controllableDao(),
-                                    derivedTargetParser(),
-                                    groupScopeResolver(), targetDumpingSettings(), 1L, 1L, 1L,
+            remoteMediation(), topologyProcessorNotificationSender(),
+            entityRepository(), groupRecorder(), workflowRecorder(),
+            cloudCostUploadRecorder(),
+            discoveredTemplatesUploader(), controllableDao(),
+            derivedTargetParser(), groupScopeResolver(),
+            targetDumpingSettings(), 1L, 1L, 1L,
                                     5, 1, 1,
                                     TheMatrix.instance());
     }

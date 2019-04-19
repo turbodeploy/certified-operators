@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
@@ -77,8 +78,8 @@ public class StitchingGroupFixerTest {
     public void testFixupNotInGroups() {
         when(entity.getMergeInformation()).thenReturn(
             Arrays.asList(
-                new StitchingMergeInformation(1L, NO_DISCOVERED_GROUP_TARGET_ID),
-                new StitchingMergeInformation(1L, 983921L)));
+                new StitchingMergeInformation(1L, NO_DISCOVERED_GROUP_TARGET_ID, StitchingErrors.none()),
+                new StitchingMergeInformation(1L, 983921L, StitchingErrors.none())));
 
         groupFixer.fixupGroups(graph, groupMemberCache);
         assertThat(group.getDtoAsGroup().get().getStaticGroupMembers().getStaticMemberOidsList(),
@@ -91,8 +92,8 @@ public class StitchingGroupFixerTest {
     public void testFixupGroup() {
         when(entity.getMergeInformation()).thenReturn(
             Arrays.asList(
-                new StitchingMergeInformation(1L, GROUP_TARGET_ID),
-                new StitchingMergeInformation(3L, GROUP_TARGET_ID)));
+                new StitchingMergeInformation(1L, GROUP_TARGET_ID, StitchingErrors.none()),
+                new StitchingMergeInformation(3L, GROUP_TARGET_ID, StitchingErrors.none())));
 
         groupFixer.fixupGroups(graph, groupMemberCache);
         assertThat(group.getDtoAsGroup().get().getStaticGroupMembers().getStaticMemberOidsList(),
@@ -102,7 +103,7 @@ public class StitchingGroupFixerTest {
     @Test
     public void testFixupCluster() {
         when(entity.getMergeInformation()).thenReturn(
-            Collections.singletonList(new StitchingMergeInformation(4L, CLUSTER_TARGET_ID)));
+            Collections.singletonList(new StitchingMergeInformation(4L, CLUSTER_TARGET_ID, StitchingErrors.none())));
 
         groupFixer.fixupGroups(graph, groupMemberCache);
         assertThat(cluster.getDtoAsCluster().get().getMembers().getStaticMemberOidsList(),
@@ -113,8 +114,8 @@ public class StitchingGroupFixerTest {
     public void testFixupMultiple() {
         when(entity.getMergeInformation()).thenReturn(
             Arrays.asList(
-                new StitchingMergeInformation(3L, GROUP_TARGET_ID),
-                new StitchingMergeInformation(5L, CLUSTER_TARGET_ID)));
+                new StitchingMergeInformation(3L, GROUP_TARGET_ID, StitchingErrors.none()),
+                new StitchingMergeInformation(5L, CLUSTER_TARGET_ID, StitchingErrors.none())));
 
         groupFixer.fixupGroups(graph, groupMemberCache);
         assertThat(group.getDtoAsGroup().get().getStaticGroupMembers().getStaticMemberOidsList(),

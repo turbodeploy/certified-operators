@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.vmturbo.matrix.component.TheMatrix;
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
 import org.junit.Assert;
@@ -44,6 +43,7 @@ import com.vmturbo.communication.ITransport;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
+import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
@@ -167,10 +167,10 @@ public class OperationManagerTest {
         dsl = dbConfig.prepareDatabase();
         entityActionDao = new EntityActionDaoImp(dsl, 100, 300, 360);
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
-                                                mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
-                                                discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
-                                                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, 10, 10, 10,
-                                                5, 1, 1, TheMatrix.instance());
+            mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
+            discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
+            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, 10, 10, 10,
+            5, 1, 1, TheMatrix.instance());
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
@@ -284,6 +284,7 @@ public class OperationManagerTest {
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
+
         operationManager.notifyDiscoveryResult(discovery, result);
 
         OperationTestUtilities.waitForDiscovery(operationManager, discovery);

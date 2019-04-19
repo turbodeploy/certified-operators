@@ -23,6 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
@@ -320,18 +321,24 @@ public class StitchingEntitySemanticDifferTest {
 
     @Test
     public void testMergeInformation() {
-        a.addMergeInformation(new StitchingMergeInformation(1234L, 5678L));
-        a.addMergeInformation(new StitchingMergeInformation(5555L, 4444L));
+        a.addMergeInformation(new StitchingMergeInformation(1234L, 5678L, StitchingErrors.none()));
+        a.addMergeInformation(new StitchingMergeInformation(5555L, 4444L, StitchingErrors.none()));
 
         assertEquals(
             "VIRTUAL_MACHINE a a (oid-1 tgt-11)\n" +
                 "  Merge Information:\n" +
                 "  [\n" +
                 "  ++{\n" +
+                "  ++++\"error\": {\n" +
+                "  ++++++\"errCode\": 0\n" +
+                "  ++++},\n" +
                 "  ++++\"oid\": \"1234\",\n" +
                 "  ++++\"targetId\": \"5678\"\n" +
                 "  ++},\n" +
                 "  ++{\n" +
+                "  ++++\"error\": {\n" +
+                "  ++++++\"errCode\": 0\n" +
+                "  ++++},\n" +
                 "  ++++\"oid\": \"5555\",\n" +
                 "  ++++\"targetId\": \"4444\"\n" +
                 "  ++}\n" +

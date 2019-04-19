@@ -26,6 +26,7 @@ import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.DatabaseInfoRepoDTO;
 import com.vmturbo.repository.dto.DiskArrayInfoRepoDTO;
+import com.vmturbo.repository.dto.EntityPipelineErrorsRepoDTO;
 import com.vmturbo.repository.dto.LogicalPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.PhysicalMachineInfoRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -107,6 +108,10 @@ class TopologyEntityDTOConverter {
             se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList()));
+        }
+
+        if (t.hasPipelineErrors()) {
+            se.setEntityPipelineErrorsRepoDTO(EntityPipelineErrorsRepoDTO.fromProtobuf(t.getPipelineErrors()));
         }
 
         if (t.hasTypeSpecificInfo()) {

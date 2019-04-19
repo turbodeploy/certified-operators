@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 
 /**
  * Utilities for working with messages defined in "repository/RepositoryDTO.proto".

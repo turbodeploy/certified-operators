@@ -98,14 +98,14 @@ public class TopologyProcessorDiagnosticsConfig {
     @Bean
     public TopologyProcessorDiagnosticsHandler diagsHandler() {
         return new TopologyProcessorDiagnosticsHandler(targetConfig.targetStore(),
-                targetConfig.persistentIdentityStore(),
-                schedulerConfig.scheduler(),
-                entityConfig.entityStore(),
-                probeConfig.probeStore(),
-                groupConfig.discoveredGroupUploader(),
-                planConfig.discoveredTemplatesUploader(),
-                identityProviderConfig.identityProvider(),
-                diagnosticsWriter());
+            targetConfig.persistentIdentityStore(),
+            schedulerConfig.scheduler(),
+            entityConfig.entityStore(),
+            probeConfig.probeStore(),
+            groupConfig.discoveredGroupUploader(),
+            planConfig.discoveredTemplatesUploader(),
+            identityProviderConfig.identityProvider(),
+            diagnosticsWriter());
     }
 
     @Bean

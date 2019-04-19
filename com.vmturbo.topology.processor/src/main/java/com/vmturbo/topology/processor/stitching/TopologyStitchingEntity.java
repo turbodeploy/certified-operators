@@ -18,7 +18,9 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -42,6 +44,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
     private final long targetId;
 
     private long lastUpdatedTime;
+
+    /**
+     * The errors encountered by this entity during any part of stitching.
+     */
+    private StitchingErrors stitchingErrors = new StitchingErrors();
 
     /**
      * A list of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
@@ -95,6 +102,12 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Nonnull
     @Override
+    public StitchingErrors getStitchingErrors() {
+        return stitchingErrors;
+    }
+
+    @Nonnull
+    @Override
     public EntityType getJournalableEntityType() {
         return getEntityType();
     }
@@ -141,7 +154,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
         // Copy merge information
         getMergeInformation().forEach(mergeInfo -> copy.addMergeInformation(
-            new StitchingMergeInformation(mergeInfo.getOid(), mergeInfo.getTargetId())));
+            new StitchingMergeInformation(mergeInfo.getOid(), mergeInfo.getTargetId(), mergeInfo.getError())));
 
         return copy;
     }
@@ -154,6 +167,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public long getLastUpdatedTime() {
         return lastUpdatedTime;
+    }
+
+    @Override
+    public void recordError(@Nonnull final StitchingErrorCode errorCode) {
+        this.stitchingErrors.add(errorCode);
     }
 
     @Override

@@ -224,6 +224,7 @@ public class TopologyPipelineFactory {
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
+                .addStage(new ConstructTopologyFromStitchingContextStage())
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))

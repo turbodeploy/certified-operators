@@ -200,6 +200,10 @@ message TopologyEntityDTO {
     // list of commodities bought group
     repeated CommoditiesBoughtFromProvider commodities_bought_from_providers = 5;
 
+    // Describes errors related to this entity in various stages of the topology pipeline.
+    // If unset, this entity has no errors.
+    optional EntityPipelineErrors pipeline_errors = 15;
+
     // The commodities bought by this entity from a given provider. An entity may buy multiples sets
     // of commodities from the same provider and may not have providers. Consider the following potential
     // CommodityBoughtGroupings:
@@ -437,6 +441,39 @@ message TopologyEntityDTO {
 
     // Entity tags
     optional .tag.Tags tags = 13;
+
+    message EntityPipelineErrors {
+        // Stitching-related errors, encoded in bit-array format.
+        //
+        // DO NOT compare this integer to the value of StitchingErrorCode below! This integer
+        // is a bitfield where each bit represents a particular error code. The error codes
+        // are defined in StitchingErrorCode, and the
+        // com.vmturbo.common.protobuf.StitchingErrors utility class is available to work
+        // with them in Java.
+        optional int32 stitching_errors = 1;
+
+        enum StitchingErrorCode {
+            // A default error code for safety if we somehow end up working with different
+            // versions of the protobuf.
+            UNKNOWN = 0;
+
+            // A commodity is bought from a provider that doesn't exist or is otherwise invalid.
+            INVALID_COMM_BOUGHT = 1;
+
+            // A commodity is sold to an entity that doesn't exist or is otherwise invalid.
+            INVALID_COMM_SOLD = 2;
+
+            // An entity is layered over an entity that doesn't exist or is otherwise invalid.
+            INVALID_LAYERED_OVER = 3;
+
+            // An entity consists of some entities that don't exist or are otherwise invalid.
+            INVALID_CONSISTS_OF = 4;
+
+            // There is a mismatch between the local ID used by an entity to address another
+            // entity, and that entity's self-declared local ID.
+            INCONSISTENT_KEY = 5;
+        }
+    }
 }
 
 // Message to hold original topology broadcast message.

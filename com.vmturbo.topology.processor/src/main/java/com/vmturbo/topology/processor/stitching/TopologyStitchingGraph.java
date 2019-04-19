@@ -1,21 +1,34 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
@@ -58,6 +71,8 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.Commodit
  */
 @NotThreadSafe
 public class TopologyStitchingGraph {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A map permitting lookup from the original entity builder to its corresponding stitching entity.
@@ -135,64 +150,127 @@ public class TopologyStitchingGraph {
         final TopologyStitchingEntity entity = getOrCreateStitchingEntity(entityData);
         final EntityDTO.Builder entityDtoBuilder = entityData.getEntityDtoBuilder();
 
-        for (EntityDTO.CommodityBought commodityBought : entityDtoBuilder.getCommoditiesBoughtList()) {
-            final String providerId = commodityBought.getProviderId();
-            final StitchingEntityData providerData = entityMap.get(providerId);
-            if (providerData == null) {
-                // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added
-                // this entity because its data is unreliable.
-                throw new IllegalArgumentException("Entity " + entityDtoBuilder +
-                    " is buying from entity " + providerId + " which does not exist.");
-            }
+        final Map<StitchingErrorCode, MutableInt> errorsByCategory = new HashMap<>();
 
-            final TopologyStitchingEntity provider = getOrCreateStitchingEntity(providerData);
-            if (!provider.getLocalId().equals(providerId)) {
-                throw new IllegalArgumentException("Map key " + providerId +
-                    " does not match provider localId value: " + provider.getLocalId());
-            }
-
-            // add commodity bought for this provider, there may be multiple set of commodity
-            // bought from same provider
-            final Long volumeId;
-            if (!commodityBought.hasSubDivision()) {
-                volumeId = null;
-            } else {
-                String volumeLocalId = commodityBought.getSubDivision().getSubDivisionId();
-                StitchingEntityData volumeData = entityMap.get(volumeLocalId);
-                if (volumeData == null) {
-                    throw new IllegalArgumentException("Entity " + entityDtoBuilder +
-                            " is related to volume " + volumeLocalId + " which does not exist.");
+        if (!entityDtoBuilder.getCommoditiesBoughtList().isEmpty()) {
+            final List<Integer> invalidCommBought = new ArrayList<>();
+            for (int i = 0; i < entityDtoBuilder.getCommoditiesBoughtCount(); ++i) {
+                final EntityDTO.CommodityBought commodityBought = entityDtoBuilder.getCommoditiesBought(i);
+                final String providerId = commodityBought.getProviderId();
+                final StitchingEntityData providerData = entityMap.get(providerId);
+                if (providerData == null) {
+                    // This is a pretty serious error if it happens, so it's worth the error level.
+                    logger.error("Entity {} (local id: {}) buying commodities from non-existing provider {}",
+                        entityData.getOid(), entityData.getLocalId(), providerId);
+                    errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_BOUGHT,
+                        k -> new MutableInt(0)).increment();
+                    invalidCommBought.add(i);
+                    continue;
                 }
-                volumeId = volumeData.getOid();
+
+                final TopologyStitchingEntity provider = getOrCreateStitchingEntity(providerData);
+                if (!provider.getLocalId().equals(providerId)) {
+                    // The only way this would happen is if there is already a different entity
+                    // in the stitching graph.
+                    // Serious error, and the IDs will be helpful to diagnose where it came
+                    // from.
+                    logger.error("Entity {} (local id: {}) - Map key {} does not match provider localId value {}",
+                        entityData.getOid(), entityData.getLocalId(), providerId, provider.getLocalId());
+                    logger.debug("Provider entity: {}",
+                        entityData.getEntityDtoBuilder(), provider.getEntityBuilder());
+                    errorsByCategory.computeIfAbsent(StitchingErrorCode.INCONSISTENT_KEY,
+                        k -> new MutableInt(0)).increment();
+                    errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_BOUGHT,
+                        k -> new MutableInt(0)).increment();
+                    invalidCommBought.add(i);
+                    continue;
+                }
+
+                // add commodity bought for this provider, there may be multiple set of commodity
+                // bought from same provider
+                final Long volumeId;
+                if (!commodityBought.hasSubDivision()) {
+                    volumeId = null;
+                } else {
+                    String volumeLocalId = commodityBought.getSubDivision().getSubDivisionId();
+                    StitchingEntityData volumeData = entityMap.get(volumeLocalId);
+                    if (volumeData == null) {
+                        // Serious error, and the IDs will be helpful to diagnose where it came
+                        // from.
+                        logger.error("Entity {} (local id: {}) connected to non-existing sub-division {}.",
+                            entity.getOid(), entityData.getLocalId(), volumeLocalId);
+                        errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_BOUGHT,
+                            k -> new MutableInt(0)).increment();
+                        invalidCommBought.add(i);
+                        continue;
+                    }
+                    volumeId = volumeData.getOid();
+                }
+
+                entity.addProviderCommodityBought(provider, new CommoditiesBought(
+                    commodityBought.getBoughtList().stream()
+                        .map(CommodityDTO::toBuilder)
+                        .collect(Collectors.toList()), volumeId));
+
+                provider.addConsumer(entity);
             }
 
-            entity.addProviderCommodityBought(provider, new CommoditiesBought(
-                    commodityBought.getBoughtList().stream()
-                            .map(CommodityDTO::toBuilder)
-                            .collect(Collectors.toList()), volumeId));
-
-            provider.addConsumer(entity);
+            // Remove in reverse order so that all indices continue to be valid.
+            // i.e. if we want to remove index 1 and 3, removing index 1 first will mean index
+            // 3 needs to be re-interpreted as index 2. Reverse order also reduces shifting.
+            for (final Integer invalidIdx : Lists.reverse(invalidCommBought)) {
+                entityDtoBuilder.removeCommoditiesBought(invalidIdx);
+            }
         }
 
-        for (CommodityDTO commoditySold : entityDtoBuilder.getCommoditiesSoldList()) {
-            final TopologyStitchingEntity accessing = SdkToTopologyEntityConverter.parseAccessKey(commoditySold).map(accessingLocalId -> {
-                final StitchingEntityData accessingData = entityMap.get(accessingLocalId);
-                if (accessingData == null) {
-                    // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added
-                    // this entity because its data is unreliable.
-                    throw new IllegalArgumentException("Entity " + entityDtoBuilder +
-                        " accesses entity " + accessingLocalId + " which does not exist.");
+        if (!entityDtoBuilder.getCommoditiesSoldList().isEmpty()) {
+            final List<Integer> invalidCommSold = new ArrayList<>();
+            for (int i = 0; i < entityDtoBuilder.getCommoditiesSoldCount(); ++i) {
+                final CommodityDTO commoditySold = entityDtoBuilder.getCommoditiesSold(i);
+                final Optional<String> accessingIdOpt =
+                    SdkToTopologyEntityConverter.parseAccessKey(commoditySold);
+                final TopologyStitchingEntity accessingEntity;
+                if (accessingIdOpt.isPresent()) {
+                    final String accessingLocalId = accessingIdOpt.get();
+                    final StitchingEntityData accessingData = entityMap.get(accessingLocalId);
+                    if (accessingData == null) {
+                        // Serious error, and the IDs will be helpful to diagnose where it came
+                        // from.
+                        logger.error("Entity {} (local id: {}) accessed by entity {} which does not exist.",
+                            entity.getOid(), entityData.getLocalId(), accessingLocalId);
+                        errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_SOLD,
+                            k -> new MutableInt(0)).increment();
+                        invalidCommSold.add(i);
+                        continue;
+                    }
+
+                    accessingEntity = getOrCreateStitchingEntity(accessingData);
+                    if (!accessingEntity.getLocalId().equals(accessingLocalId)) {
+                        // Serious error, and the IDs will be helpful to diagnose where it came
+                        // from.
+                        logger.error("Entity {} (local id: {}) - Map key {} does not " +
+                            "match accessing localId value {}", entityData.getOid(),
+                            entityData.getLocalId(), accessingLocalId, accessingEntity.getLocalId());
+                        logger.debug("Accessing entity: {}",
+                            entityData.getEntityDtoBuilder(), accessingEntity.getEntityBuilder());
+                        errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_SOLD,
+                            k -> new MutableInt(0)).increment();
+                        errorsByCategory.computeIfAbsent(StitchingErrorCode.INCONSISTENT_KEY,
+                            k -> new MutableInt(0)).increment();
+                        invalidCommSold.add(i);
+                        continue;
+                    }
+                } else {
+                    accessingEntity = null;
                 }
 
-                final TopologyStitchingEntity accessEntity = getOrCreateStitchingEntity(accessingData);
-                if (!accessEntity.getLocalId().equals(accessingLocalId)) {
-                    throw new IllegalArgumentException("Map key " + accessingLocalId +
-                        " does not match accessing localId value: " + accessEntity.getLocalId());
-                }
+                entity.getTopologyCommoditiesSold()
+                    .add(new CommoditySold(commoditySold.toBuilder(), accessingEntity));
+            }
 
-                return accessEntity;
-            }).orElse(null);
-            entity.getTopologyCommoditiesSold().add(new CommoditySold(commoditySold.toBuilder(), accessing));
+            for (final Integer invalidIdx : Lists.reverse(invalidCommSold)) {
+                entityDtoBuilder.removeCommoditiesSold(invalidIdx);
+            }
         }
 
         // add connected entity, this is currently only used by cloud entities (AWS/Azure)
@@ -202,40 +280,128 @@ public class TopologyStitchingGraph {
         // use connectedTo.
         // layeredOver means normal connection
         if (entityData.supportsConnectedTo()) {
-            entityDtoBuilder.getLayeredOverList().forEach(connectedEntityId -> {
-                final StitchingEntityData connectedEntityData = entityMap.get(connectedEntityId);
-                if (connectedEntityData == null) {
-                    throw new IllegalArgumentException(
-                            "Entity " + entityDtoBuilder + " is connected to entity " +
-                                    connectedEntityId + " which does not exist.");
+            if (!entityDtoBuilder.getLayeredOverList().isEmpty()) {
+                final Map<String, TopologyStitchingEntity> validLayeredOverByLocalId =
+                    entityDtoBuilder.getLayeredOverList().stream()
+                        .map(layeredOverId -> {
+                            final StitchingEntityData layeredOverData = entityMap.get(layeredOverId);
+                            if (layeredOverData == null) {
+                                // The final list of invalid entities gets printed at error-level
+                                // below, so this can be at debug.
+                                logger.debug("Entity {} (local id: {}) - layered over entity {}" +
+                                    " which does not exist.", entity.getOid(), entity.getLocalId(),
+                                    layeredOverId);
+                                errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_LAYERED_OVER,
+                                    k -> new MutableInt(0)).increment();
+                                return null;
+                            }
+
+                            final TopologyStitchingEntity layeredOverEntity = getOrCreateStitchingEntity(layeredOverData);
+                            if (!layeredOverEntity.getLocalId().equals(layeredOverId)) {
+                                // The final list of invalid entities gets printed at error-level
+                                // below, so this can be at debug.
+                                logger.debug("Entity {} (local id: {}) - Map key {} does not " +
+                                        "match layered over localId value {}", entityData.getOid(),
+                                    entityData.getLocalId(), layeredOverId, layeredOverEntity.getLocalId());
+                                errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_LAYERED_OVER,
+                                    k -> new MutableInt(0)).increment();
+                                errorsByCategory.computeIfAbsent(StitchingErrorCode.INCONSISTENT_KEY,
+                                    k -> new MutableInt(0)).increment();
+                                return null;
+                            }
+                            return layeredOverEntity;
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(TopologyStitchingEntity::getLocalId, Function.identity()));
+
+                if (validLayeredOverByLocalId.size() < entityDtoBuilder.getLayeredOverCount()) {
+                    // Some are invalid!
+                    // This is a pretty serious error, so it's worth logging at error-level.
+                    // We want to see the invalid entity IDs because that can be helpful in figuring
+                    // out the issue.
+                    logger.error("Entity {} (local id: {}) layered over invalid entities: {}",
+                        entity::getOid,
+                        entity::getLocalId,
+                        () -> Collections2.filter(entityDtoBuilder.getLayeredOverList(),
+                            e -> !validLayeredOverByLocalId.containsKey(e)));
+
+                    entityDtoBuilder.clearLayeredOver();
+                    entityDtoBuilder.addAllLayeredOver(validLayeredOverByLocalId.keySet());
                 }
 
-                final TopologyStitchingEntity connectedEntity = getOrCreateStitchingEntity(connectedEntityData);
-                if (!connectedEntity.getLocalId().equals(connectedEntityId)) {
-                    throw new IllegalArgumentException("Map key " + connectedEntityId +
-                            " does not match connected entity localId value: " + connectedEntity.getLocalId());
-                }
-                entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, connectedEntity);
-                connectedEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
-            });
+                validLayeredOverByLocalId.values().forEach(layeredOverEntity -> {
+                    entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, layeredOverEntity);
+                    layeredOverEntity.addConnectedFrom(ConnectionType.NORMAL_CONNECTION, entity);
+                });
+            }
+
             // consistsOf means owns connection
             entityDtoBuilder.getConsistsOfList().forEach(connectedEntityId -> {
-                final StitchingEntityData connectedEntityData = entityMap.get(connectedEntityId);
-                if (connectedEntityData == null) {
-                    throw new IllegalArgumentException(
-                            "Entity " + entityDtoBuilder + " is connected to entity " +
-                                    connectedEntityId + " which does not exist.");
+                final Map<String, TopologyStitchingEntity> validConsistsOf =
+                    entityDtoBuilder.getConsistsOfList().stream()
+                        .map(consistsOfId -> {
+                            final StitchingEntityData consistsOfData = entityMap.get(consistsOfId);
+                            if (consistsOfData == null) {
+                                // The final list of invalid entities gets printed at error-level
+                                // below, so this can be at debug.
+                                logger.debug("Entity {} (local id: {}) - consists of entity {}" +
+                                        " which does not exist.", entity.getOid(), entity.getLocalId(),
+                                    consistsOfId);
+                                errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_CONSISTS_OF,
+                                    k -> new MutableInt(0)).increment();
+                                return null;
+                            }
+
+                            final TopologyStitchingEntity consistsOfEntity = getOrCreateStitchingEntity(consistsOfData);
+                            if (!consistsOfEntity.getLocalId().equals(consistsOfId)) {
+                                // The final list of invalid entities gets printed at error-level
+                                // below, so this can be at debug.
+                                logger.debug("Entity {} (local id: {}) - Map key {} does not " +
+                                        "match consists-of localId value {}", entityData.getOid(),
+                                    entityData.getLocalId(), consistsOfId, consistsOfEntity.getLocalId());
+                                errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_CONSISTS_OF,
+                                    k -> new MutableInt(0)).increment();
+                                errorsByCategory.computeIfAbsent(StitchingErrorCode.INCONSISTENT_KEY,
+                                    k -> new MutableInt(0)).increment();
+                                return null;
+                            }
+                            return consistsOfEntity;
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(TopologyStitchingEntity::getLocalId, Function.identity()));
+
+                if (validConsistsOf.size() < entityDtoBuilder.getConsistsOfCount()) {
+                    // Some are invalid!
+                    // This is a pretty serious error, so it's worth logging at error-level.
+                    // We want to see the invalid entity IDs because that can be helpful in figuring
+                    // out the issue.
+                    logger.error("Entity {} (local id: {}) consists of invalid entities: {}",
+                        entity::getOid,
+                        entity::getLocalId,
+                        () -> Collections2.filter(entityDtoBuilder.getConsistsOfList(),
+                            e -> !validConsistsOf.containsKey(e)));
+
+                    entityDtoBuilder.clearConsistsOf();
+                    entityDtoBuilder.addAllConsistsOf(validConsistsOf.keySet());
                 }
 
-                final TopologyStitchingEntity connectedEntity = getOrCreateStitchingEntity(connectedEntityData);
-                if (!connectedEntity.getLocalId().equals(connectedEntityId)) {
-                    throw new IllegalArgumentException("Map key " + connectedEntityId +
-                            " does not match connected entity localId value: " + connectedEntity.getLocalId());
-                }
-                entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, connectedEntity);
-                connectedEntity.addConnectedFrom(ConnectionType.OWNS_CONNECTION, entity);
+                validConsistsOf.values().forEach(consistsOfEntity -> {
+                    entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, consistsOfEntity);
+                    consistsOfEntity.addConnectedFrom(ConnectionType.OWNS_CONNECTION, entity);
+                });
             });
         }
+
+        // Log and record the high-level error summary.
+        if (!errorsByCategory.isEmpty()) {
+            logger.debug("Invalid entity added to stitching graph " +
+                "(see above for specific errors): {}", entityData.getEntityDtoBuilder());
+            errorsByCategory.forEach((category, numErrors) -> {
+                entity.recordError(category);
+                Metrics.ERROR_COUNT.labels(category.name().toLowerCase()).increment(numErrors.doubleValue());
+            });
+        }
+
 
         return entity;
     }
@@ -296,5 +462,15 @@ public class TopologyStitchingGraph {
             stitchingEntities.put(newStitchingEntity.getEntityBuilder(), newStitchingEntity);
             return newStitchingEntity;
         });
+    }
+
+    private static class Metrics {
+
+        private static final DataMetricCounter ERROR_COUNT = DataMetricCounter.builder()
+            .withName("tp_stitching_graph_error_count")
+            .withHelp("The number of errors when constructing the stitching graph.")
+            .withLabelNames("type")
+            .build()
+            .register();
     }
 }
