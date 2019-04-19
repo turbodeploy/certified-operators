@@ -65,15 +65,15 @@ public class TemplatesConverterUtilsTest {
         TemplatesConverterUtils.updateRelatedEntityAccesses(originalHost.getOid(),
             replacementHost.getOid(), originalHost.getEntityBuilder().getCommoditySoldListList(), topology);
 
-        assertEquals(2, storage.getEntityBuilder().getCommoditySoldListCount());
+        assertEquals(1, storage.getEntityBuilder().getCommoditySoldListCount());
         assertThat(storage.getEntityBuilder().getCommoditySoldListList().stream()
             .map(CommoditySoldDTO::getCommodityType)
             .map(CommodityType::getType)
             .collect(Collectors.toList()),
-            contains(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, CommodityDTO.CommodityType.DSPM_ACCESS_VALUE));
+            contains(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE));
         assertThat(storage.getEntityBuilder().getCommoditySoldListList().stream()
             .map(CommoditySoldDTO::getAccesses)
             .collect(Collectors.toList()),
-            containsInAnyOrder(originalHost.getOid(), replacementHost.getOid()));
+            containsInAnyOrder(replacementHost.getOid()));
     }
 }
