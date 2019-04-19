@@ -161,6 +161,10 @@ dependencies:
     repository: file://../probes/mediation-hpe3par
     version: 0.1.0
     condition: hpe3par.enabled
+  - name: mediation-horizon
+    repository: file://../probes/mediation-horizon
+    version: 0.1.0
+    condition: horizon.enabled
   - name: mediation-hyperflex
     repository: file://../probes/mediation-hyperflex
     version: 0.1.0
@@ -257,7 +261,3 @@ dependencies:
     repository: file://../probes/mediation-xtremio
     version: 0.1.0
     condition: xtremio.enabled
-  - name: mediation-horizon
-    repository: file://../probes/mediation-horizon
-    version: 0.1.0
-    condition: horizon.enabled

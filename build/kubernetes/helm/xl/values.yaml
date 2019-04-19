@@ -34,7 +34,7 @@ prometheus:
 grafana:
   enabled: false
 
-# Enable medation
+# Enable mediation
 actionscript:
   enabled: false
 aix:
@@ -64,6 +64,8 @@ dynatrace:
 hpe3par:
   enabled: false
 hds:
+  enabled: false
+horizon:
   enabled: false
 hyperflex:
   enabled: false
@@ -112,8 +114,6 @@ vplex:
 wmi:
   enabled: false
 xtremio:
-  enabled: false
-horizon:
   enabled: false
 
 resources: {}
