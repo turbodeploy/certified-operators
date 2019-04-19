@@ -404,7 +404,7 @@ public class AuthUsersController {
             @ApiParam(value = "New properties for an existing Active Directory group",
                       required = false)
             @RequestBody SecurityGroupDTO adGroupInputDto) throws Exception {
-        return targetStore_.changeActiveDirectoryGroup(adGroupInputDto);
+        return targetStore_.updateSecurityGroup(adGroupInputDto);
     }
 
     /**

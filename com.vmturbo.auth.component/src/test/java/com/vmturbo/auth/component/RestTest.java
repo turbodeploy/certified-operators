@@ -619,6 +619,8 @@ public class RestTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         SecurityContextHolder.getContext().setAuthentication(null);
+        // clean security groups so it doesn't affect other tests
+        authStore.deleteSecurityGroup("group");
     }
 
 
@@ -642,6 +644,8 @@ public class RestTest {
                     .andReturn().getResponse().getContentAsString();
         } finally {
             SecurityContextHolder.getContext().setAuthentication(null);
+            // clean security groups so it doesn't affect other tests
+            authStore.deleteSecurityGroup("group");
         }
     }
 

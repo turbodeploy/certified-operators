@@ -1155,47 +1155,52 @@ public class AuthProvider {
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nullable
-    SecurityGroupDTO createSecurityGroup(
-            final @Nonnull SecurityGroupDTO adGroupInputDto) {
-        Optional<String> json = getKVValue(composeExternalGroupInfoKey(adGroupInputDto.getDisplayName()));
-        try {
+    SecurityGroupDTO createSecurityGroup(final @Nonnull SecurityGroupDTO adGroupInputDto) {
+        final String adGroupName = adGroupInputDto.getDisplayName();
+        Optional<String> json = getKVValue(composeExternalGroupInfoKey(adGroupName));
+        if (json.isPresent()) {
+            throw new SecurityException("Creating active directory group which already exists: " + adGroupName);
+        }
 
-            if (!json.isPresent()) {
-                ssoUtil.putSecurityGroup(adGroupInputDto.getDisplayName(), adGroupInputDto);
-                SecurityGroupDTO g =
-                        new SecurityGroupDTO(adGroupInputDto.getDisplayName(),
-                                                    adGroupInputDto.getType(),
-                                                    adGroupInputDto.getRoleName(),
-                                                    adGroupInputDto.getScopeGroups());
-                putKVValue(composeExternalGroupInfoKey(adGroupInputDto.getDisplayName()), GSON.toJson(g));
-                return g;
-            } else {
-                SecurityGroupDTO g = GSON.fromJson(json.get(), SecurityGroupDTO.class);
-                // recreate this object with role name and scope groups from the input param
-                g = new SecurityGroupDTO(g.getDisplayName(),
-                                        g.getType(),
-                                        adGroupInputDto.getRoleName(),
-                                        adGroupInputDto.getScopeGroups());
-                putKVValue(composeExternalGroupInfoKey(adGroupInputDto.getDisplayName()), GSON.toJson(g));
-                return g;
-            }
+        try {
+            ssoUtil.putSecurityGroup(adGroupName, adGroupInputDto);
+            SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
+                adGroupInputDto.getType(),
+                adGroupInputDto.getRoleName(),
+                adGroupInputDto.getScopeGroups());
+            putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
+            return g;
         } catch (Exception e) {
-            throw new SecurityException("Error creating or changing active directory group");
+            throw new SecurityException("Error creating active directory group: " + adGroupName);
         }
     }
 
     /**
-     * Changes the Active Directory group.
+     * Update the Active Directory group.
      *
      * @param adGroupInputDto The Active Directory group creation request.
      * @return The {@link SecurityGroupDTO} indicating success.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nullable
-    SecurityGroupDTO changeActiveDirectoryGroup(final @Nonnull SecurityGroupDTO adGroupInputDto) {
-        // This method is not invoked, as the API layer method that should invoke it, does not
-        // get invoked by the UI.
-        return null;
+    SecurityGroupDTO updateSecurityGroup(final @Nonnull SecurityGroupDTO adGroupInputDto) {
+        final String adGroupName = adGroupInputDto.getDisplayName();
+        Optional<String> json = getKVValue(composeExternalGroupInfoKey(adGroupName));
+        if (!json.isPresent()) {
+            throw new SecurityException("No active directory group with name: " + adGroupName);
+        }
+
+        try {
+            // recreate this object with type, role name and scope groups from the input param
+            SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
+                adGroupInputDto.getType(),
+                adGroupInputDto.getRoleName(),
+                adGroupInputDto.getScopeGroups());
+            putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
+            return g;
+        } catch (Exception e) {
+            throw new SecurityException("Error updating active directory group: " + adGroupName);
+        }
     }
 
     /**

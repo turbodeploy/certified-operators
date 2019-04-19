@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -18,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -410,5 +412,74 @@ public class KVBackedILocalAuthStoreTest {
                 cell.getValue(),
                 store.createLoginProviderURI(cell.getRowKey(), cell.getColumnKey()))
         );
+    }
+
+    @Test
+    public void testCreateSecurityGroup() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+            "DedicatedCustomer",
+            "administrator");
+        store.createSecurityGroup(securityGroupDTO);
+
+        Assert.assertEquals(1, store.getSecurityGroups().size());
+        final SecurityGroupDTO g = store.getSecurityGroups().get(0);
+        Assert.assertEquals("group1", g.getDisplayName());
+        Assert.assertEquals("DedicatedCustomer", g.getType());
+        Assert.assertEquals("administrator", g.getRoleName());
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testCreateSecurityGroupWhichAlreadyExists() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+            "DedicatedCustomer",
+            "administrator");
+        store.createSecurityGroup(securityGroupDTO);
+        // create new security group with same name
+        store.createSecurityGroup(securityGroupDTO);
+    }
+
+    @Test
+    public void testUpdateSecurityGroup() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+            "DedicatedCustomer",
+            "administrator");
+        store.createSecurityGroup(securityGroupDTO);
+
+        // update existing group
+        SecurityGroupDTO newSecurityGroupDTO = new SecurityGroupDTO("group1",
+            "SharedCustomer",
+            "observer",
+            Lists.newArrayList(11L));
+        store.updateSecurityGroup(newSecurityGroupDTO);
+
+        Assert.assertEquals(1, store.getSecurityGroups().size());
+        final SecurityGroupDTO g = store.getSecurityGroups().get(0);
+        Assert.assertEquals("group1", g.getDisplayName());
+        Assert.assertEquals("SharedCustomer", g.getType());
+        Assert.assertEquals("observer", g.getRoleName());
+        Assert.assertEquals(Sets.newHashSet(11L), Sets.newHashSet(g.getScopeGroups()));
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testUpdateSecurityGroupWhichDoesNotExist() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+            "DedicatedCustomer",
+            "administrator");
+        store.createSecurityGroup(securityGroupDTO);
+
+        // update existing group
+        SecurityGroupDTO newSecurityGroupDTO = new SecurityGroupDTO("group2",
+            "SharedCustomer",
+            "observer",
+            Lists.newArrayList(11L));
+        store.updateSecurityGroup(newSecurityGroupDTO);
     }
 }

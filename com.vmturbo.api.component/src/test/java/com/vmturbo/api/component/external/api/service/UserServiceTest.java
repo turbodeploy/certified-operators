@@ -1,11 +1,14 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
@@ -15,6 +18,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -22,10 +31,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.api.component.communication.RestAuthenticationProvider;
+import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 
 
 /**
@@ -85,5 +98,41 @@ public class UserServiceTest {
                                 null),
                         "admin000",
                         grantedAuths));
+    }
+
+    @Test
+    public void testGetActiveDirectoryGroups() throws Exception {
+        final String adGroupName = "VPNUsers";
+        final String adGroupType = "DedicatedCustomer";
+        final String adGroupRoleName = "observer";
+
+        // mock rest response
+        logon("admin");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(HTTP_ACCEPT);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, "token");
+        HttpEntity<List> entity = new HttpEntity<>(headers);
+
+        final String authRequest = UriComponentsBuilder.newInstance()
+            .scheme("http")
+            .host("")
+            .port(0)
+            .path("/users/ad/groups")
+            .build().toUriString();
+
+        ResponseEntity<List> response = new ResponseEntity<>(ImmutableList.of(
+            new SecurityGroupDTO(adGroupName, adGroupType, adGroupRoleName)), HttpStatus.OK);
+        Mockito.when(restTemplate.exchange(authRequest, HttpMethod.GET, entity, List.class)).thenReturn(response);
+
+        // GET and verify results
+        List<ActiveDirectoryGroupApiDTO> adGroups = usersService.getActiveDirectoryGroups();
+        assertEquals(1, adGroups.size());
+
+        // check uuid and other fields are set
+        assertEquals(adGroupName, adGroups.get(0).getUuid());
+        assertEquals(adGroupName, adGroups.get(0).getDisplayName());
+        assertEquals(adGroupType, adGroups.get(0).getType());
+        assertEquals(adGroupRoleName, adGroups.get(0).getRoleName());
     }
 }

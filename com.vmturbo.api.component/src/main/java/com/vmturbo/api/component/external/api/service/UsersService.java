@@ -472,6 +472,9 @@ public class UsersService implements IUsersService {
         gad.setDisplayName(dto.getDisplayName());
         // get the set of group oids in scope
         gad.setScope(UserMapper.groupOidsToGroupApiDTOs(dto.getScopeGroups(), groupApiDTOMap));
+        // use displayName as uuid of AD group (since it should be unique for one domain), and UI
+        // is expecting this uuid to perform DELETE or other operations on this group
+        gad.setUuid(dto.getDisplayName());
         return gad;
     }
 
@@ -621,7 +624,6 @@ public class UsersService implements IUsersService {
 
     /**
      * Supposed to change the Active Directory group.
-     * Does not get invoked by the UI.
      *
      * @param adGroupInputDto The Active Directory group creation request.
      * @return The {@link ActiveDirectoryGroupApiDTO} indicating success.
@@ -629,7 +631,18 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryGroupApiDTO changeActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
-        throw new UnsupportedOperationException();
+        String request = baseRequest().path("/users/ad/groups").build().toUriString();
+        HttpEntity<SecurityGroupDTO> entity = new HttpEntity<>(
+            convertGroupInfoToAuth(adGroupInputDto), composeHttpHeaders());
+        // create a group oid -> object map for the conversion on the way back
+        Map<Long, GroupApiDTO> groupApiDTOMap = new HashMap<>();
+        if (adGroupInputDto.getScope() != null) {
+            adGroupInputDto.getScope().forEach(groupApiDTO ->
+                groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
+        }
+        return convertGroupInfoFromAuth(
+            restTemplate_.exchange(request, HttpMethod.PUT, entity, SecurityGroupDTO.class).getBody(),
+            groupApiDTOMap);
     }
 
     /**
