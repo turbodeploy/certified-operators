@@ -501,14 +501,17 @@ public class Placement {
         int numOfOriginalActions = actions.size();
         List<Integer> slsWithCommonCliques = new ArrayList<>(bestSellers.size());
         List<Integer> slsWithoutCommonCliques = new ArrayList<>(bestSellers.size());
+        List<Set<Long>> currentSupplierCliques = new ArrayList<>(bestSellers.size());
         List<Set<Long>> commonCliques = new ArrayList<>(bestSellers.size());
         // Count the number of sls without common cliques between the currentSupplier and bestSeller.
         // Save the common cliques between the currentSupplier and bestSeller.
         for (int i = 0; i < bestSellers.size(); i++) {
-            Set<Long> bestSellerCliques = bestSellers.get(i).getCliques();
-            Set<Long> currentSupplierCliques = currentSuppliers.get(i) != null ?
-                currentSuppliers.get(i).getCliques() : Collections.emptySet();
-            Set<Long> commonClique = Sets.intersection(bestSellerCliques, currentSupplierCliques);
+            Set<Long> bestSellerClique = bestSellers.get(i).getCliques();
+            // currentSupplier can be null
+            Set<Long> currentSupplierClique = Optional.ofNullable(currentSuppliers.get(i))
+                .map(Trader::getCliques).orElse(Collections.emptySet());
+            Set<Long> commonClique = Sets.intersection(bestSellerClique, currentSupplierClique);
+            currentSupplierCliques.add(currentSupplierClique);
             commonCliques.add(commonClique);
             if (commonClique.size() == 0) {
                 slsWithoutCommonCliques.add(i);
@@ -525,6 +528,7 @@ public class Placement {
 
         // Check if we need to generate a move action for sls with common cliques.
         int numOfMoveActions = 0;
+        List<Integer> compoundMoveCandidates = new ArrayList<>(bestSellers.size());
         for (Integer i : slsWithCommonCliques) {
             if (currentSuppliers.get(i) == bestSellers.get(i)) {
                 continue;
@@ -533,7 +537,7 @@ public class Placement {
             Set<Long> commonClique = commonCliques.get(i);
             boolean generateMoveAction = slsWithoutCommonCliques.stream().anyMatch(j ->
                 Sets.intersection(commonClique, bestSellers.get(j).getCliques()).size() > 0 &&
-                Sets.intersection(commonClique, currentSuppliers.get(j).getCliques()).size() > 0);
+                Sets.intersection(commonClique, currentSupplierCliques.get(j)).size() > 0);
             // Generate a move action if
             // all sources and destinations are in a common biclique or generateMoveAction is true.
             if (slsWithoutCommonCliques.size() == 0 || generateMoveAction) {
@@ -542,12 +546,13 @@ public class Placement {
                     .take().setImportance(importance));
                 numOfMoveActions++;
             } else {
-                slsWithoutCommonCliques.add(i);
+                compoundMoveCandidates.add(i);
             }
         }
 
         // step 3
         // Decide if we should generate a compoundMove action for sls in slsWithoutCommonCliques.
+        slsWithoutCommonCliques.addAll(compoundMoveCandidates);
         int numOfCompoundMoveActions = 0;
         if (slsWithoutCommonCliques.size() > 1) {
             CompoundMove compoundMove =
