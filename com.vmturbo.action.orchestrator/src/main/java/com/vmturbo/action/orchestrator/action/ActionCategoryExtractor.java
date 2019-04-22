@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -30,11 +31,18 @@ public class ActionCategoryExtractor {
                 MoveExplanation moveExp = explanation.getMove();
                 List<ChangeProviderExplanation> changeExplanations =
                                 moveExp.getChangeProviderExplanationList();
+                List<ChangeProviderExplanation> primaryExplanations = changeExplanations.stream()
+                    .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+                    .collect(Collectors.toList());
+                if (!primaryExplanations.isEmpty()) {
+                    changeExplanations = primaryExplanations;
+                }
                 ChangeProviderExplanation firstChangeExplanation = changeExplanations.get(0);
                 if (firstChangeExplanation.hasInitialPlacement()
                        || firstChangeExplanation.hasEvacuation()) {
                     return ActionCategory.EFFICIENCY_IMPROVEMENT;
                 }
+
                 // TODO (roman, Mar 26 2018): We should pick a category based on some criteria
                 // (e.g. the highest severity sub-action) instead of based on order.
                 return changeExplanations.stream()

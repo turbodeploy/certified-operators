@@ -623,8 +623,15 @@ public class ActionSpecMapper {
         if (recommendation.getExplanation().getMove().getChangeProviderExplanationCount() < 1) {
             return Optional.empty();
         }
-        final ActionDTO.Explanation.ChangeProviderExplanation explanation =
-                        recommendation.getExplanation().getMove().getChangeProviderExplanation(0);
+
+        List<ChangeProviderExplanation> explanations = recommendation.getExplanation()
+            .getMove().getChangeProviderExplanationList();
+
+        // We always go with the primary explanation if available
+        Optional<ChangeProviderExplanation> primaryExp = explanations.stream()
+            .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation).findFirst();
+        final ChangeProviderExplanation explanation = primaryExp.orElse(explanations.get(0));
+
         if (!explanation.hasCompliance()) {
             return Optional.empty();
         }

@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
@@ -78,6 +79,38 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem Cpu",
+            ExplanationComposer.composeExplanation(action));
+    }
+
+    /**
+     * For a compound move, we will only use the primary change explanation while composing explanation.
+     */
+    @Test
+    public void testCompoundMoveExplanation() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder().setId(2).setType(EntityType.PHYSICAL_MACHINE_VALUE))
+                        .setDestination(ActionEntity.newBuilder().setId(3).setType(EntityType.PHYSICAL_MACHINE_VALUE))
+                        )
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder().setId(4).setType(EntityType.STORAGE_VALUE))
+                        .setDestination(ActionEntity.newBuilder().setId(5).setType(EntityType.STORAGE_VALUE))
+                    ))).setImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setCompliance(Compliance.newBuilder()
+                            .addMissingCommodities(MEM)
+                            .addMissingCommodities(CPU)).setIsPrimaryChangeProviderExplanation(true))
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setPerformance(Performance.newBuilder()))))
+            .build();
+
+        assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem Cpu",
             ExplanationComposer.composeExplanation(action));
     }
 

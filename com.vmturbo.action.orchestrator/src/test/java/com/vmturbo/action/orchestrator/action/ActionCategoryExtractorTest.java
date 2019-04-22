@@ -46,6 +46,37 @@ public class ActionCategoryExtractorTest {
         assertThat(ActionCategoryExtractor.assignActionCategory(compliance), is(ActionDTO.ActionCategory.COMPLIANCE));
     }
 
+    /**
+     * For a compound move with a primary change provider, we use use that to extract category
+     */
+    @Test
+    public void testCategoryForCompoundMoveWithPrimaryChangeProvider() {
+        Explanation compoundMoveExplanation = Explanation.newBuilder()
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setPerformance(Performance.getDefaultInstance()).setIsPrimaryChangeProviderExplanation(false))
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCompliance(Compliance.getDefaultInstance()).setIsPrimaryChangeProviderExplanation(true))
+                .build()).build();
+        assertThat(ActionCategoryExtractor.assignActionCategory(compoundMoveExplanation), is(ActionDTO.ActionCategory.COMPLIANCE));
+    }
+
+    /**
+     * For a compound move without a primary change provider, we use the first change provider to
+     * extract category
+     */
+    @Test
+    public void testCategoryForCompoundMoveWithoutPrimaryChangeProvider() {
+        Explanation compoundMoveExplanation = Explanation.newBuilder()
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setPerformance(Performance.getDefaultInstance()))
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCompliance(Compliance.getDefaultInstance()))
+                .build()).build();
+        assertThat(ActionCategoryExtractor.assignActionCategory(compoundMoveExplanation), is(ActionCategory.PREVENTION));
+    }
+
     @Test
     public void testCongestionCategory() {
         Explanation congestion = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()

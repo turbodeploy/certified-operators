@@ -45,7 +45,9 @@ import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -80,6 +82,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -115,6 +118,7 @@ public class ActionSpecMapperTest {
     private static final String TARGET = "Target";
     private static final String SOURCE = "Source";
     private static final String DESTINATION = "Destination";
+    private static final String DEFAULT_EXPLANATION = "default explanation";
 
     @Before
     public void setup() throws IOException {
@@ -760,6 +764,65 @@ public class ActionSpecMapperTest {
                         dtos.get(0).getRisk().getDescription());
     }
 
+    @Test
+    public void testPlacementPolicyCompoundMove()
+        throws UnsupportedActionException, UnknownObjectException, ExecutionException,
+        InterruptedException {
+        ActionEntity vm = ApiUtilsTest.createActionEntity(1, EntityType.VIRTUAL_MACHINE_VALUE);
+        final ActionInfo compoundMoveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
+            .setTarget(vm)
+            .addChanges(ChangeProvider.newBuilder()
+                .setSource(ApiUtilsTest.createActionEntity(2, EntityType.PHYSICAL_MACHINE_VALUE))
+                .setDestination(ApiUtilsTest.createActionEntity(3, EntityType.PHYSICAL_MACHINE_VALUE))
+                .build())
+            .addChanges(ChangeProvider.newBuilder()
+                .setSource(ApiUtilsTest.createActionEntity(4, EntityType.STORAGE_VALUE))
+                .setDestination(ApiUtilsTest.createActionEntity(5, EntityType.STORAGE_VALUE))
+                .build()))
+            .build();
+        final Map<Long, Optional<ServiceEntityApiDTO>> involvedEntities = oidToEntityMap(
+            entityApiDTO("target", 1, "VM"),
+            entityApiDTO("source", 2, "PM"),
+            entityApiDTO("dest", 3, "PM"),
+            entityApiDTO("stSource", 4, "ST"),
+            entityApiDTO("stDest", 5, "ST")
+        );
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+            .thenReturn(involvedEntities);
+        final Compliance compliance = Compliance.newBuilder().addMissingCommodities(
+            CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                .setKey(String.valueOf(POLICY_ID))
+                .build()).build();
+        // Test that we use the policy name in explanation if the primary explanation is compliance.
+        // We always go with the primary explanation if available
+        final MoveExplanation moveExplanation1 = MoveExplanation.newBuilder()
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                .setPerformance(Performance.getDefaultInstance()).build())
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                .setCompliance(compliance).setIsPrimaryChangeProviderExplanation(true).build())
+            .build();
+        final List<ActionApiDTO> dtos1 = mapper.mapActionSpecsToActionApiDTOs(
+            Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
+                .setMove(moveExplanation1).build())), contextId);
+        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
+            dtos1.get(0).getRisk().getDescription());
+
+        // Test that we do not modify the explanation if the primary explanation is not compliance.
+        // We always go with the primary explanation if available
+        final MoveExplanation moveExplanation2 = MoveExplanation.newBuilder()
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                .setPerformance(Performance.getDefaultInstance())
+                .setIsPrimaryChangeProviderExplanation(true).build())
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                .setCompliance(compliance).build())
+            .build();
+        final List<ActionApiDTO> dtos2 = mapper.mapActionSpecsToActionApiDTOs(
+            Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
+                .setMove(moveExplanation2).build())), contextId);
+        Assert.assertEquals(DEFAULT_EXPLANATION, dtos2.get(0).getRisk().getDescription());
+    }
+
     /**
      * To align with classic, plan action should have succeeded state, so it's not selectable from UI.
      */
@@ -1072,7 +1135,7 @@ public class ActionSpecMapperTest {
             .setActionState(ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(true)
-            .setExplanation("default explanation");
+            .setExplanation(DEFAULT_EXPLANATION);
 
         decision.ifPresent(builder::setDecision);
         return builder.build();

@@ -385,12 +385,23 @@ public class ActionDTOUtil {
     private static int getPrimaryChangeProviderIdx(@Nonnull final ActionDTO.Move move) {
         for (int i = 0; i < move.getChangesList().size(); ++i) {
             final ChangeProvider change = move.getChanges(i);
-            if (change.getDestination().getType() == EntityType.PHYSICAL_MACHINE_VALUE ||
-                PRIMARY_TIER_VALUES.contains(change.getDestination().getType())) {
+            if (isPrimaryEntityType(change.getDestination().getType())) {
                 return i;
             }
         }
         return 0;
+    }
+
+    /**
+     * Is the entity type a primary entity type?
+     *
+     * Only relevant in compound moves. Generally, if a PM move is accompanied by a storage move,
+     * the PM move is considered primary.
+     * @param entityType the entity type to check
+     * @return true if the entity type is a primary entity type. false otherwise.
+     */
+    public static boolean isPrimaryEntityType(int entityType) {
+        return entityType == EntityType.PHYSICAL_MACHINE_VALUE || PRIMARY_TIER_VALUES.contains(entityType);
     }
 
     /**

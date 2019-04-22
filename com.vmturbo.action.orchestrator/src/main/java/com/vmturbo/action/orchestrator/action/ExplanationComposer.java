@@ -100,9 +100,16 @@ public class ExplanationComposer {
                     return buildPerformanceExplanation();
                 }
                 StringJoiner sj = new StringJoiner(", ", ActionDTOUtil.TRANSLATION_PREFIX, "");
+                // Use primary change explanations if available
+                List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
+                    .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+                    .collect(Collectors.toList());
+                if (!primaryChangeExplanation.isEmpty()) {
+                    changeExplanations = primaryChangeExplanation;
+                }
                 changeExplanations.stream()
-                                .map(provider -> changeExplanationBuilder(optionalSourceEntity, provider))
-                                .forEach(sj::add);
+                    .map(provider -> changeExplanationBuilder(optionalSourceEntity, provider))
+                    .forEach(sj::add);
                 return sj.toString();
             case RESIZE:
                 return buildResizeExplanation(action);

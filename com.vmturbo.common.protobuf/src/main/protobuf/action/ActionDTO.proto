@@ -23,6 +23,7 @@ message Explanation {
         repeated ChangeProviderExplanation change_provider_explanation = 1;
     }
     message ChangeProviderExplanation {
+
         oneof change_provider_explanation_type {
             Compliance compliance = 1;
             Congestion congestion = 2;
@@ -31,6 +32,14 @@ message Explanation {
             Performance performance = 5;
             Efficiency efficiency = 6;
         }
+
+        // This boolean should be set to true for simple moves, which have only one change provider.
+        // In case of compound moves, we can have multiple change providers and multiple
+        // change provider explanations. Generally, if a PM move is accompanied by a storage move,
+        // the PM move is considered primary.
+        // Indicates if this change provider explanation is the primary one.
+        optional bool isPrimaryChangeProviderExplanation = 7;
+
         // A move explanation suggesting unavailability of commodities.
         message Compliance {
             // A list of commodities' base type which are missing in current supplier.

@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -72,7 +73,7 @@ public class ActionInterpreter {
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos;
     private final CloudTopologyConverter cloudTc;
     private final Map<Long, TopologyEntityDTO> originalTopology;
-    private final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap;
+    private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap;
     private final CloudEntityResizeTracker cert;
     private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
 
@@ -85,7 +86,7 @@ public class ActionInterpreter {
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
         this.originalTopology = originalTopology;
-        this.oidToTraderTOMap = oidToTraderTOMap;
+        this.oidToProjectedTraderTOMap = oidToTraderTOMap;
         this.cert = cert;
         this.projectedRiCoverage = projectedRiCoverage;
     }
@@ -468,7 +469,7 @@ public class ActionInterpreter {
             // removal. This logic seems like it could be fragile, in that limit may not be the
             // only way VM capacity could be restricted in the future, but this is consistent
             // with how classic makes the same decision.
-            TraderTO traderTO = oidToTraderTOMap.get(entityId);
+            TraderTO traderTO = oidToProjectedTraderTOMap.get(entityId);
             // find the commodity on the trader and see if there is a limit?
             for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
                 if (commoditySold.getSpecification().equals(resizeTO.getSpecification())) {
@@ -646,7 +647,8 @@ public class ActionInterpreter {
         return changeProviderBuilder.build();
     }
 
-    private Explanation interpretExplanation(ActionTO actionTO, Optional<CurrencyAmount> savings) {
+    private Explanation interpretExplanation(@Nonnull ActionTO actionTO,
+                                             @Nonnull Optional<CurrencyAmount> savings) {
         Explanation.Builder expBuilder = Explanation.newBuilder();
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
@@ -687,9 +689,14 @@ public class ActionInterpreter {
         return expBuilder.build();
     }
 
-    private MoveExplanation interpretMoveExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
+    private MoveExplanation interpretMoveExplanation(@Nonnull MoveTO moveTO,
+                                                     @Nonnull Optional<CurrencyAmount> savings) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        moveExpBuilder.addChangeProviderExplanation(changeExplanation(moveTO, savings));
+        // For simple moves, set the sole change provider explanation to be the primary one
+        ChangeProviderExplanation.Builder changeProviderExplanation =
+            changeExplanation(moveTO, savings)
+                .setIsPrimaryChangeProviderExplanation(true);
+        moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
         return moveExpBuilder.build();
     }
 
@@ -757,15 +764,21 @@ public class ActionInterpreter {
                 .build();
     }
 
-    private MoveExplanation interpretCompoundMoveExplanation(List<MoveTO> moveTOs) {
+    private MoveExplanation interpretCompoundMoveExplanation(@Nonnull List<MoveTO> moveTOs) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        moveTOs.stream()
-                .map(m -> changeExplanation(m, Optional.empty()))
-                .forEach(moveExpBuilder::addChangeProviderExplanation);
+        for (MoveTO moveTO : moveTOs) {
+            TraderTO destinationTrader = oidToProjectedTraderTOMap.get(moveTO.getDestination());
+            boolean isPrimaryChangeExplanation = destinationTrader != null
+                    && ActionDTOUtil.isPrimaryEntityType(destinationTrader.getType());
+            ChangeProviderExplanation.Builder changeProviderExplanation =
+                changeExplanation(moveTO, Optional.empty())
+                    .setIsPrimaryChangeProviderExplanation(isPrimaryChangeExplanation);
+            moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
+        }
         return moveExpBuilder.build();
     }
 
-    private ChangeProviderExplanation changeExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
+    private ChangeProviderExplanation.Builder changeExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
         ActionDTOs.MoveExplanation moveExplanation = moveTO.getMoveExplanation();
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
@@ -780,8 +793,7 @@ public class ActionInterpreter {
                                                 .map(commodityConverter::commodityIdToCommodityType)
                                                 .collect(Collectors.toList())
                                 )
-                                .build())
-                        .build();
+                                .build());
             case CONGESTION:
                 // For cloud entities we explain create either an efficiency or congestion change
                 // explanation based on the savings
@@ -792,28 +804,24 @@ public class ActionInterpreter {
                                         moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
                                                 .map(commodityConverter::commodityIdToCommodityType)
                                                 .collect(Collectors.toList()))
-                                .build())
-                        .build());
+                                .build()));
             case EVACUATION:
                 return ChangeProviderExplanation.newBuilder()
                         .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
                                 .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
-                                .build())
-                        .build();
+                                .build());
             case INITIALPLACEMENT:
                 return ChangeProviderExplanation.newBuilder()
-                        .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance())
-                        .build();
+                        .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance());
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
                 // explanation based on the savings
                 return changeExplanationBasedOnSavings(moveTO, savings).orElse(ChangeProviderExplanation.newBuilder()
-                        .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance())
-                        .build());
+                        .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance()));
             default:
                 logger.error("Unknown explanation case for move action: "
                         + moveExplanation.getExplanationTypeCase());
-                return ChangeProviderExplanation.getDefaultInstance();
+                return ChangeProviderExplanation.getDefaultInstance().toBuilder();
         }
     }
 
@@ -826,9 +834,9 @@ public class ActionInterpreter {
      * @param savings the savings
      * @return
      */
-    private Optional<ChangeProviderExplanation> changeExplanationBasedOnSavings(MoveTO moveTO,
+    private Optional<ChangeProviderExplanation.Builder> changeExplanationBasedOnSavings(MoveTO moveTO,
                                                                                 Optional<CurrencyAmount> savings) {
-        Optional<ChangeProviderExplanation> explanation = Optional.empty();
+        Optional<ChangeProviderExplanation.Builder> explanation = Optional.empty();
         if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
             ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
             if (savings.isPresent()) {
@@ -851,7 +859,7 @@ public class ActionInterpreter {
                         efficiencyBuilder.setIsRiCoverageIncreased(true);
                     }
                     explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                            efficiencyBuilder).build());
+                            efficiencyBuilder));
                 } else {
                     Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder();
                     if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.getBuyerId())) {
@@ -865,7 +873,7 @@ public class ActionInterpreter {
                         congestionBuilder.setIsRiCoverageIncreased(true);
                     }
                     explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
-                            congestionBuilder).build());
+                            congestionBuilder));
                 }
             } else {
                 logger.error("No savings present while trying to explain move for {}",
