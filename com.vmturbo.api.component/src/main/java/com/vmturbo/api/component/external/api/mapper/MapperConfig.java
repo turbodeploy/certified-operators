@@ -200,7 +200,7 @@ public class MapperConfig {
     }
     @Bean
     public PortsAspectMapper portsAspectMapper() {
-        return new PortsAspectMapper();
+        return new PortsAspectMapper(communicationConfig.searchServiceBlockingStub());
     }
     @Bean
     public DiskArrayAspectMapper diskArrayAspectMapper() {

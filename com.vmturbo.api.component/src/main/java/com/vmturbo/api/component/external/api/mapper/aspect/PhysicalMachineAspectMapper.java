@@ -30,7 +30,6 @@ public class PhysicalMachineAspectMapper implements IAspectMapper {
         PMEntityAspectApiDTO aspect = new PMEntityAspectApiDTO();
         // the 'processorPools' aspect is set from the displayName of any ProcessorPool entities
         // that are "connected" to the given PM
-        final List<ConnectedEntity> l = entity.getConnectedEntityListList();
         List<Long> processorPoolOids = entity.getConnectedEntityListList().stream()
                 .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
                         EntityType.PROCESSOR_POOL_VALUE)

@@ -26,6 +26,9 @@ import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -41,6 +44,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  **/
 public class PortsAspectMapper implements IAspectMapper {
 
+    private final SearchServiceBlockingStub searchServiceBlockingStub;
+
+    public PortsAspectMapper(final SearchServiceBlockingStub searchServiceBlockingStub) {
+        this.searchServiceBlockingStub = searchServiceBlockingStub;
+    }
+
     @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
@@ -50,13 +59,20 @@ public class PortsAspectMapper implements IAspectMapper {
         final List<PortChannelApiDTO> portChannels = Lists.newArrayList();
         final List<MessageOrBuilder> commodityBoughtsOrSolds = Lists.newArrayList();
         final Set<String> aggregateKeys = Sets.newHashSet();
+        // Note: the reason we are using only key string instead of TopologyDTO.CommodityType as
+        // the identifier of a commodity here because we only get the key string with no commodity
+        // type from the property map in discovery response, and it is really rare to happen that
+        // different kind of commodities has the same key. In this case we restrict the aggregate
+        // commodities type to NET_THROUGHPUT.
         final Map<String, List<MessageOrBuilder>> keyToCommodities = Maps.newHashMap();
+        final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold = Maps.newHashMap();
 
         createAggregatesRelationship(entity, commodityBoughtsOrSolds, aggregateKeys,
             keyToCommodities);
+        retrieveCommoditiesBoughtCapacity(entity, keyToProviderCommoditySold);
         for (final MessageOrBuilder commodityBoughtOrSold : commodityBoughtsOrSolds) {
             populatePorts(nonAggregatedPorts, portChannels, commodityBoughtOrSold,
-                aggregateKeys, keyToCommodities);
+                aggregateKeys, keyToCommodities, keyToProviderCommoditySold);
         }
         aspect.setPortChannels(portChannels);
         aspect.setPorts(nonAggregatedPorts);
@@ -96,6 +112,40 @@ public class PortsAspectMapper implements IAspectMapper {
     }
 
     /**
+     * Since the commodities bought have no capacity value, we need to retrieve the related
+     * capacity data from corresponding commodities sold on other entities. E.g. we are looking at
+     * a IO Module buy from a Chassis, we cannot get the capacity value for the commodities bought
+     * directly, so we need to fetch the Chassis entity and iterate the commodities sold, then keep
+     * the key and type to the commodity in the map. We will put the commodity sold capacity data as
+     * the corresponding IO Module commodity bought capacity value to show on the UI.
+     *
+     * @param entity the {@link TopologyEntityDTO} retrieved from repository.
+     * @param keyToProviderCommoditySold the map of commodity type and key to the commodity itself.
+     */
+    private void retrieveCommoditiesBoughtCapacity(@Nonnull final TopologyEntityDTO entity,
+        @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
+        // collect all of the provider OIDs and make a batch query
+        final Set<Long> providerOids = Sets.newHashSet();
+        for (final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider : entity
+            .getCommoditiesBoughtFromProvidersList()) {
+            providerOids.add(commoditiesBoughtFromProvider.getProviderId());
+        }
+        if (!providerOids.isEmpty()) {
+            final SearchTopologyEntityDTOsResponse providersResponse =
+                searchServiceBlockingStub.searchTopologyEntityDTOs(
+                    SearchTopologyEntityDTOsRequest.newBuilder()
+                        .addAllEntityOid(providerOids).build());
+            // map commodity key -> commodity sold itself
+            providersResponse.getTopologyEntityDtosList().forEach(provider -> {
+                provider.getCommoditySoldListList().forEach(commoditySoldDTO -> {
+                    keyToProviderCommoditySold.putIfAbsent(commoditySoldDTO.getCommodityType(),
+                        commoditySoldDTO);
+                });
+            });
+        }
+    }
+
+    /**
      * Update the nonAggregatedPorts and portChannels list with ports values.
      *
      * @param nonAggregatedPorts list of independent ports.
@@ -103,12 +153,14 @@ public class PortsAspectMapper implements IAspectMapper {
      * @param commodityBoughtOrSold commodity bought to add in the list if it's related to port.
      * @param aggregateKeys set of commodity keys of the aggregate commodities.
      * @param keyToCommodities map of commodity key to the port commodity bought or sold DTOs.
+     * @param keyToProviderCommoditySold the map of commodity type and key to the commodity itself.
      */
     private void populatePorts(@Nonnull final List<StatApiDTO> nonAggregatedPorts,
         @Nonnull final List<PortChannelApiDTO> portChannels,
         @Nonnull final MessageOrBuilder commodityBoughtOrSold,
         @Nonnull final Set<String> aggregateKeys,
-        @Nonnull final Map<String, List<MessageOrBuilder>> keyToCommodities) {
+        @Nonnull final Map<String, List<MessageOrBuilder>> keyToCommodities,
+        @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
         final String portUnits = CommodityTypeUnits.NET_THROUGHPUT.getUnits();
         final CommodityType commodityTypeAndKey = CommodityCommonFieldsExtractor.getCommodityType(
             commodityBoughtOrSold);
@@ -116,8 +168,18 @@ public class PortsAspectMapper implements IAspectMapper {
             final PortChannelApiDTO channel = new PortChannelApiDTO();
             channel.setDisplayName(CommodityCommonFieldsExtractor
                 .getDisplayName(commodityBoughtOrSold));
-            channel.setValues(getStatValues(commodityBoughtOrSold));
-            channel.setCapacity(getStatCapacity(commodityBoughtOrSold));
+            channel.setValues(getStatValues(
+                CommodityCommonFieldsExtractor.getUsed(commodityBoughtOrSold),
+                CommodityCommonFieldsExtractor.getPeak(commodityBoughtOrSold)));
+            // if the current commodity is commodity bought, we need to retrieve the related sold
+            // commodity capacity value, or set this field as 0.
+            final MessageOrBuilder commodityWithCapacity =
+                (commodityBoughtOrSold instanceof CommodityBoughtDTO &&
+                    keyToProviderCommoditySold.containsKey(commodityTypeAndKey))
+                    ? keyToProviderCommoditySold.get(commodityTypeAndKey)
+                    : commodityBoughtOrSold;
+            channel.setCapacity(getStatCapacity(
+                CommodityCommonFieldsExtractor.getCapacity(commodityWithCapacity)));
             channel.setUnits(portUnits);
 
             final StatFilterApiDTO relationFilter = new StatFilterApiDTO();
@@ -136,7 +198,7 @@ public class PortsAspectMapper implements IAspectMapper {
                 .flatMap(key -> keyToCommodities.getOrDefault(key, Lists.newArrayList()).stream())
                 .filter(net -> CommodityCommonFieldsExtractor.getCommodityType(net).getType() ==
                     CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE)
-                .map(this::mapToPort)
+                .map(commodity -> mapToPort(commodity, keyToProviderCommoditySold))
                 .collect(Collectors.toList()));
 
             // convert to units if available
@@ -153,7 +215,7 @@ public class PortsAspectMapper implements IAspectMapper {
             // independent port
             if (CommodityCommonFieldsExtractor.getAggregates(commodityBoughtOrSold).isEmpty() &&
                 !aggregateKeys.contains(commodityTypeAndKey.getKey())) {
-                nonAggregatedPorts.add(mapToPort(commodityBoughtOrSold));
+                nonAggregatedPorts.add(mapToPort(commodityBoughtOrSold, keyToProviderCommoditySold));
             }
         }
     }
@@ -162,18 +224,30 @@ public class PortsAspectMapper implements IAspectMapper {
      * Convert the port commodity to a {@link StatValueApiDTO}.
      *
      * @param commodityBoughtOrSold the port commodity.
+     * @param keyToProviderCommoditySold the map of commodity type and key to the commodity itself.
      * @return the converted port stat DTO.
      */
     @Nonnull
-    private StatApiDTO mapToPort(@Nonnull final MessageOrBuilder commodityBoughtOrSold) {
+    private StatApiDTO mapToPort(@Nonnull final MessageOrBuilder commodityBoughtOrSold,
+        @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
         final StatApiDTO port = new StatApiDTO();
         final String portUnits = CommodityTypeUnits.NET_THROUGHPUT.getUnits();
         final CommodityType commodityTypeAndKey = CommodityCommonFieldsExtractor.getCommodityType(
             commodityBoughtOrSold);
         port.setName(CommodityCommonFieldsExtractor.getDisplayName(commodityBoughtOrSold));
+        // if the current commodity is commodity bought, we need to retrieve the related sold
+        // commodity capacity value, or set this field as 0.
+        final MessageOrBuilder commodityWithCapacity =
+            (commodityBoughtOrSold instanceof CommodityBoughtDTO &&
+                keyToProviderCommoditySold.containsKey(commodityTypeAndKey))
+                ? keyToProviderCommoditySold.get(commodityTypeAndKey)
+                : commodityBoughtOrSold;
+        port.setCapacity(getStatCapacity(
+            CommodityCommonFieldsExtractor.getCapacity(commodityWithCapacity)));
+        port.setValues(getStatValues(
+            CommodityCommonFieldsExtractor.getUsed(commodityBoughtOrSold),
+            CommodityCommonFieldsExtractor.getPeak(commodityBoughtOrSold)));
         port.setUnits(portUnits);
-        port.setCapacity(getStatCapacity(commodityBoughtOrSold));
-        port.setValues(getStatValues(commodityBoughtOrSold));
 
         final StatFilterApiDTO relationFilter = new StatFilterApiDTO();
         relationFilter.setType(RELATION);
@@ -196,43 +270,40 @@ public class PortsAspectMapper implements IAspectMapper {
     }
 
     /**
-     * Extract the used and peek values from the commodity.
+     * Build the used and peek values for stats API from the commodity.
      *
-     * @param commodityBoughtOrSold the port commodity.
+     * @param used the port commodity used value
+     * @param peak the port commodity max used value
      * @return StatValueApiDTO used values of the commodity.
      */
     @Nonnull
-    private StatValueApiDTO getStatValues(@Nonnull final MessageOrBuilder commodityBoughtOrSold) {
+    private StatValueApiDTO getStatValues(final double used, final double peak) {
         final StatValueApiDTO dto = new StatValueApiDTO();
-        float used = StatsUtils.round(CommodityCommonFieldsExtractor.getUsed(commodityBoughtOrSold),
-            PrecisionEnum.STATS.getPrecision());
-        float peak = StatsUtils.round(CommodityCommonFieldsExtractor.getPeak(commodityBoughtOrSold),
-            PrecisionEnum.STATS.getPrecision());
+        float roundedUsed = StatsUtils.round(used, PrecisionEnum.STATS.getPrecision());
+        float roundedPeak = StatsUtils.round(peak, PrecisionEnum.STATS.getPrecision());
         // in case there is no max used, the float is -1
-        peak = used > peak ? used : peak;
-        dto.setAvg(used);
-        dto.setMax(peak);
-        dto.setMin(used);
-        dto.setTotal(used);
+        roundedPeak = roundedUsed > roundedPeak ? roundedUsed : roundedPeak;
+        dto.setAvg(roundedUsed);
+        dto.setMax(roundedPeak);
+        dto.setMin(roundedUsed);
+        dto.setTotal(roundedUsed);
         return dto;
     }
 
     /**
-     * Extract the capacity value from the commodity.
+     * Build the capacity value for stats API from the commodity.
      *
-     * @param commodityBoughtOrSold the port commodity.
+     * @param capacity the port commodity capacity value.
      * @return StatValueApiDTO capacity values of the commodity.
      */
     @Nonnull
-    private StatValueApiDTO getStatCapacity(@Nonnull final MessageOrBuilder commodityBoughtOrSold) {
+    private StatValueApiDTO getStatCapacity(final double capacity) {
         final StatValueApiDTO dto = new StatValueApiDTO();
-        float capacity = StatsUtils.round(
-            CommodityCommonFieldsExtractor.getCapacity(commodityBoughtOrSold),
-                PrecisionEnum.STATS.getPrecision());
-        dto.setAvg(capacity);
-        dto.setMax(capacity);
-        dto.setMin(capacity);
-        dto.setTotal(capacity);
+        float roundedCapacity = StatsUtils.round(capacity, PrecisionEnum.STATS.getPrecision());
+        dto.setAvg(roundedCapacity);
+        dto.setMax(roundedCapacity);
+        dto.setMin(roundedCapacity);
+        dto.setTotal(roundedCapacity);
         return dto;
     }
 
