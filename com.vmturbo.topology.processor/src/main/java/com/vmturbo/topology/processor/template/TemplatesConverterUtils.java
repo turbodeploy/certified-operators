@@ -326,12 +326,13 @@ public class TemplatesConverterUtils {
      * Update accesses relationships that point to the original entity to instead to point to the replacement
      * entity. As an example: When replacing a host (Physical Machine), the host contains Datastore commodities
      * with Accesses relationships pointing to Storages. These Storages in turn contain DSPM commodities with
-     * Accesses relationships that in turn point back to the host. When replacing the host, the Accesses
-     * in the DSPM on the storages will point to the replacement host, and not the old host. As a result,
+     * Accesses relationships that in turn point back to the host. However, when replacing a host, the Accesses
+     * in the DSPM on the storages will point to the old host, and not the replacement host. As a result,
      * when the market attempts to create bicliques containing the hosts and storages, the replacement PM will
-     * be in the biclique it belongs in and VMs will be able to move to the replacement host.
+     * not be in the biclique it belongs in and VMs will not be able to move to the replacement host.
      *
-     * This method, in the example above, will update commodity sold that Accesses the replacement entity.
+     * This method, in the example above, will add an additional equivalent commodity sold that Accesses
+     * the replacement entity.
      *
      * @param originalEntityId The ID of the entity being replaced.
      * @param replacementEntityId The ID of the entity doing the replacement.
@@ -357,9 +358,13 @@ public class TemplatesConverterUtils {
                     .filter(relatedEntityCommodity -> relatedEntityCommodity.getAccesses() == originalEntityId)
                     .collect(Collectors.toList());
 
-                // Update the accesses of the related entity from the original to the replacement.
+                // In addition to accessing the original, the related entity should also be able to
+                // access the replacement. Keep the relation to the original as well because the original
+                // remains in the topology until scoping happens in the market component.
                 commoditiesAccessingOriginal.forEach(commodityAccessingOriginal ->
-                    commodityAccessingOriginal.setAccesses(replacementEntityId));
+                    relatedEntity.getEntityBuilder().addCommoditySoldList(
+                        commodityAccessingOriginal.clone()
+                            .setAccesses(replacementEntityId)));
             });
     }
 
