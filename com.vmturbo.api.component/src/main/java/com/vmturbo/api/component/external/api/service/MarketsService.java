@@ -372,6 +372,7 @@ public class MarketsService implements IMarketsService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         handleInvalidCases(inputDto.getStartTime(),inputDto.getEndTime());
+        adjustEndTime(inputDto);
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         // for realtime markets, if the user is restricted by a scope, then add an oid filter to the
         // request. For plans, there is no filtering.
@@ -1041,6 +1042,20 @@ public class MarketsService implements IMarketsService {
         } else if (endTime != null && !endTime.isEmpty()) {
             // endTime only was passed.
             throw new IllegalArgumentException("startTime is required along with endTime");
+        }
+    }
+
+    /**
+     * Adjusts endTime as part of the given {@link ActionApiInputDTO} if startTime was empty.
+     *
+     * @param inputDto The given {@link ActionApiInputDTO} that contains endTime to be adjusted
+     */
+    private static void adjustEndTime(ActionApiInputDTO inputDto) {
+        if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
+            if (inputDto.getEndTime() == null || inputDto.getEndTime().isEmpty()) {
+                // Set endTime to now if it was null/empty and startTime was passed.
+                inputDto.setEndTime(DateTimeUtil.getNow());
+            }
         }
     }
 
