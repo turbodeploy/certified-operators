@@ -9,6 +9,8 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -49,6 +51,8 @@ public class MarketRunner {
     private final Optional<MarketDebugRpcService> marketDebugRpcService;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
+
+    private final Set<Long> analysisStoppageSet = Sets.newConcurrentHashSet();
 
     private static final DataMetricHistogram INPUT_TOPOLOGY = DataMetricHistogram.builder()
             .withName("mkt_input_topology")
@@ -128,6 +132,14 @@ public class MarketRunner {
             }
 
             analysisMap.put(topologyContextId, analysis);
+            // stop analysis for topology if the entry is in analysisStoppageMap for this topoId
+            // clean analysisStoppageMap since we have prevented analysis
+            if (analysisStoppageSet.remove(topologyContextId)) {
+                logger.info("Analysis {} has been stopped for topology {} by user. Discarding.",
+                        topologyContextId, topologyId);
+                analysisMap.remove(topologyContextId);
+                return analysis;
+            }
         }
         if (logger.isTraceEnabled()) {
             logger.trace("{} Topology DTOs", topologyDTOs.size());
@@ -150,6 +162,25 @@ public class MarketRunner {
             .setAnalysisStartTimestamp(System.currentTimeMillis())
             .setAnalysisCompleteTimestamp(System.currentTimeMillis())
             .build();
+    }
+
+    /**
+     * Schedule a call to stop Analysis of a plan with a specific configuration.
+     *
+     * @param planInstance describes this configuration of the plan being stopped
+     */
+    public void stopAnalysis(PlanDTO.PlanInstance planInstance) {
+        synchronized (analysisMap) {
+            if (analysisMap.containsKey(planInstance.getPlanId())) {
+                // call stopAnalysis that sets the forceStop boolean to true
+                logger.info("Performing forceStop on plan with id:" + planInstance.getPlanId());
+                analysisMap.get(planInstance.getPlanId()).cancelAnalysis();
+            } else {
+                // topology is not being processed so mark topologyId to be stopped when we receive topology
+                logger.info("Caching plan stop for plan with id:" + planInstance.getPlanId());
+                analysisStoppageSet.add(planInstance.getPlanId());
+            }
+        }
     }
 
     /**

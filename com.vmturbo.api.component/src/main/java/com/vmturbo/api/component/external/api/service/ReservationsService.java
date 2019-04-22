@@ -332,7 +332,8 @@ public class ReservationsService implements IReservationsService {
                 throw new UnknownObjectException("Plan is not found!");
             }
             if (planInstance.getPlanInstance().getStatus() == PlanStatus.SUCCEEDED ||
-                    planInstance.getPlanInstance().getStatus() == PlanStatus.FAILED) {
+                    planInstance.getPlanInstance().getStatus() == PlanStatus.FAILED ||
+                    planInstance.getPlanInstance().getStatus() == PlanStatus.STOPPED) {
                 return planInstance.getPlanInstance().getStatus() == PlanStatus.SUCCEEDED;
             }
         }

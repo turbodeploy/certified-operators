@@ -22,7 +22,8 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
     public void onPlanStatusChanged(@Nonnull final PlanInstance plan)
             throws PlanStatusListenerException {
         if (plan.getStatus().equals(PlanStatus.SUCCEEDED) ||
-                plan.getStatus().equals(PlanStatus.FAILED)) {
+                plan.getStatus().equals(PlanStatus.FAILED) ||
+                plan.getStatus().equals(PlanStatus.STOPPED)) {
 
             logger.info("Plan instance {} has completed execution.", plan.getPlanId());
             // Run the next plan instance in queue if available.

@@ -128,6 +128,8 @@ public class TopologyEntitiesHandler {
         commToAllowOverheadInClone(topology);
 
         final Economy economy = (Economy)topology.getEconomy();
+        analysis.setEconomy(economy);
+        economy.setForceStop(analysis.isStopAnalysis());
         // enable estimates
         setEconomySettings(economy.getSettings(), analysisConfig);
         // compute startPriceIndex

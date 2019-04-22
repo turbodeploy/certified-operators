@@ -477,6 +477,9 @@ message PlanInstance {
 
         // Buy RI completed
         BUY_RI_COMPLETED = 9;
+
+        // plan has been force-stopped by user
+        STOPPED = 10;
     }
 }
 
@@ -697,6 +700,14 @@ service PlanService {
     // @returns the PlanInstance for the given plan updated with the given
     // topologyId and scenarioId
     rpc RunPlan(PlanId) returns (PlanInstance);
+
+    // Cancel an existing plan with the given info - topology id
+    // Put the plan instance in STOPPED state if criteria are met and send a message to stop the analysis process.
+    //
+    // @param PlanId the unique ID of the PlanInstance to cancel
+    // @returns the PlanInstance for the given plan updated with the given
+    // topologyId
+    rpc CancelPlan(PlanId) returns (PlanInstance);
 
     // Update a PlanInstance to implement plan-over-plan, based on a previous PlanInstance
     // updated with the given ScenarioId.

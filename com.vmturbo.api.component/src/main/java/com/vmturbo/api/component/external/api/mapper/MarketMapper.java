@@ -86,7 +86,7 @@ public class MarketMapper {
 
     private static int progressFromStatus(@Nonnull final PlanInstance.PlanStatus status) {
         switch (status) {
-            case SUCCEEDED: case FAILED:
+            case SUCCEEDED: case FAILED: case STOPPED:
                 return 100;
             case READY:
                 return 0;
@@ -114,7 +114,7 @@ public class MarketMapper {
                 return RUNNING;
             case SUCCEEDED:
                 return SUCCEEDED;
-            case FAILED:
+            case FAILED: case STOPPED:
                 return STOPPED;
             default:
                 throw new IllegalArgumentException("Unexpected plan status: " + status);

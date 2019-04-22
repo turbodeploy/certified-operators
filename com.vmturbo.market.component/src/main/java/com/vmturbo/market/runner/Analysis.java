@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.platform.analysis.economy.Economy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -154,6 +156,10 @@ public class Analysis {
 
     private final TopologyInfo topologyInfo;
 
+    private boolean stopAnalysis = false;
+
+    private final SetOnce<Economy> economy = new SetOnce<>();
+
     /**
      * The clock used to time market analysis.
      */
@@ -244,8 +250,8 @@ public class Analysis {
      * @return true if this is the first invocation of this method, false otherwise.
      */
     public boolean execute() {
-        if (started.getAndSet(true)) {
-            logger.error(" {} Completed or being computed", logPrefix);
+        if (started.getAndSet(true) || stopAnalysis) {
+            logger.error(" {} Completed or Stopped or being computed", logPrefix);
             return false;
         }
         state = AnalysisState.IN_PROGRESS;
@@ -266,7 +272,10 @@ public class Analysis {
                 fakeEntityDTOs = Collections.emptyMap();
             }
 
-            Set<TraderTO> traderTOs = converter.convertToMarket(topologyDTOs);
+            Set<TraderTO> traderTOs = new HashSet<>();
+            if (!stopAnalysis) {
+                traderTOs.addAll(converter.convertToMarket(topologyDTOs));
+            }
             // cache the traderTOs converted from fake TopologyEntityDTOs
             Set<TraderTO> fakeTraderTOs = new HashSet<>();
             if (enableThrottling) {
@@ -280,7 +289,7 @@ public class Analysis {
 
             // if a scope 'seed' entity OID list is specified, then scope the topology starting with
             // the given 'seed' entities
-            if (isScoped()) {
+            if (isScoped() && !stopAnalysis) {
                 try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
                     traderTOs = scopeTopology(traderTOs,
                         ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
@@ -329,93 +338,96 @@ public class Analysis {
             if (logger.isTraceEnabled()) {
                 traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
             }
-
-            final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                topologyInfo, config, this);
-
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
-            // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
-            converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
-            logger.info(logPrefix + "Done performing analysis");
+            if (!stopAnalysis) {
+                final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+                        topologyInfo, config, this);
+                // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
+                converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
+                logger.info(logPrefix + "Done performing analysis");
 
-            List<TraderTO> projectedTraderDTO = new ArrayList<>();
-            // retrieve entities which were not converted so that they can be added to the projected
-            // topology
-            List<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
-                    originalCloudTopology.getAllEntitesOfTypes(
-                            TopologyConversionConstants.STATIC_INFRASTRUCTURE)
-                            .stream().map(p -> ProjectedTopologyEntity.newBuilder()
-                                    .setEntity(p).build()).collect(Collectors.toList());
-            try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                if (enableThrottling) {
-                    // remove the fake entities used in suspension throttling
-                    // we need to remove it both from the projected topology and the source topology
+                List<TraderTO> projectedTraderDTO = new ArrayList<>();
+                // retrieve entities which were not converted so that they can be added to the projected
+                // topology
+                List<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
+                        originalCloudTopology.getAllEntitesOfTypes(
+                                TopologyConversionConstants.STATIC_INFRASTRUCTURE)
+                                .stream().map(p -> ProjectedTopologyEntity.newBuilder()
+                                .setEntity(p).build()).collect(Collectors.toList());
+                try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
+                    if (enableThrottling) {
+                        // remove the fake entities used in suspension throttling
+                        // we need to remove it both from the projected topology and the source topology
 
-                    // source, non scoped topology
-                    for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
-                        topologyDTOs.remove(fakeEntityOid);
-                    }
-
-                    // projected topology
-                    for(TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
-                        if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
-                            projectedTraderDTO.add(projectedDTO);
+                        // source, non scoped topology
+                        for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
+                            topologyDTOs.remove(fakeEntityOid);
                         }
+
+                        // projected topology
+                        for(TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
+                            if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
+                                projectedTraderDTO.add(projectedDTO);
+                            }
+                        }
+                    } else {
+                        projectedTraderDTO = results.getProjectedTopoEntityTOList();
                     }
-                } else {
-                    projectedTraderDTO = results.getProjectedTopoEntityTOList();
+
+                    projectedEntities = converter.convertFromMarket(
+                            projectedTraderDTO,
+                            topologyDTOs,
+                            results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
+                    projectedEntitiesFromOriginalTopo.forEach(projectedEntity -> {
+                        final ProjectedTopologyEntity existing =
+                                projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
+                        if (existing != null && !projectedEntity.equals(existing)) {
+                            logger.error("Existing projected entity overwritten by entity from " +
+                                            "original topology. Existing (converted from market): {}\nOriginal: {}",
+                                    existing, projectedEntity);
+                        }
+                    });
+
+                    // Calculate the projected entity costs.
+                    final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
+                            cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
+                                    .filter(ProjectedTopologyEntity::hasEntity)
+                                    .map(ProjectedTopologyEntity::getEntity));
+                    // Projected RI coverage has been calculated by convertFromMarket
+                    // Get it from TopologyCoverter and pass it along to use for calculation of savings
+                    projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
+                            converter.getProjectedReservedInstanceCoverage());
                 }
 
-                projectedEntities = converter.convertFromMarket(
-                    projectedTraderDTO,
-                    topologyDTOs,
-                    results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData());
-                projectedEntitiesFromOriginalTopo.forEach(projectedEntity -> {
-                    final ProjectedTopologyEntity existing =
-                        projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
-                    if (existing != null && !projectedEntity.equals(existing)) {
-                        logger.error("Existing projected entity overwritten by entity from " +
-                            "original topology. Existing (converted from market): {}\nOriginal: {}",
-                            existing, projectedEntity);
-                    }
-                });
-
-                // Calculate the projected entity costs.
-                final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
-                        cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
-                                .filter(ProjectedTopologyEntity::hasEntity)
-                                .map(ProjectedTopologyEntity::getEntity));
-                // Projected RI coverage has been calculated by convertFromMarket
-                // Get it from TopologyCoverter and pass it along to use for calculation of savings
-                projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
-                        converter.getProjectedReservedInstanceCoverage());
+                // Create the action plan
+                logger.info(logPrefix + "Creating action plan");
+                final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
+                        .setId(IdentityGenerator.next())
+                        .setInfo(ActionPlanInfo.newBuilder()
+                                .setMarket(MarketActionPlanInfo.newBuilder()
+                                        .setSourceTopologyInfo(topologyInfo)))
+                        .setAnalysisStartTimestamp(startTime.toEpochMilli());
+                results.getActionsList().stream()
+                        .map(action -> converter.interpretAction(action, projectedEntities,
+                                this.originalCloudTopology, projectedEntityCosts,
+                                topologyCostCalculator))
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .forEach(actionPlanBuilder::addAction);
+                // TODO move wasted files action out of main analysis once we have a framework
+                // to support multiple analyses for the same topology ID
+                actionPlanBuilder.addAllAction(getWastedFilesActions());
+                logger.info(logPrefix + "Completed successfully");
+                processResultTime.observe();
+                state = AnalysisState.SUCCEEDED;
+                completionTime = clock.instant();
+                actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
+                        .build();
+            } else {
+                logger.info(logPrefix + " Analysis Stopped");
+                processResultTime.observe();
+                state = AnalysisState.FAILED;
             }
-
-            // Create the action plan
-            logger.info(logPrefix + "Creating action plan");
-            final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
-                .setId(IdentityGenerator.next())
-                .setInfo(ActionPlanInfo.newBuilder()
-                    .setMarket(MarketActionPlanInfo.newBuilder()
-                        .setSourceTopologyInfo(topologyInfo)))
-                .setAnalysisStartTimestamp(startTime.toEpochMilli());
-            results.getActionsList().stream()
-                    .map(action -> converter.interpretAction(action, projectedEntities,
-                            this.originalCloudTopology, projectedEntityCosts,
-                            topologyCostCalculator))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .forEach(actionPlanBuilder::addAction);
-            // TODO move wasted files action out of main analysis once we have a framework
-            // to support multiple analyses for the same topology ID
-            actionPlanBuilder.addAllAction(getWastedFilesActions());
-            logger.info(logPrefix + "Completed successfully");
-            processResultTime.observe();
-            state = AnalysisState.SUCCEEDED;
-
-            completionTime = clock.instant();
-            actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
-                .build();
         } catch (RuntimeException e) {
             logger.error(logPrefix + e + " while running analysis", e);
             state = AnalysisState.FAILED;
@@ -427,6 +439,28 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    /**
+     * Cancel analysis by marking this {@link Analysis} as stopped and the associated
+     * Economy if one exists as stopped.
+     *
+     */
+    public void cancelAnalysis() {
+        // set the forceStop boolean to true on the economy
+        stopAnalysis = true;
+        Economy e = getEconomy().getValue().get();
+        if (e != null) {
+            e.setForceStop(true);
+        }
+    }
+
+    /**
+     * @return true if analysis cancellation was triggered
+     *
+     */
+    public boolean isStopAnalysis() {
+        return stopAnalysis;
     }
 
     /**
@@ -938,5 +972,13 @@ public class Analysis {
             }
         };
         return Collections.emptyList();
+    }
+
+    public SetOnce<Economy> getEconomy() {
+        return economy;
+    }
+
+    public void setEconomy(Economy economy) {
+        this.economy.trySetValue(economy);
     }
 }

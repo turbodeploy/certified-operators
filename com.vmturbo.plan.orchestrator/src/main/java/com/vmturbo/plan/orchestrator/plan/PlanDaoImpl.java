@@ -396,22 +396,30 @@ public class PlanDaoImpl implements PlanDao {
                         () -> new NoSuchObjectException(
                                 "Plan with id " + planId + " not found while trying to " +
                                         "update it"));
-                final PlanDTO.PlanInstance.Builder newBuilder =
-                        PlanDTO.PlanInstance.newBuilder(src);
-                updater.accept(newBuilder);
-                final PlanDTO.PlanInstance planInstance = newBuilder.build();
-                checkPlanConsistency(planInstance);
-                final int numRows = context.update(PLAN_INSTANCE)
-                        .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
-                        .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
-                        .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
-                        .where(PLAN_INSTANCE.ID.eq(planId))
-                        .execute();
-                if (numRows == 0) {
-                    throw new NoSuchObjectException(
-                            "Plan with id " + planInstance.getPlanId() + " does not exist");
+                // do not update plan status if the plan has been stopped
+                if (src.getStatus() != PlanStatus.STOPPED) {
+                    final PlanDTO.PlanInstance.Builder newBuilder =
+                            PlanDTO.PlanInstance.newBuilder(src);
+                    updater.accept(newBuilder);
+                    final PlanDTO.PlanInstance planInstance = newBuilder.build();
+                    logger.info("Updating planInstance : {} from {} to {}", planId, src.getStatus().name(), planInstance.getStatus().name());
+                    checkPlanConsistency(planInstance);
+                    final int numRows = context.update(PLAN_INSTANCE)
+                            .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                            .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
+                            .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
+                            .where(PLAN_INSTANCE.ID.eq(planId))
+                            .execute();
+                    if (numRows == 0) {
+                        throw new NoSuchObjectException(
+                                "Plan with id " + planInstance.getPlanId() + " does not exist");
+                    }
+                    return new PlanUpdateResult(src, planInstance);
+                } else {
+                    // oldStatus = newStatus = STOPPED
+                    logger.info("Maintaining planStatus as {}", src.getStatus().name());
+                    return new PlanUpdateResult(src, src);
                 }
-                return new PlanUpdateResult(src, planInstance);
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
@@ -469,6 +477,7 @@ public class PlanDaoImpl implements PlanDao {
                 .where(PLAN_INSTANCE.STATUS.notIn(
                         PlanStatus.READY.name(),
                         PlanStatus.SUCCEEDED.name(),
+                        PlanStatus.STOPPED.name(),
                         PlanStatus.FAILED.name()))
                 .and(PLAN_INSTANCE.STATUS.isNotNull())
                 .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
@@ -634,20 +643,23 @@ public class PlanDaoImpl implements PlanDao {
                 .setStartTime(System.currentTimeMillis())
                 .build();
         checkPlanConsistency(updatedInst);
-        context.update(PLAN_INSTANCE)
-                .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
-                .set(PLAN_INSTANCE.PLAN_INSTANCE_, updatedInst)
-                .set(PLAN_INSTANCE.STATUS, updatedInst.getStatus().name())
-                .where(PLAN_INSTANCE.ID.eq(planId))
-                .execute();
+        // do not update planStatus if the status is already STOPPED
+        if (originalInst.getStatus() != PlanStatus.STOPPED) {
+            context.update(PLAN_INSTANCE)
+                    .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                    .set(PLAN_INSTANCE.PLAN_INSTANCE_, updatedInst)
+                    .set(PLAN_INSTANCE.STATUS, updatedInst.getStatus().name())
+                    .where(PLAN_INSTANCE.ID.eq(planId))
+                    .execute();
 
-        synchronized (listenerLock) {
-            for (final PlanStatusListener listener : planStatusListeners) {
-                try {
-                    listener.onPlanStatusChanged(updatedInst);
-                } catch (PlanStatusListenerException e) {
-                    logger.error("Error sending plan update notification for plan " +
-                            planId, e);
+            synchronized (listenerLock) {
+                for (final PlanStatusListener listener : planStatusListeners) {
+                    try {
+                        listener.onPlanStatusChanged(updatedInst);
+                    } catch (PlanStatusListenerException e) {
+                        logger.error("Error sending plan update notification for plan " +
+                                planId, e);
+                    }
                 }
             }
         }

@@ -112,6 +112,36 @@ public class PlanRpcService extends PlanServiceImplBase {
     }
 
     @Override
+    public void cancelPlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
+        // stop analysis
+        analysisExecutor.submit(() -> {
+            try {
+                logger.info("Triggering plan cancellation for plan {}.", request.getPlanId());
+                planDao.updatePlanInstance(request.getPlanId(), oldInstance ->
+                        oldInstance.setStatus(PlanStatus.STOPPED));
+            } catch (NoSuchObjectException e) {
+                // This could happen in the rare case where the plan got deleted
+                // between queueing the analysis and starting it.
+                logger.warn("Failed to stop analysis for plan " + request.getPlanId() +
+                        ". Did the plan get deleted?", e);
+            } catch (IntegrityException e) {
+                // This could happen in the rare case where some of the plan's
+                // dependencies got deleted between queueing the analysis and starting it.
+                logger.warn("Failed to stop analysis of plan " + request.getPlanId() +
+                        " due to integrity exception.", e);
+            } catch (StatusRuntimeException e) {
+                logger.error("Failed to stop analysis of plan {}  because the gRPC " +
+                                "call to the Analysis Service failed with status: {}",
+                        request.getPlanId(),
+                        e.getStatus());
+            } catch (RuntimeException e) {
+                logger.error("Failed to stop analysis of plan " + request.getPlanId() + " due " +
+                        "to unexpected runtime exception.", e);
+            }
+        });
+    }
+
+    @Override
     public void updatePlanScenario(PlanScenario request,
                             StreamObserver<PlanInstance> responseObserver) {
         logger.debug("Updating plan scenario info to existing plan {}", request);

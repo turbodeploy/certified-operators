@@ -226,10 +226,14 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // to delete it, so that everything gets deleted properly.
         // In the future, we should be able to issue a delete to an in-progress plan and
         // have no orphaned data.
-        if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED) {
+        if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED
+                || plan.getStatus() == PlanStatus.STOPPED) {
             if (plan.getStatus() == PlanStatus.FAILED) {
                 logger.error("Cluster headroom plan for cluster ID {} failed! Error: {}",
                         cluster.getCluster().getName(), plan.getStatusMessage());
+            } else if (plan.getStatus() == PlanStatus.STOPPED) {
+                logger.info("Cluster headroom plan for cluster ID {} was stopped!",
+                        cluster.getCluster().getName());
             } else {
                 logger.info("Cluster headroom plan for cluster ID {} completed!",
                         cluster.getCluster().getName());

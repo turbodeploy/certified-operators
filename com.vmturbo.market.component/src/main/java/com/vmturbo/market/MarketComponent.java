@@ -2,6 +2,7 @@ package com.vmturbo.market;
 
 import javax.annotation.PostConstruct;
 
+import com.vmturbo.market.topology.PlanOrchestratorConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -17,6 +18,7 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 @Import({
     MarketGlobalConfig.class,
     TopologyProcessorConfig.class,
+    PlanOrchestratorConfig.class,
     MarketApiConfig.class
 })
 public class MarketComponent extends BaseVmtComponent {

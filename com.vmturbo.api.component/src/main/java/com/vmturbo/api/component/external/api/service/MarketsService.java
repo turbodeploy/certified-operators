@@ -342,7 +342,18 @@ public class MarketsService implements IMarketsService {
             // Not sure what to do with this in XL, since everything is saved automatically.
             return getMarketByUuid(uuid);
         } else if (op.equals(MarketOperations.stop)) {
-            throw ApiUtils.notImplementedInXL();
+            // note that, for XL, the "marketUuid" in the request is interpreted as the Plan Instance ID
+            final ApiId planInstanceId;
+            try {
+                planInstanceId = uuidMapper.fromUuid(uuid);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid market id: " + uuid);
+            }
+
+            final PlanInstance updatedInstance = planRpcService.cancelPlan(PlanId.newBuilder()
+                .setPlanId(planInstanceId.oid())
+                .build());
+            return marketMapper.dtoFromPlanInstance(updatedInstance);
         }
         throw ApiUtils.notImplementedInXL();
     }
