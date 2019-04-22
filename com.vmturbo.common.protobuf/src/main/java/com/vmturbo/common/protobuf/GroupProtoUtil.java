@@ -52,8 +52,9 @@ public class GroupProtoUtil {
         ConstraintType.BUYER_BUYER_AFFINITY,
         ConstraintType.BUYER_BUYER_ANTI_AFFINITY,
         ConstraintType.BUYER_SELLER_AFFINITY,
-        ConstraintType.BUYER_SELLER_ANTI_AFFINITY
-    );
+        ConstraintType.BUYER_SELLER_ANTI_AFFINITY,
+        ConstraintType.CLUSTER
+        );
 
     /**
      * @param name The name to compare with the filter.
