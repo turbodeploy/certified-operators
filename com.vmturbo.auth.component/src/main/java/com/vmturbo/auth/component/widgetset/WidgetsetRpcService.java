@@ -15,6 +15,7 @@ import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.TransferWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
@@ -50,9 +51,8 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
     @Override
     public void getWidgetset(Widgets.GetWidgetsetRequest request,
                              StreamObserver<Widgetset> responseObserver) {
-        final Optional<WidgetsetRecord> widgetsetRecordOptional = widgetsetStore.fetch(request.getOid(),
-                getQueryUserOid()
-        );
+        final Optional<WidgetsetRecord> widgetsetRecordOptional = widgetsetStore.fetch(
+            request.getOid(), getQueryUserOid());
         if (widgetsetRecordOptional.isPresent()) {
             responseObserver.onNext(fromDbWidgetset(
                     widgetsetRecordOptional.get()));
@@ -100,6 +100,23 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
             responseObserver.onError(Status.NOT_FOUND
                     .withDescription("Widgetset: " + request.getOid() + " not found.")
                     .asException());
+        }
+    }
+
+    @Override
+    public void transferWidgetset(TransferWidgetsetRequest request,
+                                  StreamObserver<Widgetset> responseObserver) {
+        final String removedUserid = request.getRemovedUserid();
+        try {
+            widgetsetStore.transferOwnership(Long.parseLong(removedUserid), getQueryUserOid())
+                .forEachRemaining(widgetsetRecord -> {
+                    responseObserver.onNext(fromDbWidgetset(widgetsetRecord));
+                });
+            responseObserver.onCompleted();
+        } catch (NumberFormatException nfe) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                .withDescription("User id: " + request.getRemovedUserid() + " not found.")
+                .asException());
         }
     }
 

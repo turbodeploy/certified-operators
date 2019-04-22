@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -15,16 +14,15 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
-import io.grpc.Status;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import io.grpc.Status;
 
 import com.vmturbo.api.component.external.api.mapper.WidgetsetMapper;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
@@ -33,8 +31,8 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.TransferWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
-import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.common.protobuf.widgets.Widgets.WidgetsetInfo;
 import com.vmturbo.common.protobuf.widgets.WidgetsMoles;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
@@ -290,6 +288,19 @@ public class WidgetSetsServiceTest {
         widgetSetsService.deleteWidgetset(WIDGETSET_NOT_FOUND_UUID);
         // Assert
         fail("Should not get here.");
+    }
+
+    /**
+     * Test that transfer widget sets.
+     */
+    @Test
+    public void testTransferWidgetset() throws Exception {
+        // Arrange
+        // Act
+        widgetSetsService.transferWidgetsets(WIDGETSET_UUID_1);
+        // Assert
+        verify(widgetsetsserviceSpy).transferWidgetset(TransferWidgetsetRequest.newBuilder()
+            .setRemovedUserid(WIDGETSET_UUID_1).build());
     }
 
 }

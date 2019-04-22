@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -24,7 +25,9 @@ import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.GetWidgetsetListRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.GetWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.TransferWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc.WidgetsetsServiceBlockingStub;
 
 /**
@@ -137,6 +140,24 @@ public class WidgetSetsService implements IWidgetSetsService {
                 throw new OperationFailedException("Internal error updating widgetset " + uuid
                         + ", error: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Transfer all of the widgetsets from the user to be deleted to current login user, including
+     * the non-shared widgetsets.
+     *
+     * @param removedUserid the user id which will be deleted.
+     */
+    public void transferWidgetsets(@Nonnull final String removedUserid) {
+        final Iterator<Widgetset> updatedWidgetsetsIter = widgetsetsService.transferWidgetset(
+            TransferWidgetsetRequest.newBuilder()
+                .setRemovedUserid(removedUserid)
+                .build());
+        while (updatedWidgetsetsIter.hasNext()) {
+            final Widgetset widgetset = updatedWidgetsetsIter.next();
+            logger.info("Transfer widgetset {} from user {} to {}.",
+                widgetset.getInfo().getDisplayName(), removedUserid, widgetset.getOwnerUserid());
         }
     }
 }

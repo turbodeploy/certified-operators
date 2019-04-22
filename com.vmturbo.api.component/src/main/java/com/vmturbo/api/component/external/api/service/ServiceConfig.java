@@ -502,7 +502,8 @@ public class ServiceConfig {
                                 communicationConfig.serviceRestTemplate(),
                                 samlIdpMetadata,
                                 samlEnabled,
-                                groupsService());
+                                groupsService(),
+                                widgetSetsService());
     }
 
     @Bean

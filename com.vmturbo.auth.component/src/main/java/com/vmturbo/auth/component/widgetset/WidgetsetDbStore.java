@@ -15,12 +15,15 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Result;
 import org.jooq.SelectQuery;
 import org.jooq.exception.DataAccessException;
 import org.jooq.exception.InvalidResultException;
 import org.jooq.exception.NoDataFoundException;
 import org.jooq.exception.TooManyRowsException;
 import org.jooq.impl.DSL;
+
+import com.google.common.collect.Lists;
 
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
@@ -70,7 +73,7 @@ public class WidgetsetDbStore implements IWidgetsetStore {
             int nStored = transactionDsl.newRecord(WIDGETSET, dbWidgetset).store();
             if (nStored != 1) {
                 throw new NoDataFoundException("Error storing new widget:  " + nStored +
-                        " instances for " + nextOid + " for user " + queryUserOid);
+                    " instances for " + nextOid + " for user " + queryUserOid);
             }
         });
         return dbWidgetset;
@@ -95,7 +98,7 @@ public class WidgetsetDbStore implements IWidgetsetStore {
 
         SelectQuery<WidgetsetRecord> query = dsl.selectQuery(WIDGETSET);
         query.addConditions(WIDGETSET.SHARED_WITH_ALL_USERS.ne(DB_FALSE)
-                .or(WIDGETSET.OWNER_OID.eq(queryUserOid)));
+            .or(WIDGETSET.OWNER_OID.eq(queryUserOid)));
         if (CollectionUtils.isNotEmpty(categoriesList)) {
             query.addConditions(WIDGETSET.CATEGORY.in(categoriesList));
         }
@@ -118,13 +121,14 @@ public class WidgetsetDbStore implements IWidgetsetStore {
 
     @Override
     public Optional<WidgetsetRecord> fetch(long oid, long queryUserOid) {
-        WidgetsetRecord result = dsl.selectFrom(WIDGETSET).where(WIDGETSET.OID.eq(oid)
-                .and(WIDGETSET.OWNER_OID.eq(queryUserOid)
-                        .or(WIDGETSET.SHARED_WITH_ALL_USERS.ne(DB_FALSE))))
-                .fetchOne();
+        WidgetsetRecord result = dsl.selectFrom(WIDGETSET)
+            .where(WIDGETSET.OID.eq(oid)
+            .and(WIDGETSET.OWNER_OID.eq(queryUserOid)
+            .or(WIDGETSET.SHARED_WITH_ALL_USERS.ne(DB_FALSE))))
+            .fetchOne();
         if (result == null) {
             logger.debug("Cannot find widgetset with ID " + oid +
-                    " for user " + queryUserOid);
+                " for user " + queryUserOid);
         }
         return Optional.ofNullable(result);
     }
@@ -154,14 +158,14 @@ public class WidgetsetDbStore implements IWidgetsetStore {
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
             int count = transactionDsl.executeUpdate(transactionDsl.newRecord(WIDGETSET, dbWidgetset),
-                    WIDGETSET.OID.eq(oid).and(WIDGETSET.OWNER_OID.eq(queryUserOid)));
+                WIDGETSET.OID.eq(oid).and(WIDGETSET.OWNER_OID.eq(queryUserOid)));
             if (count == 0) {
                 throw new NoDataFoundException("Cannot update widgetset id " + oid +
-                        " for user oid " + queryUserOid);
+                    " for user oid " + queryUserOid);
             }
             if (count > 1) {
                 throw new TooManyRowsException("Internal error: " + count +
-                        " records updated for oid " + oid);
+                    " records updated for oid " + oid);
             }
         });
         return dbWidgetset;
@@ -196,20 +200,20 @@ public class WidgetsetDbStore implements IWidgetsetStore {
             dsl.transaction(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
                 WidgetsetRecord dbRecordToDelete = transactionDsl.selectFrom(WIDGETSET)
-                        .where(WIDGETSET.OID.eq(widgetOid)
-                                .and(WIDGETSET.OWNER_OID.eq(queryUserOid)))
-                        .fetchOne();
+                    .where(WIDGETSET.OID.eq(widgetOid)
+                    .and(WIDGETSET.OWNER_OID.eq(queryUserOid)))
+                    .fetchOne();
                 if (dbRecordToDelete == null) {
                     throw new NoDataFoundException("Could not find widgetset with OID " +
-                            widgetOid + " owned by " + queryUserOid + " to delete.");
+                        widgetOid + " owned by " + queryUserOid + " to delete.");
                 }
                 answer[0] = dbRecordToDelete;
                 int deleted = transactionDsl.deleteFrom(WIDGETSET)
-                        .where(WIDGETSET.OID.eq(widgetOid))
-                        .execute();
+                    .where(WIDGETSET.OID.eq(widgetOid))
+                    .execute();
                 if (deleted != 1) {
                     throw new InvalidResultException("Error deleting widgetset " + widgetOid +
-                            "; wrong number of rows deleted: " + deleted);
+                        "; wrong number of rows deleted: " + deleted);
                 }
             });
         } catch (NoDataFoundException e) {
@@ -218,6 +222,30 @@ public class WidgetsetDbStore implements IWidgetsetStore {
         }
         // return the deleted widgetset structure
         return Optional.ofNullable(answer[0]);
+    }
+
+    @Override
+    public Iterator<WidgetsetRecord> transferOwnership(long fromUserOid, long toUserOid) {
+        final List<WidgetsetRecord> records = Lists.newArrayList();
+        dsl.transaction(configuration -> {
+            DSLContext transactionDsl = DSL.using(configuration);
+            Result<WidgetsetRecord> dbRecordToTransfer = transactionDsl.selectFrom(WIDGETSET)
+                .where(WIDGETSET.OWNER_OID.eq(fromUserOid))
+                .fetch();
+            dbRecordToTransfer.forEach(widgetsetRecord -> {
+                widgetsetRecord.setOwnerOid(toUserOid);
+            });
+            final int[] updatesCount = transactionDsl
+                .batchUpdate(dbRecordToTransfer)
+                .execute();
+            for (int i = 0; i < updatesCount.length; i ++) {
+                // succeed
+                if (updatesCount[i] == 1) {
+                    records.add(dbRecordToTransfer.get(i));
+                }
+            }
+        });
+        return records.iterator();
     }
 
 

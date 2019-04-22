@@ -98,6 +98,14 @@ message DeleteWidgetsetRequest {
     required int64 oid = 1;
 }
 
+// Transfer a widgetset from the to be deleted user to current login user.
+message TransferWidgetsetRequest {
+
+    // the userid of the user to be deleted, and the widgetsets of the user will be transfered to
+    // the current login user.
+    optional string removed_userid = 1;
+}
+
 service WidgetsetsService {
 
     // Return all Widgetset that match the given request
@@ -115,64 +123,68 @@ service WidgetsetsService {
     // Remove a widgetset from the system given its oid.
     rpc DeleteWidgetset (DeleteWidgetsetRequest) returns (Widgetset);
 
-}
+    // Transfer a widgetset from the previous owner to current user.
+    rpc TransferWidgetset (TransferWidgetsetRequest) returns (stream Widgetset);
 
-//Sample Widgetset with one 'Commodities' widget. Widgetsets will typically be comprised of many
-// widgets. The 'widgets' field is saved/restored as a string, i.e. not interpreted by the server.
-//{
-//  "category": "CUSTOM",
-//  "displayName": "Test",
-//  "isSharedWithAllUsers": false,
-//  "scope": "Market",
-//  "scopeType": "Hybrid_Market",
-//  "uuid": "353787413702880",
-//  "widgets": [
-//    {
-//      "column": 0,
-//      "displayName": "COMMODITIES_WIDGET_TITLE",
-//      "row": 0,
-//      "scope": {
-//        "className": "Market",
-//        "displayName": "Global Environment",
-//        "environmentType": "HYBRID",
-//        "state": "SUCCEEDED",
-//        "stateProgress": 100,
-//        "uuid": "Market"
-//      },
-//      "sizeColumns": 6,
-//      "sizeRows": 8,
-//      "type": "commods",
-//      "widgetElements": [
-//        {
-//          "column": 0,
-//          "properties": {
-//            "current": true,
-//            "directive": "commodity-summary",
-//            "future": true,
-//            "show": true,
-//            "showCapacity": true
-//          },
-//          "row": 0,
-//          "type": "SUMMARY"
-//        },
-//        {
-//          "column": 1,
-//          "properties": {
-//            "chartType": "Line Chart",
-//            "directive": "commodity-chart",
-//            "displayParamName": "Mem",
-//            "overrideScope": false,
-//            "show": true,
-//            "showCapacity": false,
-//            "showPeaks": false,
-//            "showUtilization": true,
-//            "widgetScopeEnvironmentType": "HYBRID",
-//            "widgetScopeName": "Global Environment"
-//          },
-//          "row": 0,
-//          "type": "CHART"
-//        }
-//      ]
-//    }
-//  ]
-//}
+}
+/**
+Sample Widgetset with one 'Commodities' widget. Widgetsets will typically be comprised of many
+ widgets. The 'widgets' field is saved/restored as a string, i.e. not interpreted by the server.
+{
+  "category": "CUSTOM",
+  "displayName": "Test",
+  "isSharedWithAllUsers": false,
+  "scope": "Market",
+  "scopeType": "Hybrid_Market",
+  "uuid": "353787413702880",
+  "widgets": [
+    {
+      "column": 0,
+      "displayName": "COMMODITIES_WIDGET_TITLE",
+      "row": 0,
+      "scope": {
+        "className": "Market",
+        "displayName": "Global Environment",
+        "environmentType": "HYBRID",
+        "state": "SUCCEEDED",
+        "stateProgress": 100,
+        "uuid": "Market"
+      },
+      "sizeColumns": 6,
+      "sizeRows": 8,
+      "type": "commods",
+      "widgetElements": [
+        {
+          "column": 0,
+          "properties": {
+            "current": true,
+            "directive": "commodity-summary",
+            "future": true,
+            "show": true,
+            "showCapacity": true
+          },
+          "row": 0,
+          "type": "SUMMARY"
+        },
+        {
+          "column": 1,
+          "properties": {
+            "chartType": "Line Chart",
+            "directive": "commodity-chart",
+            "displayParamName": "Mem",
+            "overrideScope": false,
+            "show": true,
+            "showCapacity": false,
+            "showPeaks": false,
+            "showUtilization": true,
+            "widgetScopeEnvironmentType": "HYBRID",
+            "widgetScopeName": "Global Environment"
+          },
+          "row": 0,
+          "type": "CHART"
+        }
+      ]
+    }
+  ]
+}
+*/

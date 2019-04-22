@@ -3,6 +3,7 @@ package com.vmturbo.auth.component.widgetset;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +36,7 @@ import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.GetWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.Widgets.TransferWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.common.protobuf.widgets.Widgets.WidgetsetInfo;
@@ -51,15 +54,14 @@ public class WidgetsetRpcServiceTest {
     private WidgetsetRpcService widgetsetRpcService = new WidgetsetRpcService(widgetsetStore,
             mockAuthProvider);
 
-    private final String userid = "administrator";
-    long userOid = 123456L;
+    private long userOid = 123456L;
 
     private final WidgetsetInfo WIDGETSET_1_INFO = WidgetsetInfo.newBuilder()
             .setWidgets("{}")
             .build();
     private final Widgetset WIDGETSET_1 = Widgetset.newBuilder()
             .setOid(1)
-            .setOwnerUserid(userid)
+            .setOwnerUserid(String.valueOf(userOid))
             .setInfo(WIDGETSET_1_INFO)
             .build();
     private final WidgetsetInfo WIDGETSET_2_INFO = WidgetsetInfo.newBuilder()
@@ -67,7 +69,7 @@ public class WidgetsetRpcServiceTest {
             .build();
     private final Widgetset WIDGETSET_2 = Widgetset.newBuilder()
             .setOid(2)
-            .setOwnerUserid(userid)
+            .setOwnerUserid(String.valueOf(userOid))
             .setInfo(WIDGETSET_2_INFO)
             .build();
 
@@ -86,7 +88,7 @@ public class WidgetsetRpcServiceTest {
     public void setup() throws Exception {
 
         jwtContextUtil = new JwtContextUtil();
-        jwtContextUtil.setupSecurityContext(widgetsetRpcService, userOid, userid);
+        jwtContextUtil.setupSecurityContext(widgetsetRpcService, userOid, String.valueOf(userOid));
 
         widgetsetRpcClient = WidgetsetsServiceGrpc.newBlockingStub(jwtContextUtil.getChannel())
                 .withInterceptors(new JwtClientInterceptor());
@@ -209,5 +211,26 @@ public class WidgetsetRpcServiceTest {
         verifyNoMoreInteractions(widgetsetStore);
     }
 
+    @Test
+    public void testTransferWidgetset() {
+        // Arrange
+        final long useridToDelete = 2333L;
+        when(widgetsetStore.transferOwnership(useridToDelete, userOid))
+            .thenReturn(Collections.singletonList(WIDGETSET_RECORD_1).iterator());
+        // Act
+        Iterator<Widgetset> result = widgetsetRpcClient.transferWidgetset(TransferWidgetsetRequest
+            .newBuilder()
+            .setRemovedUserid(String.valueOf(useridToDelete))
+            .build());
+        // Assert
+        int count = 0;
+        while (result.hasNext()) {
+            assertEquals(result.next().getOwnerUserid(), String.valueOf(userOid));
+            count ++;
+        }
+        assertEquals(1, count);
+        verify(widgetsetStore).transferOwnership(useridToDelete, userOid);
+        verifyNoMoreInteractions(widgetsetStore);
+    }
 
 }

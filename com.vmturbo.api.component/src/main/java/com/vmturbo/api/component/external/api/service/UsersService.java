@@ -114,6 +114,8 @@ public class UsersService implements IUsersService {
 
     private final GroupsService groupsService;
 
+    private final WidgetSetsService widgetsetsService;
+
     /**
      * Constructs the users service.
      * @param authHost     The authentication host.
@@ -122,13 +124,15 @@ public class UsersService implements IUsersService {
      * @param samlIdpMetadata The SAML IDP metadata
      * @param samlEnabled  is SAML enabled
      * @param groupsService The group service is used when translating scope groups back to API groups
+     * @param widgetsetsService the widgetset service service to transfer the widget ownership
      */
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
                         final @Nonnull RestTemplate restTemplate,
                         final @Nonnull String samlIdpMetadata,
                         final boolean samlEnabled,
-                        final @Nonnull GroupsService groupsService) {
+                        final @Nonnull GroupsService groupsService,
+                        final @Nonnull WidgetSetsService widgetsetsService) {
         authHost_ = Objects.requireNonNull(authHost);
         authPort_ = authPort;
         if (authPort_ < 0 || authPort_ > 65535) {
@@ -146,6 +150,7 @@ public class UsersService implements IUsersService {
             this.isSingleLogoutEnabled = false;
         }
         this.groupsService = groupsService;
+        this.widgetsetsService = widgetsetsService;
     }
 
     /**
@@ -374,6 +379,7 @@ public class UsersService implements IUsersService {
             logger_.error("Unable to remove user {}", uuid, e.getCause());
             throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
         }
+        widgetsetsService.transferWidgetsets(uuid);
         expireActiveSessions(uuid);
         return Boolean.TRUE;
     }

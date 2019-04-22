@@ -15,7 +15,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.http.HttpEntity;
@@ -47,20 +46,23 @@ import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 @RunWith(MockitoJUnitRunner.class)
 public class UserServiceTest {
 
-
     private static final String TEST_USER = "testUser";
-    final RestTemplate restTemplate = Mockito.mock(RestTemplate.class);
-    final GroupsService groupsService = Mockito.mock(GroupsService.class);
-    final SessionInformation sessionInformation = mock(SessionInformation.class);
+
+    private final RestTemplate restTemplate = mock(RestTemplate.class);
+    private final GroupsService groupsService = mock(GroupsService.class);
+    private WidgetSetsService widgetSetsService = mock(WidgetSetsService.class);
+    private final SessionInformation sessionInformation = mock(SessionInformation.class);
+    private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
+
     @InjectMocks
-    private UsersService usersService = new UsersService("", 0, restTemplate, "", false, groupsService);
-    @Mock
-    private SessionRegistry sessionRegistry;
+    private UsersService usersService = new UsersService("", 0, restTemplate, "", false,
+        groupsService, widgetSetsService);
 
     @Before
     public void setup() {
         when(sessionRegistry.getAllPrincipals()).thenReturn(ImmutableList.of(TEST_USER));
-        when(sessionRegistry.getAllSessions(TEST_USER, false)).thenReturn(Collections.singletonList(sessionInformation));
+        when(sessionRegistry.getAllSessions(TEST_USER, false)).thenReturn(
+            Collections.singletonList(sessionInformation));
     }
 
     /**
@@ -72,6 +74,7 @@ public class UserServiceTest {
     public void testExipreSession() throws Exception {
         logon("admin");
         usersService.deleteUser(TEST_USER);
+        verify(widgetSetsService).transferWidgetsets(TEST_USER);
         verify(sessionRegistry).getAllPrincipals();
         verify(sessionRegistry).getAllSessions(TEST_USER, false);
         verify(sessionInformation).expireNow();

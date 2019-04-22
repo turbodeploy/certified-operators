@@ -38,12 +38,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -54,10 +48,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -227,17 +226,16 @@ public class StatsServiceTest {
     @Before
     public void setUp() throws IOException, OperationFailedException {
         final StatsHistoryServiceBlockingStub statsServiceRpc =
-                StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
+            StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
-                PlanServiceGrpc.newBlockingStub(testServer.getChannel());
+            PlanServiceGrpc.newBlockingStub(testServer.getChannel());
         final RepositoryServiceGrpc.RepositoryServiceBlockingStub repositoryRpcService =
-                RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
-        final SearchServiceBlockingStub searchServiceClient =
-                SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-                RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
+            RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
+        final SearchServiceBlockingStub searchServiceClient = SearchServiceGrpc.newBlockingStub(
+            testServer.getChannel());
         final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
-                riUtilizationCoverageRpcService =
-                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel());
+            riUtilizationCoverageRpcService = ReservedInstanceUtilizationCoverageServiceGrpc
+                .newBlockingStub(testServer.getChannel());
 
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
@@ -247,7 +245,7 @@ public class StatsServiceTest {
         when(magicScopeGateway.enter(anyList())).thenAnswer(invocation -> invocation.getArgumentAt(0, List.class));
 
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
-                repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
+            repositoryRpcService, searchServiceClient, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
                 targetsService, groupService, Duration.ofSeconds(60), costService, searchService,
                         riUtilizationCoverageRpcService,
                         reservedInstanceMapper, magicScopeGateway, userSessionContext);

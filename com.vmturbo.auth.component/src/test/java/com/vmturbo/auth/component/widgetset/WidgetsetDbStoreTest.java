@@ -4,6 +4,7 @@ import static com.vmturbo.auth.component.store.db.Tables.WIDGETSET;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
@@ -30,6 +31,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -49,9 +52,10 @@ public class WidgetsetDbStoreTest {
     private DSLContext dsl;
     private WidgetsetDbStore testDbStore;
 
-    public static final long USER_OID_1 = 111L;
-    public static final long USER_OID_2 = 222L;
-    private static long OID_DOESNT_EXIST = 999999L;
+    private static final long USER_OID_1 = 111L;
+    private static final long USER_OID_2 = 222L;
+    private static final long USER_OID_3 = 333L;
+    private static final long OID_DOESNT_EXIST = 999999L;
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
@@ -285,6 +289,35 @@ public class WidgetsetDbStoreTest {
         assertFalse(result.isPresent());
     }
 
+    @Test
+    public void testTransferOwnershipSuccess() {
+        // Arrange
+        addDbWidgets(testDbStore);
+        List<Long> widgetOids = ImmutableList.of(widgetsetRecord1.getOid(),
+            widgetsetRecord2.getOid());
+        // Act
+        Iterator<WidgetsetRecord> iter = testDbStore.transferOwnership(USER_OID_1, USER_OID_2);
+        assertNotNull(iter);
+        int counter = 0;
+        while (iter.hasNext()) {
+            WidgetsetRecord record = iter.next();
+            assertEquals(USER_OID_2, record.getOwnerOid().longValue());
+            assertTrue(widgetOids.contains(record.getOid()));
+            counter ++;
+        }
+        assertEquals(2, counter);
+    }
+
+    @Test
+    public void testTransferOwnershipNotfound() {
+        // Arrange
+        addDbWidgets(testDbStore);
+        // Act
+        Iterator<WidgetsetRecord> iter = testDbStore.transferOwnership(OID_DOESNT_EXIST, USER_OID_1);
+        assertNotNull(iter);
+        assertFalse(iter.hasNext());
+    }
+
     private Widgets.WidgetsetInfo widgetsetInfo1;
     private Widgets.WidgetsetInfo widgetsetInfo4;
     private WidgetsetRecord widgetsetRecord1;
@@ -321,7 +354,6 @@ public class WidgetsetDbStoreTest {
                 .setWidgets("widgets-string")
                 .build();
         widgetsetRecord3 = testDbStore.createWidgetSet(widgetsetInfo3, USER_OID_2);
-        long USER_OID_3 = 333L;
         widgetsetInfo4 = Widgets.WidgetsetInfo.newBuilder()
                 .setCategory("c")
                 .setScope("scope")
