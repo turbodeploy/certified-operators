@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesCache;
@@ -51,6 +52,7 @@ public class ActionStateUpdaterTest {
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final ActionExecutor actionExecutorMock = mock(ActionExecutor.class);
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
+    private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
             actionStream.map(action -> {
@@ -59,7 +61,7 @@ public class ActionStateUpdaterTest {
             })));
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
     private final ActionStateUpdater actionStateUpdater =
-        new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId);
+            new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor);
 
     private final long actionId = 123456;
     private final long notFoundId = 99999;

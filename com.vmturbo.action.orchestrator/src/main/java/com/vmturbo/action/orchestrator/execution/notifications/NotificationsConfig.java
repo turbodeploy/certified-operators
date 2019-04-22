@@ -46,9 +46,8 @@ public class NotificationsConfig {
             actionStoreConfig.actionHistory(),
             actionExecutionConfig.actionExecutor(),
             workflowConfig.workflowStore(),
-            globalConfig.realtimeTopologyContextId()
-        );
-
+                globalConfig.realtimeTopologyContextId(),
+                actionExecutionConfig.failedCloudVMGroupProcessor());
         globalConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }

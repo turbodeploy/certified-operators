@@ -1,13 +1,18 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import java.util.concurrent.Executors;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -15,15 +20,29 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  * the {@link TopologyProcessor}.
  */
 @Configuration
-@Import({ActionOrchestratorGlobalConfig.class})
+@Import({ActionOrchestratorGlobalConfig.class,
+        GroupClientConfig.class})
 public class ActionExecutionConfig {
 
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
 
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
+    @Value("${failedGroupUpdateDelaySeconds:10}")
+    private int groupUpdateDelaySeconds;
+
     @Bean
     public ProbeCapabilityCache targetCapabilityCache() {
         return new ProbeCapabilityCache(globalConfig.topologyProcessor(), actionCapabilitiesService());
+    }
+
+    @Bean
+    public FailedCloudVMGroupProcessor failedCloudVMGroupProcessor() {
+        return new FailedCloudVMGroupProcessor(GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+                Executors.newSingleThreadScheduledExecutor(),
+                groupUpdateDelaySeconds);
     }
 
     /**

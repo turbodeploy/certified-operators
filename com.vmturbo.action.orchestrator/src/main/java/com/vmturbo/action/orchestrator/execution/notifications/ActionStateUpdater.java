@@ -10,15 +10,16 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
-import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
+import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
@@ -68,6 +69,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
      */
     private final long realtimeTopologyContextId;
 
+    private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor;
+
     /**
      * Create a new {@link ActionStateUpdater}.
      * @param actionStorehouse The storehouse in which to look up actions as notifications are received.
@@ -75,19 +78,21 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * @param actionExecutor to execute actions (by sending them to Topology Processor)
      * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      * @param realtimeTopologyContextId The ID of the topology context for realtime market analysis
+     * @param failedCloudVMGroupProcessor to process failed actions and add VM entities to a group.
      */
     public ActionStateUpdater(@Nonnull final ActionStorehouse actionStorehouse,
                               @Nonnull final ActionOrchestratorNotificationSender notificationSender,
                               @Nonnull final ActionHistoryDao actionHistoryDao,
                               @Nonnull final ActionExecutor actionExecutor,
                               @Nonnull final WorkflowStore workflowStore,
-                              final long realtimeTopologyContextId) {
+                              final long realtimeTopologyContextId, final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.failedCloudVMGroupProcessor = failedCloudVMGroupProcessor;
     }
 
 
@@ -145,6 +150,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     action.receive(new AfterSuccessEvent());
                 }
             }
+            failedCloudVMGroupProcessor.handleActionSuccess(action);
 
             // Store the updated action and update the audit log
             saveToDb(action);
@@ -208,6 +214,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             }
 
             logger.info("Action execution failed for action: {}", action);
+
+            failedCloudVMGroupProcessor.handleActionFailure(action);
             saveToDb(action);
             writeToAudit(action, false);
 
