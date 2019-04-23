@@ -102,7 +102,7 @@ spec:
   ports:
   - name: influxdb
     port: 8086
-    name: influxdb-dump
+  - name: influxdb-dump
     port: 8088
   selector:
     io.kompose.service: influxdb
