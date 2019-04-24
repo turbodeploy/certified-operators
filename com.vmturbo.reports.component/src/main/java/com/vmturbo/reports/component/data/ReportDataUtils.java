@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import javaslang.Tuple2;
@@ -24,6 +25,22 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.reports.component.data.pm.Daily_cluster_30_days_avg_stats_vs_thresholds_grid;
+import com.vmturbo.reports.component.data.pm.NullReportTemplate;
+import com.vmturbo.reports.component.data.pm.PM_group_daily_pm_vm_utilization_heatmap_grid;
+import com.vmturbo.reports.component.data.pm.PM_group_hosting;
+import com.vmturbo.reports.component.data.pm.PM_group_profile;
+import com.vmturbo.reports.component.data.pm.PM_profile;
+import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid;
+import com.vmturbo.reports.component.data.vm.Daily_vm_over_under_prov_grid_30_days;
+import com.vmturbo.reports.component.data.vm.Daily_vm_rightsizing_advice_grid;
+import com.vmturbo.reports.component.data.vm.VM_group_30_days_vm_top_bottom_capacity_grid;
+import com.vmturbo.reports.component.data.vm.VM_group_daily_over_under_prov_grid_30_days;
+import com.vmturbo.reports.component.data.vm.VM_group_individual_monthly_summary;
+import com.vmturbo.reports.component.data.vm.VM_group_profile;
+import com.vmturbo.reports.component.data.vm.VM_group_profile_physical_resources;
+import com.vmturbo.reports.component.data.vm.VM_group_rightsizing_advice_grid;
+import com.vmturbo.reports.component.data.vm.VM_profile;
 
 /**
  * Utility class for report data generation.
@@ -250,5 +267,61 @@ public class ReportDataUtils {
         public String getGroupPrefix() {
             return groupPrefix;
         }
+    }
+
+    public static Map<Long, ReportTemplate> getReportMap() {
+        final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
+        return ImmutableMap.<Long, ReportTemplate>builder().
+            // standard reports
+            // daily_infra_30_days_avg_stats_vs_thresholds_grid
+                put(140L, new NullReportTemplate(delegate)).
+            // require stats in cluster_members table
+            //    put(146L, new Monthly_cluster_summary(delegate)).
+            //    put(147L, new Monthly_summary(delegate)).
+                put(148L, new Daily_vm_over_under_prov_grid(delegate)).
+                put(150L, new Daily_vm_rightsizing_advice_grid(delegate)).
+            // daily_pm_vm_top_bottom_utilized_grid
+                put(155L, new NullReportTemplate(delegate)).
+            // daily_pm_vm_utilization_heatmap_grid
+                put(156L, new NullReportTemplate(delegate)).
+            // daily_pm_top_bottom_capacity_grid
+                put(165L, new NullReportTemplate(delegate)).
+            // daily_vm_top_bottom_capacity_grid
+                put(166L, new NullReportTemplate(delegate)).
+            // daily_pm_top_cpu_ready_queue_grid
+                put(168L, new NullReportTemplate(delegate)).
+            // daily_pm_top_resource_utilization_bar
+                put(169L, new NullReportTemplate(delegate)).
+                put(170L, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate)).
+            // daily_potential_storage_waste_grid
+                put(172L, new NullReportTemplate(delegate)).
+            // monthly_individual_vm_summary
+                put(181L, new NullReportTemplate(delegate)).
+            // monthly_30_days_pm_top_bottom_capacity_grid
+                put(182L, new NullReportTemplate(delegate)).
+            // monthly_30_days_vm_top_bottom_capacity_grid
+                put(183L, new NullReportTemplate(delegate)).
+                put(184L, new Daily_vm_over_under_prov_grid_30_days(delegate)).
+            // weekly_socket_audit_report
+                put(189L, new NullReportTemplate(delegate)).
+
+            // on demand report
+                put(1L, new PM_group_profile(delegate)).
+                put(2L, new PM_profile(delegate)).
+                put(5L, new VM_group_profile(delegate)).
+                put(6L, new VM_profile(delegate)).
+                put(8L, new PM_group_hosting(delegate)).
+                put(9L, new VM_group_profile_physical_resources(delegate)).
+                put(10L, new VM_group_individual_monthly_summary(delegate)).
+                put(11L, new VM_group_daily_over_under_prov_grid_30_days(delegate)).
+                put(12L, new VM_group_30_days_vm_top_bottom_capacity_grid(delegate)).
+            // vm_group_daily_over_under_prov_grid_given_days
+                put(13L, new NullReportTemplate(delegate)).
+            // require stats in cluster_members table
+            //    put(14L, new PM_group_monthly_individual_cluster_summary(delegate)).
+            //    put(15L, new PM_group_pm_top_bottom_capacity_grid_per_cluster(delegate)).
+                put(16L, new PM_group_daily_pm_vm_utilization_heatmap_grid(delegate)).
+                put(17L, new VM_group_rightsizing_advice_grid(delegate))
+            .build();
     }
 }

@@ -1,5 +1,7 @@
 package com.vmturbo.reports.component.communication;
 
+import static com.vmturbo.reports.component.data.ReportDataUtils.getReportMap;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -7,6 +9,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -30,6 +33,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
+import com.vmturbo.reports.component.ReportingConfig;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.instances.ReportInstanceConverter;
@@ -55,6 +59,9 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     private final ReportsGenerator reportsGenerator;
     private final File outputDirectory;
     private final Scheduler scheduler;
+
+    private static final Set<Integer> enabledReports = getReportMap().keySet().stream()
+        .map(x -> x.intValue()).collect(Collectors.toSet());
 
     /**
      * Creates reporting GRPC service.
@@ -106,6 +113,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             templatesOrganizer.getAllTemplates()
                     .stream()
                     .map(TemplateWrapper::toProtobuf)
+                    .filter(template -> enabledReports.contains(template.getId().getId()))
                     .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DbException e) {

@@ -843,9 +843,9 @@
 	'VirtualMachine' as class_name,
 	(select display_name from entities where uuid = ? order by id DESC limit 1) as instance_name,
 		property_type,
-		property_subtype,
-		round(avg(avg_value)*100,1) as avg_property_value,
-		round(max(max_value)*100,1) as max_property_value,
+		replace(property_subtype, 'used', 'utilization') as property_subtype,
+		round(avg(avg_value/capacity)*100,1) as avg_property_value,
+		round(max(max_value/capacity)*100,1) as max_property_value,
 		year(snapshot_time) as year_number,
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -855,7 +855,7 @@
 	where
 		uuid = ?
 		and date(snapshot_time) = date_sub(date(now()), interval 1 day)  
-		and property_subtype = 'utilization'
+		and property_subtype = 'used'
 group by 
 		property_type, hour_number
 order by 
@@ -2064,10 +2064,10 @@ order by
 	'VirtualMachine' as class_name,
 	(select display_name from entities where uuid = ? order by id DESC limit 1) as instance_name,
 		property_type,
-		property_subtype,
-		avg_value as avg_property_value,
-		min_value as min_property_value,
-		max_value as max_property_value,
+		replace(property_subtype, 'used', 'utilization') as property_subtype,
+		round(avg_value/capacity, 3) as avg_property_value,
+		round(min_value/capacity, 3) as min_property_value,
+		round(max_value/capacity, 3) as max_property_value,
 		year(snapshot_time) as year_number,
 		date_format(snapshot_time,'%m') as month_number,
 		date_format(snapshot_time,'%d') as day_number,
@@ -2077,7 +2077,7 @@ order by
 	where
 		snapshot_time between date_sub(date(now()), interval 3*? day) and date_sub(date(now()), interval 1 day)  
 		and property_type in ('VCPU','VMem')
-		and property_subtype='utilization'
+		and property_subtype='used'
 		and uuid = ?
 order by 
   recorded_on]]></xml-property>
@@ -2440,14 +2440,14 @@ from
     snapshot_time,
     uuid,
     property_type,
-    property_subtype,
+    replace(property_subtype, "used", "utilization") as property_subtype,
     max(capacity) as capacity,
-    avg(avg_value) as avg_value,
-    max(max_value) as max_value, 
-    min(min_value) as min_value
+    avg(round(avg_value/capacity, 3)) as avg_value,
+    max(round(max_value/capacity, 3)) as max_value,
+    min(round(min_value/capacity, 3)) as min_value
   from vm_stats_by_day
   where 
-	property_subtype = 'utilization'
+	property_subtype = 'used'
 	and property_type in ('VCPU','VMem')
 	and snapshot_time between 
 		date_sub(date(now()), interval 90 day) and date_sub(date(now()), interval 1 day)
