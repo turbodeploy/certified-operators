@@ -294,7 +294,7 @@ public class HistoricalEditor {
                 List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
                 for (int i = 0; i < histSoldInfoList.size(); i++) {
                     HistoricalCommodityInfo histSoldInfo = histSoldInfoList.get(i);
-                    if (histSoldInfo.getCommodityTypeAndKey().equals(commodityType.getType())) {
+                    if (histSoldInfo.getCommodityTypeAndKey().equals(commodityType)) {
                         commSoldFound = true;
                         if (histSoldInfo.getMatched()) {
                             float usedHistWeight = histSeInfo.getUsedHistoryWeight();
@@ -386,7 +386,7 @@ public class HistoricalEditor {
                             List<HistoricalCommodityInfo> histBoughtInfoList = histSeInfo.getHistoricalCommodityBought();
                             for (int i = 0; i < histBoughtInfoList.size(); i++) {
                                 HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
-                                if (commBought.getCommodityType().equals(commBought.getCommodityType()) &&
+                                if (histBoughtInfo.getCommodityTypeAndKey().equals(commBought.getCommodityType()) &&
                                     (histBoughtInfo.getSourceId() == sourceId) &&
                                     !histBoughtInfo.getMatched()) {
                                     histBoughtInfo.setMatched(true);
