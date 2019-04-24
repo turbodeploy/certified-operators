@@ -110,7 +110,7 @@ pushd ${kubesprayPath} > /dev/null
 # Clear old host.ini file
 rm -rf ${kubesprayPath}/inventory/turbocluster
 cp -rfp ${kubesprayPath}/inventory/sample ${inventoryPath}
-CONFIG_FILE=inventory/turbocluster/hosts.ini python3.6 contrib/inventory_builder/inventory.py ${node[@]}
+CONFIG_FILE=inventory/turbocluster/hosts.yml python3.6 contrib/inventory_builder/inventory.py ${node[@]}
 
 # Adjust for relaxing the number of dns server allowed
 cp ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml.orig
@@ -124,7 +124,7 @@ sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/a
 sed -i "s/${helm_enabled}/${helm_enabled_group}/g" ${inventoryPath}/group_vars/k8s-cluster/addons.yml
 
 # Run ansible kubespray install
-ansible-playbook -i inventory/turbocluster/hosts.ini -b --become-user=root cluster.yml
+/usr/bin/ansible-playbook -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
 # Check on ansible status and exit out if there are any failures.
 ansibleStatus=$?
 # Reset the kubespray yaml back to the original source
