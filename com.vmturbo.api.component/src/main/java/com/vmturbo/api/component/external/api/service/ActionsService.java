@@ -131,8 +131,9 @@ public class ActionsService implements IActionsService {
     }
 
     @Override
-    public boolean executeAction(String uuid, boolean accept) throws Exception {
+    public boolean executeAction(String uuid, boolean accept, boolean forMaintenanceWindow) throws Exception {
 
+        //TODO The forMaintenanceWindow flag will be used once RightTimeSizing has been implemented for XL
         if (accept) {
             // accept the action
             try {
