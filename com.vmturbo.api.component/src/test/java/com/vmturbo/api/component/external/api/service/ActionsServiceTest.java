@@ -139,7 +139,7 @@ public class ActionsServiceTest {
     public void testExecuteActionThrowException() throws Exception {
         expectedException.expect(UnknownObjectException.class);
         when(actionsServiceBackend.acceptAction(any())).thenReturn(acceptanceError("Action error"));
-        actionsServiceUnderTest.executeAction(UUID, true);
+        actionsServiceUnderTest.executeAction(UUID, true, false);
     }
 
     @Test
