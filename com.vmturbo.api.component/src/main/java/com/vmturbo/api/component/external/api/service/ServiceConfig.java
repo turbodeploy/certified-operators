@@ -363,6 +363,11 @@ public class ServiceConfig {
     }
 
     @Bean
+    public PlanDestinationService planDestinationService() {
+        return new PlanDestinationService();
+    }
+
+    @Bean
     public ScenarioServiceBlockingStub scenarioServiceClient() {
         return ScenarioServiceGrpc.newBlockingStub(
                 communicationConfig.planOrchestratorChannel())
