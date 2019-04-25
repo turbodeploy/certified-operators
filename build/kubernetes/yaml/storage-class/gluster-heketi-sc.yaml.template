@@ -10,6 +10,6 @@ parameters:
   restuser: "null"
   restuserkey: "null"
   volumetype: "GLUSTER_REPLICA"
-  volumeoptions: cluster.post-op-delay-secs 0, performance.client-io-threads off, performance.open-behind off, performance.readdir-ahead off, performance.read-ahead off, performance.stat-prefetch off, performance.write-behind off, performance.io-cache off, cluster.consistent-metadata on, performance.quick-read off
+  volumeoptions: cluster.post-op-delay-secs 0, performance.client-io-threads off, performance.open-behind off, performance.readdir-ahead off, performance.read-ahead off, performance.stat-prefetch off, performance.write-behind off, performance.io-cache off, cluster.consistent-metadata on, performance.quick-read off, performance.strict-o-direct on
 provisioner: kubernetes.io/glusterfs
 reclaimPolicy: Delete
