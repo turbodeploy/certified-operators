@@ -28,6 +28,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -857,31 +859,39 @@ public class AuthProvider {
      * @throws SecurityException In case of an error replacing user's roles.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean setRoles(final @Nonnull AuthUserDTO.PROVIDER provider,
-                            final @Nonnull String userName,
-                            final @Nonnull List<String> roleNames,
-                            final @Nullable List<Long> scopeGroups)
-            throws SecurityException {
+    public ResponseEntity<String> setRoles(final @Nonnull AuthUserDTO.PROVIDER provider,
+                                           final @Nonnull String userName,
+                                           final @Nonnull List<String> roleNames,
+                                           final @Nullable List<Long> scopeGroups) {
 
         Optional<String> json = getKVValue(composeUserInfoKey(provider, userName));
         if (!json.isPresent()) {
-            logger_.error("AUDIT::FAILURE:UNKNOWN: Error modifying unknown user: " +
-                          userName);
-            return false;
+            logger_.error("AUDIT::FAILURE:UNKNOWN: Error modifying unknown user: " + userName);
+            return new ResponseEntity<>("Error modifying unknown user: " + userName, HttpStatus.BAD_REQUEST);
+        }
+
+        final UserInfo info = GSON.fromJson(json.get(), UserInfo.class);
+        // Don't allow modifying role for the last local admin user
+        Map<String, String> allUsers;
+        synchronized (storeLock_) {
+            allUsers = keyValueStore_.getByPrefix(PREFIX);
+        }
+        if (isLastLocalAdminUser(info, allUsers) && !CollectionUtils.isEqualCollection(info.roles, roleNames)) {
+            logger_.error("AUDIT::Don't allow modifying role for last local admin user: " + userName);
+            return new ResponseEntity<>("Not allowed to modify role for last local administrator user: "
+                + userName, HttpStatus.FORBIDDEN);
         }
 
         try {
-            String jsonData = json.get();
-            UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
             info.roles = roleNames;
             info.scopeGroups = scopeGroups;
             // Update KV store.
             putKVValue(composeUserInfoKey(provider, userName), GSON.toJson(info));
             logger_.info("AUDIT::SUCCESS: Success modifying user: " + userName);
-            return true;
+            return new ResponseEntity<>("users://" + userName, HttpStatus.OK);
         } catch (Exception e) {
-            logger_.error("AUDIT::FAILURE:AUTH: Error modifying user: " + userName);
-            return false;
+            logger_.error("AUDIT::FAILURE:AUTH: Error modifying user: " + userName, e);
+            return new ResponseEntity<>("Error modifying user: " + userName, HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -916,7 +926,7 @@ public class AuthProvider {
         }
 
         // Don't allow removing the last local admin user.
-        if (isRemovingLastLocalAdminUser(infoFound, users)) {
+        if (isLastLocalAdminUser(infoFound, users)) {
             logger_.error("AUDIT::Don't allow to remove last local admin user: " + uuid);
             return false;
         }
@@ -1281,7 +1291,8 @@ public class AuthProvider {
      * @param users the list of user
      * @return true if there is only one local user has ADMINISTRATOR role.
      */
-    private boolean isRemovingLastLocalAdminUser(UserInfo userInfo, final Map<String, String> users) {
+    private boolean isLastLocalAdminUser(@Nonnull final UserInfo userInfo,
+                                         @Nonnull final Map<String, String> users) {
         if (userInfo.roles.contains(UserRole.ADMINISTRATOR.name()) // the user the admin user
                 && userInfo.provider.equals(PROVIDER.LOCAL)) { // the provider is local
             List<UserInfo> userInfoList = new ArrayList<>();

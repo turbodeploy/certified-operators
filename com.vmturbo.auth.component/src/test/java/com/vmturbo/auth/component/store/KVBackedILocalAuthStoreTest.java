@@ -11,6 +11,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -297,9 +299,9 @@ public class KVBackedILocalAuthStoreTest {
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
         Assert.assertTrue(result);
-        boolean result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
-                                         ImmutableList.of("ADMIN2", "USER2"), ImmutableList.of(2L));
-        Assert.assertTrue(result2);
+        ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
+            ImmutableList.of("ADMIN2", "USER2"), ImmutableList.of(2L));
+        Assert.assertEquals(HttpStatus.OK, result2.getStatusCode());
         Assert.assertNotNull(store.authenticate("user0", "password0"));
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()

@@ -71,10 +71,10 @@ import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.kvstore.IPublicKeyStore;
@@ -377,6 +377,11 @@ public class RestTest {
     @Test
     public void testSetRolesHasAccess() throws Exception {
         logon("ADMINISTRATOR");
+
+        // original admin user
+        mockMvc.perform(postAdd(11));
+
+        // add new user and edit roles
         String result = mockMvc.perform(postAdd(12))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
@@ -399,6 +404,24 @@ public class RestTest {
                         .andReturn().getResponse().getContentAsString();
         JWTAuthorizationToken token = new JWTAuthorizationToken(result);
         verifier.verify(token, ImmutableList.of("ADMIN", "USER2"));
+
+        // delete all other admin users except user11
+        String allUsersJson = mockMvc.perform(get("/users")).andReturn().getResponse().getContentAsString();
+        for (Object userJson : GSON.fromJson(allUsersJson, List.class)) {
+            AuthUserDTO authUserDTO = GSON.fromJson(GSON.toJson(userJson), AuthUserDTO.class);
+            if (!"user11".equals(authUserDTO.getUser())) {
+                mockMvc.perform(delete("/users/remove/" + authUserDTO.getUser()));
+            }
+        }
+        // expect security exception if trying to change role for last admin user
+        dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user11", null,
+            ImmutableList.of("ADMIN", "USER2"));
+        json = GSON.toJson(dto, AuthUserDTO.class);
+        mockMvc.perform(put("/users/setroles")
+            .content(json)
+            .contentType(RET_TYPE)
+            .accept(RET_TYPE))
+            .andExpect(status().isForbidden());
 
         SecurityContextHolder.getContext().setAuthentication(null);
     }

@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Throwables;
@@ -182,6 +183,17 @@ public class GlobalExceptionHandler {
     @ResponseBody
     public ResponseEntity<ErrorApiDTO> handleServiceUnavailableException(HttpServletRequest req, ServiceUnavailableException ex) {
         return createErrorDTO(req, ex, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @ExceptionHandler(HttpClientErrorException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleHttpClientErrorException(HttpServletRequest req, HttpClientErrorException ex) {
+        ErrorApiDTO err = new ErrorApiDTO(logger.isDebugEnabled(), ex.getStatusCode().value(),
+            ex.toString(),
+            // the error message is in the response body
+            ex.getResponseBodyAsString(),
+            ex.getStackTrace());
+        return new ResponseEntity<>(err, ex.getStatusCode());
     }
 
     protected ResponseEntity<ErrorApiDTO> createErrorDTO(@Nonnull HttpServletRequest req, @Nonnull Exception ex,

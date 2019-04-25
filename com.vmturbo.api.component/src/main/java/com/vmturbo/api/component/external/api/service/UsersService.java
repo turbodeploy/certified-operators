@@ -300,8 +300,9 @@ public class UsersService implements IUsersService {
         // Make sure that the currently authenticated user's token is present.
         HttpHeaders headers = composeHttpHeaders();
         HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
-        restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity,
-                               String.class);
+        // spring throws exception for error HttpStatus code like 4xx and 5xx, which will be
+        // handled in GlobalExceptionHandler
+        restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity, String.class);
         // Return data.
         UserApiDTO user = new UserApiDTO();
         user.setUsername(userApiDTO.getUsername());

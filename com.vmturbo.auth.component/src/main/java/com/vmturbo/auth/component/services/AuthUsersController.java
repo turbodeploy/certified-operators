@@ -2,23 +2,27 @@ package com.vmturbo.auth.component.services;
 
 import java.net.URLDecoder;
 import java.util.List;
+
 import javax.annotation.Nonnull;
 
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
-import com.vmturbo.auth.component.store.AuthProvider;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+
+import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.store.AuthProvider;
 
 /**
  * The AuthUsersController implements the AUTH component Users REST controller.
@@ -260,15 +264,10 @@ public class AuthUsersController {
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String setRoles(@RequestBody AuthUserDTO dto)
-            throws Exception {
+    public @Nonnull ResponseEntity<String> setRoles(@RequestBody AuthUserDTO dto) throws Exception {
         // TODO: we will move scope into the roles into the future. But for now, we are setting
         // scope on the user level.
-        boolean success = targetStore_.setRoles(dto.getProvider(), dto.getUser(), dto.getRoles(), dto.getScopeGroups());
-        if (success) {
-            return "users://" + dto.getUser();
-        }
-        throw new SecurityException("Unable to set roles for user: " + dto.getUser());
+        return targetStore_.setRoles(dto.getProvider(), dto.getUser(), dto.getRoles(), dto.getScopeGroups());
     }
 
     /**
