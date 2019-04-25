@@ -18,9 +18,6 @@
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
         <vmturbo.mt.branch.version>6.4.0-SNAPSHOT</vmturbo.mt.branch.version>
 
-        <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.17.0-SNAPSHOT</ux.mt.branch.version>
-
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.2.0-SNAPSHOT</cpu.capacity.version>
 
@@ -1692,7 +1689,7 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.UX</artifactId>
-                <version>${ux.mt.branch.version}</version>
+                <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>

@@ -84,7 +84,7 @@
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.UX</artifactId>
                                     <!-- note: dependency satisfied from MT -->
-                                    <version>${ux.mt.branch.version}</version>
+                                    <version>${vmturbo.api-ux.version}</version>
                                     <type>zip</type>
                                     <destFileName>com.vmturbo.UX.zip</destFileName>
                                 </artifactItem>
