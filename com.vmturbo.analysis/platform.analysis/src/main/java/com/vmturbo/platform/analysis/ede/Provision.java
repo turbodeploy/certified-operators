@@ -499,7 +499,9 @@ public class Provision {
      */
     private static boolean doBuyerAndSellerShareCliques (
             Trader buyer, Trader seller , Economy economy) {
-        Set<Long> commonCliquesOfCustomer = economy.getCommonCliques(buyer);
+        // economy.getCommonCliques(buyer) returns com.google.common.collect.Sets$SetView,
+        // which doesn't support retainAll.
+        Set<Long> commonCliquesOfCustomer = new HashSet<>(economy.getCommonCliques(buyer));
         Set<Long> inactiveTraderCliques = seller.getCliques();
         commonCliquesOfCustomer.retainAll(inactiveTraderCliques);
         return !commonCliquesOfCustomer.isEmpty();
