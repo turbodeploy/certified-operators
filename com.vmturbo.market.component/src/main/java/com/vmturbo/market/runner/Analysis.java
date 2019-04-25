@@ -29,6 +29,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start.SkippedEntity;
@@ -927,8 +929,10 @@ public class Analysis {
      */
     private Collection<Action> getWastedFilesActions() {
         // only generate wasted files actions for the realtime market
-        if (!topologyInfo.hasPlanInfo()) {
+        if (!topologyInfo.hasPlanInfo() &&
+            topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
             wastedFilesAnalysis.execute();
+            logger.debug("Getting wasted files actions.");
             if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {
                 return wastedFilesAnalysis.getActions();
             }

@@ -3,6 +3,8 @@ package com.vmturbo.topology.processor.topology;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -10,11 +12,19 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
@@ -33,17 +43,30 @@ public class TopologyHandler {
 
     private final EntityStore entityStore;
 
+    private final ProbeStore probeStore;
+
+    private final TargetStore targetStore;
+
     private TopologyPipelineFactory topologyPipelineFactory;
+
+    private final Set<String> wastedFilesProbeTypes =
+        ImmutableSet.of(SDKProbeType.AZURE_STORAGE_BROWSE.getProbeType(),
+            SDKProbeType.AWS.getProbeType(),
+            SDKProbeType.VC_STORAGE_BROWSE.getProbeType());
 
     public TopologyHandler(final long realtimeTopologyContextId,
                            @Nonnull final TopologyPipelineFactory topologyPipelineFactory,
                            @Nonnull final IdentityProvider identityProvider,
                            @Nonnull final EntityStore entityStore,
+                           @Nonnull final ProbeStore probeStore,
+                           @Nonnull final TargetStore targetStore,
                            @Nonnull final Clock clock) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.topologyPipelineFactory = Objects.requireNonNull(topologyPipelineFactory);
         this.entityStore = Objects.requireNonNull(entityStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
+        this.targetStore = Objects.requireNonNull(targetStore);
         this.clock = clock;
     }
 
@@ -60,15 +83,32 @@ public class TopologyHandler {
         @Nonnull final StitchingJournalFactory journalFactory)
         throws TopologyPipelineException, InterruptedException {
 
-        final TopologyInfo tinfo = TopologyInfo.newBuilder()
+        final TopologyInfo.Builder tinfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.REALTIME)
                 .setTopologyId(identityProvider.generateTopologyId())
                 .setTopologyContextId(realtimeTopologyContextId)
                 .setCreationTime(clock.millis())
-                .build();
+                .addAnalysisType(AnalysisType.MARKET_ANALYSIS);
+        if (includesWastedFiles()) {
+            tinfo.addAnalysisType(AnalysisType.WASTED_FILES);
+        }
 
-        return topologyPipelineFactory.liveTopology(tinfo, Collections.emptyList(), journalFactory)
+        return topologyPipelineFactory.liveTopology(tinfo.build(), Collections.emptyList(), journalFactory)
                 .run(entityStore);
     }
 
+    /**
+     * If any targets are from probe types that contains wasted file information, return true.
+     *
+     * @return true if any targets may contain wasted file information, false otherwise.
+     */
+    protected boolean includesWastedFiles() {
+        return targetStore.getAll().stream()
+            .map(Target::getProbeId)
+            .map(id -> probeStore.getProbe(id))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(ProbeInfo::getProbeType)
+            .anyMatch(str -> wastedFilesProbeTypes.contains(str));
+    }
 }

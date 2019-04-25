@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -79,6 +80,8 @@ public class AnalysisTest {
             .setTopologyContextId(topologyContextId)
             .setTopologyId(topologyId)
             .setTopologyType(topologyType)
+            .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+            .addAnalysisType(AnalysisType.WASTED_FILES)
             .build();
 
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
@@ -126,18 +129,21 @@ public class AnalysisTest {
     }
 
     /**
-     * Convenience method to get an Analysis based on an analysisConfig.
+     * Convenience method to get an Analysis based on an analysisConfig, a set of
+     * TopologyEntityDTOs, and TopologyInfo.
      *
-     * @param analysisConfig configuration for the analysis
-     * @param topologySet set of TopologyEntityDTOs representing the topology
+     * @param analysisConfig configuration for the Analysis.
+     * @param topologySet Set of TopologyEntityDTOs for the Analysis.
+     * @param topoInfo TopologyInfo related to the Analysis.
      * @return Analysis
      */
-    private Analysis getAnalysis(AnalysisConfig analysisConfig, Set<TopologyEntityDTO> topologySet) {
+    private Analysis getAnalysis(AnalysisConfig analysisConfig, Set<TopologyEntityDTO> topologySet,
+                                 TopologyInfo topoInfo) {
         final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
+        when(cloudCostCalculatorFactory.newCalculator(topoInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
@@ -150,10 +156,21 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getActions())
             .thenReturn(Collections.singletonList(wastedFileAction));
 
-        return new Analysis(topologyInfo, topologySet,
+        return new Analysis(topoInfo, topologySet,
             groupServiceClient, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory);
+    }
+    /**
+     * Convenience method to get an Analysis based on an analysisConfig and a set of
+     * TopologyEntityDTOs.
+     *
+     * @param analysisConfig configuration for the analysis
+     * @param topologySet set of TopologyEntityDTOs representing the topology
+     * @return Analysis
+     */
+    private Analysis getAnalysis(AnalysisConfig analysisConfig, Set<TopologyEntityDTO> topologySet) {
+        return getAnalysis(analysisConfig, topologySet, topologyInfo);
     }
 
     private Analysis getAnalysis(AnalysisConfig analysisConfig) {
@@ -187,10 +204,10 @@ public class AnalysisTest {
     @Test
     public void testExecute() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT,
-                    getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
-                .setIncludeVDC(true)
-                .build();
+            SuspensionsThrottlingConfig.DEFAULT,
+            getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+            .setIncludeVDC(true)
+            .build();
 
         final Analysis analysis = getAnalysis(analysisConfig);
         analysis.execute();
@@ -202,6 +219,37 @@ public class AnalysisTest {
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
         assertTrue(analysis.getActionPlan().get().getActionList().contains(wastedFileAction));
+    }
+
+    /**
+     * Test execution of Analysis where TopologyInfo indicates not to run wastedFilesAnalysis.
+     */
+    @Test
+    public void testExecuteNoWastedFiles() {
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+            SuspensionsThrottlingConfig.DEFAULT,
+            getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+            .setIncludeVDC(true)
+            .build();
+
+        // create TopologyInfo that does not include wasted files analysis
+        final TopologyInfo topoInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .setTopologyId(topologyId)
+            .setTopologyType(topologyType)
+            .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+            .build();
+
+        final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet(), topoInfo);
+        analysis.execute();
+        assertTrue(analysis.isDone());
+        assertSame(analysis.getState(), AnalysisState.SUCCEEDED);
+        assertEquals(START_INSTANT, analysis.getStartTime());
+        assertEquals(END_INSTANT, analysis.getCompletionTime());
+
+        assertTrue(analysis.getActionPlan().isPresent());
+        assertTrue(analysis.getProjectedTopology().isPresent());
+        assertFalse(analysis.getActionPlan().get().getActionList().contains(wastedFileAction));
     }
 
     /**

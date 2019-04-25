@@ -128,6 +128,8 @@ public class TopologyConfig {
                 topologyPipelineFactory(),
                 identityProviderConfig.identityProvider(),
                 entityConfig.entityStore(),
+                probeConfig.probeStore(),
+                targetConfig.targetStore(),
                 clockConfig.clock());
     }
 

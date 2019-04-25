@@ -599,6 +599,14 @@ message TopologyInfo {
     // Plan-specific topology information.
     // Present IFF TopologyType is PLAN.
     optional PlanTopologyInfo plan_info = 6;
+
+    // types of analyses to run with this topology
+    repeated AnalysisType analysis_type = 7;
+}
+
+enum AnalysisType {
+    MARKET_ANALYSIS = 0;
+    WASTED_FILES = 1;
 }
 
 // Information specific to a topology generated for the purpose of a plan.

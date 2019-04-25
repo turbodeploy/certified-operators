@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.End;
@@ -91,18 +92,22 @@ public class TopologyRpcService extends TopologyServiceImplBase {
     public void broadcastAndReturnTopology(TopologyBroadcastRequest request,
                                            StreamObserver<Topology> responseObserver) {
         try {
-            final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            final TopologyInfo.Builder topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.REALTIME)
                 .setTopologyId(identityProvider.generateTopologyId())
                 .setTopologyContextId(realtimeTopologyContextId)
                 .setCreationTime(clock.millis())
-                .build();
+                .addAnalysisType(AnalysisType.MARKET_ANALYSIS);
+
+            if (topologyHandler.includesWastedFiles()) {
+                topologyInfo.addAnalysisType(AnalysisType.WASTED_FILES);
+            }
 
             // Because this RPC triggers a broadcast, be sure to reset the broadcast schedule
             // so that we don't send too many in close succession.
             scheduler.resetBroadcastSchedule();
             topologyPipelineFactory
-                .liveTopology(topologyInfo,
+                .liveTopology(topologyInfo.build(),
                     Collections.singletonList(new GrpcBroadcastManager(responseObserver)), journalFactory)
                 .run(entityStore);
         } catch (Exception e) {
