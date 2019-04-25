@@ -25,7 +25,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -745,7 +744,8 @@ public class BootstrapSupply {
                     minimizer.getBestSeller() != shoppingList.getSupplier()) {
                 // If we have a seller that can fit the buyer getting an infiniteQuote,
                 // move buyer to this provider
-                allActions.add(new Move(economy, shoppingList, minimizer.getBestSeller())
+                allActions.add(new Move(economy, shoppingList, shoppingList.getSupplier(),
+                        minimizer.getBestSeller(), minimizer.getBestQuote().getContext())
                         .take().setImportance(minimizer.getCurrentQuote().getQuoteValue()));
                 if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                     logger.info("{" + buyerDebugInfo + "} moves to "
