@@ -20,6 +20,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -32,6 +34,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -50,6 +53,16 @@ public class DefaultSettingPolicyCreator implements Runnable {
     private final Map<Integer, SettingPolicyInfo> policies;
     private final SettingStore settingStore;
     private final long timeBetweenIterationsMs;
+
+    /**
+     * HACK here since we need to show for example "Host Default" as the physical machine policy
+     * setting name instead of "Physical Machine Default". However since we parse the
+     * {@link EntityType} which is defined in classic as the setting policy name, and the physical
+     * machine name is "PHYSICAL_MACHINE" not "HOST", we need to do the convert here to let the
+     * API show the setting display name as "Host Default".
+     */
+    private static final Map<Integer, String> SETTING_NAMES_MAPPER = ImmutableMap.of(
+        EntityType.PHYSICAL_MACHINE_VALUE, StringConstants.HOST);
 
     public DefaultSettingPolicyCreator(@Nonnull final SettingSpecStore specStore,
             @Nonnull final SettingStore settingStore, final long timeBetweenIterationsMs) {
@@ -174,11 +187,14 @@ public class DefaultSettingPolicyCreator implements Runnable {
         return specsByEntityType.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> {
-                    final String displayName = Stream.of(EntityType.forNumber(entry.getKey())
-                            .name().split("_"))
+                    final String settingName = SETTING_NAMES_MAPPER.containsKey(entry.getKey())
+                        ? SETTING_NAMES_MAPPER.get(entry.getKey())
+                        : EntityType.forNumber(entry.getKey()).name();
+                    final String displayName = Stream.of(settingName.split("_"))
                             .map(String::toLowerCase)
                             .map(StringUtils::capitalize)
                             .collect(Collectors.joining(" ", "", " Defaults"));
+
                     final SettingPolicyInfo.Builder policyBuilder = SettingPolicyInfo.newBuilder()
                             .setName(displayName)
                             .setEntityType(entry.getKey())
