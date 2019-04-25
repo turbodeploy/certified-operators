@@ -132,7 +132,8 @@ public class ApiDiagnosticsHandler {
 
             final SupplychainApiDTO supplyChain = supplyChainFetcher.fetch();
             supplyChain.getSeMap().forEach((entityType, entry) ->
-                TelemetryMetricDefinitions.setServiceEntityCount(entityType, entry.getEntitiesCount(),
+                // TODO: Add support for understanding target type
+                TelemetryMetricDefinitions.setServiceEntityCount(entityType, "", entry.getEntitiesCount(),
                     versionAndRevision.version, versionAndRevision.revision));
         } catch (Exception e) {
             logger.error("Unable to collect supply chain entity counts.", e);
