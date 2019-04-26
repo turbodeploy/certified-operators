@@ -167,6 +167,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${repositoryRealtimeTopologyDropDelaySecs}")
     private int repositoryRealtimeTopologyDropDelaySecs;
 
+    @Value("${numberOfExpectedRealtimeSourceDB}")
+    private int numberOfExpectedRealtimeSourceDB;
+
+    @Value("${numberOfExpectedRealtimeProjectedDB}")
+    private int numberOfExpectedRealtimeProjectedDB;
+
     // we are defaulting to 25 entities per chunk. Serialized entities were in the 1 ~ 5k
     // range in a quick anecdotal test, and this would put the message chunk size at 25 - 125k range.
     // This overlaps reasonably with the rumored optimal message size seems to be 16-64k as per
@@ -263,7 +269,10 @@ public class RepositoryComponent extends BaseVmtComponent {
     public TopologyLifecycleManager topologyManager() {
         return new TopologyLifecycleManager(graphDatabaseDriverBuilder(), graphDefinition(),
                 topologyProtobufsManager(), realtimeTopologyContextId,
-                new ScheduledThreadPoolExecutor(1), repositoryRealtimeTopologyDropDelaySecs);
+                new ScheduledThreadPoolExecutor(1),
+                repositoryRealtimeTopologyDropDelaySecs,
+                numberOfExpectedRealtimeSourceDB,
+                numberOfExpectedRealtimeProjectedDB);
     }
 
     @Bean

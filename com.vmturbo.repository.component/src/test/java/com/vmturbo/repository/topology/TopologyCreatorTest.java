@@ -72,7 +72,7 @@ public class TopologyCreatorTest {
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter);
+                entityConverter, realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(realtimeSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
@@ -87,7 +87,7 @@ public class TopologyCreatorTest {
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(realtimeProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
@@ -100,7 +100,7 @@ public class TopologyCreatorTest {
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter);
+                entityConverter, realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(planSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
@@ -115,7 +115,7 @@ public class TopologyCreatorTest {
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, 2, 2);
 
         verify(graphDatabaseDriverBuilder).build(eq(planProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
@@ -181,7 +181,7 @@ public class TopologyCreatorTest {
                 graphDatabaseDriverBuilder,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter);
+                entityConverter, realtimeTopologyContextId, 2, 2);
     }
 
     private ProjectedTopologyCreator newProjectedTopologyCreator(TopologyID tid) {
@@ -191,6 +191,6 @@ public class TopologyCreatorTest {
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, 2, 2);
     }
 }

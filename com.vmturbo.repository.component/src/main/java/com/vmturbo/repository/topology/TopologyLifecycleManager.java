@@ -1,6 +1,7 @@
 package com.vmturbo.repository.topology;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -78,14 +79,23 @@ public class TopologyLifecycleManager implements Diagnosable {
     // how many seconds to delay realtime topology drops by
     private final long realtimeTopologyDropDelaySecs;
 
+    // how many expected real time "Source" DB to be kept with full clean up?
+    private final int numberOfExpectedRealtimeSourceDB;
+
+    // how many expected real time "Projected" DB to be kept with full clean up?
+    private final int numberOfExpectedRealtimeProjectedDB;
+
     public TopologyLifecycleManager(@Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                                     @Nonnull final GraphDefinition graphDefinition,
                                     @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                     final long realtimeTopologyContextId,
                                     @Nonnull final ScheduledExecutorService scheduler,
-                                    final long realtimeTopologyDropDelaySecs) {
-        this(graphDatabaseDriverBuilder, graphDefinition,
-                topologyProtobufsManager, realtimeTopologyContextId, scheduler, realtimeTopologyDropDelaySecs, true);
+                                    final long realtimeTopologyDropDelaySecs,
+                                    final int numberOfExpectedRealtimeSourceDB,
+                                    final int numberOfExpectedRealtimeProjectedDB) {
+        this(graphDatabaseDriverBuilder, graphDefinition, topologyProtobufsManager, realtimeTopologyContextId,
+            scheduler, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
+            numberOfExpectedRealtimeProjectedDB, true);
     }
 
     @VisibleForTesting
@@ -95,6 +105,8 @@ public class TopologyLifecycleManager implements Diagnosable {
                                     final long realtimeTopologyContextId,
                                     @Nonnull final ScheduledExecutorService scheduler,
                                     final long realtimeTopologyDropDelaySecs,
+                                    final int numberOfExpectedRealtimeSourceDB,
+                                    final int numberOfExpectedRealtimeProjectedDB,
                                     final boolean loadExisting) {
         this.graphDatabaseDriverBuilder = graphDatabaseDriverBuilder;
         this.graphDefinition = graphDefinition;
@@ -102,6 +114,8 @@ public class TopologyLifecycleManager implements Diagnosable {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.scheduler = scheduler;
         this.realtimeTopologyDropDelaySecs = realtimeTopologyDropDelaySecs;
+        this.numberOfExpectedRealtimeSourceDB = numberOfExpectedRealtimeSourceDB;
+        this.numberOfExpectedRealtimeProjectedDB = numberOfExpectedRealtimeProjectedDB;
 
         if (realtimeTopologyDropDelaySecs <= 0) {
             LOGGER.info("realtimeTopologyDropDelaySecs is set to {} -- disabling delayed drop behavior.", realtimeTopologyDropDelaySecs);
@@ -113,7 +127,7 @@ public class TopologyLifecycleManager implements Diagnosable {
             // that.
             Executors.newSingleThreadExecutor().execute(
                     new RegisteredTopologyLoader(TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS),
-                            graphDatabaseDriverBuilder, this));
+                            graphDatabaseDriverBuilder, this, realtimeTopologyContextId));
         }
     }
 
@@ -148,16 +162,19 @@ public class TopologyLifecycleManager implements Diagnosable {
     @VisibleForTesting
     static class RegisteredTopologyLoader implements Runnable {
         private final long pollingIntervalMs;
+        private final long realtimeTopologyContextId;
         private GraphDatabaseDriverBuilder driverBuilder;
         private TopologyLifecycleManager lifecycleManager;
 
         @VisibleForTesting
         RegisteredTopologyLoader(final long pollingIntervalMs,
                                  @Nonnull final GraphDatabaseDriverBuilder driverBuilder,
-                                 @Nonnull final TopologyLifecycleManager lifecycleManager) {
+                                 @Nonnull final TopologyLifecycleManager lifecycleManager,
+                                 final long realtimeTopologyContextId) {
             this.pollingIntervalMs = pollingIntervalMs;
             this.driverBuilder = Objects.requireNonNull(driverBuilder);
             this.lifecycleManager = Objects.requireNonNull(lifecycleManager);
+            this.realtimeTopologyContextId = realtimeTopologyContextId;
         }
 
         @Override
@@ -187,10 +204,99 @@ public class TopologyLifecycleManager implements Diagnosable {
                 // Don't overwrite any new topologies that came in though.
                 .forEach(tid -> {
                     final boolean registered = lifecycleManager.registerTopology(tid, false);
-                    if (!registered) {
+                    // Only clean up non-realtime (plan) topologies, real time topologies are clean up in
+                    // deleteObsoletedRealtimeDB method
+                    if (!registered && tid.getContextId() != realtimeTopologyContextId ) {
                         driverBuilder.build(tid.toDatabaseName()).dropDatabase();
                     }
                 });
+        }
+    }
+
+
+    /**
+     * The method provides a "full" clean up on realtime topologies in DB. Obsoleted real time topologies
+     * can happened when DB (Arango) crashed during inserting real time topologies.
+     * Details:
+     * 1. Delete the realtime topology associated with passed in topology id.
+     * 2. Retrieve all realtime topologies from DB and sort the "Source" and "Projected" topologies separately
+     * based on topology id with ascending order.
+     * 3. If the size of each realtime topologies are bigger than expected numbers
+     * ("numberOfExpectedRealtimeSourceDB" and "numberOfExpectedRealtimeProjectedDB"), delete the earlier ones.
+     *
+     * @param topologyID new realtime toplogyid that to be deleted.
+     * @param driverBuilder Graph database driver builder to interact with DB.
+     * @param realtimeTopologyContextId real time topology context id.
+     * @param numberOfExpectedRealtimeSourceDB  number of expected real time "Source" DB, injected from environment.
+     * @param numberOfExpectedRealtimeProjectedDB number of expected real time "Projected" DB, injected from environment.
+     */
+    @VisibleForTesting
+    static void deleteObsoletedRealtimeDB(@Nonnull final TopologyID topologyID,
+                                          @Nonnull final GraphDatabaseDriverBuilder driverBuilder,
+                                          final long realtimeTopologyContextId,
+                                          final int numberOfExpectedRealtimeSourceDB,
+                                          final int numberOfExpectedRealtimeProjectedDB) {
+        // explicitly deleting DB associated to the topologyID, so if deletion failed, it will provide hints that
+        // this DB was deleted externally.
+        try {
+            driverBuilder.build(topologyID.toDatabaseName()).dropDatabase();
+            LOGGER.info("Dropping database {}.", topologyID.toDatabaseName());
+        } catch (ArangoDBException e) {
+            if (e.getResponseCode().intValue() == 404) {
+                // ignore database not found errors since we are trying to drop these anyways.
+                LOGGER.warn("Database for previous topology {} was not found -- skipping drop.", topologyID);
+            } else {
+                LOGGER.error("Failed to clean up topology {}. ", topologyID);
+            }
+        }
+        Set<String> databases;
+        try {
+            databases = driverBuilder.listDatabases();
+        } catch (GraphDatabaseException e) {
+            LOGGER.error("Failed to listing databases during full realtime topology clean up: ", e);
+            return;
+        }
+
+        final List<TopologyID> realtimeTopologyIds = databases
+            .stream()
+            .map(TopologyID::fromDatabaseName)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            // only clean real time topologies
+            .filter(tid -> tid.getContextId() == realtimeTopologyContextId)
+            .collect(Collectors.toList());
+        deleteObsoletedRealtimeDBHelper(driverBuilder, realtimeTopologyIds,
+            TopologyType.PROJECTED, numberOfExpectedRealtimeSourceDB);
+        deleteObsoletedRealtimeDBHelper(driverBuilder, realtimeTopologyIds,
+            TopologyType.SOURCE, numberOfExpectedRealtimeProjectedDB);
+    }
+
+    /* internal helper method to delete obsoleted realtime topologies */
+    private static void deleteObsoletedRealtimeDBHelper(@Nonnull GraphDatabaseDriverBuilder driverBuilder,
+                                                        @Nonnull final List<TopologyID> realtimeTopologyIds,
+                                                        @Nonnull final TopologyType topologyType,
+                                                        final int number) {
+        final List<TopologyID> tobeRemovedIds = realtimeTopologyIds.stream()
+            .filter(topologyID -> topologyID.getType() == topologyType)
+            // assume newer topologies always have bigger topologyId,
+            // see com.vmturbo.commons.idgen.IdentityGenerator for details.
+            .sorted(Comparator.comparingLong(topologyID -> topologyID.getTopologyId()))
+            .collect(Collectors.toList());
+
+        if (tobeRemovedIds.size() > number) {
+            tobeRemovedIds.stream()
+                .limit(tobeRemovedIds.size() - number)
+                .forEach(tid -> {
+                        try {
+                            driverBuilder.build(tid.toDatabaseName()).dropDatabase();
+                            LOGGER.warn("Dropping obsoleted real time database {}.",
+                                tid.toDatabaseName());
+                        } catch (ArangoDBException e) {
+                            LOGGER.error("Failed to drop obsoleted real time database {} with exception:",
+                                tid.toDatabaseName(), e.getMessage());
+                        }
+                    }
+                );
         }
     }
 
@@ -200,7 +306,10 @@ public class TopologyLifecycleManager implements Diagnosable {
                 graphDatabaseDriverBuilder,
                 this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
-                TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs);
+                TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs,
+                realtimeTopologyContextId,
+                numberOfExpectedRealtimeSourceDB,
+                numberOfExpectedRealtimeProjectedDB);
     }
 
     public ProjectedTopologyCreator newProjectedTopologyCreator(@Nonnull final TopologyID topologyID) {
@@ -211,7 +320,9 @@ public class TopologyLifecycleManager implements Diagnosable {
                 this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
                 TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs,
-                realtimeTopologyContextId);
+                realtimeTopologyContextId,
+                numberOfExpectedRealtimeSourceDB,
+                numberOfExpectedRealtimeProjectedDB);
     }
 
     /**
@@ -235,19 +346,9 @@ public class TopologyLifecycleManager implements Diagnosable {
             TopologyID topologyID = idByTypeInContext.put(tid.getType(), tid);
             if (topologyID != null) {
                 Runnable dropTask = () -> {
-                    String dbName = topologyID.toDatabaseName();
-                    LOGGER.info("Dropping database {}.", dbName);
-                    try {
-                        graphDatabaseDriverBuilder.build(dbName).dropDatabase();
-                    } catch (ArangoDBException e) {
-                        if (e.getResponseCode().intValue() == 404) {
-                            // ignore database not found errors since we are trying to drop these anyways.
-                            LOGGER.warn("Database for previous topology {} was not found -- skipping drop.", topologyID);
-                        } else {
-                            // rethrow other errors
-                            throw e;
-                        }
-                    }
+                        deleteObsoletedRealtimeDB(topologyID, graphDatabaseDriverBuilder,
+                            realtimeTopologyContextId, numberOfExpectedRealtimeSourceDB,
+                            numberOfExpectedRealtimeProjectedDB);
                 };
                 // determine if we need to schedule a delayed drop of the existing database
                 long delaySeconds = realtimeTopologyDropDelaySecs;
@@ -461,14 +562,22 @@ public class TopologyLifecycleManager implements Diagnosable {
         final Optional<TopologyProtobufWriter> topologyProtobufWriter;
 
         private final Consumer<TopologyID> onComplete;
+        private final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder;
+        private final long realtimeTopologyContextId;
+        private final int numberOfExpectedRealtimeSourceDB;
+        private final int numberOfExpectedRealtimeProjectedDB;
 
         TopologyCreator(@Nonnull final TopologyID topologyID,
                         @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                         @Nonnull final Optional<TopologyProtobufWriter> topologyProtobufWriter,
                         @Nonnull final Consumer<TopologyID> onComplete,
                         @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
-                        @Nonnull final EntityConverter entityConverter) {
+                        @Nonnull final EntityConverter entityConverter,
+                        final long realtimeTopologyContextId,
+                        final int numberOfExpectedRealtimeSourceDB,
+                        final int numberOfExpectedRealtimeProjectedDB) {
             this.topologyID = Objects.requireNonNull(topologyID);
+            this.graphDatabaseDriverBuilder = Objects.requireNonNull(graphDatabaseDriverBuilder);
             this.graphDatabaseDriver = Objects.requireNonNull(graphDatabaseDriverBuilder.build(
                     topologyID.toDatabaseName()));
             this.onComplete = onComplete;
@@ -476,6 +585,9 @@ public class TopologyLifecycleManager implements Diagnosable {
 
             topologyGraphCreator = topologyGraphCreatorFactory.newGraphCreator(graphDatabaseDriver);
             this.entityConverter = entityConverter;
+            this.realtimeTopologyContextId = realtimeTopologyContextId;
+            this.numberOfExpectedRealtimeSourceDB = numberOfExpectedRealtimeSourceDB;
+            this.numberOfExpectedRealtimeProjectedDB = numberOfExpectedRealtimeProjectedDB;
         }
 
 
@@ -505,7 +617,9 @@ public class TopologyLifecycleManager implements Diagnosable {
          * Roll back the topology, deleting any entities written so far.
          */
         public void rollback() {
-            graphDatabaseDriver.dropDatabase();
+            deleteObsoletedRealtimeDB(topologyID, graphDatabaseDriverBuilder,
+                realtimeTopologyContextId, numberOfExpectedRealtimeSourceDB,
+                numberOfExpectedRealtimeProjectedDB);
             topologyProtobufWriter.ifPresent(TopologyProtobufHandler::delete);
         }
     }
@@ -519,9 +633,13 @@ public class TopologyLifecycleManager implements Diagnosable {
                               @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
                               @Nonnull final Consumer<TopologyID> onComplete,
                               @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
-                              @Nonnull final EntityConverter entityConverter) {
+                              @Nonnull final EntityConverter entityConverter,
+                              final long realtimeTopologyContextId,
+                              final int numberOfExpectedRealtimeSourceDB,
+                              final int numberOfExpectedRealtimeProjectedDB) {
             super(topologyID, graphDatabaseDriverBuilder, Optional.empty(), onComplete,
-                    topologyGraphCreatorFactory, entityConverter);
+                    topologyGraphCreatorFactory, entityConverter, realtimeTopologyContextId,
+                numberOfExpectedRealtimeSourceDB, numberOfExpectedRealtimeProjectedDB);
             Preconditions.checkArgument(!topologyProtobufWriter.isPresent());
         }
 
@@ -548,16 +666,19 @@ public class TopologyLifecycleManager implements Diagnosable {
      */
     public static class ProjectedTopologyCreator extends TopologyCreator<ProjectedTopologyEntity> {
         ProjectedTopologyCreator(@Nonnull final TopologyID topologyID,
-                 @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
-                 @Nonnull final TopologyProtobufsManager protobufsManager,
-                 @Nonnull final Consumer<TopologyID> onComplete,
-                 @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
-                 @Nonnull final EntityConverter entityConverter,
-                 final long realtimeTopologyContextId) {
+                                 @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
+                                 @Nonnull final TopologyProtobufsManager protobufsManager,
+                                 @Nonnull final Consumer<TopologyID> onComplete,
+                                 @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
+                                 @Nonnull final EntityConverter entityConverter,
+                                 final long realtimeTopologyContextId,
+                                 final int numberOfExpectedRealtimeSourceDB,
+                                 final int numberOfExpectedRealtimeProjectedDB) {
             super(topologyID, graphDatabaseDriverBuilder,
                 TopologyUtil.isPlanProjectedTopology(topologyID, realtimeTopologyContextId) ?
                     Optional.of(protobufsManager.createTopologyProtobufWriter(topologyID.getTopologyId())) : Optional.empty(),
-                onComplete, topologyGraphCreatorFactory, entityConverter);
+                onComplete, topologyGraphCreatorFactory, entityConverter, realtimeTopologyContextId,
+                numberOfExpectedRealtimeSourceDB ,numberOfExpectedRealtimeProjectedDB);
         }
 
         /**
