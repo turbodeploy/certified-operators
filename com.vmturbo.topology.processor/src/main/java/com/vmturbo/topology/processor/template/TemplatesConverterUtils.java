@@ -327,11 +327,12 @@ public class TemplatesConverterUtils {
      * entity. As an example: When replacing a host (Physical Machine), the host contains Datastore commodities
      * with Accesses relationships pointing to Storages. These Storages in turn contain DSPM commodities with
      * Accesses relationships that in turn point back to the host. When replacing the host, the Accesses
-     * in the DSPM on the storages will point to the replacement host, and not the old host. As a result,
+     * in the DSPM on the storages will point to the replacement host, and also the old host. As a result,
      * when the market attempts to create bicliques containing the hosts and storages, the replacement PM will
      * be in the biclique it belongs in and VMs will be able to move to the replacement host.
      *
-     * This method, in the example above, will update commodity sold that Accesses the replacement entity.
+     * This method, in the example above, will add an additional equivalent commodity sold that Accesses
+     * the replacement entity with a different key.
      *
      * @param originalEntityId The ID of the entity being replaced.
      * @param replacementEntityId The ID of the entity doing the replacement.
@@ -357,9 +358,23 @@ public class TemplatesConverterUtils {
                     .filter(relatedEntityCommodity -> relatedEntityCommodity.getAccesses() == originalEntityId)
                     .collect(Collectors.toList());
 
-                // Update the accesses of the related entity from the original to the replacement.
-                commoditiesAccessingOriginal.forEach(commodityAccessingOriginal ->
-                    commodityAccessingOriginal.setAccesses(replacementEntityId));
+                // In addition to accessing the original, the related entity should also be able to
+                // access the replacement. Keep the relation to the original as well because the original
+                // remains in the topology until scoping happens in the market component.
+                commoditiesAccessingOriginal.forEach(commodityAccessingOriginal -> {
+                    CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
+                    // Different key with same Accesses will raise
+                    // java.lang.IllegalArgumentException: value already present
+                    // at com.vmturbo.market.topology.conversions.TopologyConverter.edge.
+                    //   accessesByKey.computeIfAbsent(commSold.getCommodityType().getKey(),
+                    //      key -> commSold.getAccesses());
+                    // Because accessesByKey is HashBiMap, where both key and value should be unique.
+                    String newKey = commodityAccessing.getCommodityTypeBuilder().getKey() +
+                        "-" + originalEntityId;
+                    commodityAccessing.getCommodityTypeBuilder().setKey(newKey);
+                    commodityAccessing.setAccesses(replacementEntityId);
+                    relatedEntity.getEntityBuilder().addCommoditySoldList(commodityAccessing);
+                });
             });
     }
 
