@@ -634,11 +634,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             targetId);
                     return currentDiscovery.get();
                 }
+                operationStart(discovery);
+                currentTargetDiscoveries.put(targetId, discovery);
                 remoteMediationServer.sendDiscoveryRequest(probeId,
                         discoveryRequest,
                         discoveryMessageHandler);
-                operationStart(discovery);
-                currentTargetDiscoveries.put(targetId, discovery);
             } catch (Exception ex) {
                 if (semaphore.isPresent()) {
                     semaphore.get().release();
@@ -649,6 +649,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             semaphore.map(Semaphore::getQueueLength).orElse(-1),
                             ex.toString());
                 }
+
+                final ErrorDTO.Builder errorBuilder = ErrorDTO.newBuilder()
+                    .setSeverity(ErrorSeverity.CRITICAL);
+                if (ex.getLocalizedMessage() != null) {
+                    errorBuilder.setDescription(ex.getLocalizedMessage());
+                } else {
+                    errorBuilder.setDescription(ex.getClass().getSimpleName());
+                }
+                operationComplete(discovery, false, Collections.singletonList(errorBuilder.build()));
                 throw ex;
             }
         }
