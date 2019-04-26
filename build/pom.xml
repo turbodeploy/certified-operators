@@ -112,7 +112,7 @@
         <surefire.version>2.20</surefire.version>
         <!-- This allows nested modules to override the path to the root checkstyle.xml -->
         <checkstyle.path>${project.basedir}/../build/checkstyle.xml</checkstyle.path>
-        <jetty.version>9.4.9.v20180320</jetty.version>
+        <jetty.version>9.4.17.v20190418</jetty.version>
         <bouncycastle.version>1.57</bouncycastle.version>
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
